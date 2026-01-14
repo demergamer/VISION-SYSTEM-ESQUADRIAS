@@ -545,7 +545,14 @@ export default function Pedidos() {
           return pedidoCompleto?.numero_pedido;
         }).filter(Boolean).join(', ');
         
+        // Buscar próximo número de crédito
+        const todosCreditos = await base44.entities.Credito.list();
+        const proximoNumero = todosCreditos.length > 0 
+          ? Math.max(...todosCreditos.map(c => c.numero_credito || 0)) + 1 
+          : 1;
+        
         await base44.entities.Credito.create({
+          numero_credito: proximoNumero,
           cliente_codigo: data.pedidos[0]?.cliente_codigo || pedidos.find(p => p.id === data.pedidos[0].id)?.cliente_codigo,
           cliente_nome: pedidos.find(p => p.id === data.pedidos[0].id)?.cliente_nome,
           valor: data.credito,
@@ -553,6 +560,21 @@ export default function Pedidos() {
           pedido_origem_id: data.pedidos.map(p => p.id).join(', '),
           status: 'disponivel'
         });
+        
+        // Atualizar outras_informacoes dos pedidos com info do crédito
+        for (const pedidoData of data.pedidos) {
+          const pedido = pedidos.find(p => p.id === pedidoData.id);
+          if (!pedido) continue;
+          
+          const outrasInfoAtual = pedido.outras_informacoes || '';
+          const novasOutrasInfo = outrasInfoAtual 
+            ? `${outrasInfoAtual}\nCRÉDITO GERADO POR EXCESSO: #${proximoNumero} - ${formatCurrency(data.credito)}`
+            : `CRÉDITO GERADO POR EXCESSO: #${proximoNumero} - ${formatCurrency(data.credito)}`;
+          
+          await base44.entities.Pedido.update(pedido.id, {
+            outras_informacoes: novasOutrasInfo
+          });
+        }
       }
 
       await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
