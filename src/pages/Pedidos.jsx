@@ -55,6 +55,7 @@ import ClienteForm from "@/components/clientes/ClienteForm";
 import CancelarPedidoModal from "@/components/pedidos/CancelarPedidoModal";
 import LiquidacaoMassa from "@/components/pedidos/LiquidacaoMassa";
 import PedidoAguardandoItem from "@/components/pedidos/PedidoAguardandoItem";
+import RotaCobrancaModal from "@/components/pedidos/RotaCobrancaModal";
 
 export default function Pedidos() {
   const queryClient = useQueryClient();
@@ -71,6 +72,7 @@ export default function Pedidos() {
   const [showCadastrarClienteModal, setShowCadastrarClienteModal] = useState(false);
   const [showCancelarPedidoModal, setShowCancelarPedidoModal] = useState(false);
   const [showLiquidacaoMassaModal, setShowLiquidacaoMassaModal] = useState(false);
+  const [showRotaCobrancaModal, setShowRotaCobrancaModal] = useState(false);
   const [selectedPedido, setSelectedPedido] = useState(null);
   const [selectedRota, setSelectedRota] = useState(null);
   const [pedidoParaCadastro, setPedidoParaCadastro] = useState(null);
@@ -106,6 +108,11 @@ export default function Pedidos() {
   const { data: representantes = [] } = useQuery({
     queryKey: ['representantes'],
     queryFn: () => base44.entities.Representante.list()
+  });
+
+  const { data: cheques = [] } = useQuery({
+    queryKey: ['cheques'],
+    queryFn: () => base44.entities.Cheque.list()
   });
 
   // Estatísticas
@@ -621,6 +628,10 @@ export default function Pedidos() {
               <DollarSign className="w-4 h-4" />
               Liquidação em Massa
             </Button>
+            <Button variant="outline" onClick={() => setShowRotaCobrancaModal(true)} className="gap-2">
+              <FileText className="w-4 h-4" />
+              Rota Cobrança Gilson
+            </Button>
             <Button onClick={() => setShowAddModal(true)} className="gap-2">
               <Plus className="w-4 h-4" />
               Novo Pedido
@@ -968,6 +979,15 @@ export default function Pedidos() {
             onCancel={() => setShowLiquidacaoMassaModal(false)}
           />
         </ModalContainer>
+
+        {/* Rota Cobrança Gilson Modal */}
+        {showRotaCobrancaModal && (
+          <RotaCobrancaModal
+            pedidos={pedidos}
+            cheques={cheques}
+            onClose={() => setShowRotaCobrancaModal(false)}
+          />
+        )}
 
         {/* Reverter Liquidação Dialog */}
         <AlertDialog open={showReverterDialog} onOpenChange={setShowReverterDialog}>
