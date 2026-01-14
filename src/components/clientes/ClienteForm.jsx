@@ -70,7 +70,7 @@ export default function ClienteForm({ cliente, representantes = [], onSave, onCa
             onChange={(e) => setForm({ ...form, codigo: e.target.value })}
             placeholder="Ex: CLI001"
             required
-            disabled={!!cliente}
+            disabled={cliente && cliente.id}
           />
         </div>
 
