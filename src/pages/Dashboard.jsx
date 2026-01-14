@@ -40,6 +40,11 @@ export default function Dashboard() {
     queryFn: () => base44.entities.Pedido.list()
   });
 
+  const { data: creditos = [] } = useQuery({
+    queryKey: ['creditos'],
+    queryFn: () => base44.entities.Credito.list()
+  });
+
   // Calculate statistics
   const stats = useMemo(() => {
     const now = new Date();
@@ -105,6 +110,10 @@ export default function Dashboard() {
       sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0
     );
 
+    // Créditos stats
+    const creditosDisponiveis = creditos.filter(c => c.status === 'disponivel');
+    const totalCreditosDisponiveis = creditosDisponiveis.reduce((sum, c) => sum + c.valor, 0);
+
     return {
       representantes: {
         total: representantes.length,
@@ -123,9 +132,13 @@ export default function Dashboard() {
         atrasados: pedidosAtrasados.length,
         totalAReceber,
         totalAtrasado
+      },
+      creditos: {
+        disponiveis: creditosDisponiveis.length,
+        totalDisponiveis: totalCreditosDisponiveis
       }
     };
-  }, [representantes, clientes, pedidos]);
+  }, [representantes, clientes, pedidos, creditos]);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -142,7 +155,7 @@ export default function Dashboard() {
       description: "Cadastro e gestão de representantes",
       icon: Users,
       color: "blue",
-      page: "Representantes",
+      page: "Representation",
       badge: stats.representantes.total
     },
     {
@@ -162,6 +175,14 @@ export default function Dashboard() {
       badge: stats.pedidos.abertos
     },
     {
+      title: "Créditos a Pagar",
+      description: "Controle de créditos de clientes",
+      icon: Wallet,
+      color: "green",
+      page: "Creditos",
+      badge: stats.creditos.disponiveis
+    },
+    {
       title: "Cheques",
       description: "Controle de cheques a vencer",
       icon: CreditCard,
@@ -172,7 +193,7 @@ export default function Dashboard() {
       title: "Comissões",
       description: "Cálculo e relatórios de comissões",
       icon: Wallet,
-      color: "green",
+      color: "yellow",
       page: "Comissoes"
     },
     {
@@ -205,7 +226,7 @@ export default function Dashboard() {
         </div>
 
         {/* Quick Stats - Row 1 */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <StatCard
             title="Total a Receber"
             value={formatCurrency(stats.pedidos.totalAReceber)}
@@ -217,6 +238,13 @@ export default function Dashboard() {
             value={formatCurrency(stats.pedidos.totalAtrasado)}
             icon={AlertTriangle}
             color="red"
+          />
+          <StatCard
+            title="Créditos a Pagar"
+            value={formatCurrency(stats.creditos.totalDisponiveis)}
+            subtitle={`${stats.creditos.disponiveis} disponível(is)`}
+            icon={Wallet}
+            color="green"
           />
           <StatCard
             title="Pedidos Abertos"
