@@ -71,6 +71,14 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
     const amanha = new Date();
     amanha.setDate(amanha.getDate() + 1);
     const dataFormatada = amanha.toLocaleDateString('pt-BR');
+    
+    const hoje = new Date();
+    
+    const calcularDiasAtraso = (dataEntrega) => {
+      const entrega = new Date(dataEntrega);
+      const diff = Math.floor((hoje - entrega) / (1000 * 60 * 60 * 24));
+      return diff > 0 ? diff : 0;
+    };
 
     // Pedidos e cheques selecionados
     const pedidosSel = pedidosAbertos.filter(p => pedidosSelecionados.includes(p.id));
@@ -146,12 +154,12 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
       }
       y += 5;
       
-      // Buscar telefone do cliente
-      const clienteData = clientes.find(c => c.codigo === cliente.codigo);
-      if (clienteData?.telefone) {
+      // Buscar telefone do cliente (buscar na lista de clientes da query)
+      const clienteDados = clientes.find(c => c.codigo === cliente.codigo);
+      if (clienteDados?.telefone) {
         doc.setFont(undefined, 'normal');
         doc.setFontSize(9);
-        doc.text(`Tel: ${clienteData.telefone}`, 28, y);
+        doc.text(`Tel: ${clienteDados.telefone}`, 28, y);
         y += 5;
       } else {
         y += 2;
