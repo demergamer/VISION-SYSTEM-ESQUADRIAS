@@ -154,7 +154,7 @@ export default function Dashboard() {
       badge: stats.clientes.total
     },
     {
-      title: "Pedidos a Receber",
+      title: "Pedidos",
       description: "Gerenciar pedidos e recebimentos",
       icon: ShoppingCart,
       color: "purple",
