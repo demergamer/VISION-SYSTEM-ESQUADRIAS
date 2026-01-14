@@ -17,7 +17,9 @@ export default function CancelarPedidoModal({ pedido, onSave, onCancel }) {
 
     onSave({
       status: 'cancelado',
-      observacao: `${pedido.observacao || ''}\n[CANCELADO em ${format(new Date(), 'dd/MM/yyyy')}] Motivo: ${motivo}`.trim()
+      confirmado_entrega: true,
+      observacao: `${pedido.observacao || ''}\n[CANCELADO em ${format(new Date(), 'dd/MM/yyyy')}] Motivo: ${motivo}`.trim(),
+      data_cancelamento: format(new Date(), 'yyyy-MM-dd')
     });
   };
 
