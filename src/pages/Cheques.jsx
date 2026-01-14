@@ -72,17 +72,32 @@ export default function Cheques() {
 
   const stats = useMemo(() => {
     const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    
+    // Normais são os que não foram devolvidos nem pagos
     const normais = cheques.filter(c => c.status === 'normal');
-    const vencidos = normais.filter(c => new Date(c.data_vencimento) < hoje);
-    const aVencer = normais.filter(c => new Date(c.data_vencimento) >= hoje);
     const devolvidos = cheques.filter(c => c.status === 'devolvido');
     const pagos = cheques.filter(c => c.status === 'pago');
+    
+    // A vencer: cheques normais com vencimento futuro
+    const aVencer = normais.filter(c => {
+      const venc = new Date(c.data_vencimento);
+      venc.setHours(0, 0, 0, 0);
+      return venc >= hoje;
+    });
+    
+    // Compensados: cheques normais com vencimento passado (automático)
+    const compensados = normais.filter(c => {
+      const venc = new Date(c.data_vencimento);
+      venc.setHours(0, 0, 0, 0);
+      return venc < hoje;
+    });
 
     return {
       totalPendentes: normais.reduce((sum, c) => sum + c.valor, 0),
       quantidadePendentes: normais.length,
-      totalVencidos: vencidos.reduce((sum, c) => sum + c.valor, 0),
       totalAVencer: aVencer.reduce((sum, c) => sum + c.valor, 0),
+      totalCompensados: compensados.reduce((sum, c) => sum + c.valor, 0),
       totalDevolvidos: devolvidos.reduce((sum, c) => sum + c.valor, 0),
       totalPagos: pagos.reduce((sum, c) => sum + c.valor, 0)
     };
@@ -154,6 +169,12 @@ export default function Cheques() {
             color="yellow"
           />
           <StatCard
+            title="Compensados"
+            value={formatCurrency(stats.totalCompensados)}
+            icon={CheckCircle}
+            color="green"
+          />
+          <StatCard
             title="Devolvidos"
             value={formatCurrency(stats.totalDevolvidos)}
             icon={XCircle}
@@ -163,13 +184,7 @@ export default function Cheques() {
             title="Pagos"
             value={formatCurrency(stats.totalPagos)}
             icon={CheckCircle}
-            color="green"
-          />
-          <StatCard
-            title="Vencidos"
-            value={formatCurrency(stats.totalVencidos)}
-            icon={AlertTriangle}
-            color="slate"
+            color="purple"
           />
         </div>
 

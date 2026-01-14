@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
+import { base44 } from '@/api/base44Client';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
+import { toast } from "sonner";
 
 export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
   const [formData, setFormData] = useState(cheque || {
@@ -21,8 +23,18 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
     status: 'normal',
     observacao: '',
     cheque_substituto_numero: '',
-    cheque_substituido_numero: ''
+    cheque_substituido_numero: '',
+    valor_pago: '',
+    forma_pagamento: 'pix',
+    data_pagamento: ''
   });
+
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value || 0);
+  };
 
   const handleClienteChange = (codigoCliente) => {
     const cliente = clientes.find(c => c.codigo === codigoCliente);
@@ -34,8 +46,45 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Se status for pago e valor pago exceder o valor do cheque, gerar crédito
+    if (formData.status === 'pago' && formData.valor_pago > formData.valor) {
+      const excedente = formData.valor_pago - formData.valor;
+      const confirmar = window.confirm(
+        `⚠️ ATENÇÃO!\n\n` +
+        `Valor pago: ${formatCurrency(formData.valor_pago)}\n` +
+        `Valor do cheque: ${formatCurrency(formData.valor)}\n` +
+        `Excedente: ${formatCurrency(excedente)}\n\n` +
+        `Um crédito de ${formatCurrency(excedente)} será gerado para o cliente.\n\n` +
+        `Deseja continuar?`
+      );
+      
+      if (!confirmar) return;
+      
+      // Buscar próximo número de crédito
+      const todosCreditos = await base44.entities.Credito.list();
+      const proximoNumero = todosCreditos.length > 0 
+        ? Math.max(...todosCreditos.map(c => c.numero_credito || 0)) + 1 
+        : 1;
+      
+      // Criar crédito
+      await base44.entities.Credito.create({
+        numero_credito: proximoNumero,
+        cliente_codigo: formData.cliente_codigo,
+        cliente_nome: formData.cliente_nome || formData.emitente,
+        valor: excedente,
+        origem: `Excedente Cheque ${formData.numero_cheque}`,
+        status: 'disponivel'
+      });
+      
+      // Atualizar formData com o número do crédito gerado
+      formData.credito_gerado_numero = proximoNumero;
+      
+      toast.success(`Crédito #${proximoNumero} de ${formatCurrency(excedente)} gerado!`);
+    }
+    
     onSave(formData);
   };
 
@@ -207,15 +256,86 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
         </div>
       )}
 
-      <div>
-        <Label htmlFor="cheque_substituido_numero">Este Cheque é Substituição de</Label>
-        <Input
-          id="cheque_substituido_numero"
-          value={formData.cheque_substituido_numero}
-          onChange={(e) => setFormData({ ...formData, cheque_substituido_numero: e.target.value })}
-          placeholder="Número do cheque substituído"
-        />
-      </div>
+      {formData.cheque_substituido_numero && (
+        <div>
+          <Label htmlFor="cheque_substituido_numero">Este Cheque é Substituição de</Label>
+          <Input
+            id="cheque_substituido_numero"
+            value={formData.cheque_substituido_numero}
+            onChange={(e) => setFormData({ ...formData, cheque_substituido_numero: e.target.value })}
+            placeholder="Número do cheque substituído"
+          />
+        </div>
+      )}
+
+      {formData.status === 'pago' && (
+        <>
+          <Card className="p-4 bg-green-50 border-green-200">
+            <h3 className="font-semibold mb-3 text-green-700">Informações de Pagamento</h3>
+            
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div>
+                <Label htmlFor="valor_pago">Valor Pago *</Label>
+                <Input
+                  id="valor_pago"
+                  type="number"
+                  step="0.01"
+                  value={formData.valor_pago}
+                  onChange={(e) => setFormData({ ...formData, valor_pago: parseFloat(e.target.value) || 0 })}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="forma_pagamento">Forma de Pagamento *</Label>
+                <Select 
+                  value={formData.forma_pagamento} 
+                  onValueChange={(v) => setFormData({ ...formData, forma_pagamento: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pix">PIX</SelectItem>
+                    <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                    <SelectItem value="debito">Débito</SelectItem>
+                    <SelectItem value="credito">Crédito</SelectItem>
+                    <SelectItem value="cheque">Outro Cheque</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="data_pagamento">Data Pagamento</Label>
+                <Input
+                  id="data_pagamento"
+                  type="date"
+                  value={formData.data_pagamento}
+                  onChange={(e) => setFormData({ ...formData, data_pagamento: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {formData.forma_pagamento === 'cheque' && (
+              <div>
+                <Label htmlFor="cheque_substituido_numero">Número do Novo Cheque</Label>
+                <Input
+                  id="cheque_substituido_numero"
+                  value={formData.cheque_substituido_numero}
+                  onChange={(e) => setFormData({ ...formData, cheque_substituido_numero: e.target.value })}
+                  placeholder="Número do cheque usado no pagamento"
+                />
+              </div>
+            )}
+
+            {formData.valor_pago > formData.valor && (
+              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                <p className="text-sm text-blue-700">
+                  💡 Excedente de {formatCurrency(formData.valor_pago - formData.valor)} será convertido em crédito
+                </p>
+              </div>
+            )}
+          </Card>
+        </>
+      )}
 
       <div>
         <Label htmlFor="observacao">Observações</Label>
