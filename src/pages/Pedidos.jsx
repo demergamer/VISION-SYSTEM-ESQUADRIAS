@@ -433,14 +433,21 @@ export default function Pedidos() {
         queryFn: () => base44.entities.Credito.list()
       });
 
-      const creditosDosPedido = creditos.filter(c => 
-        c.pedido_origem_id && c.pedido_origem_id.includes(pedidoParaReverter.id)
-      );
+      // Buscar créditos pelo ID do pedido OU pelo número do pedido no campo origem
+      const creditosDosPedido = creditos.filter(c => {
+        // Verificar se o ID do pedido está em pedido_origem_id
+        const temId = c.pedido_origem_id && c.pedido_origem_id.includes(pedidoParaReverter.id);
+        // Verificar se o número do pedido está no campo origem
+        const temNumero = c.origem && c.origem.includes(pedidoParaReverter.numero_pedido);
+        return temId || temNumero;
+      });
 
       // Excluir créditos disponíveis gerados por este pedido
+      let creditosEstornados = 0;
       for (const credito of creditosDosPedido) {
         if (credito.status === 'disponivel') {
           await base44.entities.Credito.delete(credito.id);
+          creditosEstornados++;
         }
       }
 
@@ -461,8 +468,11 @@ export default function Pedidos() {
       setShowReverterDialog(false);
       setPedidoParaReverter(null);
       
-      const msgCredito = creditosDosPedido.length > 0 ? ' e crédito(s) estornado(s)' : '';
-      toast.success(`Liquidação revertida com sucesso${msgCredito}!`);
+      if (creditosEstornados > 0) {
+        toast.success(`Liquidação revertida e ${creditosEstornados} crédito(s) estornado(s)!`);
+      } else {
+        toast.success('Liquidação revertida com sucesso!');
+      }
     } catch (error) {
       console.error('Erro ao reverter liquidação:', error);
       toast.error('Erro ao reverter liquidação');
@@ -530,11 +540,16 @@ export default function Pedidos() {
 
       // Se gerou crédito, criar registro
       if (data.credito > 0) {
+        const numerosPedidos = data.pedidos.map(p => {
+          const pedidoCompleto = pedidos.find(ped => ped.id === p.id);
+          return pedidoCompleto?.numero_pedido;
+        }).filter(Boolean).join(', ');
+        
         await base44.entities.Credito.create({
           cliente_codigo: data.pedidos[0]?.cliente_codigo || pedidos.find(p => p.id === data.pedidos[0].id)?.cliente_codigo,
           cliente_nome: pedidos.find(p => p.id === data.pedidos[0].id)?.cliente_nome,
           valor: data.credito,
-          origem: `Liquidação em massa - Pagamento excedente de ${data.pedidos.length} pedido(s)`,
+          origem: `Excedente Pedidos: ${numerosPedidos}`,
           pedido_origem_id: data.pedidos.map(p => p.id).join(', '),
           status: 'disponivel'
         });

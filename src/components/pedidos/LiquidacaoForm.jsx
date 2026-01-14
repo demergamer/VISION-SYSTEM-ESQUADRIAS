@@ -164,7 +164,7 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
         cliente_codigo: pedido.cliente_codigo,
         cliente_nome: pedido.cliente_nome,
         valor: valorCredito,
-        origem: `Pagamento excedente - Pedido ${pedido.numero_pedido}`,
+        origem: `Excedente Pedido ${pedido.numero_pedido}`,
         pedido_origem_id: pedido.id,
         status: 'disponivel'
       });
