@@ -458,7 +458,20 @@ export default function Pedidos() {
         });
       }
 
+      // Se gerou crédito, criar registro
+      if (data.credito > 0) {
+        await base44.entities.Credito.create({
+          cliente_codigo: data.pedidos[0]?.cliente_codigo || pedidos.find(p => p.id === data.pedidos[0].id)?.cliente_codigo,
+          cliente_nome: pedidos.find(p => p.id === data.pedidos[0].id)?.cliente_nome,
+          valor: data.credito,
+          origem: `Liquidação em massa - Pagamento excedente de ${data.pedidos.length} pedido(s)`,
+          pedido_origem_id: data.pedidos.map(p => p.id).join(', '),
+          status: 'disponivel'
+        });
+      }
+
       await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+      await queryClient.invalidateQueries({ queryKey: ['creditos'] });
       setShowLiquidacaoMassaModal(false);
       
       if (data.credito > 0) {

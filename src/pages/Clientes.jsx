@@ -52,6 +52,11 @@ export default function Clientes() {
     queryFn: () => base44.entities.Pedido.list()
   });
 
+  const { data: creditos = [] } = useQuery({
+    queryKey: ['creditos'],
+    queryFn: () => base44.entities.Credito.list()
+  });
+
   // Calcular estatísticas por cliente
   const clienteStats = useMemo(() => {
     const stats = {};
@@ -297,6 +302,7 @@ export default function Clientes() {
             <ClienteDetails
               cliente={selectedCliente}
               stats={clienteStats[selectedCliente.codigo]}
+              creditos={creditos.filter(c => c.cliente_codigo === selectedCliente.codigo)}
               onEdit={() => {
                 setShowDetailsModal(false);
                 setShowEditModal(true);
