@@ -85,7 +85,7 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
   };
 
   const gerarPDF = () => {
-    const doc = new jsPDF('landscape');
+    const doc = new jsPDF();
     
     // Data de amanha
     const amanha = new Date();
@@ -141,21 +141,21 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
     // Logo/Header
     doc.setFontSize(18);
     doc.setFont(undefined, 'bold');
-    doc.text('ROTA DE COBRANCA - GILSON', 148, 15, { align: 'center' });
+    doc.text('ROTA DE COBRANCA - GILSON', 105, 15, { align: 'center' });
     doc.setFontSize(12);
     doc.setFont(undefined, 'normal');
-    doc.text(`Data: ${dataFormatada}`, 148, 22, { align: 'center' });
+    doc.text(`Data: ${dataFormatada}`, 105, 22, { align: 'center' });
     
     // Linha separadora
-    doc.line(15, 26, 282, 26);
+    doc.line(15, 26, 195, 26);
 
     let y = 35;
     let numeroCliente = 1;
 
     clientes.forEach((cliente, idx) => {
       // Verificar espaco na pagina
-      if (y > 165) {
-        doc.addPage('landscape');
+      if (y > 240) {
+        doc.addPage();
         y = 20;
       }
 
@@ -169,7 +169,7 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
       doc.text(`${numeroCliente}.`, 21, y);
       doc.text(`Cliente: ${cliente.nome}`, 28, y);
       if (cliente.codigo) {
-        doc.text(`Cod: ${cliente.codigo}`, 180, y);
+        doc.text(`Cod: ${cliente.codigo}`, 150, y);
       }
       y += 5;
       
@@ -187,7 +187,7 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
       numeroCliente++;
 
       // Linha separadora
-      doc.line(15, y, 282, y);
+      doc.line(15, y, 195, y);
       y += 5;
 
       doc.setFontSize(9);
@@ -197,8 +197,8 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
 
       // Pedidos do cliente
       cliente.pedidos.forEach(pedido => {
-        if (y > 180) {
-          doc.addPage('landscape');
+        if (y > 265) {
+          doc.addPage();
           y = 20;
         }
 
@@ -212,16 +212,16 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
           doc.text(`(${diasAtraso}d atraso)`, 65, y);
           doc.setTextColor(0, 0, 0);
         }
-        doc.text(`Total: ${formatCurrency(pedido.valor_pedido)}`, 120, y);
-        doc.text(`Pago: ${formatCurrency(pedido.total_pago || 0)}`, 165, y);
-        doc.text(`Saldo: ${formatCurrency(saldo)}`, 210, y);
+        doc.text(`Total: ${formatCurrency(pedido.valor_pedido)}`, 95, y);
+        doc.text(`Pago: ${formatCurrency(pedido.total_pago || 0)}`, 130, y);
+        doc.text(`Saldo: ${formatCurrency(saldo)}`, 165, y);
         y += 5;
       });
 
       // Cheques do cliente
       cliente.cheques.forEach(cheque => {
-        if (y > 180) {
-          doc.addPage('landscape');
+        if (y > 265) {
+          doc.addPage();
           y = 20;
         }
 
@@ -233,9 +233,9 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
         doc.text(`CHEQUE DEVOLVIDO: ${cheque.numero_cheque}`, 28, y);
         doc.setFont(undefined, 'normal');
         if (diasAtraso > 0) {
-          doc.text(`(${diasAtraso}d)`, 105, y);
+          doc.text(`(${diasAtraso}d)`, 95, y);
         }
-        doc.text(`Valor: ${formatCurrency(cheque.valor)}`, 165, y);
+        doc.text(`Valor: ${formatCurrency(cheque.valor)}`, 130, y);
         doc.setTextColor(0, 0, 0);
         y += 5;
       });
@@ -243,7 +243,7 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
       // Subtotal do cliente
       y += 2;
       doc.setFont(undefined, 'bold');
-      doc.text(`SUBTOTAL: ${formatCurrency(subtotal)}`, 230, y);
+      doc.text(`SUBTOTAL: ${formatCurrency(subtotal)}`, 155, y);
       y += 5;
 
       // Campos de controle
@@ -255,19 +255,20 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
       
       // Motivo se não pagou
       doc.text('Motivo se nao pagou:', 28, y);
-      doc.rect(75, y - 3, 3, 3); // checkbox
-      doc.text('Sem dinheiro', 80, y);
-      doc.rect(115, y - 3, 3, 3); // checkbox
-      doc.text('Viajando', 120, y);
-      doc.rect(145, y - 3, 3, 3); // checkbox
-      doc.text('Discorda valor', 150, y);
-      doc.rect(185, y - 3, 3, 3); // checkbox
-      doc.text('Outro: __________________', 190, y);
+      doc.rect(70, y - 3, 3, 3); // checkbox
+      doc.text('Sem dinheiro', 75, y);
+      doc.rect(105, y - 3, 3, 3); // checkbox
+      doc.text('Viajando', 110, y);
+      y += 4;
+      doc.rect(28, y - 3, 3, 3); // checkbox
+      doc.text('Discorda valor', 33, y);
+      doc.rect(70, y - 3, 3, 3); // checkbox
+      doc.text('Outro: _______________________', 75, y);
       y += 4;
       
-      doc.text('OBS: ___________________________________________________________________________________________', 28, y);
+      doc.text('OBS: __________________________________________________________________', 28, y);
       y += 4;
-      doc.text('Assinatura Cliente: ____________________________________________________', 28, y);
+      doc.text('Assinatura Cliente: _______________________________________________', 28, y);
       
       y += 8;
       doc.setFontSize(9);
@@ -282,13 +283,13 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
       return sum + totalPedidos + totalCheques;
     }, 0);
 
-    if (y > 165) {
-      doc.addPage('landscape');
+    if (y > 235) {
+      doc.addPage();
       y = 20;
     }
 
     y += 5;
-    doc.line(15, y, 282, y);
+    doc.line(15, y, 195, y);
     y += 7;
     
     // Resumo do dia
@@ -305,13 +306,13 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
     
     doc.text('OBSERVACOES GERAIS:', 15, y);
     y += 5;
-    doc.text('______________________________________________________________________________________________________', 15, y);
+    doc.text('_________________________________________________________________________', 15, y);
     y += 5;
-    doc.text('______________________________________________________________________________________________________', 15, y);
+    doc.text('_________________________________________________________________________', 15, y);
     y += 10;
     
     doc.text('Assinatura Gilson: ____________________________', 15, y);
-    doc.text('Data/Hora: ___________', 200, y);
+    doc.text('Data/Hora: ___________', 130, y);
 
     doc.save(`Rota_Cobranca_${dataFormatada.replace(/\//g, '-')}.pdf`);
   };
