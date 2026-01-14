@@ -6,6 +6,7 @@ import Pedidos from './pages/Pedidos';
 import Representantes from './pages/Representantes';
 import Representation from './pages/Representation';
 import Welcome from './pages/Welcome';
+import PortalCliente from './pages/PortalCliente';
 import __Layout from './Layout.jsx';
 
 
@@ -18,6 +19,7 @@ export const PAGES = {
     "Representantes": Representantes,
     "Representation": Representation,
     "Welcome": Welcome,
+    "PortalCliente": PortalCliente,
 }
 
 export const pagesConfig = {

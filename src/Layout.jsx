@@ -33,10 +33,40 @@ const navItems = [
 export default function Layout({ children, currentPageName }) {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  const [user, setUser] = React.useState(null);
+
+  React.useEffect(() => {
+    base44.auth.me().then(setUser).catch(() => {});
+  }, []);
 
   const handleLogout = () => {
     base44.auth.logout();
   };
+
+  // Layout simplificado para clientes (role="user")
+  if (user?.role === 'user') {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <div className="fixed top-0 left-0 right-0 z-50 bg-white border-b px-6 py-4 flex items-center justify-between">
+          <div>
+            <h1 className="font-bold text-xl text-slate-800">Portal do Cliente</h1>
+            <p className="text-xs text-slate-500">{user.email}</p>
+          </div>
+          <Button
+            variant="ghost"
+            className="gap-2 text-slate-600 hover:text-red-600 hover:bg-red-50"
+            onClick={handleLogout}
+          >
+            <LogOut className="w-4 h-4" />
+            Sair
+          </Button>
+        </div>
+        <main className="pt-20">
+          {children}
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
