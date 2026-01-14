@@ -43,14 +43,14 @@ export default function Layout({ children, currentPageName }) {
     base44.auth.logout();
   };
 
-  // Layout simplificado para clientes (role="user")
-  if (user?.role === 'user') {
+  // Layout simplificado para clientes (role="user" ou página PortalCliente)
+  if (user?.role === 'user' || currentPageName === 'PortalCliente') {
     return (
       <div className="min-h-screen bg-slate-50">
         <div className="fixed top-0 left-0 right-0 z-50 bg-white border-b px-6 py-4 flex items-center justify-between">
           <div>
             <h1 className="font-bold text-xl text-slate-800">Portal do Cliente</h1>
-            <p className="text-xs text-slate-500">{user.email}</p>
+            <p className="text-xs text-slate-500">{user?.email || ''}</p>
           </div>
           <Button
             variant="ghost"
