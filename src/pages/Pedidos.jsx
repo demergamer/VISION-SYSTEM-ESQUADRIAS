@@ -53,6 +53,8 @@ import RotaChecklist from "@/components/pedidos/RotaChecklist";
 import AlterarPortadorModal from "@/components/pedidos/AlterarPortadorModal";
 import ClienteForm from "@/components/clientes/ClienteForm";
 import CancelarPedidoModal from "@/components/pedidos/CancelarPedidoModal";
+import LiquidacaoMassa from "@/components/pedidos/LiquidacaoMassa";
+import PedidoAguardandoItem from "@/components/pedidos/PedidoAguardandoItem";
 
 export default function Pedidos() {
   const queryClient = useQueryClient();
@@ -68,6 +70,7 @@ export default function Pedidos() {
   const [showAlterarPortadorModal, setShowAlterarPortadorModal] = useState(false);
   const [showCadastrarClienteModal, setShowCadastrarClienteModal] = useState(false);
   const [showCancelarPedidoModal, setShowCancelarPedidoModal] = useState(false);
+  const [showLiquidacaoMassaModal, setShowLiquidacaoMassaModal] = useState(false);
   const [selectedPedido, setSelectedPedido] = useState(null);
   const [selectedRota, setSelectedRota] = useState(null);
   const [pedidoParaCadastro, setPedidoParaCadastro] = useState(null);
@@ -227,8 +230,9 @@ export default function Pedidos() {
   };
 
   const handleCancelar = (pedido) => {
-    setSelectedPedido(pedido);
-    setShowCancelarDialog(true);
+    // Usar modal de cancelamento com motivo
+    setPedidoParaCancelar(pedido);
+    setShowCancelarPedidoModal(true);
   };
 
   const handleRefresh = () => {
@@ -393,13 +397,78 @@ export default function Pedidos() {
   const handleSaveCancelarPedido = async (data) => {
     try {
       await base44.entities.Pedido.update(pedidoParaCancelar.id, data);
-      queryClient.invalidateQueries({ queryKey: ['pedidos'] });
-      queryClient.invalidateQueries({ queryKey: ['rotas'] });
+      await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+      await queryClient.invalidateQueries({ queryKey: ['rotas'] });
       setShowCancelarPedidoModal(false);
       setPedidoParaCancelar(null);
-      toast.success('Pedido cancelado!');
+      toast.success('Pedido cancelado com sucesso!');
     } catch (error) {
       toast.error('Erro ao cancelar pedido');
+    }
+  };
+
+  const handleConfirmarAguardando = async (pedido) => {
+    try {
+      await base44.entities.Pedido.update(pedido.id, {
+        confirmado_entrega: true,
+        status: 'aberto'
+      });
+      await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+      await queryClient.invalidateQueries({ queryKey: ['rotas'] });
+      toast.success('Pedido confirmado!');
+    } catch (error) {
+      toast.error('Erro ao confirmar pedido');
+    }
+  };
+
+  const handleLiquidacaoMassa = async (data) => {
+    try {
+      const hoje = new Date();
+      const mesAno = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+
+      // Calcular quanto pagar por pedido proporcionalmente
+      const totalSaldos = data.pedidos.reduce((sum, p) => sum + p.saldo_original, 0);
+      const valorTotalPago = data.totalPago;
+
+      for (const pedidoData of data.pedidos) {
+        const pedido = pedidos.find(p => p.id === pedidoData.id);
+        if (!pedido) continue;
+
+        const proporcao = pedidoData.saldo_original / totalSaldos;
+        const valorPagoPedido = valorTotalPago * proporcao;
+
+        const novoTotalPago = (pedido.total_pago || 0) + valorPagoPedido;
+        const novoSaldo = pedido.valor_pedido - novoTotalPago;
+
+        let novoStatus = 'aberto';
+        if (novoSaldo <= 0.01) {
+          novoStatus = 'pago';
+        } else if (novoTotalPago > 0) {
+          novoStatus = 'parcial';
+        }
+
+        await base44.entities.Pedido.update(pedido.id, {
+          total_pago: novoTotalPago,
+          saldo_restante: Math.max(0, novoSaldo),
+          status: novoStatus,
+          ...(novoStatus === 'pago' && {
+            data_pagamento: hoje.toISOString().split('T')[0],
+            mes_pagamento: mesAno
+          })
+        });
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+      setShowLiquidacaoMassaModal(false);
+      
+      if (data.credito > 0) {
+        toast.success(`Liquidação concluída! Crédito de ${formatCurrency(data.credito)} registrado.`);
+      } else {
+        toast.success(`${data.pedidos.length} pedido(s) liquidado(s) com sucesso!`);
+      }
+    } catch (error) {
+      console.error('Erro na liquidação:', error);
+      toast.error('Erro ao processar liquidação em massa');
     }
   };
 
@@ -427,6 +496,10 @@ export default function Pedidos() {
             <Button variant="outline" onClick={() => setShowImportModal(true)} className="gap-2">
               <Upload className="w-4 h-4" />
               Importar
+            </Button>
+            <Button variant="outline" onClick={() => setShowLiquidacaoMassaModal(true)} className="gap-2">
+              <DollarSign className="w-4 h-4" />
+              Liquidação em Massa
             </Button>
             <Button onClick={() => setShowAddModal(true)} className="gap-2">
               <Plus className="w-4 h-4" />
@@ -522,8 +595,43 @@ export default function Pedidos() {
             </Card>
           </TabsContent>
 
+          {/* Tab: Aguardando */}
+          <TabsContent value="aguardando" className="mt-6">
+            <Card className="overflow-hidden">
+              <div className="p-4 border-b bg-white">
+                <div className="relative max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Input
+                    placeholder="Buscar por cliente ou número do pedido..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              <div className="p-6 space-y-3">
+                {filteredPedidos.length > 0 ? (
+                  filteredPedidos.map((pedido) => (
+                    <PedidoAguardandoItem
+                      key={pedido.id}
+                      pedido={pedido}
+                      onConfirmar={handleConfirmarAguardando}
+                      onCancelar={(p) => {
+                        setPedidoParaCancelar(p);
+                        setShowCancelarPedidoModal(true);
+                      }}
+                      onCadastrarCliente={handleCadastrarCliente}
+                    />
+                  ))
+                ) : (
+                  <p className="text-center text-slate-500 py-8">Nenhum pedido aguardando confirmação</p>
+                )}
+              </div>
+            </Card>
+          </TabsContent>
+
           {/* Tab: Pedidos (outras abas) */}
-          {['aguardando', 'abertos', 'pagos', 'cancelados'].map((tab) => (
+          {['abertos', 'pagos', 'cancelados'].map((tab) => (
             <TabsContent key={tab} value={tab} className="mt-6">
               <Card className="overflow-hidden">
                 <div className="p-4 border-b bg-white">
@@ -722,27 +830,20 @@ export default function Pedidos() {
           )}
         </ModalContainer>
 
-        {/* Cancelar Dialog */}
-        <AlertDialog open={showCancelarDialog} onOpenChange={setShowCancelarDialog}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Cancelar Pedido?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Tem certeza que deseja cancelar o pedido {selectedPedido?.numero_pedido}? 
-                Esta ação não pode ser desfeita.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Não, manter</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => cancelarMutation.mutate(selectedPedido.id)}
-                className="bg-red-600 hover:bg-red-700"
-              >
-                Sim, cancelar pedido
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {/* Liquidação em Massa Modal */}
+        <ModalContainer
+          open={showLiquidacaoMassaModal}
+          onClose={() => setShowLiquidacaoMassaModal(false)}
+          title="Liquidação em Massa"
+          description="Selecione e liquide múltiplos pedidos de uma vez"
+          size="xl"
+        >
+          <LiquidacaoMassa
+            pedidos={pedidos}
+            onSave={handleLiquidacaoMassa}
+            onCancel={() => setShowLiquidacaoMassaModal(false)}
+          />
+        </ModalContainer>
       </div>
     </div>
   );
