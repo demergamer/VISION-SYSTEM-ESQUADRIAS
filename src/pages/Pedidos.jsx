@@ -52,6 +52,7 @@ import RotasList from "@/components/pedidos/RotasList";
 import RotaChecklist from "@/components/pedidos/RotaChecklist";
 import AlterarPortadorModal from "@/components/pedidos/AlterarPortadorModal";
 import ClienteForm from "@/components/clientes/ClienteForm";
+import CancelarPedidoModal from "@/components/pedidos/CancelarPedidoModal";
 
 export default function Pedidos() {
   const queryClient = useQueryClient();
@@ -66,9 +67,11 @@ export default function Pedidos() {
   const [showRotaModal, setShowRotaModal] = useState(false);
   const [showAlterarPortadorModal, setShowAlterarPortadorModal] = useState(false);
   const [showCadastrarClienteModal, setShowCadastrarClienteModal] = useState(false);
+  const [showCancelarPedidoModal, setShowCancelarPedidoModal] = useState(false);
   const [selectedPedido, setSelectedPedido] = useState(null);
   const [selectedRota, setSelectedRota] = useState(null);
   const [pedidoParaCadastro, setPedidoParaCadastro] = useState(null);
+  const [pedidoParaCancelar, setPedidoParaCancelar] = useState(null);
 
   // Get URL params
   useEffect(() => {
@@ -319,6 +322,24 @@ export default function Pedidos() {
     }
   };
 
+  const handleCancelarPedidoRota = (pedido) => {
+    setPedidoParaCancelar(pedido);
+    setShowCancelarPedidoModal(true);
+  };
+
+  const handleSaveCancelarPedido = async (data) => {
+    try {
+      await base44.entities.Pedido.update(pedidoParaCancelar.id, data);
+      queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+      queryClient.invalidateQueries({ queryKey: ['rotas'] });
+      setShowCancelarPedidoModal(false);
+      setPedidoParaCancelar(null);
+      toast.success('Pedido cancelado!');
+    } catch (error) {
+      toast.error('Erro ao cancelar pedido');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="max-w-7xl mx-auto p-6 space-y-6">
@@ -561,6 +582,7 @@ export default function Pedidos() {
               pedidos={pedidosDaRota}
               onSave={handleSaveRotaChecklist}
               onCadastrarCliente={handleCadastrarCliente}
+              onCancelarPedido={handleCancelarPedidoRota}
               onCancel={() => {
                 setShowRotaModal(false);
                 setSelectedRota(null);
@@ -613,6 +635,28 @@ export default function Pedidos() {
               setPedidoParaCadastro(null);
             }}
           />
+        </ModalContainer>
+
+        {/* Cancelar Pedido Modal */}
+        <ModalContainer
+          open={showCancelarPedidoModal}
+          onClose={() => {
+            setShowCancelarPedidoModal(false);
+            setPedidoParaCancelar(null);
+          }}
+          title="Cancelar Pedido"
+          description="Informe o motivo do cancelamento"
+        >
+          {pedidoParaCancelar && (
+            <CancelarPedidoModal
+              pedido={pedidoParaCancelar}
+              onSave={handleSaveCancelarPedido}
+              onCancel={() => {
+                setShowCancelarPedidoModal(false);
+                setPedidoParaCancelar(null);
+              }}
+            />
+          )}
         </ModalContainer>
 
         {/* Cancelar Dialog */}

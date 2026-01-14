@@ -11,8 +11,12 @@ import {
   Circle,
   Save,
   X,
-  AlertTriangle
+  AlertTriangle,
+  Printer,
+  XCircle
 } from "lucide-react";
+import jsPDF from 'jspdf';
+import { format } from 'date-fns';
 import { cn } from "@/lib/utils";
 
 export default function RotaChecklist({ 
@@ -21,6 +25,7 @@ export default function RotaChecklist({
   onSave, 
   onCancel,
   onCadastrarCliente,
+  onCancelarPedido,
   isLoading 
 }) {
   const [pedidosState, setPedidosState] = useState(
@@ -36,6 +41,142 @@ export default function RotaChecklist({
       style: 'currency',
       currency: 'BRL'
     }).format(value || 0);
+  };
+
+  const gerarPDFExpedicao = () => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.width;
+    let yPos = 20;
+
+    // Título
+    doc.setFontSize(16);
+    doc.setFont(undefined, 'bold');
+    doc.text('RELATÓRIO DE EXPEDIÇÃO', pageWidth / 2, yPos, { align: 'center' });
+    yPos += 10;
+
+    // Informações da Rota
+    doc.setFontSize(11);
+    doc.text(`Rota: ${rota.codigo_rota}`, 20, yPos);
+    yPos += 6;
+    doc.text(`Data: ${format(new Date(rota.data_importacao), 'dd/MM/yyyy')}`, 20, yPos);
+    yPos += 6;
+    doc.text(`Motorista: ${motoristaEdit.nome || 'Não informado'} (${motoristaEdit.codigo || '-'})`, 20, yPos);
+    yPos += 10;
+
+    // Separador
+    doc.setLineWidth(0.5);
+    doc.line(20, yPos, pageWidth - 20, yPos);
+    yPos += 10;
+
+    // Pedidos Confirmados
+    const confirmados = pedidosState.filter(p => p.confirmado_entrega);
+    const pendentes = pedidosState.filter(p => !p.confirmado_entrega);
+
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text(`PEDIDOS CONFIRMADOS (${confirmados.length})`, 20, yPos);
+    yPos += 7;
+
+    if (confirmados.length > 0) {
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'bold');
+      doc.text('Nº Pedido', 20, yPos);
+      doc.text('Cliente', 60, yPos);
+      doc.text('Valor', 160, yPos);
+      yPos += 5;
+      doc.setLineWidth(0.3);
+      doc.line(20, yPos, pageWidth - 20, yPos);
+      yPos += 4;
+
+      doc.setFont(undefined, 'normal');
+      confirmados.forEach((p) => {
+        if (yPos > 270) {
+          doc.addPage();
+          yPos = 20;
+        }
+        doc.text(p.numero_pedido || '-', 20, yPos);
+        const clienteTruncado = (p.cliente_nome || '-').length > 35 
+          ? (p.cliente_nome || '-').substring(0, 32) + '...' 
+          : (p.cliente_nome || '-');
+        doc.text(clienteTruncado, 60, yPos);
+        doc.text(formatCurrency(p.valor_pedido), 160, yPos);
+        yPos += 5;
+      });
+    } else {
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(9);
+      doc.text('Nenhum pedido confirmado', 20, yPos);
+      yPos += 5;
+    }
+
+    yPos += 5;
+
+    // Pedidos Pendentes
+    if (yPos > 240) {
+      doc.addPage();
+      yPos = 20;
+    }
+
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text(`PEDIDOS PENDENTES - COBRAR EXPEDIÇÃO (${pendentes.length})`, 20, yPos);
+    yPos += 7;
+
+    if (pendentes.length > 0) {
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'bold');
+      doc.text('Nº Pedido', 20, yPos);
+      doc.text('Cliente', 60, yPos);
+      doc.text('Valor', 160, yPos);
+      yPos += 5;
+      doc.setLineWidth(0.3);
+      doc.line(20, yPos, pageWidth - 20, yPos);
+      yPos += 4;
+
+      doc.setFont(undefined, 'normal');
+      pendentes.forEach((p) => {
+        if (yPos > 270) {
+          doc.addPage();
+          yPos = 20;
+        }
+        doc.text(p.numero_pedido || '-', 20, yPos);
+        const clienteTruncado = (p.cliente_nome || '-').length > 35 
+          ? (p.cliente_nome || '-').substring(0, 32) + '...' 
+          : (p.cliente_nome || '-');
+        doc.text(clienteTruncado, 60, yPos);
+        doc.text(formatCurrency(p.valor_pedido), 160, yPos);
+        yPos += 5;
+      });
+    } else {
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(9);
+      doc.text('Nenhum pedido pendente', 20, yPos);
+      yPos += 5;
+    }
+
+    // Totais
+    yPos += 5;
+    doc.setLineWidth(0.5);
+    doc.line(20, yPos, pageWidth - 20, yPos);
+    yPos += 7;
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    const valorConfirmado = confirmados.reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
+    const valorPendente = pendentes.reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
+    doc.text(`Total Confirmado: ${formatCurrency(valorConfirmado)}`, 20, yPos);
+    yPos += 6;
+    doc.text(`Total Pendente: ${formatCurrency(valorPendente)}`, 20, yPos);
+    yPos += 6;
+    doc.text(`Total Geral: ${formatCurrency(valorConfirmado + valorPendente)}`, 20, yPos);
+
+    // Rodapé
+    yPos += 10;
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'normal');
+    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm:ss')}`, 20, yPos);
+
+    const nomeArquivo = `Expedicao_${rota.codigo_rota.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`;
+    doc.save(nomeArquivo);
   };
 
   const handleToggle = (pedido) => {
@@ -205,8 +346,25 @@ export default function RotaChecklist({
                 </div>
                 <p className="font-medium truncate">{pedido.cliente_nome}</p>
               </div>
-              <div className="text-right">
+              <div className="text-right flex items-center gap-2">
                 <p className="font-semibold">{formatCurrency(pedido.valor_pedido)}</p>
+                {!pedido.confirmado_entrega && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (pedido.cliente_pendente) {
+                        alert('Não é possível cancelar pedidos sem cliente cadastrado. Cadastre o cliente primeiro.');
+                        return;
+                      }
+                      if (onCancelarPedido) onCancelarPedido(pedido);
+                    }}
+                  >
+                    <XCircle className="w-5 h-5" />
+                  </Button>
+                )}
               </div>
             </div>
           </Card>
@@ -214,15 +372,21 @@ export default function RotaChecklist({
       </div>
 
       {/* Actions */}
-      <div className="flex justify-end gap-3 pt-4 border-t">
-        <Button variant="outline" onClick={onCancel} disabled={isLoading}>
-          <X className="w-4 h-4 mr-2" />
-          Cancelar
+      <div className="flex justify-between pt-4 border-t">
+        <Button variant="outline" onClick={gerarPDFExpedicao} className="gap-2">
+          <Printer className="w-4 h-4" />
+          Imprimir Expedição
         </Button>
-        <Button onClick={handleSave} disabled={isLoading}>
-          <Save className="w-4 h-4 mr-2" />
-          Salvar Alterações
-        </Button>
+        <div className="flex gap-3">
+          <Button variant="outline" onClick={onCancel} disabled={isLoading}>
+            <X className="w-4 h-4 mr-2" />
+            Cancelar
+          </Button>
+          <Button onClick={handleSave} disabled={isLoading}>
+            <Save className="w-4 h-4 mr-2" />
+            Salvar Alterações
+          </Button>
+        </div>
       </div>
     </div>
   );
