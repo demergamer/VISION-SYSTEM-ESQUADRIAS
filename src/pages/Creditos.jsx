@@ -139,6 +139,7 @@ export default function Creditos() {
             <table className="w-full">
               <thead className="bg-slate-50 border-b">
                 <tr>
+                  <th className="text-left p-4 text-sm font-medium text-slate-600">Nº</th>
                   <th className="text-left p-4 text-sm font-medium text-slate-600">Cliente</th>
                   <th className="text-left p-4 text-sm font-medium text-slate-600">Código</th>
                   <th className="text-left p-4 text-sm font-medium text-slate-600">Valor</th>
@@ -151,13 +152,13 @@ export default function Creditos() {
               <tbody className="divide-y">
                 {isLoading ? (
                   <tr>
-                    <td colSpan="7" className="p-8 text-center text-slate-500">
+                    <td colSpan="8" className="p-8 text-center text-slate-500">
                       Carregando...
                     </td>
                   </tr>
                 ) : filteredCreditos.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="p-8 text-center text-slate-500">
+                    <td colSpan="8" className="p-8 text-center text-slate-500">
                       Nenhum crédito encontrado
                     </td>
                   </tr>
@@ -166,6 +167,9 @@ export default function Creditos() {
                     const statusConfig = getStatusBadge(credito.status);
                     return (
                       <tr key={credito.id} className="hover:bg-slate-50">
+                        <td className="p-4">
+                          <p className="font-bold text-slate-700">#{credito.numero_credito || '-'}</p>
+                        </td>
                         <td className="p-4">
                           <p className="font-medium">{credito.cliente_nome}</p>
                         </td>
