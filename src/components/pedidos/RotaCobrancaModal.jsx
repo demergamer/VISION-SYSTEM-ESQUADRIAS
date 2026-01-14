@@ -2,15 +2,17 @@ import React, { useState, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FileText, X } from "lucide-react";
+import { FileText, X, Search } from "lucide-react";
 import jsPDF from 'jspdf';
 
 export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
   const [pedidosSelecionados, setPedidosSelecionados] = useState([]);
   const [chequesSelecionados, setChequesSelecionados] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const { data: clientes = [] } = useQuery({
     queryKey: ['clientes'],
@@ -18,12 +20,30 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
   });
 
   const pedidosAbertos = useMemo(() => {
-    return pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial');
-  }, [pedidos]);
+    const filtered = pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial');
+    
+    if (!searchTerm) return filtered;
+    
+    const term = searchTerm.toLowerCase();
+    return filtered.filter(p => 
+      p.cliente_nome?.toLowerCase().includes(term) ||
+      p.cliente_codigo?.toLowerCase().includes(term) ||
+      p.numero_pedido?.toLowerCase().includes(term)
+    );
+  }, [pedidos, searchTerm]);
 
   const chequesDevolvidos = useMemo(() => {
-    return cheques.filter(c => c.status === 'devolvido');
-  }, [cheques]);
+    const filtered = cheques.filter(c => c.status === 'devolvido');
+    
+    if (!searchTerm) return filtered;
+    
+    const term = searchTerm.toLowerCase();
+    return filtered.filter(c => 
+      c.cliente_nome?.toLowerCase().includes(term) ||
+      c.cliente_codigo?.toLowerCase().includes(term) ||
+      c.numero_cheque?.toLowerCase().includes(term)
+    );
+  }, [cheques, searchTerm]);
 
   const togglePedido = (pedidoId) => {
     setPedidosSelecionados(prev => 
@@ -65,7 +85,7 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
   };
 
   const gerarPDF = () => {
-    const doc = new jsPDF();
+    const doc = new jsPDF('landscape');
     
     // Data de amanha
     const amanha = new Date();
@@ -121,23 +141,22 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
     // Logo/Header
     doc.setFontSize(18);
     doc.setFont(undefined, 'bold');
-    doc.text('ROTA DE COBRANCA - GILSON', 105, 15, { align: 'center' });
+    doc.text('ROTA DE COBRANCA - GILSON', 148, 15, { align: 'center' });
     doc.setFontSize(12);
     doc.setFont(undefined, 'normal');
-    doc.text(`Data: ${dataFormatada}`, 105, 22, { align: 'center' });
+    doc.text(`Data: ${dataFormatada}`, 148, 22, { align: 'center' });
     
     // Linha separadora
-    doc.line(15, 26, 195, 26);
+    doc.line(15, 26, 282, 26);
 
     let y = 35;
     let numeroCliente = 1;
 
     clientes.forEach((cliente, idx) => {
       // Verificar espaco na pagina
-      if (y > 240) {
-        doc.addPage();
+      if (y > 165) {
+        doc.addPage('landscape');
         y = 20;
-        numeroCliente = 1;
       }
 
       // Header do cliente com numero
@@ -150,7 +169,7 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
       doc.text(`${numeroCliente}.`, 21, y);
       doc.text(`Cliente: ${cliente.nome}`, 28, y);
       if (cliente.codigo) {
-        doc.text(`Cod: ${cliente.codigo}`, 145, y);
+        doc.text(`Cod: ${cliente.codigo}`, 180, y);
       }
       y += 5;
       
@@ -168,7 +187,7 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
       numeroCliente++;
 
       // Linha separadora
-      doc.line(15, y, 195, y);
+      doc.line(15, y, 282, y);
       y += 5;
 
       doc.setFontSize(9);
@@ -178,8 +197,8 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
 
       // Pedidos do cliente
       cliente.pedidos.forEach(pedido => {
-        if (y > 265) {
-          doc.addPage();
+        if (y > 180) {
+          doc.addPage('landscape');
           y = 20;
         }
 
@@ -193,16 +212,16 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
           doc.text(`(${diasAtraso}d atraso)`, 65, y);
           doc.setTextColor(0, 0, 0);
         }
-        doc.text(`Total: ${formatCurrency(pedido.valor_pedido)}`, 100, y);
-        doc.text(`Pago: ${formatCurrency(pedido.total_pago || 0)}`, 135, y);
-        doc.text(`Saldo: ${formatCurrency(saldo)}`, 170, y);
+        doc.text(`Total: ${formatCurrency(pedido.valor_pedido)}`, 120, y);
+        doc.text(`Pago: ${formatCurrency(pedido.total_pago || 0)}`, 165, y);
+        doc.text(`Saldo: ${formatCurrency(saldo)}`, 210, y);
         y += 5;
       });
 
       // Cheques do cliente
       cliente.cheques.forEach(cheque => {
-        if (y > 265) {
-          doc.addPage();
+        if (y > 180) {
+          doc.addPage('landscape');
           y = 20;
         }
 
@@ -214,9 +233,9 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
         doc.text(`CHEQUE DEVOLVIDO: ${cheque.numero_cheque}`, 28, y);
         doc.setFont(undefined, 'normal');
         if (diasAtraso > 0) {
-          doc.text(`(${diasAtraso}d)`, 95, y);
+          doc.text(`(${diasAtraso}d)`, 105, y);
         }
-        doc.text(`Valor: ${formatCurrency(cheque.valor)}`, 135, y);
+        doc.text(`Valor: ${formatCurrency(cheque.valor)}`, 165, y);
         doc.setTextColor(0, 0, 0);
         y += 5;
       });
@@ -224,7 +243,7 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
       // Subtotal do cliente
       y += 2;
       doc.setFont(undefined, 'bold');
-      doc.text(`SUBTOTAL: ${formatCurrency(subtotal)}`, 155, y);
+      doc.text(`SUBTOTAL: ${formatCurrency(subtotal)}`, 230, y);
       y += 5;
 
       // Campos de controle
@@ -233,9 +252,22 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
       doc.text('Valor Recebido: R$ ___________', 28, y);
       doc.text('Forma: ___________', 100, y);
       y += 4;
-      doc.text('OBS: _________________________________________________________________', 28, y);
+      
+      // Motivo se não pagou
+      doc.text('Motivo se nao pagou:', 28, y);
+      doc.rect(75, y - 3, 3, 3); // checkbox
+      doc.text('Sem dinheiro', 80, y);
+      doc.rect(115, y - 3, 3, 3); // checkbox
+      doc.text('Viajando', 120, y);
+      doc.rect(145, y - 3, 3, 3); // checkbox
+      doc.text('Discorda valor', 150, y);
+      doc.rect(185, y - 3, 3, 3); // checkbox
+      doc.text('Outro: __________________', 190, y);
       y += 4;
-      doc.text('Assinatura Cliente: ________________________________', 28, y);
+      
+      doc.text('OBS: ___________________________________________________________________________________________', 28, y);
+      y += 4;
+      doc.text('Assinatura Cliente: ____________________________________________________', 28, y);
       
       y += 8;
       doc.setFontSize(9);
@@ -250,13 +282,13 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
       return sum + totalPedidos + totalCheques;
     }, 0);
 
-    if (y > 235) {
-      doc.addPage();
+    if (y > 165) {
+      doc.addPage('landscape');
       y = 20;
     }
 
     y += 5;
-    doc.line(15, y, 195, y);
+    doc.line(15, y, 282, y);
     y += 7;
     
     // Resumo do dia
@@ -273,13 +305,13 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
     
     doc.text('OBSERVACOES GERAIS:', 15, y);
     y += 5;
-    doc.text('_________________________________________________________________________', 15, y);
+    doc.text('______________________________________________________________________________________________________', 15, y);
     y += 5;
-    doc.text('_________________________________________________________________________', 15, y);
+    doc.text('______________________________________________________________________________________________________', 15, y);
     y += 10;
     
     doc.text('Assinatura Gilson: ____________________________', 15, y);
-    doc.text('Data/Hora: ___________', 130, y);
+    doc.text('Data/Hora: ___________', 200, y);
 
     doc.save(`Rota_Cobranca_${dataFormatada.replace(/\//g, '-')}.pdf`);
   };
@@ -299,6 +331,17 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
 
         <ScrollArea className="flex-1 p-6">
           <div className="space-y-6">
+            {/* Campo de Pesquisa */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                placeholder="Buscar por cliente, código ou número de pedido/cheque..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
             {/* Pedidos em Aberto */}
             <div>
               <div className="flex items-center justify-between mb-3">
