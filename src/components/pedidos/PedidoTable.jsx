@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Edit, Eye, DollarSign, XCircle, MapPin, Calendar } from "lucide-react";
+import { Edit, Eye, DollarSign, XCircle, MapPin, Calendar, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, differenceInDays } from "date-fns";
 
@@ -19,6 +19,7 @@ export default function PedidoTable({
   onView,
   onLiquidar,
   onCancelar,
+  onReverter,
   isLoading 
 }) {
   const formatCurrency = (value) => {
@@ -124,6 +125,17 @@ export default function PedidoTable({
                   >
                     <Eye className="w-4 h-4" />
                   </Button>
+                  {pedido.status === 'pago' && onReverter && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onReverter(pedido)}
+                      className="h-8 w-8 p-0 text-amber-600 hover:text-amber-700"
+                      title="Reverter liquidação"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </Button>
+                  )}
                   {pedido.status !== 'pago' && pedido.status !== 'cancelado' && (
                     <>
                       <Button
