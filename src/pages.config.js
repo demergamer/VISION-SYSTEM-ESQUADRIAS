@@ -1,15 +1,15 @@
-import Representantes from './pages/Representantes';
-import Dashboard from './pages/Dashboard';
 import Clientes from './pages/Clientes';
+import Dashboard from './pages/Dashboard';
 import Pedidos from './pages/Pedidos';
+import Representantes from './pages/Representantes';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
-    "Representantes": Representantes,
-    "Dashboard": Dashboard,
     "Clientes": Clientes,
+    "Dashboard": Dashboard,
     "Pedidos": Pedidos,
+    "Representantes": Representantes,
 }
 
 export const pagesConfig = {

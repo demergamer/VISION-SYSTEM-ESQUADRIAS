@@ -50,6 +50,8 @@ import LiquidacaoForm from "@/components/pedidos/LiquidacaoForm";
 import ImportarPedidos from "@/components/pedidos/ImportarPedidos";
 import RotasList from "@/components/pedidos/RotasList";
 import RotaChecklist from "@/components/pedidos/RotaChecklist";
+import AlterarPortadorModal from "@/components/pedidos/AlterarPortadorModal";
+import ClienteForm from "@/components/clientes/ClienteForm";
 
 export default function Pedidos() {
   const queryClient = useQueryClient();
@@ -62,8 +64,11 @@ export default function Pedidos() {
   const [showCancelarDialog, setShowCancelarDialog] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showRotaModal, setShowRotaModal] = useState(false);
+  const [showAlterarPortadorModal, setShowAlterarPortadorModal] = useState(false);
+  const [showCadastrarClienteModal, setShowCadastrarClienteModal] = useState(false);
   const [selectedPedido, setSelectedPedido] = useState(null);
   const [selectedRota, setSelectedRota] = useState(null);
+  const [pedidoParaCadastro, setPedidoParaCadastro] = useState(null);
 
   // Get URL params
   useEffect(() => {
@@ -88,6 +93,11 @@ export default function Pedidos() {
   const { data: rotas = [], isLoading: loadingRotas, refetch: refetchRotas } = useQuery({
     queryKey: ['rotas'],
     queryFn: () => base44.entities.RotaImportada.list('-created_date')
+  });
+
+  const { data: representantes = [] } = useQuery({
+    queryKey: ['representantes'],
+    queryFn: () => base44.entities.Representante.list()
   });
 
   // Estatísticas
@@ -259,6 +269,56 @@ export default function Pedidos() {
     }
   };
 
+  const handleAlterarPortador = (rota) => {
+    setSelectedRota(rota);
+    setShowAlterarPortadorModal(true);
+  };
+
+  const handleSaveAlterarPortador = async (motorista) => {
+    try {
+      await base44.entities.RotaImportada.update(selectedRota.id, motorista);
+      queryClient.invalidateQueries({ queryKey: ['rotas'] });
+      setShowAlterarPortadorModal(false);
+      setSelectedRota(null);
+      toast.success('Portador alterado e PDF gerado!');
+    } catch (error) {
+      toast.error('Erro ao alterar portador');
+    }
+  };
+
+  const handleCadastrarCliente = (pedido) => {
+    setPedidoParaCadastro(pedido);
+    setShowCadastrarClienteModal(true);
+  };
+
+  const handleSaveNovoCliente = async (clienteData) => {
+    try {
+      const novoCliente = await base44.entities.Cliente.create(clienteData);
+      
+      // Atualizar o pedido com os dados do cliente
+      if (pedidoParaCadastro) {
+        await base44.entities.Pedido.update(pedidoParaCadastro.id, {
+          cliente_codigo: novoCliente.codigo,
+          cliente_regiao: novoCliente.regiao,
+          representante_codigo: novoCliente.representante_codigo,
+          representante_nome: novoCliente.representante_nome,
+          porcentagem_comissao: novoCliente.porcentagem_comissao,
+          cliente_pendente: false,
+          confirmado_entrega: true,
+          status: 'aberto'
+        });
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+      setShowCadastrarClienteModal(false);
+      setPedidoParaCadastro(null);
+      toast.success('Cliente cadastrado e pedido confirmado!');
+    } catch (error) {
+      toast.error('Erro ao cadastrar cliente');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="max-w-7xl mx-auto p-6 space-y-6">
@@ -372,6 +432,7 @@ export default function Pedidos() {
               <RotasList 
                 rotas={rotas} 
                 onSelectRota={handleSelectRota}
+                onAlterarPortador={handleAlterarPortador}
                 isLoading={loadingRotas}
               />
             </Card>
@@ -477,6 +538,7 @@ export default function Pedidos() {
         >
           <ImportarPedidos
             clientes={clientes}
+            rotas={rotas}
             onImportComplete={handleImportComplete}
             onCancel={() => setShowImportModal(false)}
           />
@@ -498,12 +560,59 @@ export default function Pedidos() {
               rota={selectedRota}
               pedidos={pedidosDaRota}
               onSave={handleSaveRotaChecklist}
+              onCadastrarCliente={handleCadastrarCliente}
               onCancel={() => {
                 setShowRotaModal(false);
                 setSelectedRota(null);
               }}
             />
           )}
+        </ModalContainer>
+
+        {/* Alterar Portador Modal */}
+        <ModalContainer
+          open={showAlterarPortadorModal}
+          onClose={() => {
+            setShowAlterarPortadorModal(false);
+            setSelectedRota(null);
+          }}
+          title="Alterar Portador da Rota"
+          description="Gere um relatório PDF e altere o motorista responsável"
+          size="lg"
+        >
+          {selectedRota && (
+            <AlterarPortadorModal
+              rota={selectedRota}
+              pedidos={pedidosDaRota}
+              onSave={handleSaveAlterarPortador}
+              onCancel={() => {
+                setShowAlterarPortadorModal(false);
+                setSelectedRota(null);
+              }}
+            />
+          )}
+        </ModalContainer>
+
+        {/* Cadastrar Cliente Modal */}
+        <ModalContainer
+          open={showCadastrarClienteModal}
+          onClose={() => {
+            setShowCadastrarClienteModal(false);
+            setPedidoParaCadastro(null);
+          }}
+          title="Cadastrar Cliente Pendente"
+          description={`Cliente: ${pedidoParaCadastro?.cliente_nome || ''}`}
+          size="lg"
+        >
+          <ClienteForm
+            cliente={pedidoParaCadastro ? { nome: pedidoParaCadastro.cliente_nome } : null}
+            representantes={representantes}
+            onSave={handleSaveNovoCliente}
+            onCancel={() => {
+              setShowCadastrarClienteModal(false);
+              setPedidoParaCadastro(null);
+            }}
+          />
         </ModalContainer>
 
         {/* Cancelar Dialog */}

@@ -19,7 +19,8 @@ export default function RotaChecklist({
   rota, 
   pedidos, 
   onSave, 
-  onCancel, 
+  onCancel,
+  onCadastrarCliente,
   isLoading 
 }) {
   const [pedidosState, setPedidosState] = useState(
@@ -37,9 +38,19 @@ export default function RotaChecklist({
     }).format(value || 0);
   };
 
-  const handleToggle = (pedidoId) => {
+  const handleToggle = (pedido) => {
+    // Bloquear se cliente não cadastrado
+    if (pedido.cliente_pendente) {
+      if (onCadastrarCliente) {
+        onCadastrarCliente(pedido);
+      } else {
+        alert('Cliente não cadastrado. Cadastre o cliente primeiro.');
+      }
+      return;
+    }
+
     setPedidosState(prev => prev.map(p => 
-      p.id === pedidoId ? { ...p, confirmado_entrega: !p.confirmado_entrega } : p
+      p.id === pedido.id ? { ...p, confirmado_entrega: !p.confirmado_entrega } : p
     ));
   };
 
@@ -156,16 +167,20 @@ export default function RotaChecklist({
           <Card 
             key={pedido.id}
             className={cn(
-              "p-4 cursor-pointer transition-all",
+              "p-4 transition-all",
               pedido.confirmado_entrega 
                 ? "bg-emerald-50 border-emerald-200" 
-                : "bg-white hover:bg-slate-50"
+                : pedido.cliente_pendente
+                  ? "bg-amber-50 border-amber-200 cursor-not-allowed opacity-60"
+                  : "bg-white hover:bg-slate-50 cursor-pointer"
             )}
-            onClick={() => handleToggle(pedido.id)}
+            onClick={() => !pedido.cliente_pendente && handleToggle(pedido)}
           >
             <div className="flex items-center gap-4">
               <div className="flex-shrink-0">
-                {pedido.confirmado_entrega ? (
+                {pedido.cliente_pendente ? (
+                  <AlertTriangle className="w-6 h-6 text-amber-600" />
+                ) : pedido.confirmado_entrega ? (
                   <CheckCircle2 className="w-6 h-6 text-emerald-600" />
                 ) : (
                   <Circle className="w-6 h-6 text-slate-300" />
@@ -175,9 +190,16 @@ export default function RotaChecklist({
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-sm">{pedido.numero_pedido}</span>
                   {pedido.cliente_pendente && (
-                    <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 text-xs">
+                    <Badge 
+                      variant="outline" 
+                      className="bg-amber-50 text-amber-600 border-amber-200 text-xs cursor-pointer hover:bg-amber-100"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onCadastrarCliente) onCadastrarCliente(pedido);
+                      }}
+                    >
                       <AlertTriangle className="w-3 h-3 mr-1" />
-                      Cliente pendente
+                      Cliente pendente - Clique para cadastrar
                     </Badge>
                   )}
                 </div>

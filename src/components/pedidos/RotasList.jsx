@@ -9,12 +9,13 @@ import {
   AlertCircle,
   ChevronRight,
   User,
-  Calendar
+  Calendar,
+  RefreshCw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
-export default function RotasList({ rotas, onSelectRota, isLoading }) {
+export default function RotasList({ rotas, onSelectRota, onAlterarPortador, isLoading }) {
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -78,17 +79,22 @@ export default function RotasList({ rotas, onSelectRota, isLoading }) {
           <Card 
             key={rota.id}
             className={cn(
-              "p-4 cursor-pointer hover:shadow-md transition-all",
+              "p-4 hover:shadow-md transition-all",
               statusConfig.bgCard
             )}
-            onClick={() => onSelectRota(rota)}
           >
             <div className="flex items-center gap-4">
-              <div className={cn("p-3 rounded-xl bg-slate-100", statusConfig.iconColor)}>
+              <div 
+                className={cn("p-3 rounded-xl bg-slate-100 cursor-pointer", statusConfig.iconColor)}
+                onClick={() => onSelectRota(rota)}
+              >
                 <Truck className="w-6 h-6" />
               </div>
               
-              <div className="flex-1">
+              <div 
+                className="flex-1 cursor-pointer"
+                onClick={() => onSelectRota(rota)}
+              >
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="font-bold text-lg">{rota.codigo_rota}</h3>
                   <Badge variant="outline" className={statusConfig.color}>
@@ -111,7 +117,25 @@ export default function RotasList({ rotas, onSelectRota, isLoading }) {
                 </div>
               </div>
 
-              <div className="text-right">
+              {onAlterarPortador && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAlterarPortador(rota);
+                  }}
+                  className="gap-2"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Alterar Portador
+                </Button>
+              )}
+
+              <div 
+                className="text-right cursor-pointer"
+                onClick={() => onSelectRota(rota)}
+              >
                 <p className="text-sm text-slate-500">Pedidos</p>
                 <p className="font-bold text-lg">
                   <span className={statusConfig.iconColor}>{rota.pedidos_confirmados}</span>
@@ -122,7 +146,10 @@ export default function RotasList({ rotas, onSelectRota, isLoading }) {
                 </p>
               </div>
 
-              <ChevronRight className="w-5 h-5 text-slate-400" />
+              <ChevronRight 
+                className="w-5 h-5 text-slate-400 cursor-pointer" 
+                onClick={() => onSelectRota(rota)}
+              />
             </div>
           </Card>
         );

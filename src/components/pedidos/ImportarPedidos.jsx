@@ -15,12 +15,14 @@ import {
 import { base44 } from '@/api/base44Client';
 import * as XLSX from 'xlsx';
 
-export default function ImportarPedidos({ clientes, onImportComplete, onCancel }) {
+export default function ImportarPedidos({ clientes, rotas, onImportComplete, onCancel }) {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState(null);
   const [errors, setErrors] = useState([]);
   const [motorista, setMotorista] = useState({ codigo: '', nome: '' });
+  const [modoImportacao, setModoImportacao] = useState('nova'); // 'nova' ou 'adicionar'
+  const [rotaSelecionada, setRotaSelecionada] = useState(null);
 
   const handleFileChange = async (e) => {
     const selectedFile = e.target.files[0];
@@ -115,22 +117,38 @@ export default function ImportarPedidos({ clientes, onImportComplete, onCancel }
 
     setLoading(true);
     try {
-      // Criar a rota importada
-      const rota = await base44.entities.RotaImportada.create({
-        codigo_rota: preview.rota,
-        data_importacao: new Date().toISOString().split('T')[0],
-        motorista_codigo: motorista.codigo,
-        motorista_nome: motorista.nome,
-        total_pedidos: preview.totalPedidos,
-        pedidos_confirmados: 0,
-        valor_total: preview.valorTotal,
-        status: 'pendente'
-      });
+      let rotaId;
+
+      if (modoImportacao === 'adicionar' && rotaSelecionada) {
+        // Adicionar à rota existente
+        rotaId = rotaSelecionada.id;
+        
+        // Atualizar totais da rota existente
+        await base44.entities.RotaImportada.update(rotaId, {
+          total_pedidos: rotaSelecionada.total_pedidos + preview.totalPedidos,
+          valor_total: rotaSelecionada.valor_total + preview.valorTotal,
+          motorista_codigo: motorista.codigo || rotaSelecionada.motorista_codigo,
+          motorista_nome: motorista.nome || rotaSelecionada.motorista_nome
+        });
+      } else {
+        // Criar nova rota
+        const novaRota = await base44.entities.RotaImportada.create({
+          codigo_rota: preview.rota,
+          data_importacao: new Date().toISOString().split('T')[0],
+          motorista_codigo: motorista.codigo,
+          motorista_nome: motorista.nome,
+          total_pedidos: preview.totalPedidos,
+          pedidos_confirmados: 0,
+          valor_total: preview.valorTotal,
+          status: 'pendente'
+        });
+        rotaId = novaRota.id;
+      }
 
       // Criar os pedidos
       const pedidosParaCriar = preview.pedidos.map(p => ({
         ...p,
-        rota_importada_id: rota.id,
+        rota_importada_id: rotaId,
         data_entrega: new Date().toISOString().split('T')[0],
         total_pago: 0,
         saldo_restante: p.valor_pedido,
@@ -160,6 +178,62 @@ export default function ImportarPedidos({ clientes, onImportComplete, onCancel }
       {/* Upload */}
       {!preview && (
         <div className="space-y-4">
+          {/* Modo de Importação */}
+          {rotas && rotas.length > 0 && (
+            <Card className="p-4 bg-blue-50 border-blue-200">
+              <Label className="block mb-3 font-semibold">Modo de Importação</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  variant={modoImportacao === 'nova' ? 'default' : 'outline'}
+                  onClick={() => setModoImportacao('nova')}
+                  className="w-full"
+                >
+                  Nova Rota
+                </Button>
+                <Button
+                  variant={modoImportacao === 'adicionar' ? 'default' : 'outline'}
+                  onClick={() => setModoImportacao('adicionar')}
+                  className="w-full"
+                >
+                  Adicionar à Rota Existente
+                </Button>
+              </div>
+
+              {/* Selecionar Rota Existente */}
+              {modoImportacao === 'adicionar' && (
+                <div className="mt-4 space-y-2">
+                  <Label>Selecione a Rota</Label>
+                  <select
+                    className="w-full p-2 border rounded-md"
+                    value={rotaSelecionada?.id || ''}
+                    onChange={(e) => {
+                      const rota = rotas.find(r => r.id === e.target.value);
+                      setRotaSelecionada(rota);
+                      if (rota) {
+                        setMotorista({
+                          codigo: rota.motorista_codigo || '',
+                          nome: rota.motorista_nome || ''
+                        });
+                      }
+                    }}
+                  >
+                    <option value="">Selecione...</option>
+                    {rotas.map(r => (
+                      <option key={r.id} value={r.id}>
+                        {r.codigo_rota} - {r.motorista_nome || 'Sem motorista'} ({r.total_pedidos} pedidos)
+                      </option>
+                    ))}
+                  </select>
+                  {rotaSelecionada && (
+                    <p className="text-sm text-blue-700">
+                      Os pedidos serão adicionados à rota existente e os totais serão atualizados
+                    </p>
+                  )}
+                </div>
+              )}
+            </Card>
+          )}
+
           <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-blue-400 transition-colors">
             <input
               type="file"
@@ -167,11 +241,15 @@ export default function ImportarPedidos({ clientes, onImportComplete, onCancel }
               onChange={handleFileChange}
               className="hidden"
               id="file-upload"
+              disabled={modoImportacao === 'adicionar' && !rotaSelecionada}
             />
             <label htmlFor="file-upload" className="cursor-pointer">
               <FileSpreadsheet className="w-12 h-12 mx-auto text-slate-400 mb-4" />
               <p className="text-lg font-medium text-slate-700">Clique para selecionar a planilha</p>
               <p className="text-sm text-slate-500 mt-1">Arquivos .xlsx ou .xls</p>
+              {modoImportacao === 'adicionar' && !rotaSelecionada && (
+                <p className="text-sm text-amber-600 mt-2">Selecione uma rota primeiro</p>
+              )}
             </label>
           </div>
 
@@ -228,27 +306,29 @@ export default function ImportarPedidos({ clientes, onImportComplete, onCancel }
           )}
 
           {/* Motorista */}
-          <Card className="p-4">
-            <h3 className="font-semibold mb-3">Dados do Motorista (opcional)</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Código do Motorista</Label>
-                <Input
-                  value={motorista.codigo}
-                  onChange={(e) => setMotorista({ ...motorista, codigo: e.target.value })}
-                  placeholder="Ex: MOT001"
-                />
+          {modoImportacao === 'nova' && (
+            <Card className="p-4">
+              <h3 className="font-semibold mb-3">Dados do Motorista (opcional)</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Código do Motorista</Label>
+                  <Input
+                    value={motorista.codigo}
+                    onChange={(e) => setMotorista({ ...motorista, codigo: e.target.value })}
+                    placeholder="Ex: MOT001"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Nome do Motorista</Label>
+                  <Input
+                    value={motorista.nome}
+                    onChange={(e) => setMotorista({ ...motorista, nome: e.target.value })}
+                    placeholder="Nome completo"
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Nome do Motorista</Label>
-                <Input
-                  value={motorista.nome}
-                  onChange={(e) => setMotorista({ ...motorista, nome: e.target.value })}
-                  placeholder="Nome completo"
-                />
-              </div>
-            </div>
-          </Card>
+            </Card>
+          )}
 
           {/* Lista de Pedidos */}
           <Card className="p-4">
