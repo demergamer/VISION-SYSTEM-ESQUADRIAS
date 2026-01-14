@@ -144,9 +144,27 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     }
 
     const totais = calcularTotais();
+    const valorTotalComCredito = parseFloat(valorPago) + creditoAUsar;
     
-    // Se o total com desconto for negativo, será um crédito
-    const credito = totais.totalComDesconto < 0 ? Math.abs(totais.totalComDesconto) : 0;
+    // Confirmar se valor pago excede o total
+    if (valorTotalComCredito > totais.totalComDesconto) {
+      const excedente = valorTotalComCredito - totais.totalComDesconto;
+      const confirmar = window.confirm(
+        `⚠️ ATENÇÃO!\n\n` +
+        `Valor total a pagar: ${formatCurrency(valorTotalComCredito)}\n` +
+        `Total em aberto: ${formatCurrency(totais.totalComDesconto)}\n` +
+        `Excedente: ${formatCurrency(excedente)}\n\n` +
+        `Um crédito de ${formatCurrency(excedente)} será gerado para o cliente.\n\n` +
+        `Deseja continuar?`
+      );
+      
+      if (!confirmar) return;
+    }
+    
+    // Calcular crédito gerado
+    const creditoGerado = valorTotalComCredito > totais.totalComDesconto 
+      ? valorTotalComCredito - totais.totalComDesconto 
+      : 0;
 
     // Construir string de formas de pagamento
     let formasPagamentoStr = `${formaPagamento.toUpperCase()}: ${formatCurrency(parseFloat(valorPago))}`;
@@ -174,7 +192,8 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       })),
       desconto: totais.desconto,
       devolucao: totais.devolucaoValor,
-      credito,
+      credito: creditoGerado,
+      creditoUsado: creditoAUsar,
       totalPago: parseFloat(valorPago),
       formaPagamento: formasPagamentoStr
     });

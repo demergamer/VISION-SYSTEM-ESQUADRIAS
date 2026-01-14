@@ -477,6 +477,28 @@ export default function Pedidos() {
       // Calcular quanto pagar por pedido proporcionalmente
       const totalSaldos = data.pedidos.reduce((sum, p) => sum + p.saldo_original, 0);
       const valorTotalPago = data.totalPago;
+      
+      // Marcar créditos como usados se houver
+      if (data.creditoUsado > 0) {
+        const clienteCodigo = data.pedidos[0]?.cliente_codigo;
+        const todosCreditos = await base44.entities.Credito.list();
+        const creditosCliente = todosCreditos.filter(c => 
+          c.cliente_codigo === clienteCodigo && c.status === 'disponivel'
+        );
+        
+        let valorRestante = data.creditoUsado;
+        for (const credito of creditosCliente) {
+          if (valorRestante <= 0) break;
+          
+          await base44.entities.Credito.update(credito.id, {
+            status: 'usado',
+            pedido_uso_id: data.pedidos.map(p => p.id).join(', '),
+            data_uso: hoje.toISOString().split('T')[0]
+          });
+          
+          valorRestante -= credito.valor;
+        }
+      }
 
       for (const pedidoData of data.pedidos) {
         const pedido = pedidos.find(p => p.id === pedidoData.id);

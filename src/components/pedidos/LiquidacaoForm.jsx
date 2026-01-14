@@ -83,6 +83,21 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
     const novoTotalPago = (pedido.total_pago || 0) + valorComCredito;
     const novoSaldo = pedido.valor_pedido - novoTotalPago;
     
+    // Confirmar se valor pago é maior que o saldo
+    if (valorComCredito > saldoAtual) {
+      const excedente = valorComCredito - saldoAtual;
+      const confirmar = window.confirm(
+        `⚠️ ATENÇÃO!\n\n` +
+        `Valor a pagar: ${formatCurrency(valorComCredito)}\n` +
+        `Saldo em aberto: ${formatCurrency(saldoAtual)}\n` +
+        `Excedente: ${formatCurrency(excedente)}\n\n` +
+        `Um crédito de ${formatCurrency(excedente)} será gerado para o cliente.\n\n` +
+        `Deseja continuar?`
+      );
+      
+      if (!confirmar) return;
+    }
+    
     const mesAtual = new Date().toISOString().slice(0, 7); // YYYY-MM
     
     // Construir string da forma de pagamento
@@ -140,6 +155,21 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
         
         valorRestante -= valorUsar;
       }
+    }
+    
+    // Gerar crédito se pagamento exceder o saldo
+    if (novoSaldo < 0) {
+      const valorCredito = Math.abs(novoSaldo);
+      await base44.entities.Credito.create({
+        cliente_codigo: pedido.cliente_codigo,
+        cliente_nome: pedido.cliente_nome,
+        valor: valorCredito,
+        origem: `Pagamento excedente - Pedido ${pedido.numero_pedido}`,
+        pedido_origem_id: pedido.id,
+        status: 'disponivel'
+      });
+      
+      toast.success(`Crédito de ${formatCurrency(valorCredito)} gerado para o cliente!`);
     }
     
     onSave(dataToSave);
