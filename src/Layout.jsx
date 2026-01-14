@@ -20,9 +20,10 @@ import { base44 } from '@/api/base44Client';
 
 const navItems = [
   { name: 'Dashboard', icon: LayoutDashboard, page: 'Dashboard' },
-  { name: 'Representantes', icon: Users, page: 'Representantes' },
+  { name: 'Representantes', icon: Users, page: 'Representation' },
   { name: 'Clientes', icon: Building2, page: 'Clientes' },
   { name: 'Pedidos', icon: ShoppingCart, page: 'Pedidos' },
+  { name: 'Créditos', icon: Wallet, page: 'Creditos' },
   { name: 'Cheques', icon: CreditCard, page: 'Cheques' },
   { name: 'Comissões', icon: Wallet, page: 'Comissoes' },
   { name: 'Balanço', icon: BarChart3, page: 'Balanco' },
