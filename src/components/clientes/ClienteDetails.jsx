@@ -19,7 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
-export default function ClienteDetails({ cliente, stats, onEdit, onClose, onViewPedidos }) {
+export default function ClienteDetails({ cliente, stats, creditos, onEdit, onClose, onViewPedidos }) {
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -128,7 +128,7 @@ export default function ClienteDetails({ cliente, stats, onEdit, onClose, onView
       </div>
 
       {/* Financial Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="p-5 border-blue-100 bg-blue-50/30">
           <div className="flex items-center gap-3 mb-2">
             <CreditCard className="w-5 h-5 text-blue-600" />
@@ -149,6 +149,15 @@ export default function ClienteDetails({ cliente, stats, onEdit, onClose, onView
             <p className="text-sm text-purple-700 font-medium">Cheques a Vencer</p>
           </div>
           <p className="text-3xl font-bold text-purple-700">{formatCurrency(cliStats.totalChequesVencer)}</p>
+        </Card>
+        <Card className="p-5 border-green-100 bg-green-50/30">
+          <div className="flex items-center gap-3 mb-2">
+            <TrendingUp className="w-5 h-5 text-green-600" />
+            <p className="text-sm text-green-700 font-medium">Créditos Disponíveis</p>
+          </div>
+          <p className="text-3xl font-bold text-green-700">
+            {formatCurrency((creditos || []).reduce((sum, c) => c.status === 'disponivel' ? sum + c.valor : sum, 0))}
+          </p>
         </Card>
       </div>
 
