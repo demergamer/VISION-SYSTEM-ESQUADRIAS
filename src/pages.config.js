@@ -5,6 +5,7 @@ import Representantes from './pages/Representantes';
 import Welcome from './pages/Welcome';
 import Representation from './pages/Representation';
 import Creditos from './pages/Creditos';
+import Cheques from './pages/Cheques';
 import __Layout from './Layout.jsx';
 
 
@@ -16,6 +17,7 @@ export const PAGES = {
     "Welcome": Welcome,
     "Representation": Representation,
     "Creditos": Creditos,
+    "Cheques": Cheques,
 }
 
 export const pagesConfig = {
