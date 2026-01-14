@@ -1,12 +1,17 @@
 import React, { useState, useMemo } from 'react';
+import { base44 } from '@/api/base44Client';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, DollarSign, Percent } from "lucide-react";
 import { cn } from "@/lib/utils";
+import ModalContainer from "@/components/modals/ModalContainer";
+import AdicionarChequeModal from "@/components/pedidos/AdicionarChequeModal";
+import { toast } from "sonner";
 
 export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -14,6 +19,11 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
   const [descontoTipo, setDescontoTipo] = useState('reais'); // 'reais' ou 'porcentagem'
   const [descontoValor, setDescontoValor] = useState('');
   const [devolucao, setDevolucao] = useState('');
+  const [valorPago, setValorPago] = useState('');
+  const [formaPagamento, setFormaPagamento] = useState('dinheiro');
+  const [parcelasCreditoQtd, setParcelasCreditoQtd] = useState('1');
+  const [showChequeModal, setShowChequeModal] = useState(false);
+  const [chequesSalvos, setChequesSalvos] = useState([]);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -75,9 +85,35 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     };
   };
 
+  const handleSaveCheque = async (chequeData) => {
+    try {
+      await base44.entities.Cheque.create(chequeData);
+      setChequesSalvos(prev => [...prev, chequeData]);
+      setShowChequeModal(false);
+      toast.success('Cheque cadastrado!');
+    } catch (error) {
+      toast.error('Erro ao cadastrar cheque');
+    }
+  };
+
+  const handleSaveChequeAndAddAnother = async (chequeData) => {
+    try {
+      await base44.entities.Cheque.create(chequeData);
+      setChequesSalvos(prev => [...prev, chequeData]);
+      toast.success('Cheque cadastrado! Adicione outro.');
+    } catch (error) {
+      toast.error('Erro ao cadastrar cheque');
+    }
+  };
+
   const handleLiquidar = () => {
     if (selectedPedidos.length === 0) {
       alert('Selecione pelo menos um pedido');
+      return;
+    }
+
+    if (!valorPago || parseFloat(valorPago) <= 0) {
+      alert('Informe o valor pago');
       return;
     }
 
@@ -85,16 +121,28 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     
     // Se o total com desconto for negativo, será um crédito
     const credito = totais.totalComDesconto < 0 ? Math.abs(totais.totalComDesconto) : 0;
+
+    // Construir string de formas de pagamento
+    let formasPagamentoStr = `${formaPagamento.toUpperCase()}: ${formatCurrency(parseFloat(valorPago))}`;
+    if (formaPagamento === 'credito' && parcelasCreditoQtd !== '1') {
+      formasPagamentoStr += ` (${parcelasCreditoQtd}x)`;
+    }
+    if (chequesSalvos.length > 0) {
+      formasPagamentoStr += ` | ${chequesSalvos.length} cheque(s)`;
+    }
     
     onSave({
       pedidos: selectedPedidos.map(p => ({
         id: p.id,
-        saldo_original: p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))
+        saldo_original: p.saldo_restante || (p.valor_pedido - (p.total_pago || 0)),
+        cliente_codigo: p.cliente_codigo,
+        cliente_nome: p.cliente_nome
       })),
       desconto: totais.desconto,
       devolucao: totais.devolucaoValor,
       credito,
-      totalPago: Math.max(0, totais.totalComDesconto)
+      totalPago: parseFloat(valorPago),
+      formaPagamento: formasPagamentoStr
     });
   };
 
@@ -228,6 +276,75 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
             </div>
           </div>
 
+          {/* Valor Pago */}
+          <div className="space-y-2">
+            <Label>Valor Pago *</Label>
+            <div className="relative">
+              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Valor pago pelo cliente"
+                value={valorPago}
+                onChange={(e) => setValorPago(e.target.value)}
+                className="pl-10"
+                required
+              />
+            </div>
+          </div>
+
+          {/* Forma de Pagamento */}
+          <div className="space-y-2">
+            <Label>Forma de Pagamento *</Label>
+            <Select value={formaPagamento} onValueChange={setFormaPagamento}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                <SelectItem value="pix">PIX</SelectItem>
+                <SelectItem value="cheque">Cheque</SelectItem>
+                <SelectItem value="servicos">Serviços</SelectItem>
+                <SelectItem value="debito">Débito</SelectItem>
+                <SelectItem value="credito">Crédito</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Parcelas (se for crédito) */}
+          {formaPagamento === 'credito' && (
+            <div className="space-y-2">
+              <Label>Parcelamento</Label>
+              <Select value={parcelasCreditoQtd} onValueChange={setParcelasCreditoQtd}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                    <SelectItem key={n} value={String(n)}>{n}x</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Botão para adicionar cheque */}
+          {formaPagamento === 'cheque' && (
+            <div className="space-y-2">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setShowChequeModal(true)}
+                className="w-full"
+              >
+                {chequesSalvos.length > 0 
+                  ? `${chequesSalvos.length} Cheque(s) Cadastrado(s) - Adicionar Mais` 
+                  : 'Adicionar Cheque'}
+              </Button>
+            </div>
+          )}
+
           {/* Resumo */}
           <div className="pt-4 border-t space-y-2">
             <div className="flex justify-between text-sm">
@@ -273,6 +390,25 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
           Liquidar {selectedPedidos.length} Pedido{selectedPedidos.length !== 1 ? 's' : ''}
         </Button>
       </div>
+
+      {/* Modal de Adicionar Cheque */}
+      <ModalContainer
+        open={showChequeModal}
+        onClose={() => setShowChequeModal(false)}
+        title="Adicionar Cheque"
+        description="Preencha os dados do cheque"
+        size="lg"
+      >
+        <AdicionarChequeModal
+          clienteInfo={selectedPedidos[0] ? {
+            cliente_codigo: selectedPedidos[0].cliente_codigo,
+            cliente_nome: selectedPedidos[0].cliente_nome
+          } : null}
+          onSave={handleSaveCheque}
+          onSaveAndAddAnother={handleSaveChequeAndAddAnother}
+          onCancel={() => setShowChequeModal(false)}
+        />
+      </ModalContainer>
     </div>
   );
 }
