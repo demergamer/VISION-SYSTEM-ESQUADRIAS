@@ -244,8 +244,38 @@ export default function Pedidos() {
     toast.success('Pedidos importados com sucesso!');
   };
 
-  const handleSelectRota = (rota) => {
+  const handleSelectRota = async (rota) => {
     setSelectedRota(rota);
+    
+    // Verificar e atualizar pedidos com clientes que foram cadastrados
+    const pedidosDaRotaAtual = pedidos.filter(p => p.rota_importada_id === rota.id);
+    const pedidosPendentes = pedidosDaRotaAtual.filter(p => p.cliente_pendente);
+    
+    for (const pedido of pedidosPendentes) {
+      // Procurar cliente cadastrado com nome similar
+      const clienteEncontrado = clientes.find(c => 
+        c.nome?.toLowerCase().includes(pedido.cliente_nome?.toLowerCase()) ||
+        pedido.cliente_nome?.toLowerCase().includes(c.nome?.toLowerCase())
+      );
+      
+      if (clienteEncontrado) {
+        // Atualizar pedido vinculando ao cliente
+        await base44.entities.Pedido.update(pedido.id, {
+          cliente_codigo: clienteEncontrado.codigo,
+          cliente_regiao: clienteEncontrado.regiao,
+          representante_codigo: clienteEncontrado.representante_codigo,
+          representante_nome: clienteEncontrado.representante_nome,
+          porcentagem_comissao: clienteEncontrado.porcentagem_comissao,
+          cliente_pendente: false
+        });
+      }
+    }
+    
+    // Atualizar lista de pedidos
+    if (pedidosPendentes.length > 0) {
+      await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+    }
+    
     setShowRotaModal(true);
   };
 
@@ -298,15 +328,27 @@ export default function Pedidos() {
     try {
       const novoCliente = await base44.entities.Cliente.create(clienteData);
       
-      // Atualizar o pedido com os dados do cliente
-      if (pedidoParaCadastro) {
-        await base44.entities.Pedido.update(pedidoParaCadastro.id, {
+      // Buscar TODOS os pedidos com o mesmo nome de cliente
+      const pedidosComMesmoCliente = pedidos.filter(p => 
+        p.cliente_nome?.toLowerCase().includes(clienteData.nome?.toLowerCase()) ||
+        clienteData.nome?.toLowerCase().includes(p.cliente_nome?.toLowerCase())
+      );
+      
+      // Atualizar todos os pedidos desse cliente
+      for (const pedido of pedidosComMesmoCliente) {
+        await base44.entities.Pedido.update(pedido.id, {
           cliente_codigo: novoCliente.codigo,
           cliente_regiao: novoCliente.regiao,
           representante_codigo: novoCliente.representante_codigo,
           representante_nome: novoCliente.representante_nome,
           porcentagem_comissao: novoCliente.porcentagem_comissao,
-          cliente_pendente: false,
+          cliente_pendente: false
+        });
+      }
+      
+      // Confirmar especificamente o pedido que estava sendo cadastrado
+      if (pedidoParaCadastro) {
+        await base44.entities.Pedido.update(pedidoParaCadastro.id, {
           confirmado_entrega: true,
           status: 'aberto'
         });
@@ -316,7 +358,7 @@ export default function Pedidos() {
       queryClient.invalidateQueries({ queryKey: ['pedidos'] });
       setShowCadastrarClienteModal(false);
       setPedidoParaCadastro(null);
-      toast.success('Cliente cadastrado e pedido confirmado!');
+      toast.success(`Cliente cadastrado! ${pedidosComMesmoCliente.length} pedido(s) vinculado(s).`);
     } catch (error) {
       toast.error('Erro ao cadastrar cliente');
     }
