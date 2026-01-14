@@ -1,12 +1,14 @@
 import Representantes from './pages/Representantes';
 import Dashboard from './pages/Dashboard';
 import Clientes from './pages/Clientes';
+import Pedidos from './pages/Pedidos';
 
 
 export const PAGES = {
     "Representantes": Representantes,
     "Dashboard": Dashboard,
     "Clientes": Clientes,
+    "Pedidos": Pedidos,
 }
 
 export const pagesConfig = {
