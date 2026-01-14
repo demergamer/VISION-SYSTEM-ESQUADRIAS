@@ -72,19 +72,19 @@ export default function Cheques() {
 
   const stats = useMemo(() => {
     const hoje = new Date();
-    const pendentes = cheques.filter(c => c.status === 'pendente');
-    const vencidos = pendentes.filter(c => new Date(c.data_vencimento) < hoje);
-    const aVencer = pendentes.filter(c => new Date(c.data_vencimento) >= hoje);
-    const compensados = cheques.filter(c => c.status === 'compensado');
+    const normais = cheques.filter(c => c.status === 'normal');
+    const vencidos = normais.filter(c => new Date(c.data_vencimento) < hoje);
+    const aVencer = normais.filter(c => new Date(c.data_vencimento) >= hoje);
     const devolvidos = cheques.filter(c => c.status === 'devolvido');
+    const pagos = cheques.filter(c => c.status === 'pago');
 
     return {
-      totalPendentes: pendentes.reduce((sum, c) => sum + c.valor, 0),
-      quantidadePendentes: pendentes.length,
+      totalPendentes: normais.reduce((sum, c) => sum + c.valor, 0),
+      quantidadePendentes: normais.length,
       totalVencidos: vencidos.reduce((sum, c) => sum + c.valor, 0),
       totalAVencer: aVencer.reduce((sum, c) => sum + c.valor, 0),
-      totalCompensados: compensados.reduce((sum, c) => sum + c.valor, 0),
-      totalDevolvidos: devolvidos.reduce((sum, c) => sum + c.valor, 0)
+      totalDevolvidos: devolvidos.reduce((sum, c) => sum + c.valor, 0),
+      totalPagos: pagos.reduce((sum, c) => sum + c.valor, 0)
     };
   }, [cheques]);
 
@@ -99,12 +99,11 @@ export default function Cheques() {
 
   const getStatusBadge = (status) => {
     const config = {
-      pendente: { label: 'Pendente', class: 'bg-yellow-100 text-yellow-700', icon: Clock },
-      compensado: { label: 'Compensado', class: 'bg-green-100 text-green-700', icon: CheckCircle },
+      normal: { label: 'Normal', class: 'bg-blue-100 text-blue-700', icon: Clock },
       devolvido: { label: 'Devolvido', class: 'bg-red-100 text-red-700', icon: XCircle },
-      cancelado: { label: 'Cancelado', class: 'bg-slate-100 text-slate-700', icon: AlertTriangle }
+      pago: { label: 'Pago', class: 'bg-green-100 text-green-700', icon: CheckCircle }
     };
-    return config[status] || config.pendente;
+    return config[status] || config.normal;
   };
 
   const handleView = (cheque) => {
@@ -142,34 +141,34 @@ export default function Cheques() {
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <StatCard
-            title="Pendentes"
+            title="Normais"
             value={formatCurrency(stats.totalPendentes)}
             subtitle={`${stats.quantidadePendentes} cheque(s)`}
             icon={Clock}
-            color="yellow"
+            color="blue"
           />
           <StatCard
             title="A Vencer"
             value={formatCurrency(stats.totalAVencer)}
             icon={CreditCard}
-            color="blue"
-          />
-          <StatCard
-            title="Vencidos"
-            value={formatCurrency(stats.totalVencidos)}
-            icon={AlertTriangle}
-            color="red"
-          />
-          <StatCard
-            title="Compensados"
-            value={formatCurrency(stats.totalCompensados)}
-            icon={CheckCircle}
-            color="green"
+            color="yellow"
           />
           <StatCard
             title="Devolvidos"
             value={formatCurrency(stats.totalDevolvidos)}
             icon={XCircle}
+            color="red"
+          />
+          <StatCard
+            title="Pagos"
+            value={formatCurrency(stats.totalPagos)}
+            icon={CheckCircle}
+            color="green"
+          />
+          <StatCard
+            title="Vencidos"
+            value={formatCurrency(stats.totalVencidos)}
+            icon={AlertTriangle}
             color="slate"
           />
         </div>
@@ -218,12 +217,18 @@ export default function Cheques() {
                   filteredCheques.map((cheque) => {
                     const statusConfig = getStatusBadge(cheque.status);
                     const StatusIcon = statusConfig.icon;
-                    const vencido = cheque.status === 'pendente' && new Date(cheque.data_vencimento) < new Date();
+                    const vencido = cheque.status === 'normal' && new Date(cheque.data_vencimento) < new Date();
                     
                     return (
                       <tr key={cheque.id} className="hover:bg-slate-50">
                         <td className="p-4">
                           <p className="font-mono font-medium">{cheque.numero_cheque}</p>
+                          {cheque.cheque_substituto_numero && (
+                            <p className="text-xs text-blue-600">Substituído por: {cheque.cheque_substituto_numero}</p>
+                          )}
+                          {cheque.cheque_substituido_numero && (
+                            <p className="text-xs text-purple-600">Substituição de: {cheque.cheque_substituido_numero}</p>
+                          )}
                         </td>
                         <td className="p-4">
                           <p className="text-sm">{cheque.banco}</p>

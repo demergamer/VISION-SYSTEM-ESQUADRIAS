@@ -18,8 +18,10 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
     valor: '',
     data_emissao: '',
     data_vencimento: '',
-    status: 'pendente',
-    observacao: ''
+    status: 'normal',
+    observacao: '',
+    cheque_substituto_numero: '',
+    cheque_substituido_numero: ''
   });
 
   const handleClienteChange = (codigoCliente) => {
@@ -186,12 +188,33 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="pendente">Pendente</SelectItem>
-            <SelectItem value="compensado">Compensado</SelectItem>
+            <SelectItem value="normal">Normal</SelectItem>
             <SelectItem value="devolvido">Devolvido</SelectItem>
-            <SelectItem value="cancelado">Cancelado</SelectItem>
+            <SelectItem value="pago">Pago</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+
+      {formData.status === 'devolvido' && (
+        <div>
+          <Label htmlFor="cheque_substituto_numero">Substituído por Cheque Nº</Label>
+          <Input
+            id="cheque_substituto_numero"
+            value={formData.cheque_substituto_numero}
+            onChange={(e) => setFormData({ ...formData, cheque_substituto_numero: e.target.value })}
+            placeholder="Número do cheque que substituiu este"
+          />
+        </div>
+      )}
+
+      <div>
+        <Label htmlFor="cheque_substituido_numero">Este Cheque é Substituição de</Label>
+        <Input
+          id="cheque_substituido_numero"
+          value={formData.cheque_substituido_numero}
+          onChange={(e) => setFormData({ ...formData, cheque_substituido_numero: e.target.value })}
+          placeholder="Número do cheque substituído"
+        />
       </div>
 
       <div>
