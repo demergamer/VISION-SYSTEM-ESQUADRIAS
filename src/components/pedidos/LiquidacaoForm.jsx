@@ -1,15 +1,72 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { base44 } from '@/api/base44Client';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { DollarSign, CheckCircle, X } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { DollarSign, CheckCircle, X, Wallet } from "lucide-react";
+import ModalContainer from "@/components/modals/ModalContainer";
+import AdicionarChequeModal from "@/components/pedidos/AdicionarChequeModal";
+import { toast } from "sonner";
 
 export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) {
   const saldoAtual = pedido.saldo_restante || (pedido.valor_pedido - (pedido.total_pago || 0));
   const [tipo, setTipo] = useState('total');
   const [valorPagamento, setValorPagamento] = useState(saldoAtual);
+  const [formaPagamento, setFormaPagamento] = useState('dinheiro');
+  const [parcelasCreditoQtd, setParcelasCreditoQtd] = useState('1');
+  const [dadosCheque, setDadosCheque] = useState({
+    numero: '',
+    banco: '',
+    agencia: ''
+  });
+  const [showChequeModal, setShowChequeModal] = useState(false);
+  const [chequesSalvos, setChequesSalvos] = useState([]);
+  const [creditoDisponivelTotal, setCreditoDisponivelTotal] = useState(0);
+  const [creditoAUsar, setCreditoAUsar] = useState(0);
+
+  // Buscar créditos disponíveis do cliente
+  const { data: creditos = [] } = useQuery({
+    queryKey: ['creditos', pedido.cliente_codigo],
+    queryFn: async () => {
+      if (!pedido.cliente_codigo) return [];
+      const todosCreditos = await base44.entities.Credito.list();
+      return todosCreditos.filter(c => 
+        c.cliente_codigo === pedido.cliente_codigo && c.status === 'disponivel'
+      );
+    },
+    enabled: !!pedido.cliente_codigo
+  });
+
+  useEffect(() => {
+    const total = creditos.reduce((sum, c) => sum + (c.valor || 0), 0);
+    setCreditoDisponivelTotal(total);
+  }, [creditos]);
+
+  const handleSaveCheque = async (chequeData) => {
+    try {
+      await base44.entities.Cheque.create(chequeData);
+      setChequesSalvos(prev => [...prev, chequeData]);
+      setShowChequeModal(false);
+      toast.success('Cheque cadastrado!');
+    } catch (error) {
+      toast.error('Erro ao cadastrar cheque');
+    }
+  };
+
+  const handleSaveChequeAndAddAnother = async (chequeData) => {
+    try {
+      await base44.entities.Cheque.create(chequeData);
+      setChequesSalvos(prev => [...prev, chequeData]);
+      toast.success('Cheque cadastrado! Adicione outro.');
+    } catch (error) {
+      toast.error('Erro ao cadastrar cheque');
+    }
+  };
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -18,21 +75,72 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
     }).format(value || 0);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
-    const novoTotalPago = (pedido.total_pago || 0) + valorPagamento;
+    // Aplicar crédito se houver
+    const valorComCredito = valorPagamento + creditoAUsar;
+    const novoTotalPago = (pedido.total_pago || 0) + valorComCredito;
     const novoSaldo = pedido.valor_pedido - novoTotalPago;
     
     const mesAtual = new Date().toISOString().slice(0, 7); // YYYY-MM
+    
+    // Construir string da forma de pagamento
+    let formaPagamentoStr = '';
+    if (valorPagamento > 0) {
+      formaPagamentoStr = `${formaPagamento.toUpperCase()}: ${formatCurrency(valorPagamento)}`;
+      
+      if (formaPagamento === 'credito' && parcelasCreditoQtd !== '1') {
+        formaPagamentoStr += ` (${parcelasCreditoQtd}x)`;
+      }
+      
+      if (formaPagamento === 'cheque' && dadosCheque.numero) {
+        formaPagamentoStr += ` | Cheque: ${dadosCheque.numero}`;
+        if (dadosCheque.banco) formaPagamentoStr += ` - Banco: ${dadosCheque.banco}`;
+        if (dadosCheque.agencia) formaPagamentoStr += ` - Ag: ${dadosCheque.agencia}`;
+      }
+      
+      if (chequesSalvos.length > 0) {
+        formaPagamentoStr += ` | ${chequesSalvos.length} cheque(s) cadastrado(s)`;
+      }
+    }
+    
+    if (creditoAUsar > 0) {
+      if (formaPagamentoStr) formaPagamentoStr += ' | ';
+      formaPagamentoStr += `CRÉDITO: ${formatCurrency(creditoAUsar)}`;
+    }
+    
+    // Adicionar forma de pagamento em outras_informacoes
+    const outrasInfoAtual = pedido.outras_informacoes || '';
+    const novasOutrasInfo = outrasInfoAtual 
+      ? `${outrasInfoAtual}\n[${new Date().toLocaleDateString('pt-BR')}] ${formaPagamentoStr}`
+      : `[${new Date().toLocaleDateString('pt-BR')}] ${formaPagamentoStr}`;
     
     const dataToSave = {
       total_pago: novoTotalPago,
       saldo_restante: novoSaldo,
       status: novoSaldo <= 0 ? 'pago' : 'parcial',
       data_pagamento: novoSaldo <= 0 ? new Date().toISOString().split('T')[0] : pedido.data_pagamento,
-      mes_pagamento: novoSaldo <= 0 ? mesAtual : pedido.mes_pagamento
+      mes_pagamento: novoSaldo <= 0 ? mesAtual : pedido.mes_pagamento,
+      outras_informacoes: novasOutrasInfo
     };
+    
+    // Marcar créditos como usados
+    if (creditoAUsar > 0) {
+      let valorRestante = creditoAUsar;
+      for (const credito of creditos) {
+        if (valorRestante <= 0) break;
+        
+        const valorUsar = Math.min(credito.valor, valorRestante);
+        await base44.entities.Credito.update(credito.id, {
+          status: 'usado',
+          pedido_uso_id: pedido.id,
+          data_uso: new Date().toISOString().split('T')[0]
+        });
+        
+        valorRestante -= valorUsar;
+      }
+    }
     
     onSave(dataToSave);
   };
@@ -108,6 +216,115 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
         </div>
       )}
 
+      {/* Crédito Disponível */}
+      {creditoDisponivelTotal > 0 && (
+        <Card className="p-4 bg-green-50 border-green-200">
+          <div className="flex items-center gap-2 mb-3">
+            <Wallet className="w-5 h-5 text-green-600" />
+            <span className="font-medium text-green-700">Crédito Disponível</span>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm text-green-600">Total Disponível</p>
+              <p className="font-bold text-lg text-green-700">{formatCurrency(creditoDisponivelTotal)}</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="creditoAUsar">Quanto usar do crédito? (R$)</Label>
+              <Input
+                id="creditoAUsar"
+                type="number"
+                min="0"
+                max={Math.min(creditoDisponivelTotal, saldoAtual)}
+                step="0.01"
+                value={creditoAUsar}
+                onChange={(e) => setCreditoAUsar(parseFloat(e.target.value) || 0)}
+                className="border-green-300 focus:ring-green-500"
+              />
+              <p className="text-xs text-green-600">
+                Após usar crédito, restará: {formatCurrency(creditoDisponivelTotal - creditoAUsar)}
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Forma de Pagamento */}
+      <div className="space-y-2">
+        <Label>Forma de Pagamento</Label>
+        <Select value={formaPagamento} onValueChange={setFormaPagamento}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="dinheiro">Dinheiro</SelectItem>
+            <SelectItem value="pix">PIX</SelectItem>
+            <SelectItem value="cheque">Cheque</SelectItem>
+            <SelectItem value="servicos">Serviços</SelectItem>
+            <SelectItem value="debito">Débito</SelectItem>
+            <SelectItem value="credito">Crédito</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Parcelas (se for crédito) */}
+      {formaPagamento === 'credito' && (
+        <div className="space-y-2">
+          <Label>Parcelamento</Label>
+          <Select value={parcelasCreditoQtd} onValueChange={setParcelasCreditoQtd}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                <SelectItem key={n} value={String(n)}>{n}x</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* Dados do Cheque */}
+      {formaPagamento === 'cheque' && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-2">
+              <Label>Número do Cheque</Label>
+              <Input
+                value={dadosCheque.numero}
+                onChange={(e) => setDadosCheque({...dadosCheque, numero: e.target.value})}
+                placeholder="123456"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Banco</Label>
+              <Input
+                value={dadosCheque.banco}
+                onChange={(e) => setDadosCheque({...dadosCheque, banco: e.target.value})}
+                placeholder="Ex: 001"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Agência</Label>
+              <Input
+                value={dadosCheque.agencia}
+                onChange={(e) => setDadosCheque({...dadosCheque, agencia: e.target.value})}
+                placeholder="1234"
+              />
+            </div>
+          </div>
+          <Button 
+            type="button" 
+            variant="outline" 
+            onClick={() => setShowChequeModal(true)}
+            className="w-full"
+          >
+            {chequesSalvos.length > 0 
+              ? `${chequesSalvos.length} Cheque(s) Cadastrado(s) - Adicionar Mais` 
+              : 'Cadastrar Cheque Completo'}
+          </Button>
+        </div>
+      )}
+
       {/* Preview */}
       <Card className="p-4 bg-emerald-50 border-emerald-200">
         <div className="flex items-center gap-2 mb-3">
@@ -116,15 +333,29 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
         </div>
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
+            <p className="text-emerald-600">Valor em {formaPagamento}</p>
+            <p className="font-semibold text-emerald-700">
+              {formatCurrency(valorPagamento)}
+            </p>
+          </div>
+          {creditoAUsar > 0 && (
+            <div>
+              <p className="text-emerald-600">Crédito Usado</p>
+              <p className="font-semibold text-emerald-700">
+                {formatCurrency(creditoAUsar)}
+              </p>
+            </div>
+          )}
+          <div>
             <p className="text-emerald-600">Novo Total Pago</p>
             <p className="font-semibold text-emerald-700">
-              {formatCurrency((pedido.total_pago || 0) + valorPagamento)}
+              {formatCurrency((pedido.total_pago || 0) + valorPagamento + creditoAUsar)}
             </p>
           </div>
           <div>
             <p className="text-emerald-600">Novo Saldo</p>
             <p className="font-semibold text-emerald-700">
-              {formatCurrency(saldoAtual - valorPagamento)}
+              {formatCurrency(Math.max(0, saldoAtual - valorPagamento - creditoAUsar))}
             </p>
           </div>
         </div>
@@ -135,11 +366,30 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
           <X className="w-4 h-4 mr-2" />
           Cancelar
         </Button>
-        <Button type="submit" disabled={isLoading || valorPagamento <= 0} className="bg-emerald-600 hover:bg-emerald-700">
+        <Button type="submit" disabled={isLoading || (valorPagamento + creditoAUsar) <= 0} className="bg-emerald-600 hover:bg-emerald-700">
           <DollarSign className="w-4 h-4 mr-2" />
           Confirmar Pagamento
         </Button>
       </div>
+
+      {/* Modal de Adicionar Cheque */}
+      <ModalContainer
+        open={showChequeModal}
+        onClose={() => setShowChequeModal(false)}
+        title="Adicionar Cheque"
+        description="Preencha os dados do cheque"
+        size="lg"
+      >
+        <AdicionarChequeModal
+          clienteInfo={{
+            cliente_codigo: pedido.cliente_codigo,
+            cliente_nome: pedido.cliente_nome
+          }}
+          onSave={handleSaveCheque}
+          onSaveAndAddAnother={handleSaveChequeAndAddAnother}
+          onCancel={() => setShowChequeModal(false)}
+        />
+      </ModalContainer>
     </form>
   );
 }
