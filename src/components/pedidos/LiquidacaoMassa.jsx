@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, DollarSign, Percent } from "lucide-react";
+import { Search, DollarSign, Percent, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ModalContainer from "@/components/modals/ModalContainer";
 import AdicionarChequeModal from "@/components/pedidos/AdicionarChequeModal";
@@ -24,6 +25,31 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
   const [parcelasCreditoQtd, setParcelasCreditoQtd] = useState('1');
   const [showChequeModal, setShowChequeModal] = useState(false);
   const [chequesSalvos, setChequesSalvos] = useState([]);
+  const [creditoDisponivelTotal, setCreditoDisponivelTotal] = useState(0);
+  const [creditoAUsar, setCreditoAUsar] = useState(0);
+  const [dadosCheque, setDadosCheque] = useState({
+    numero: '',
+    banco: '',
+    agencia: ''
+  });
+
+  // Buscar créditos do primeiro cliente selecionado
+  const { data: creditos = [] } = useQuery({
+    queryKey: ['creditos', selectedPedidos[0]?.cliente_codigo],
+    queryFn: async () => {
+      if (!selectedPedidos[0]?.cliente_codigo) return [];
+      const todosCreditos = await base44.entities.Credito.list();
+      return todosCreditos.filter(c => 
+        c.cliente_codigo === selectedPedidos[0].cliente_codigo && c.status === 'disponivel'
+      );
+    },
+    enabled: selectedPedidos.length > 0 && !!selectedPedidos[0]?.cliente_codigo
+  });
+
+  React.useEffect(() => {
+    const total = creditos.reduce((sum, c) => sum + (c.valor || 0), 0);
+    setCreditoDisponivelTotal(total);
+  }, [creditos]);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -127,8 +153,16 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     if (formaPagamento === 'credito' && parcelasCreditoQtd !== '1') {
       formasPagamentoStr += ` (${parcelasCreditoQtd}x)`;
     }
+    if (formaPagamento === 'cheque' && dadosCheque.numero) {
+      formasPagamentoStr += ` | Cheque: ${dadosCheque.numero}`;
+      if (dadosCheque.banco) formasPagamentoStr += ` - Banco: ${dadosCheque.banco}`;
+      if (dadosCheque.agencia) formasPagamentoStr += ` - Ag: ${dadosCheque.agencia}`;
+    }
     if (chequesSalvos.length > 0) {
-      formasPagamentoStr += ` | ${chequesSalvos.length} cheque(s)`;
+      formasPagamentoStr += ` | ${chequesSalvos.length} cheque(s) cadastrado(s)`;
+    }
+    if (creditoAUsar > 0) {
+      formasPagamentoStr += ` | CRÉDITO: ${formatCurrency(creditoAUsar)}`;
     }
     
     onSave({
@@ -329,9 +363,35 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
             </div>
           )}
 
-          {/* Botão para adicionar cheque */}
+          {/* Dados do Cheque */}
           {formaPagamento === 'cheque' && (
-            <div className="space-y-2">
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-2">
+                  <Label>Número do Cheque</Label>
+                  <Input
+                    value={dadosCheque.numero}
+                    onChange={(e) => setDadosCheque({...dadosCheque, numero: e.target.value})}
+                    placeholder="123456"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Banco</Label>
+                  <Input
+                    value={dadosCheque.banco}
+                    onChange={(e) => setDadosCheque({...dadosCheque, banco: e.target.value})}
+                    placeholder="Ex: 001"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Agência</Label>
+                  <Input
+                    value={dadosCheque.agencia}
+                    onChange={(e) => setDadosCheque({...dadosCheque, agencia: e.target.value})}
+                    placeholder="1234"
+                  />
+                </div>
+              </div>
               <Button 
                 type="button" 
                 variant="outline" 
@@ -340,9 +400,41 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
               >
                 {chequesSalvos.length > 0 
                   ? `${chequesSalvos.length} Cheque(s) Cadastrado(s) - Adicionar Mais` 
-                  : 'Adicionar Cheque'}
+                  : 'Cadastrar Cheque Completo'}
               </Button>
             </div>
+          )}
+
+          {/* Crédito Disponível */}
+          {selectedPedidos.length > 0 && creditoDisponivelTotal > 0 && (
+            <Card className="p-4 bg-green-50 border-green-200">
+              <div className="flex items-center gap-2 mb-3">
+                <Wallet className="w-5 h-5 text-green-600" />
+                <span className="font-medium text-green-700">Crédito Disponível do Cliente</span>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm text-green-600">Total Disponível</p>
+                  <p className="font-bold text-lg text-green-700">{formatCurrency(creditoDisponivelTotal)}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="creditoAUsar">Quanto usar do crédito? (R$)</Label>
+                  <Input
+                    id="creditoAUsar"
+                    type="number"
+                    min="0"
+                    max={creditoDisponivelTotal}
+                    step="0.01"
+                    value={creditoAUsar}
+                    onChange={(e) => setCreditoAUsar(parseFloat(e.target.value) || 0)}
+                    className="border-green-300 focus:ring-green-500"
+                  />
+                  <p className="text-xs text-green-600">
+                    Após usar crédito, restará: {formatCurrency(creditoDisponivelTotal - creditoAUsar)}
+                  </p>
+                </div>
+              </div>
+            </Card>
           )}
 
           {/* Resumo */}
