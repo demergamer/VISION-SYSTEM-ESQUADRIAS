@@ -75,6 +75,8 @@ export default function Pedidos() {
   const [selectedRota, setSelectedRota] = useState(null);
   const [pedidoParaCadastro, setPedidoParaCadastro] = useState(null);
   const [pedidoParaCancelar, setPedidoParaCancelar] = useState(null);
+  const [showReverterDialog, setShowReverterDialog] = useState(false);
+  const [pedidoParaReverter, setPedidoParaReverter] = useState(null);
 
   // Get URL params
   useEffect(() => {
@@ -421,6 +423,52 @@ export default function Pedidos() {
     }
   };
 
+  const handleReverterLiquidacao = async () => {
+    if (!pedidoParaReverter) return;
+
+    try {
+      // Buscar créditos gerados por este pedido
+      const { data: creditos = [] } = await queryClient.fetchQuery({
+        queryKey: ['creditos'],
+        queryFn: () => base44.entities.Credito.list()
+      });
+
+      const creditosDosPedido = creditos.filter(c => 
+        c.pedido_origem_id && c.pedido_origem_id.includes(pedidoParaReverter.id)
+      );
+
+      // Excluir créditos disponíveis gerados por este pedido
+      for (const credito of creditosDosPedido) {
+        if (credito.status === 'disponivel') {
+          await base44.entities.Credito.delete(credito.id);
+        }
+      }
+
+      // Reverter o pedido para status "aberto" ou "parcial"
+      const novoStatus = pedidoParaReverter.total_pago > 0 ? 'parcial' : 'aberto';
+      
+      await base44.entities.Pedido.update(pedidoParaReverter.id, {
+        status: novoStatus,
+        total_pago: 0,
+        saldo_restante: pedidoParaReverter.valor_pedido,
+        data_pagamento: null,
+        mes_pagamento: null
+      });
+
+      await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+      await queryClient.invalidateQueries({ queryKey: ['creditos'] });
+      
+      setShowReverterDialog(false);
+      setPedidoParaReverter(null);
+      
+      const msgCredito = creditosDosPedido.length > 0 ? ' e crédito(s) estornado(s)' : '';
+      toast.success(`Liquidação revertida com sucesso${msgCredito}!`);
+    } catch (error) {
+      console.error('Erro ao reverter liquidação:', error);
+      toast.error('Erro ao reverter liquidação');
+    }
+  };
+
   const handleLiquidacaoMassa = async (data) => {
     try {
       const hoje = new Date();
@@ -664,6 +712,10 @@ export default function Pedidos() {
                   onView={handleView}
                   onLiquidar={handleLiquidar}
                   onCancelar={handleCancelar}
+                  onReverter={tab === 'pagos' ? (pedido) => {
+                    setPedidoParaReverter(pedido);
+                    setShowReverterDialog(true);
+                  } : null}
                   isLoading={loadingPedidos}
                 />
               </Card>
@@ -857,6 +909,38 @@ export default function Pedidos() {
             onCancel={() => setShowLiquidacaoMassaModal(false)}
           />
         </ModalContainer>
+
+        {/* Reverter Liquidação Dialog */}
+        <AlertDialog open={showReverterDialog} onOpenChange={setShowReverterDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Reverter Liquidação</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja reverter essa liquidação?
+                {pedidoParaReverter && (
+                  <div className="mt-4 p-3 bg-slate-50 rounded-lg">
+                    <p className="font-medium">Pedido: {pedidoParaReverter.numero_pedido}</p>
+                    <p className="text-sm">Cliente: {pedidoParaReverter.cliente_nome}</p>
+                    <p className="text-sm mt-2 text-amber-600">
+                      Esta ação irá reverter o pedido para status "aberto" e, caso tenha gerado crédito, o crédito será estornado automaticamente.
+                    </p>
+                  </div>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => {
+                setShowReverterDialog(false);
+                setPedidoParaReverter(null);
+              }}>
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={handleReverterLiquidacao}>
+                Sim, Reverter
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
