@@ -160,7 +160,15 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
     // Gerar crédito se pagamento exceder o saldo
     if (novoSaldo < 0) {
       const valorCredito = Math.abs(novoSaldo);
+      
+      // Buscar próximo número de crédito
+      const todosCreditos = await base44.entities.Credito.list();
+      const proximoNumero = todosCreditos.length > 0 
+        ? Math.max(...todosCreditos.map(c => c.numero_credito || 0)) + 1 
+        : 1;
+      
       await base44.entities.Credito.create({
+        numero_credito: proximoNumero,
         cliente_codigo: pedido.cliente_codigo,
         cliente_nome: pedido.cliente_nome,
         valor: valorCredito,
@@ -169,7 +177,11 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
         status: 'disponivel'
       });
       
-      toast.success(`Crédito de ${formatCurrency(valorCredito)} gerado para o cliente!`);
+      // Atualizar outras_informacoes do pedido com a informação do crédito gerado
+      const outrasInfoCreditoGerado = dataToSave.outras_informacoes + `\nCRÉDITO GERADO POR EXCESSO: #${proximoNumero} - ${formatCurrency(valorCredito)}`;
+      dataToSave.outras_informacoes = outrasInfoCreditoGerado;
+      
+      toast.success(`Crédito #${proximoNumero} de ${formatCurrency(valorCredito)} gerado!`);
     }
     
     onSave(dataToSave);
