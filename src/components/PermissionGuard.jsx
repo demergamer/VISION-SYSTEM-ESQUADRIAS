@@ -18,12 +18,7 @@ export default function PermissionGuard({ setor, funcao, children, showBlocked =
     return <div className="p-8 text-center text-slate-500">Carregando...</div>;
   }
 
-  // Admin sempre tem acesso
-  if (user?.role === 'admin') {
-    return <>{children}</>;
-  }
-
-  // Verificar permissões
+  // Verificar permissões (tanto para admin quanto para user)
   const permissoes = user?.permissoes || {};
   
   // Setor sem funções (Dashboard, Comissoes, etc)
