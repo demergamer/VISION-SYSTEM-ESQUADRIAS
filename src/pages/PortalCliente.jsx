@@ -120,223 +120,223 @@ export default function PortalCliente() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-50 p-6">
+      <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold text-slate-800">
-            Bem-vindo, {clienteData.nome}
+        <div className="space-y-1">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+            {clienteData.nome}
           </h1>
-          <p className="text-slate-500">
-            Visualize seus débitos e pendências
-          </p>
+          <p className="text-slate-500">Acompanhe suas movimentações financeiras</p>
         </div>
 
         {/* Resumo Geral */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card className="border-red-200 bg-red-50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-red-700">
-                Total a Pagar
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-red-200 rounded-lg">
-                  <TrendingDown className="w-6 h-6 text-red-700" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="group relative overflow-hidden bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-lg transition-all duration-300">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-red-50 to-transparent rounded-full -mr-16 -mt-16 opacity-50" />
+            <div className="relative">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-red-50 rounded-xl">
+                  <TrendingDown className="w-6 h-6 text-red-600" />
                 </div>
-                <div>
-                  <p className="text-3xl font-bold text-red-800">
-                    {formatCurrency(totais.totalAPagar)}
-                  </p>
-                </div>
+                <p className="text-sm font-medium text-slate-600">Total a Pagar</p>
               </div>
-            </CardContent>
-          </Card>
+              <p className="text-4xl font-bold text-slate-900 mb-1">
+                {formatCurrency(totais.totalAPagar)}
+              </p>
+            </div>
+          </div>
 
-          <Card className="border-green-200 bg-green-50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-green-700">
-                Créditos Disponíveis
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-green-200 rounded-lg">
-                  <DollarSign className="w-6 h-6 text-green-700" />
+          <div className="group relative overflow-hidden bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-lg transition-all duration-300">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-50 to-transparent rounded-full -mr-16 -mt-16 opacity-50" />
+            <div className="relative">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-green-50 rounded-xl">
+                  <DollarSign className="w-6 h-6 text-green-600" />
                 </div>
-                <div>
-                  <p className="text-3xl font-bold text-green-800">
-                    {formatCurrency(totais.creditos)}
-                  </p>
-                  <p className="text-xs text-green-600">{meusCreditos.length} créditos</p>
-                </div>
+                <p className="text-sm font-medium text-slate-600">Créditos Disponíveis</p>
               </div>
-            </CardContent>
-          </Card>
+              <p className="text-4xl font-bold text-slate-900 mb-1">
+                {formatCurrency(totais.creditos)}
+              </p>
+              <p className="text-xs text-slate-500">{meusCreditos.length} créditos ativos</p>
+            </div>
+          </div>
         </div>
 
         {/* Seção Pedidos */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5" />
-              Pedidos
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-slate-600" />
+              <h2 className="text-lg font-semibold text-slate-800">Pedidos</h2>
+            </div>
+          </div>
+          <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <Clock className="w-4 h-4 text-red-600" />
-                  <p className="text-sm font-medium text-red-700">A Pagar</p>
+              <div className="group p-5 bg-gradient-to-br from-red-50 to-white border border-red-100 rounded-xl hover:shadow-md transition-all">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-2 bg-white rounded-lg shadow-sm">
+                    <Clock className="w-4 h-4 text-red-600" />
+                  </div>
+                  <p className="text-sm font-medium text-slate-700">A Pagar</p>
                 </div>
-                <p className="text-2xl font-bold text-red-800">{formatCurrency(totais.pedidosAPagar)}</p>
-                <p className="text-xs text-red-600 mt-1">{meusPedidos.aPagar.length} pedidos</p>
+                <p className="text-2xl font-bold text-slate-900">{formatCurrency(totais.pedidosAPagar)}</p>
+                <p className="text-xs text-slate-500 mt-1">{meusPedidos.aPagar.length} pedidos</p>
               </div>
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  <p className="text-sm font-medium text-green-700">Pagos</p>
+              <div className="group p-5 bg-gradient-to-br from-green-50 to-white border border-green-100 rounded-xl hover:shadow-md transition-all">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-2 bg-white rounded-lg shadow-sm">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                  </div>
+                  <p className="text-sm font-medium text-slate-700">Pagos</p>
                 </div>
-                <p className="text-2xl font-bold text-green-800">{formatCurrency(totais.pedidosPagos)}</p>
-                <p className="text-xs text-green-600 mt-1">{meusPedidos.pagos.length} pedidos</p>
+                <p className="text-2xl font-bold text-slate-900">{formatCurrency(totais.pedidosPagos)}</p>
+                <p className="text-xs text-slate-500 mt-1">{meusPedidos.pagos.length} pedidos</p>
               </div>
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <XCircle className="w-4 h-4 text-slate-600" />
+              <div className="group p-5 bg-gradient-to-br from-slate-50 to-white border border-slate-100 rounded-xl hover:shadow-md transition-all">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-2 bg-white rounded-lg shadow-sm">
+                    <XCircle className="w-4 h-4 text-slate-600" />
+                  </div>
                   <p className="text-sm font-medium text-slate-700">Cancelados</p>
                 </div>
-                <p className="text-2xl font-bold text-slate-800">{meusPedidos.cancelados.length}</p>
-                <p className="text-xs text-slate-600 mt-1">pedidos</p>
+                <p className="text-2xl font-bold text-slate-900">{meusPedidos.cancelados.length}</p>
+                <p className="text-xs text-slate-500 mt-1">pedidos</p>
               </div>
             </div>
 
             {meusPedidos.aPagar.length > 0 && (
-              <div className="space-y-3">
-                <h3 className="font-semibold text-slate-700 text-sm">Pedidos Pendentes</h3>
+              <div className="space-y-3 pt-4 border-t border-slate-100">
+                <h3 className="font-medium text-slate-700 text-sm mb-3">Pendentes</h3>
                 {meusPedidos.aPagar.map(pedido => {
                   const saldo = pedido.saldo_restante || (pedido.valor_pedido - (pedido.total_pago || 0));
                   const diasAtraso = calcularDiasAtraso(pedido.data_entrega);
                   
                   return (
-                    <div key={pedido.id} className="p-4 border rounded-lg hover:bg-slate-50">
+                    <div key={pedido.id} className="p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors">
                       <div className="flex items-start justify-between mb-2">
                         <div>
                           <div className="flex items-center gap-2">
-                            <p className="font-semibold text-slate-800">Pedido #{pedido.numero_pedido}</p>
+                            <p className="font-semibold text-slate-800">#{pedido.numero_pedido}</p>
                             {diasAtraso > 0 && (
-                              <Badge variant="destructive" className="text-xs">
-                                {diasAtraso} dias de atraso
-                              </Badge>
+                              <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-full">
+                                {diasAtraso}d atraso
+                              </span>
                             )}
                           </div>
-                          <p className="text-sm text-slate-500">
-                            Entrega: {format(new Date(pedido.data_entrega), 'dd/MM/yyyy')}
+                          <p className="text-xs text-slate-500 mt-1">
+                            {format(new Date(pedido.data_entrega), 'dd/MM/yyyy')}
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-lg font-bold text-red-600">{formatCurrency(saldo)}</p>
-                          <p className="text-xs text-slate-500">Total: {formatCurrency(pedido.valor_pedido)}</p>
+                          <p className="text-lg font-bold text-slate-900">{formatCurrency(saldo)}</p>
+                          <p className="text-xs text-slate-500">de {formatCurrency(pedido.valor_pedido)}</p>
                         </div>
                       </div>
                       {pedido.observacao && (
-                        <p className="text-sm text-slate-600 mt-2">Obs: {pedido.observacao}</p>
+                        <p className="text-xs text-slate-600 mt-2 bg-white p-2 rounded-lg">{pedido.observacao}</p>
                       )}
                     </div>
                   );
                 })}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Seção Cheques */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="w-5 h-5" />
-              Cheques
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-slate-600" />
+              <h2 className="text-lg font-semibold text-slate-800">Cheques</h2>
+            </div>
+          </div>
+          <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <Clock className="w-4 h-4 text-yellow-600" />
-                  <p className="text-sm font-medium text-yellow-700">A Vencer</p>
+              <div className="group p-5 bg-gradient-to-br from-yellow-50 to-white border border-yellow-100 rounded-xl hover:shadow-md transition-all">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-2 bg-white rounded-lg shadow-sm">
+                    <Clock className="w-4 h-4 text-yellow-600" />
+                  </div>
+                  <p className="text-sm font-medium text-slate-700">A Vencer</p>
                 </div>
-                <p className="text-2xl font-bold text-yellow-800">{formatCurrency(totais.chequesAVencer)}</p>
-                <p className="text-xs text-yellow-600 mt-1">{meusCheques.aVencer.length} cheques</p>
+                <p className="text-2xl font-bold text-slate-900">{formatCurrency(totais.chequesAVencer)}</p>
+                <p className="text-xs text-slate-500 mt-1">{meusCheques.aVencer.length} cheques</p>
               </div>
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  <p className="text-sm font-medium text-green-700">Compensados</p>
+              <div className="group p-5 bg-gradient-to-br from-green-50 to-white border border-green-100 rounded-xl hover:shadow-md transition-all">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-2 bg-white rounded-lg shadow-sm">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                  </div>
+                  <p className="text-sm font-medium text-slate-700">Compensados</p>
                 </div>
-                <p className="text-2xl font-bold text-green-800">{meusCheques.compensados.length}</p>
-                <p className="text-xs text-green-600 mt-1">cheques</p>
+                <p className="text-2xl font-bold text-slate-900">{meusCheques.compensados.length}</p>
+                <p className="text-xs text-slate-500 mt-1">cheques</p>
               </div>
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <XCircle className="w-4 h-4 text-red-600" />
-                  <p className="text-sm font-medium text-red-700">Devolvidos</p>
+              <div className="group p-5 bg-gradient-to-br from-red-50 to-white border border-red-100 rounded-xl hover:shadow-md transition-all">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-2 bg-white rounded-lg shadow-sm">
+                    <XCircle className="w-4 h-4 text-red-600" />
+                  </div>
+                  <p className="text-sm font-medium text-slate-700">Devolvidos</p>
                 </div>
-                <p className="text-2xl font-bold text-red-800">{formatCurrency(totais.chequesDevolvidos)}</p>
-                <p className="text-xs text-red-600 mt-1">{meusCheques.devolvidos.length} cheques</p>
+                <p className="text-2xl font-bold text-slate-900">{formatCurrency(totais.chequesDevolvidos)}</p>
+                <p className="text-xs text-slate-500 mt-1">{meusCheques.devolvidos.length} cheques</p>
               </div>
             </div>
 
             {meusCheques.devolvidos.length > 0 && (
-              <div className="space-y-3">
-                <h3 className="font-semibold text-slate-700 text-sm">Cheques Devolvidos</h3>
+              <div className="space-y-3 pt-4 border-t border-slate-100">
+                <h3 className="font-medium text-slate-700 text-sm mb-3">Devolvidos</h3>
                 {meusCheques.devolvidos.map(cheque => {
                   const diasAtraso = calcularDiasAtraso(cheque.data_vencimento);
                   
                   return (
-                    <div key={cheque.id} className="p-4 border border-red-200 rounded-lg bg-red-50">
+                    <div key={cheque.id} className="p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors">
                       <div className="flex items-start justify-between mb-2">
                         <div>
-                          <p className="font-semibold text-slate-800">Cheque #{cheque.numero_cheque}</p>
-                          <p className="text-sm text-slate-600">
-                            Banco: {cheque.banco} | Venc: {format(new Date(cheque.data_vencimento), 'dd/MM/yyyy')}
+                          <p className="font-semibold text-slate-800">#{cheque.numero_cheque}</p>
+                          <p className="text-xs text-slate-500 mt-1">
+                            {cheque.banco} • {format(new Date(cheque.data_vencimento), 'dd/MM/yyyy')}
                           </p>
                           {diasAtraso > 0 && (
-                            <Badge variant="destructive" className="text-xs mt-1">
-                              {diasAtraso} dias vencido
-                            </Badge>
+                            <span className="inline-block mt-2 px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-full">
+                              {diasAtraso}d vencido
+                            </span>
                           )}
                         </div>
-                        <p className="text-lg font-bold text-red-600">{formatCurrency(cheque.valor)}</p>
+                        <p className="text-lg font-bold text-slate-900">{formatCurrency(cheque.valor)}</p>
                       </div>
                       {cheque.motivo_devolucao && (
-                        <p className="text-sm text-slate-600 mt-2">Motivo: {cheque.motivo_devolucao}</p>
+                        <p className="text-xs text-slate-600 mt-2 bg-white p-2 rounded-lg">{cheque.motivo_devolucao}</p>
                       )}
                     </div>
                   );
                 })}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Seção Créditos */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5" />
-              Créditos Disponíveis
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-slate-600" />
+              <h2 className="text-lg font-semibold text-slate-800">Créditos Disponíveis</h2>
+            </div>
+          </div>
+          <div className="p-6">
             {meusCreditos.length > 0 ? (
               <div className="space-y-3">
                 {meusCreditos.map(credito => (
-                  <div key={credito.id} className="p-4 border border-green-200 rounded-lg bg-green-50">
-                    <div className="flex items-start justify-between mb-2">
+                  <div key={credito.id} className="p-4 bg-gradient-to-br from-green-50 to-white rounded-xl border border-green-100">
+                    <div className="flex items-start justify-between">
                       <div>
                         <p className="font-semibold text-slate-800">Crédito #{credito.numero_credito}</p>
-                        <p className="text-sm text-slate-600">{credito.origem}</p>
+                        <p className="text-xs text-slate-500 mt-1">{credito.origem}</p>
                       </div>
                       <p className="text-lg font-bold text-green-600">{formatCurrency(credito.valor)}</p>
                     </div>
@@ -344,10 +344,10 @@ export default function PortalCliente() {
                 ))}
               </div>
             ) : (
-              <p className="text-center text-slate-500 py-4">Nenhum crédito disponível</p>
+              <p className="text-center text-slate-400 py-8 text-sm">Nenhum crédito disponível</p>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   );
