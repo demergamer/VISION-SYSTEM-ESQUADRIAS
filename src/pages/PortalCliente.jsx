@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, FileText, CreditCard, TrendingDown } from "lucide-react";
+import { AlertCircle, FileText, CreditCard, TrendingDown, CheckCircle, XCircle, Clock, DollarSign } from "lucide-react";
 import { format } from "date-fns";
 
 export default function PortalCliente() {
@@ -36,35 +36,55 @@ export default function PortalCliente() {
 
   // Filtrar pedidos do cliente
   const meusPedidos = useMemo(() => {
-    if (!clienteData) return [];
-    return pedidos.filter(p => 
-      p.cliente_codigo === clienteData.codigo && 
-      (p.status === 'aberto' || p.status === 'parcial')
-    );
+    if (!clienteData) return { aPagar: [], pagos: [], cancelados: [] };
+    const clientePedidos = pedidos.filter(p => p.cliente_codigo === clienteData.codigo);
+    return {
+      aPagar: clientePedidos.filter(p => p.status === 'aberto' || p.status === 'parcial'),
+      pagos: clientePedidos.filter(p => p.status === 'pago'),
+      cancelados: clientePedidos.filter(p => p.status === 'cancelado')
+    };
   }, [pedidos, clienteData]);
 
   // Filtrar cheques do cliente
   const meusCheques = useMemo(() => {
-    if (!clienteData) return [];
-    return cheques.filter(c => 
-      c.cliente_codigo === clienteData.codigo && 
-      c.status === 'devolvido'
-    );
+    if (!clienteData) return { aVencer: [], compensados: [], devolvidos: [] };
+    const clienteCheques = cheques.filter(c => c.cliente_codigo === clienteData.codigo);
+    const hoje = new Date();
+    return {
+      aVencer: clienteCheques.filter(c => c.status === 'normal' && new Date(c.data_vencimento) >= hoje),
+      compensados: clienteCheques.filter(c => c.status === 'pago'),
+      devolvidos: clienteCheques.filter(c => c.status === 'devolvido')
+    };
   }, [cheques, clienteData]);
+
+  // Buscar créditos do cliente
+  const { data: creditos = [] } = useQuery({
+    queryKey: ['creditos'],
+    queryFn: () => base44.entities.Credito.list()
+  });
+
+  const meusCreditos = useMemo(() => {
+    if (!clienteData) return [];
+    return creditos.filter(c => c.cliente_codigo === clienteData.codigo && c.status === 'disponivel');
+  }, [creditos, clienteData]);
 
   // Calcular totais
   const totais = useMemo(() => {
-    const totalPedidos = meusPedidos.reduce((sum, p) => 
+    const totalPedidosAPagar = meusPedidos.aPagar.reduce((sum, p) => 
       sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0
     );
-    const totalCheques = meusCheques.reduce((sum, c) => sum + c.valor, 0);
+    const totalChequesDevolvidos = meusCheques.devolvidos.reduce((sum, c) => sum + c.valor, 0);
+    const totalCreditos = meusCreditos.reduce((sum, c) => sum + c.valor, 0);
     
     return {
-      pedidos: totalPedidos,
-      cheques: totalCheques,
-      total: totalPedidos + totalCheques
+      pedidosAPagar: totalPedidosAPagar,
+      pedidosPagos: meusPedidos.pagos.reduce((sum, p) => sum + p.valor_pedido, 0),
+      chequesAVencer: meusCheques.aVencer.reduce((sum, c) => sum + c.valor, 0),
+      chequesDevolvidos: totalChequesDevolvidos,
+      creditos: totalCreditos,
+      totalAPagar: totalPedidosAPagar + totalChequesDevolvidos
     };
-  }, [meusPedidos, meusCheques]);
+  }, [meusPedidos, meusCheques, meusCreditos]);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -112,80 +132,90 @@ export default function PortalCliente() {
           </p>
         </div>
 
-        {/* Resumo */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
+        {/* Resumo Geral */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card className="border-red-200 bg-red-50">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-slate-600">
+              <CardTitle className="text-sm font-medium text-red-700">
                 Total a Pagar
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-red-100 rounded-lg">
-                  <TrendingDown className="w-5 h-5 text-red-600" />
+                <div className="p-3 bg-red-200 rounded-lg">
+                  <TrendingDown className="w-6 h-6 text-red-700" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-slate-800">
-                    {formatCurrency(totais.total)}
+                  <p className="text-3xl font-bold text-red-800">
+                    {formatCurrency(totais.totalAPagar)}
                   </p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-green-200 bg-green-50">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-slate-600">
-                Pedidos Abertos
+              <CardTitle className="text-sm font-medium text-green-700">
+                Créditos Disponíveis
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-blue-100 rounded-lg">
-                  <FileText className="w-5 h-5 text-blue-600" />
+                <div className="p-3 bg-green-200 rounded-lg">
+                  <DollarSign className="w-6 h-6 text-green-700" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-slate-800">
-                    {formatCurrency(totais.pedidos)}
+                  <p className="text-3xl font-bold text-green-800">
+                    {formatCurrency(totais.creditos)}
                   </p>
-                  <p className="text-xs text-slate-500">{meusPedidos.length} pedidos</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-slate-600">
-                Cheques Devolvidos
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-orange-100 rounded-lg">
-                  <CreditCard className="w-5 h-5 text-orange-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-slate-800">
-                    {formatCurrency(totais.cheques)}
-                  </p>
-                  <p className="text-xs text-slate-500">{meusCheques.length} cheques</p>
+                  <p className="text-xs text-green-600">{meusCreditos.length} créditos</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Pedidos */}
-        {meusPedidos.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Pedidos Pendentes</CardTitle>
-            </CardHeader>
-            <CardContent>
+        {/* Seção Pedidos */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              Pedidos
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="w-4 h-4 text-red-600" />
+                  <p className="text-sm font-medium text-red-700">A Pagar</p>
+                </div>
+                <p className="text-2xl font-bold text-red-800">{formatCurrency(totais.pedidosAPagar)}</p>
+                <p className="text-xs text-red-600 mt-1">{meusPedidos.aPagar.length} pedidos</p>
+              </div>
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle className="w-4 h-4 text-green-600" />
+                  <p className="text-sm font-medium text-green-700">Pagos</p>
+                </div>
+                <p className="text-2xl font-bold text-green-800">{formatCurrency(totais.pedidosPagos)}</p>
+                <p className="text-xs text-green-600 mt-1">{meusPedidos.pagos.length} pedidos</p>
+              </div>
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <XCircle className="w-4 h-4 text-slate-600" />
+                  <p className="text-sm font-medium text-slate-700">Cancelados</p>
+                </div>
+                <p className="text-2xl font-bold text-slate-800">{meusPedidos.cancelados.length}</p>
+                <p className="text-xs text-slate-600 mt-1">pedidos</p>
+              </div>
+            </div>
+
+            {meusPedidos.aPagar.length > 0 && (
               <div className="space-y-3">
-                {meusPedidos.map(pedido => {
+                <h3 className="font-semibold text-slate-700 text-sm">Pedidos Pendentes</h3>
+                {meusPedidos.aPagar.map(pedido => {
                   const saldo = pedido.saldo_restante || (pedido.valor_pedido - (pedido.total_pago || 0));
                   const diasAtraso = calcularDiasAtraso(pedido.data_entrega);
                   
@@ -194,9 +224,7 @@ export default function PortalCliente() {
                       <div className="flex items-start justify-between mb-2">
                         <div>
                           <div className="flex items-center gap-2">
-                            <p className="font-semibold text-slate-800">
-                              Pedido #{pedido.numero_pedido}
-                            </p>
+                            <p className="font-semibold text-slate-800">Pedido #{pedido.numero_pedido}</p>
                             {diasAtraso > 0 && (
                               <Badge variant="destructive" className="text-xs">
                                 {diasAtraso} dias de atraso
@@ -208,45 +236,68 @@ export default function PortalCliente() {
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-lg font-bold text-red-600">
-                            {formatCurrency(saldo)}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            Total: {formatCurrency(pedido.valor_pedido)}
-                          </p>
+                          <p className="text-lg font-bold text-red-600">{formatCurrency(saldo)}</p>
+                          <p className="text-xs text-slate-500">Total: {formatCurrency(pedido.valor_pedido)}</p>
                         </div>
                       </div>
                       {pedido.observacao && (
-                        <p className="text-sm text-slate-600 mt-2">
-                          Obs: {pedido.observacao}
-                        </p>
+                        <p className="text-sm text-slate-600 mt-2">Obs: {pedido.observacao}</p>
                       )}
                     </div>
                   );
                 })}
               </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
+          </CardContent>
+        </Card>
 
-        {/* Cheques */}
-        {meusCheques.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Cheques Devolvidos</CardTitle>
-            </CardHeader>
-            <CardContent>
+        {/* Seção Cheques */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="w-5 h-5" />
+              Cheques
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="w-4 h-4 text-yellow-600" />
+                  <p className="text-sm font-medium text-yellow-700">A Vencer</p>
+                </div>
+                <p className="text-2xl font-bold text-yellow-800">{formatCurrency(totais.chequesAVencer)}</p>
+                <p className="text-xs text-yellow-600 mt-1">{meusCheques.aVencer.length} cheques</p>
+              </div>
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle className="w-4 h-4 text-green-600" />
+                  <p className="text-sm font-medium text-green-700">Compensados</p>
+                </div>
+                <p className="text-2xl font-bold text-green-800">{meusCheques.compensados.length}</p>
+                <p className="text-xs text-green-600 mt-1">cheques</p>
+              </div>
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <XCircle className="w-4 h-4 text-red-600" />
+                  <p className="text-sm font-medium text-red-700">Devolvidos</p>
+                </div>
+                <p className="text-2xl font-bold text-red-800">{formatCurrency(totais.chequesDevolvidos)}</p>
+                <p className="text-xs text-red-600 mt-1">{meusCheques.devolvidos.length} cheques</p>
+              </div>
+            </div>
+
+            {meusCheques.devolvidos.length > 0 && (
               <div className="space-y-3">
-                {meusCheques.map(cheque => {
+                <h3 className="font-semibold text-slate-700 text-sm">Cheques Devolvidos</h3>
+                {meusCheques.devolvidos.map(cheque => {
                   const diasAtraso = calcularDiasAtraso(cheque.data_vencimento);
                   
                   return (
-                    <div key={cheque.id} className="p-4 border border-orange-200 rounded-lg bg-orange-50">
+                    <div key={cheque.id} className="p-4 border border-red-200 rounded-lg bg-red-50">
                       <div className="flex items-start justify-between mb-2">
                         <div>
-                          <p className="font-semibold text-slate-800">
-                            Cheque #{cheque.numero_cheque}
-                          </p>
+                          <p className="font-semibold text-slate-800">Cheque #{cheque.numero_cheque}</p>
                           <p className="text-sm text-slate-600">
                             Banco: {cheque.banco} | Venc: {format(new Date(cheque.data_vencimento), 'dd/MM/yyyy')}
                           </p>
@@ -256,33 +307,47 @@ export default function PortalCliente() {
                             </Badge>
                           )}
                         </div>
-                        <p className="text-lg font-bold text-orange-600">
-                          {formatCurrency(cheque.valor)}
-                        </p>
+                        <p className="text-lg font-bold text-red-600">{formatCurrency(cheque.valor)}</p>
                       </div>
                       {cheque.motivo_devolucao && (
-                        <p className="text-sm text-slate-600 mt-2">
-                          Motivo: {cheque.motivo_devolucao}
-                        </p>
+                        <p className="text-sm text-slate-600 mt-2">Motivo: {cheque.motivo_devolucao}</p>
                       )}
                     </div>
                   );
                 })}
               </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
+          </CardContent>
+        </Card>
 
-        {/* Mensagem se não houver débitos */}
-        {meusPedidos.length === 0 && meusCheques.length === 0 && (
-          <Card className="border-green-200 bg-green-50">
-            <CardContent className="p-6 text-center">
-              <p className="text-green-800 font-medium">
-                ✓ Parabéns! Você não possui débitos pendentes.
-              </p>
-            </CardContent>
-          </Card>
-        )}
+        {/* Seção Créditos */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5" />
+              Créditos Disponíveis
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {meusCreditos.length > 0 ? (
+              <div className="space-y-3">
+                {meusCreditos.map(credito => (
+                  <div key={credito.id} className="p-4 border border-green-200 rounded-lg bg-green-50">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <p className="font-semibold text-slate-800">Crédito #{credito.numero_credito}</p>
+                        <p className="text-sm text-slate-600">{credito.origem}</p>
+                      </div>
+                      <p className="text-lg font-bold text-green-600">{formatCurrency(credito.valor)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-slate-500 py-4">Nenhum crédito disponível</p>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
