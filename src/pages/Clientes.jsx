@@ -57,10 +57,16 @@ export default function Clientes() {
     queryFn: () => base44.entities.Credito.list()
   });
 
+  const { data: cheques = [] } = useQuery({
+    queryKey: ['cheques'],
+    queryFn: () => base44.entities.Cheque.list()
+  });
+
   // Calcular estatísticas por cliente
   const clienteStats = useMemo(() => {
     const stats = {};
     const now = new Date();
+    now.setHours(0, 0, 0, 0);
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
     const fifteenDaysAgo = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
@@ -86,9 +92,19 @@ export default function Clientes() {
       const ultrapassouLimite = totalPedidosAbertos > (cli.limite_credito || 0);
       const bloqueadoAuto = temAtraso || ultrapassouLimite;
 
+      // Calcular cheques a vencer (status normal e vencimento > hoje)
+      const chequesAVencer = cheques.filter(ch => {
+        if (ch.cliente_codigo !== cli.codigo) return false;
+        if (ch.status !== 'normal') return false;
+        const vencimento = new Date(ch.data_vencimento);
+        vencimento.setHours(0, 0, 0, 0);
+        return vencimento > now;
+      });
+      const totalChequesVencer = chequesAVencer.reduce((sum, ch) => sum + (ch.valor || 0), 0);
+
       stats[cli.codigo] = {
         totalPedidosAbertos,
-        totalChequesVencer: 0, // Será implementado com entidade Cheque
+        totalChequesVencer,
         bloqueadoAuto,
         compras30k: compras30Dias >= 30000,
         ativo
@@ -96,7 +112,7 @@ export default function Clientes() {
     });
 
     return stats;
-  }, [clientes, pedidos]);
+  }, [clientes, pedidos, cheques]);
 
   // Estatísticas gerais
   const generalStats = useMemo(() => {
