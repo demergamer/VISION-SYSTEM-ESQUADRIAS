@@ -21,6 +21,7 @@ export default function ClienteForm({ cliente, representantes = [], onSave, onCa
     representante_nome: '',
     porcentagem_comissao: 5,
     telefone: '',
+    email: '',
     score: '',
     data_consulta: '',
     limite_credito: 0,
@@ -37,6 +38,7 @@ export default function ClienteForm({ cliente, representantes = [], onSave, onCa
         representante_nome: cliente.representante_nome || '',
         porcentagem_comissao: cliente.porcentagem_comissao || 5,
         telefone: cliente.telefone || '',
+        email: cliente.email || '',
         score: cliente.score || '',
         data_consulta: cliente.data_consulta || '',
         limite_credito: cliente.limite_credito || 0,
@@ -135,6 +137,17 @@ export default function ClienteForm({ cliente, representantes = [], onSave, onCa
             value={form.telefone}
             onChange={(e) => setForm({ ...form, telefone: e.target.value })}
             placeholder="(00) 00000-0000"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            placeholder="email@exemplo.com"
           />
         </div>
 
