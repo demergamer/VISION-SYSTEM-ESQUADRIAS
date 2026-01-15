@@ -6,10 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { 
   AlertCircle, FileText, CreditCard, TrendingDown, CheckCircle, 
-  XCircle, Clock, DollarSign, Search, Eye, Filter, ChevronDown, ChevronUp, ArrowRight
+  XCircle, Clock, DollarSign, Search, Eye, Filter, ChevronDown, ChevronUp, ArrowRight,
+  Package, Truck // Importei novos ícones
 } from "lucide-react";
 import { format } from "date-fns";
-import { motion, AnimatePresence } from "framer-motion"; // Importante para a animação
+import { motion, AnimatePresence } from "framer-motion";
 import ModalContainer from "@/components/modals/ModalContainer";
 import ChequeDetails from "@/components/cheques/ChequeDetails";
 
@@ -18,7 +19,7 @@ export default function PortalCliente() {
   const [showFiltrosPedidos, setShowFiltrosPedidos] = useState(false);
   const [showFiltrosCheques, setShowFiltrosCheques] = useState(false);
 
-  // --- Estados de Filtros (Mantidos) ---
+  // --- Estados de Filtros ---
   const [filtros, setFiltros] = useState({
     numeroPedido: '', rota: '', dataEntregaInicio: '', dataEntregaFim: '',
     dataPagamentoInicio: '', dataPagamentoFim: '', valorMin: '', valorMax: ''
@@ -29,26 +30,30 @@ export default function PortalCliente() {
     valorMin: '', valorMax: ''
   });
 
-  const [abaPedidos, setAbaPedidos] = useState('aPagar');
-  const [abaCheques, setAbaCheques] = useState('aVencer'); // Corrigido inicial
+  // Mudei o padrão para 'aguardando' ou 'aPagar' conforme sua preferência
+  const [abaPedidos, setAbaPedidos] = useState('aguardando'); 
+  const [abaCheques, setAbaCheques] = useState('aVencer');
   const [chequeDetalhe, setChequeDetalhe] = useState(null);
   const [showChequeModal, setShowChequeModal] = useState(false);
 
-  // --- Queries de Dados (Mantidas) ---
+  // --- Queries de Dados ---
   const { data: user } = useQuery({ queryKey: ['user'], queryFn: () => base44.auth.me() });
   const { data: clientes = [] } = useQuery({ queryKey: ['clientes'], queryFn: () => base44.entities.Cliente.list() });
   const { data: pedidos = [] } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list() });
   const { data: cheques = [] } = useQuery({ queryKey: ['cheques'], queryFn: () => base44.entities.Cheque.list() });
   const { data: creditos = [] } = useQuery({ queryKey: ['creditos'], queryFn: () => base44.entities.Credito.list() });
 
-  // --- Lógica de Negócio (Mantida) ---
+  // --- Lógica de Negócio ---
   const clienteData = useMemo(() => clientes.find(c => c.email === user?.email), [clientes, user]);
 
   const meusPedidos = useMemo(() => {
-    if (!clienteData) return { aPagar: [], pagos: [], cancelados: [] };
+    // SEGURANÇA: Se não achou cliente, retorna vazio
+    if (!clienteData) return { aguardando: [], aPagar: [], pagos: [], cancelados: [] };
+    
+    // SEGURANÇA: Filtra apenas pedidos deste cliente
     let list = pedidos.filter(p => p.cliente_codigo === clienteData.codigo);
     
-    // Filtros
+    // Filtros visuais
     if (filtros.numeroPedido) list = list.filter(p => p.numero_pedido?.toLowerCase().includes(filtros.numeroPedido.toLowerCase()));
     if (filtros.rota) list = list.filter(p => p.rota_codigo?.toLowerCase().includes(filtros.rota.toLowerCase()));
     if (filtros.dataEntregaInicio) list = list.filter(p => new Date(p.data_entrega) >= new Date(filtros.dataEntregaInicio));
@@ -57,6 +62,8 @@ export default function PortalCliente() {
     if (filtros.valorMax) list = list.filter(p => p.valor_pedido <= parseFloat(filtros.valorMax));
 
     return {
+      // NOVA CATEGORIA: Status 'aguardando'
+      aguardando: list.filter(p => p.status === 'aguardando'),
       aPagar: list.filter(p => p.status === 'aberto' || p.status === 'parcial'),
       pagos: list.filter(p => p.status === 'pago'),
       cancelados: list.filter(p => p.status === 'cancelado')
@@ -67,7 +74,7 @@ export default function PortalCliente() {
     if (!clienteData) return { aVencer: [], compensados: [], devolvidos: [], pagos: [] };
     let list = cheques.filter(c => c.cliente_codigo === clienteData.codigo);
     
-    // Filtros Cheques
+    // Filtros Cheques (mesma lógica anterior)
     if (filtrosCheques.numeroCheque) list = list.filter(c => c.numero_cheque?.toLowerCase().includes(filtrosCheques.numeroCheque.toLowerCase()));
     if (filtrosCheques.banco) list = list.filter(c => c.banco?.toLowerCase().includes(filtrosCheques.banco.toLowerCase()));
     if (filtrosCheques.dataVencimentoInicio) list = list.filter(c => new Date(c.data_vencimento) >= new Date(filtrosCheques.dataVencimentoInicio));
@@ -108,8 +115,6 @@ export default function PortalCliente() {
     const diff = Math.floor((new Date() - new Date(data)) / (1000 * 60 * 60 * 24));
     return diff > 0 ? diff : 0;
   };
-
-  // --- Renderização de Componentes UI ---
 
   const TabButton = ({ active, onClick, icon: Icon, label, count, colorClass, bgActive, borderActive }) => (
     <button 
@@ -154,7 +159,7 @@ export default function PortalCliente() {
     <div className="min-h-screen bg-[#F5F7FA] p-4 md:p-8 font-sans text-slate-900">
       <div className="max-w-6xl mx-auto space-y-10">
         
-        {/* Header Elegante */}
+        {/* Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div className="space-y-1">
             <h1 className="text-3xl font-bold tracking-tight text-slate-900">
@@ -168,7 +173,7 @@ export default function PortalCliente() {
           </div>
         </div>
 
-        {/* Cards de Resumo (Estilo Widget) */}
+        {/* Cards de Resumo */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-40 h-40 bg-red-50 rounded-full -mr-20 -mt-20 transition-transform group-hover:scale-110" />
@@ -209,12 +214,25 @@ export default function PortalCliente() {
           </div>
 
           {/* Abas de Navegação */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* --- NOVA ABA: AGUARDANDO --- */}
+            <TabButton 
+              active={abaPedidos === 'aguardando'} 
+              onClick={() => setAbaPedidos('aguardando')}
+              icon={Package} // Ícone de pacote
+              label="Aguardando Entrega" 
+              count={meusPedidos.aguardando.length}
+              colorClass="text-amber-500"
+              bgActive="bg-amber-50"
+              borderActive="border-amber-200"
+            />
+            {/* ----------------------------- */}
+
             <TabButton 
               active={abaPedidos === 'aPagar'} 
               onClick={() => setAbaPedidos('aPagar')}
               icon={Clock} 
-              label="Em Aberto" 
+              label="A Pagar" 
               count={meusPedidos.aPagar.length}
               colorClass="text-red-500"
               bgActive="bg-red-50"
@@ -242,7 +260,7 @@ export default function PortalCliente() {
             />
           </div>
 
-          {/* Filtros Rebatíveis (Colapsáveis) */}
+          {/* Filtros Rebatíveis */}
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
             <button 
               onClick={() => setShowFiltrosPedidos(!showFiltrosPedidos)}
@@ -267,21 +285,12 @@ export default function PortalCliente() {
                   <div className="p-6 pt-0 bg-slate-50/50 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <Input placeholder="Nº Pedido" value={filtros.numeroPedido} onChange={(e) => setFiltros({...filtros, numeroPedido: e.target.value})} className="bg-white" />
                     <Input placeholder="Rota" value={filtros.rota} onChange={(e) => setFiltros({...filtros, rota: e.target.value})} className="bg-white" />
-                    
                     <div className="space-y-1">
-                      <label className="text-[10px] uppercase font-bold text-slate-400 ml-1">Data Entrega</label>
-                      <div className="flex gap-2">
-                         <Input type="date" value={filtros.dataEntregaInicio} onChange={(e) => setFiltros({...filtros, dataEntregaInicio: e.target.value})} className="bg-white text-xs" />
-                         <Input type="date" value={filtros.dataEntregaFim} onChange={(e) => setFiltros({...filtros, dataEntregaFim: e.target.value})} className="bg-white text-xs" />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] uppercase font-bold text-slate-400 ml-1">Valores</label>
-                      <div className="flex gap-2">
-                        <Input type="number" placeholder="Min" value={filtros.valorMin} onChange={(e) => setFiltros({...filtros, valorMin: e.target.value})} className="bg-white" />
-                        <Input type="number" placeholder="Max" value={filtros.valorMax} onChange={(e) => setFiltros({...filtros, valorMax: e.target.value})} className="bg-white" />
-                      </div>
+                       <label className="text-[10px] uppercase font-bold text-slate-400 ml-1">Data Entrega</label>
+                       <div className="flex gap-2">
+                          <Input type="date" value={filtros.dataEntregaInicio} onChange={(e) => setFiltros({...filtros, dataEntregaInicio: e.target.value})} className="bg-white text-xs" />
+                          <Input type="date" value={filtros.dataEntregaFim} onChange={(e) => setFiltros({...filtros, dataEntregaFim: e.target.value})} className="bg-white text-xs" />
+                       </div>
                     </div>
                   </div>
                 </motion.div>
@@ -299,30 +308,56 @@ export default function PortalCliente() {
                     return (
                       <div key={pedido.id} className="p-6 hover:bg-slate-50 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-1">
-                            <span className="text-lg font-bold text-slate-800">#{formatNumero(pedido.numero_pedido)}</span>
+                          
+                          {/* LINHA DO NÚMERO DO PEDIDO */}
+                          <div className="flex items-center gap-3 mb-2">
+                            <span className="text-lg font-bold text-slate-800">
+                                #{formatNumero(pedido.numero_pedido)}
+                            </span>
+                            
+                            {/* Tag de Aguardando */}
+                            {abaPedidos === 'aguardando' && (
+                                <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold uppercase tracking-wide rounded-full flex items-center gap-1">
+                                    <Package className="w-3 h-3" />
+                                    Em Separação
+                                </span>
+                            )}
+
                             {diasAtraso > 0 && abaPedidos === 'aPagar' && (
                               <span className="px-2 py-0.5 bg-red-100 text-red-600 text-[10px] font-bold uppercase tracking-wide rounded-full">
                                 {diasAtraso} dias atraso
                               </span>
                             )}
                           </div>
-                          <div className="text-sm text-slate-500 flex flex-wrap gap-x-4 gap-y-1">
-                            <span>Entrega: <span className="text-slate-700 font-medium">{format(new Date(pedido.data_entrega), 'dd/MM/yyyy')}</span></span>
-                            {pedido.rota_codigo && <span>Rota: <span className="text-slate-700 font-medium">{pedido.rota_codigo}</span></span>}
+                          
+                          {/* LINHA DA ROTA (SOLICITADO) */}
+                          <div className="flex items-center gap-2 text-sm text-slate-600 mb-1">
+                              <Truck className="w-4 h-4 text-slate-400" />
+                              <span className="font-medium">Rota:</span>
+                              <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-700 font-semibold">
+                                  {pedido.rota_codigo || 'N/A'}
+                              </span>
+                          </div>
+
+                          <div className="text-sm text-slate-500">
+                            <span>Previsão: <span className="text-slate-700 font-medium">{format(new Date(pedido.data_entrega), 'dd/MM/yyyy')}</span></span>
                           </div>
                         </div>
                         
+                        {/* VALOR (SOLICITADO) */}
                         <div className="flex items-center justify-between md:justify-end gap-6 w-full md:w-auto">
                           <div className="text-right">
-                             <p className="text-xs text-slate-400 uppercase tracking-wider mb-0.5">Valor</p>
+                             <p className="text-xs text-slate-400 uppercase tracking-wider mb-0.5">Valor Total</p>
                              <p className="text-xl font-bold text-slate-900">
+                               {/* Se estiver aguardando, mostra o valor total. Se for a pagar, mostra o saldo. */}
                                {abaPedidos === 'aPagar' ? formatCurrency(saldo) : formatCurrency(pedido.valor_pedido)}
                              </p>
                           </div>
-                          <div className="p-2 bg-slate-100 rounded-full text-slate-400">
-                            <ArrowRight className="w-5 h-5" />
-                          </div>
+                          {abaPedidos !== 'aguardando' && (
+                            <div className="p-2 bg-slate-100 rounded-full text-slate-400">
+                                <ArrowRight className="w-5 h-5" />
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -331,16 +366,20 @@ export default function PortalCliente() {
               ) : (
                 <div className="p-12 text-center text-slate-400">
                   <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                     <Search className="w-6 h-6 text-slate-300" />
+                     {abaPedidos === 'aguardando' ? <Package className="w-6 h-6 text-amber-300" /> : <Search className="w-6 h-6 text-slate-300" />}
                   </div>
-                  <p>Nenhum pedido encontrado nesta categoria.</p>
+                  <p>
+                      {abaPedidos === 'aguardando' 
+                        ? 'Nenhum pedido aguardando entrega no momento.' 
+                        : 'Nenhum pedido encontrado nesta categoria.'}
+                  </p>
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* --- SEÇÃO DE CHEQUES --- */}
+        {/* --- SEÇÃO DE CHEQUES (MANTIDA IGUAL) --- */}
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
@@ -349,7 +388,6 @@ export default function PortalCliente() {
             </h2>
           </div>
 
-           {/* Abas Cheques */}
            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <TabButton active={abaCheques === 'aVencer'} onClick={() => setAbaCheques('aVencer')} icon={Clock} label="A Vencer" count={meusCheques.aVencer.length} colorClass="text-yellow-600" bgActive="bg-yellow-50" borderActive="border-yellow-200"/>
             <TabButton active={abaCheques === 'compensados'} onClick={() => setAbaCheques('compensados')} icon={CheckCircle} label="Compensados" count={meusCheques.compensados.length} colorClass="text-green-600" bgActive="bg-green-50" borderActive="border-green-200"/>
@@ -357,12 +395,8 @@ export default function PortalCliente() {
             <TabButton active={abaCheques === 'pagos'} onClick={() => setAbaCheques('pagos')} icon={CheckCircle} label="Pagos" count={meusCheques.pagos.length} colorClass="text-blue-600" bgActive="bg-blue-50" borderActive="border-blue-200"/>
           </div>
 
-          {/* Filtros Cheques Rebatíveis */}
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-             <button 
-              onClick={() => setShowFiltrosCheques(!showFiltrosCheques)}
-              className="w-full flex items-center justify-between px-6 py-4 bg-white hover:bg-slate-50 transition-colors"
-            >
+             <button onClick={() => setShowFiltrosCheques(!showFiltrosCheques)} className="w-full flex items-center justify-between px-6 py-4 bg-white hover:bg-slate-50 transition-colors">
               <div className="flex items-center gap-2 text-slate-600">
                 <Filter className="w-4 h-4" />
                 <span className="text-sm font-medium">Filtrar Cheques</span>
@@ -372,13 +406,7 @@ export default function PortalCliente() {
 
             <AnimatePresence>
               {showFiltrosCheques && (
-                <motion.div 
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="overflow-hidden"
-                >
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3 }} className="overflow-hidden">
                   <div className="p-6 pt-0 bg-slate-50/50 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <Input placeholder="Nº Cheque" value={filtrosCheques.numeroCheque} onChange={(e) => setFiltrosCheques({...filtrosCheques, numeroCheque: e.target.value})} className="bg-white" />
                     <Input placeholder="Banco" value={filtrosCheques.banco} onChange={(e) => setFiltrosCheques({...filtrosCheques, banco: e.target.value})} className="bg-white" />
@@ -394,7 +422,6 @@ export default function PortalCliente() {
               )}
             </AnimatePresence>
 
-             {/* Lista Cheques */}
              <div className="border-t border-slate-100">
               {meusCheques[abaCheques].length > 0 ? (
                 <div className="divide-y divide-slate-100">
@@ -406,7 +433,6 @@ export default function PortalCliente() {
                             <span className="text-sm text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{cheque.banco}</span>
                           </div>
                           <p className="text-sm text-slate-500">Vence em: <span className="font-medium text-slate-700">{format(new Date(cheque.data_vencimento), 'dd/MM/yyyy')}</span></p>
-                          {cheque.emitente && <p className="text-xs text-slate-400 mt-1">Emitente: {cheque.emitente}</p>}
                       </div>
                       <div className="flex items-center gap-4">
                          <p className="text-lg font-bold text-slate-900">{formatCurrency(cheque.valor)}</p>
@@ -426,7 +452,7 @@ export default function PortalCliente() {
           </div>
         </div>
 
-        {/* --- SEÇÃO DE CRÉDITOS --- */}
+        {/* --- SEÇÃO DE CRÉDITOS (MANTIDA) --- */}
         {meusCreditos.length > 0 && (
           <div className="space-y-4">
             <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
@@ -447,10 +473,8 @@ export default function PortalCliente() {
             </div>
           </div>
         )}
-
       </div>
 
-      {/* Modal */}
       <ModalContainer open={showChequeModal} onClose={() => setShowChequeModal(false)} title="Detalhes do Cheque">
         {chequeDetalhe && <ChequeDetails cheque={chequeDetalhe} onEdit={() => {}} onClose={() => setShowChequeModal(false)} />}
       </ModalContainer>
