@@ -32,7 +32,6 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Cores dos bancos
   const bancoCores = {
     'ITAÚ': { from: 'from-orange-100', to: 'to-orange-50', border: 'border-orange-300', text: 'text-orange-900' },
     'ITAU': { from: 'from-orange-100', to: 'to-orange-50', border: 'border-orange-300', text: 'text-orange-900' },
@@ -41,20 +40,13 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
     'BANCO DO BRASIL': { from: 'from-yellow-100', to: 'to-yellow-50', border: 'border-yellow-400', text: 'text-yellow-900' },
     'BB': { from: 'from-yellow-100', to: 'to-yellow-50', border: 'border-yellow-400', text: 'text-yellow-900' },
     'CAIXA': { from: 'from-blue-100', to: 'to-cyan-50', border: 'border-blue-300', text: 'text-blue-900' },
-    'CAIXA ECONÔMICA': { from: 'from-blue-100', to: 'to-cyan-50', border: 'border-blue-300', text: 'text-blue-900' },
-    'CAIXA ECONOMICA': { from: 'from-blue-100', to: 'to-cyan-50', border: 'border-blue-300', text: 'text-blue-900' },
-    'NUBANK': { from: 'from-purple-100', to: 'to-purple-50', border: 'border-purple-300', text: 'text-purple-900' },
-    'INTER': { from: 'from-orange-100', to: 'to-orange-50', border: 'border-orange-300', text: 'text-orange-900' },
-    'C6': { from: 'from-slate-200', to: 'to-slate-100', border: 'border-slate-400', text: 'text-slate-900' },
-    'C6 BANK': { from: 'from-slate-200', to: 'to-slate-100', border: 'border-slate-400', text: 'text-slate-900' }
+    'NUBANK': { from: 'from-purple-100', to: 'to-purple-50', border: 'border-purple-300', text: 'text-purple-900' }
   };
 
   const getBancoCor = () => {
     const bancoUpper = (formData.banco || '').toUpperCase().trim();
     for (const [key, cor] of Object.entries(bancoCores)) {
-      if (bancoUpper.includes(key)) {
-        return cor;
-      }
+      if (bancoUpper.includes(key)) return cor;
     }
     return { from: 'from-blue-50', to: 'to-cyan-50', border: 'border-blue-200', text: 'text-slate-900' };
   };
@@ -70,7 +62,6 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
 
   const handleClienteChange = (codigoCliente) => {
     const cliente = clientes.find(c => c.codigo === codigoCliente);
-    
     setFormData({
       ...formData,
       cliente_codigo: codigoCliente,
@@ -82,12 +73,20 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
 
   const handleSave = async () => {
     if (isSubmitting) return;
+    
     setIsSubmitting(true);
 
     try {
+      // Validações básicas
+      if (!formData.numero_cheque || !formData.cliente_codigo || !formData.valor || !formData.data_vencimento) {
+        toast.error('Preencha todos os campos obrigatórios');
+        setIsSubmitting(false);
+        return;
+      }
+
       // Se status for pago e valor pago exceder o valor do cheque, gerar crédito
-      if (formData.status === 'pago' && formData.valor_pago > formData.valor) {
-        const excedente = formData.valor_pago - formData.valor;
+      if (formData.status === 'pago' && parseFloat(formData.valor_pago) > parseFloat(formData.valor)) {
+        const excedente = parseFloat(formData.valor_pago) - parseFloat(formData.valor);
         const confirmar = window.confirm(
           `⚠️ ATENÇÃO!\n\n` +
           `Valor pago: ${formatCurrency(formData.valor_pago)}\n` +
@@ -118,15 +117,15 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
           status: 'disponivel'
         });
         
-        // Atualizar formData com o número do crédito gerado
         formData.credito_gerado_numero = proximoNumero;
-        
         toast.success(`Crédito #${proximoNumero} de ${formatCurrency(excedente)} gerado!`);
       }
       
       await onSave(formData);
+      setIsSubmitting(false);
     } catch (error) {
-      toast.error('Erro ao salvar cheque: ' + (error.message || 'Tente novamente'));
+      console.error('Erro ao salvar:', error);
+      toast.error('Erro ao salvar: ' + (error.message || 'Tente novamente'));
       setIsSubmitting(false);
     }
   };
@@ -176,15 +175,14 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
       {/* Formulário */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="numero_cheque">Número do Cheque *</Label>
+          <Label>Número do Cheque *</Label>
           <Input
-            id="numero_cheque"
             value={formData.numero_cheque}
             onChange={(e) => setFormData({ ...formData, numero_cheque: e.target.value })}
           />
         </div>
         <div>
-          <Label htmlFor="banco">Banco *</Label>
+          <Label>Banco *</Label>
           <Select 
             value={formData.banco} 
             onValueChange={(v) => setFormData({ ...formData, banco: v })}
@@ -203,9 +201,6 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
               <SelectItem value="C6 BANK">C6 Bank</SelectItem>
               <SelectItem value="SICOOB">Sicoob</SelectItem>
               <SelectItem value="SICREDI">Sicredi</SelectItem>
-              <SelectItem value="ORIGINAL">Banco Original</SelectItem>
-              <SelectItem value="SAFRA">Banco Safra</SelectItem>
-              <SelectItem value="BTG PACTUAL">BTG Pactual</SelectItem>
               <SelectItem value="OUTROS">Outros</SelectItem>
             </SelectContent>
           </Select>
@@ -214,17 +209,15 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="agencia">Agência</Label>
+          <Label>Agência</Label>
           <Input
-            id="agencia"
             value={formData.agencia}
             onChange={(e) => setFormData({ ...formData, agencia: e.target.value })}
           />
         </div>
         <div>
-          <Label htmlFor="conta">Conta</Label>
+          <Label>Conta</Label>
           <Input
-            id="conta"
             value={formData.conta}
             onChange={(e) => setFormData({ ...formData, conta: e.target.value })}
           />
@@ -232,7 +225,7 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
       </div>
 
       <div>
-        <Label htmlFor="cliente">Cliente *</Label>
+        <Label>Cliente *</Label>
         <Select value={formData.cliente_codigo} onValueChange={handleClienteChange}>
           <SelectTrigger>
             <SelectValue placeholder="Selecione o cliente" />
@@ -249,9 +242,8 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
       </div>
 
       <div>
-        <Label htmlFor="emitente">Emitente (opcional)</Label>
+        <Label>Emitente (opcional)</Label>
         <Input
-          id="emitente"
           value={formData.emitente}
           onChange={(e) => setFormData({ ...formData, emitente: e.target.value })}
           placeholder="Deixe em branco para usar dados do cliente"
@@ -260,9 +252,8 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
       </div>
 
       <div>
-        <Label htmlFor="emitente_cpf_cnpj">CPF/CNPJ do Emitente (opcional)</Label>
+        <Label>CPF/CNPJ do Emitente (opcional)</Label>
         <Input
-          id="emitente_cpf_cnpj"
           value={formData.emitente_cpf_cnpj}
           onChange={(e) => setFormData({ ...formData, emitente_cpf_cnpj: e.target.value })}
           placeholder="Deixe em branco para usar dados do cliente"
@@ -272,9 +263,8 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
 
       <div className="grid grid-cols-3 gap-4">
         <div>
-          <Label htmlFor="valor">Valor *</Label>
+          <Label>Valor *</Label>
           <Input
-            id="valor"
             type="number"
             step="0.01"
             value={formData.valor}
@@ -282,18 +272,16 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
           />
         </div>
         <div>
-          <Label htmlFor="data_emissao">Data Emissão</Label>
+          <Label>Data Emissão</Label>
           <Input
-            id="data_emissao"
             type="date"
             value={formData.data_emissao}
             onChange={(e) => setFormData({ ...formData, data_emissao: e.target.value })}
           />
         </div>
         <div>
-          <Label htmlFor="data_vencimento">Vencimento *</Label>
+          <Label>Vencimento *</Label>
           <Input
-            id="data_vencimento"
             type="date"
             value={formData.data_vencimento}
             onChange={(e) => setFormData({ ...formData, data_vencimento: e.target.value })}
@@ -302,7 +290,7 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
       </div>
 
       <div>
-        <Label htmlFor="status">Status</Label>
+        <Label>Status</Label>
         <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
           <SelectTrigger>
             <SelectValue />
@@ -317,9 +305,8 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
 
       {formData.status === 'devolvido' && (
         <div>
-          <Label htmlFor="cheque_substituto_numero">Substituído por Cheque Nº</Label>
+          <Label>Substituído por Cheque Nº</Label>
           <Input
-            id="cheque_substituto_numero"
             value={formData.cheque_substituto_numero}
             onChange={(e) => setFormData({ ...formData, cheque_substituto_numero: e.target.value })}
             placeholder="Número do cheque que substituiu este"
@@ -327,90 +314,61 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
         </div>
       )}
 
-      {formData.cheque_substituido_numero && (
-        <div>
-          <Label htmlFor="cheque_substituido_numero">Este Cheque é Substituição de</Label>
-          <Input
-            id="cheque_substituido_numero"
-            value={formData.cheque_substituido_numero}
-            onChange={(e) => setFormData({ ...formData, cheque_substituido_numero: e.target.value })}
-            placeholder="Número do cheque substituído"
-          />
-        </div>
-      )}
-
       {formData.status === 'pago' && (
-        <>
-          <Card className="p-4 bg-green-50 border-green-200">
-            <h3 className="font-semibold mb-3 text-green-700">Informações de Pagamento</h3>
-            
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              <div>
-                <Label htmlFor="valor_pago">Valor Pago *</Label>
-                <Input
-                  id="valor_pago"
-                  type="number"
-                  step="0.01"
-                  value={formData.valor_pago}
-                  onChange={(e) => setFormData({ ...formData, valor_pago: parseFloat(e.target.value) || 0 })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="forma_pagamento">Forma de Pagamento *</Label>
-                <Select 
-                  value={formData.forma_pagamento} 
-                  onValueChange={(v) => setFormData({ ...formData, forma_pagamento: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pix">PIX</SelectItem>
-                    <SelectItem value="dinheiro">Dinheiro</SelectItem>
-                    <SelectItem value="debito">Débito</SelectItem>
-                    <SelectItem value="credito">Crédito</SelectItem>
-                    <SelectItem value="cheque">Outro Cheque</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="data_pagamento">Data Pagamento</Label>
-                <Input
-                  id="data_pagamento"
-                  type="date"
-                  value={formData.data_pagamento}
-                  onChange={(e) => setFormData({ ...formData, data_pagamento: e.target.value })}
-                />
-              </div>
+        <Card className="p-4 bg-green-50 border-green-200">
+          <h3 className="font-semibold mb-3 text-green-700">Informações de Pagamento</h3>
+          
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <div>
+              <Label>Valor Pago *</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={formData.valor_pago}
+                onChange={(e) => setFormData({ ...formData, valor_pago: e.target.value })}
+              />
             </div>
+            <div>
+              <Label>Forma de Pagamento *</Label>
+              <Select 
+                value={formData.forma_pagamento} 
+                onValueChange={(v) => setFormData({ ...formData, forma_pagamento: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pix">PIX</SelectItem>
+                  <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                  <SelectItem value="debito">Débito</SelectItem>
+                  <SelectItem value="credito">Crédito</SelectItem>
+                  <SelectItem value="cheque">Outro Cheque</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Data Pagamento</Label>
+              <Input
+                type="date"
+                value={formData.data_pagamento}
+                onChange={(e) => setFormData({ ...formData, data_pagamento: e.target.value })}
+              />
+            </div>
+          </div>
 
-            {formData.forma_pagamento === 'cheque' && (
-              <div>
-                <Label htmlFor="cheque_substituido_numero">Número do Novo Cheque</Label>
-                <Input
-                  id="cheque_substituido_numero"
-                  value={formData.cheque_substituido_numero}
-                  onChange={(e) => setFormData({ ...formData, cheque_substituido_numero: e.target.value })}
-                  placeholder="Número do cheque usado no pagamento"
-                />
-              </div>
-            )}
-
-            {formData.valor_pago > formData.valor && (
-              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
-                <p className="text-sm text-blue-700">
-                  💡 Excedente de {formatCurrency(formData.valor_pago - formData.valor)} será convertido em crédito
-                </p>
-              </div>
-            )}
-          </Card>
-        </>
+          {parseFloat(formData.valor_pago) > parseFloat(formData.valor) && (
+            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+              <p className="text-sm text-blue-700">
+                💡 Excedente de {formatCurrency(parseFloat(formData.valor_pago) - parseFloat(formData.valor))} será convertido em crédito
+              </p>
+            </div>
+          )}
+        </Card>
       )}
 
       <div>
-        <Label htmlFor="observacao">Observações</Label>
+        <Label>Observações</Label>
         <Textarea
-          id="observacao"
           value={formData.observacao}
           onChange={(e) => setFormData({ ...formData, observacao: e.target.value })}
           rows={3}
@@ -422,7 +380,7 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
           Cancelar
         </Button>
         <Button type="button" onClick={handleSave} disabled={isSubmitting}>
-          {isSubmitting ? 'Salvando...' : (cheque ? 'Atualizar' : 'Cadastrar')} Cheque
+          {isSubmitting ? 'Salvando... Cheque' : (cheque ? 'Atualizar' : 'Cadastrar') + ' Cheque'}
         </Button>
       </div>
     </div>
