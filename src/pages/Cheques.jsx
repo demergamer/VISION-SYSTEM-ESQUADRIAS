@@ -50,6 +50,9 @@ export default function Cheques() {
       queryClient.invalidateQueries({ queryKey: ['cheques'] });
       setShowAddModal(false);
       toast.success('Cheque cadastrado!');
+    },
+    onError: (error) => {
+      toast.error('Erro ao cadastrar: ' + (error.message || 'Tente novamente'));
     }
   });
 
@@ -60,6 +63,9 @@ export default function Cheques() {
       setShowEditModal(false);
       setSelectedCheque(null);
       toast.success('Cheque atualizado!');
+    },
+    onError: (error) => {
+      toast.error('Erro ao atualizar: ' + (error.message || 'Tente novamente'));
     }
   });
 
