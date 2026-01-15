@@ -16,6 +16,7 @@ export default function ClienteForm({ cliente, representantes = [], onSave, onCa
   const [form, setForm] = useState({
     codigo: '',
     nome: '',
+    cnpj: '',
     regiao: '',
     representante_codigo: '',
     representante_nome: '',
@@ -33,6 +34,7 @@ export default function ClienteForm({ cliente, representantes = [], onSave, onCa
       setForm({
         codigo: cliente.codigo || '',
         nome: cliente.nome || '',
+        cnpj: cliente.cnpj || '',
         regiao: cliente.regiao || '',
         representante_codigo: cliente.representante_codigo || '',
         representante_nome: cliente.representante_nome || '',
@@ -84,6 +86,16 @@ export default function ClienteForm({ cliente, representantes = [], onSave, onCa
             onChange={(e) => setForm({ ...form, nome: e.target.value })}
             placeholder="Nome completo ou razão social"
             required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="cnpj">CNPJ</Label>
+          <Input
+            id="cnpj"
+            value={form.cnpj}
+            onChange={(e) => setForm({ ...form, cnpj: e.target.value })}
+            placeholder="00.000.000/0000-00"
           />
         </div>
 
