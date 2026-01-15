@@ -4,11 +4,11 @@ import Creditos from './pages/Creditos';
 import Dashboard from './pages/Dashboard';
 import Pedidos from './pages/Pedidos';
 import PortalCliente from './pages/PortalCliente';
+import PortalDoRepresentante from './pages/PortalDoRepresentante';
 import Representantes from './pages/Representantes';
 import Representation from './pages/Representation';
-import Welcome from './pages/Welcome';
 import Usuarios from './pages/Usuarios';
-import PortalDoRepresentante from './pages/PortalDoRepresentante';
+import Welcome from './pages/Welcome';
 import __Layout from './Layout.jsx';
 
 
@@ -19,15 +19,15 @@ export const PAGES = {
     "Dashboard": Dashboard,
     "Pedidos": Pedidos,
     "PortalCliente": PortalCliente,
+    "PortalDoRepresentante": PortalDoRepresentante,
     "Representantes": Representantes,
     "Representation": Representation,
-    "Welcome": Welcome,
     "Usuarios": Usuarios,
-    "PortalDoRepresentante": PortalDoRepresentante,
+    "Welcome": Welcome,
 }
 
 export const pagesConfig = {
-    mainPage: "Representantes",
+    mainPage: "Welcome",
     Pages: PAGES,
     Layout: __Layout,
 };
