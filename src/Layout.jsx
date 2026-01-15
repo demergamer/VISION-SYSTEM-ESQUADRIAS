@@ -40,6 +40,16 @@ export default function Layout({ children, currentPageName }) {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
 
+  const hasAccess = (pageName) => {
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    
+    const permissoes = user.permissoes || {};
+    const perm = permissoes[pageName];
+    
+    return perm === true || perm?.acesso === true;
+  };
+
   const handleLogout = () => {
     base44.auth.logout();
   };
@@ -117,28 +127,30 @@ export default function Layout({ children, currentPageName }) {
 
           {/* Navigation */}
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-            {navItems.map((item) => {
-              const isActive = currentPageName === item.page;
-              return (
-                <Link
-                  key={item.page}
-                  to={createPageUrl(item.page)}
-                  onClick={() => setSidebarOpen(false)}
-                  className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all",
-                    isActive
-                      ? "bg-blue-50 text-blue-700"
-                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                  )}
-                >
-                  <item.icon className={cn(
-                    "w-5 h-5",
-                    isActive ? "text-blue-600" : "text-slate-400"
-                  )} />
-                  {item.name}
-                </Link>
-              );
-            })}
+            {navItems
+              .filter(item => hasAccess(item.page))
+              .map((item) => {
+                const isActive = currentPageName === item.page;
+                return (
+                  <Link
+                    key={item.page}
+                    to={createPageUrl(item.page)}
+                    onClick={() => setSidebarOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all",
+                      isActive
+                        ? "bg-blue-50 text-blue-700"
+                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                    )}
+                  >
+                    <item.icon className={cn(
+                      "w-5 h-5",
+                      isActive ? "text-blue-600" : "text-slate-400"
+                    )} />
+                    {item.name}
+                  </Link>
+                );
+              })}
           </nav>
 
           {/* Footer */}
