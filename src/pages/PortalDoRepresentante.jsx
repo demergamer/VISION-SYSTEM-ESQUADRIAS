@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button"; 
 import { 
   Users, ShoppingCart, CreditCard, AlertCircle, 
-  Search, Briefcase, Wallet, LogOut, TrendingUp, Calendar
+  Search, Briefcase, Wallet, LogOut, Loader2 // Adicionei o ícone de carregamento
 } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -45,43 +45,75 @@ const StatWidget = ({ title, value, subtitle, icon: Icon, color }) => {
 export default function PortalDoRepresentante() {
   const navigate = useNavigate();
   
-  // 1. Estados
+  // --- 1. ESTADOS ---
   const [user, setUser] = useState(null);
   const [representante, setRepresentante] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('clientes');
+  const [loadingAuth, setLoadingAuth] = useState(true); // Novo estado para controlar o carregamento
 
-  // 2. CORREÇÃO DO ERRO: handleLogout definido logo no início
+  // --- 2. FUNÇÃO DE LOGOUT (No topo para evitar o erro) ---
   const handleLogout = () => {
-    // Remove o token ou limpa a sessão
-    // Ajuste a chave 'sb-access-token' ou 'auth_token' conforme o que você usa no base44
-    localStorage.clear(); 
-    window.location.href = '/'; // Redireciona para a raiz/login
+    localStorage.removeItem('sb-access-token'); // Ajuste conforme a chave que o Base44 usa
+    localStorage.removeItem('auth_token');
+    window.location.href = '/'; 
   };
 
-  // 3. Efeitos e Buscas
+  // --- 3. BUSCA DE USUÁRIO (Com controle de Loading) ---
   useEffect(() => {
-    base44.auth.me().then(setUser).catch(() => {});
+    let isMounted = true;
+    
+    const fetchUser = async () => {
+      try {
+        const userData = await base44.auth.me();
+        if (isMounted) setUser(userData);
+      } catch (error) {
+        console.error("Erro ao buscar usuário:", error);
+      } finally {
+        if (isMounted) setLoadingAuth(false);
+      }
+    };
+
+    fetchUser();
+
+    return () => { isMounted = false; };
   }, []);
 
-  const { data: todosRepresentantes = [] } = useQuery({
+  const { data: todosRepresentantes = [], isLoading: loadingReps } = useQuery({
     queryKey: ['representantes'],
     queryFn: () => base44.entities.Representante.list(),
-    enabled: !!user
+    enabled: !!user // Só busca se tiver usuário
   });
 
+  // Vincula o usuário logado ao representante
   useEffect(() => {
     if (user && todosRepresentantes.length > 0) {
+      // Procura pelo email. Se não achar, tenta pelo nome ou outro campo se necessário.
       const rep = todosRepresentantes.find(r => r.email === user.email);
       setRepresentante(rep);
     }
   }, [user, todosRepresentantes]);
 
-  const { data: todosClientes = [] } = useQuery({ queryKey: ['clientes'], queryFn: () => base44.entities.Cliente.list(), enabled: !!representante });
-  const { data: todosPedidos = [] } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list(), enabled: !!representante });
-  const { data: todosCheques = [] } = useQuery({ queryKey: ['cheques'], queryFn: () => base44.entities.Cheque.list(), enabled: !!representante });
+  // Buscas de dados dependentes do representante
+  const { data: todosClientes = [] } = useQuery({ 
+    queryKey: ['clientes'], 
+    queryFn: () => base44.entities.Cliente.list(), 
+    enabled: !!representante 
+  });
+  
+  const { data: todosPedidos = [] } = useQuery({ 
+    queryKey: ['pedidos'], 
+    queryFn: () => base44.entities.Pedido.list(), 
+    enabled: !!representante 
+  });
+  
+  const { data: todosCheques = [] } = useQuery({ 
+    queryKey: ['cheques'], 
+    queryFn: () => base44.entities.Cheque.list(), 
+    enabled: !!representante 
+  });
 
-  // 4. Lógica de Filtros
+  // --- 4. FILTROS E CÁLCULOS (Lógica Mantida) ---
   const meusClientes = useMemo(() => {
     if (!representante) return [];
     return todosClientes.filter(c => c.representante_codigo === representante.codigo);
@@ -133,8 +165,19 @@ export default function PortalDoRepresentante() {
   const filteredPedidos = meusPedidosAbertos.filter(p => p.cliente_nome?.toLowerCase().includes(searchTerm.toLowerCase()) || p.numero_pedido?.toLowerCase().includes(searchTerm.toLowerCase()));
   const filteredCheques = meusCheques.filter(ch => ch.cliente_nome?.toLowerCase().includes(searchTerm.toLowerCase()) || ch.numero_cheque?.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  // 5. Renderização Condicional (Acesso Restrito)
-  // Como handleLogout já foi definido lá em cima, agora podemos usá-lo aqui sem erro.
+  // --- 5. RENDERIZAÇÃO ---
+
+  // TELA DE CARREGAMENTO (Evita tela branca ou erros prematuros)
+  if (loadingAuth || (user && loadingReps)) {
+    return (
+      <div className="min-h-screen bg-[#F5F7FA] flex flex-col items-center justify-center p-6">
+        <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" />
+        <p className="text-slate-500 font-medium">Carregando perfil...</p>
+      </div>
+    );
+  }
+
+  // TELA DE ACESSO RESTRITO (Se não logou ou não é representante)
   if (!user || !representante) {
     return (
       <div className="min-h-screen bg-[#F5F7FA] flex items-center justify-center p-6">
@@ -142,13 +185,12 @@ export default function PortalDoRepresentante() {
           <div className="bg-amber-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
              <AlertCircle className="w-8 h-8 text-amber-600" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-800 mb-2">Aguardando Identificação</h2>
+          <h2 className="text-2xl font-bold text-slate-800 mb-2">Acesso Restrito</h2>
           <p className="text-slate-600 mb-6">
-            Estamos verificando seu perfil de representante... <br/>
-            <span className="text-xs mt-2 block">(Se demorar muito, seu email pode não estar vinculado a um representante.)</span>
+            Não encontramos um perfil de representante vinculado ao email <strong>{user?.email}</strong>.
           </p>
           <div className="flex justify-center gap-3">
-             <Button onClick={() => window.location.reload()} variant="outline" className="bg-white">
+             <Button onClick={() => window.location.reload()} variant="outline" className="bg-white border-amber-200 text-amber-800 hover:bg-amber-100">
                 Tentar Novamente
              </Button>
              <Button onClick={handleLogout} variant="destructive">
@@ -160,7 +202,7 @@ export default function PortalDoRepresentante() {
     );
   }
 
-  // 6. Renderização Principal (Dashboard)
+  // DASHBOARD PRINCIPAL
   return (
     <div className="min-h-screen bg-[#F5F7FA] p-4 md:p-8 font-sans text-slate-900">
       <div className="max-w-[1600px] mx-auto space-y-8">
@@ -171,13 +213,14 @@ export default function PortalDoRepresentante() {
             <h1 className="text-3xl font-bold tracking-tight text-slate-900">
               Olá, <span className="text-blue-600">{representante.nome}</span>
             </h1>
-            <p className="text-slate-500 text-lg">Aqui está o resumo da sua carteira de clientes</p>
+            <p className="text-slate-500 text-lg">Resumo da sua carteira de clientes</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 flex items-center gap-2 hidden md:flex">
               <Briefcase className="w-4 h-4 text-slate-400" />
               <span className="text-sm font-medium text-slate-600">Representante</span>
             </div>
+            {/* O handleLogout agora é seguro de ser chamado aqui */}
             <Button onClick={handleLogout} variant="ghost" className="text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-xl">
               <LogOut className="w-5 h-5 mr-2" />
               Sair
