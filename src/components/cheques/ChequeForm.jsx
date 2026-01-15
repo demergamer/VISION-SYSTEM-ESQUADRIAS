@@ -29,6 +29,37 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
     data_pagamento: ''
   });
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Cores dos bancos
+  const bancoCores = {
+    'ITAÚ': { from: 'from-orange-100', to: 'to-orange-50', border: 'border-orange-300', text: 'text-orange-900' },
+    'ITAU': { from: 'from-orange-100', to: 'to-orange-50', border: 'border-orange-300', text: 'text-orange-900' },
+    'BRADESCO': { from: 'from-red-100', to: 'to-red-50', border: 'border-red-300', text: 'text-red-900' },
+    'SANTANDER': { from: 'from-red-100', to: 'to-red-50', border: 'border-red-300', text: 'text-red-900' },
+    'BANCO DO BRASIL': { from: 'from-yellow-100', to: 'to-yellow-50', border: 'border-yellow-400', text: 'text-yellow-900' },
+    'BB': { from: 'from-yellow-100', to: 'to-yellow-50', border: 'border-yellow-400', text: 'text-yellow-900' },
+    'CAIXA': { from: 'from-blue-100', to: 'to-cyan-50', border: 'border-blue-300', text: 'text-blue-900' },
+    'CAIXA ECONÔMICA': { from: 'from-blue-100', to: 'to-cyan-50', border: 'border-blue-300', text: 'text-blue-900' },
+    'CAIXA ECONOMICA': { from: 'from-blue-100', to: 'to-cyan-50', border: 'border-blue-300', text: 'text-blue-900' },
+    'NUBANK': { from: 'from-purple-100', to: 'to-purple-50', border: 'border-purple-300', text: 'text-purple-900' },
+    'INTER': { from: 'from-orange-100', to: 'to-orange-50', border: 'border-orange-300', text: 'text-orange-900' },
+    'C6': { from: 'from-slate-200', to: 'to-slate-100', border: 'border-slate-400', text: 'text-slate-900' },
+    'C6 BANK': { from: 'from-slate-200', to: 'to-slate-100', border: 'border-slate-400', text: 'text-slate-900' }
+  };
+
+  const getBancoCor = () => {
+    const bancoUpper = (formData.banco || '').toUpperCase().trim();
+    for (const [key, cor] of Object.entries(bancoCores)) {
+      if (bancoUpper.includes(key)) {
+        return cor;
+      }
+    }
+    return { from: 'from-blue-50', to: 'to-cyan-50', border: 'border-blue-200', text: 'text-slate-900' };
+  };
+
+  const corCheque = getBancoCor();
+
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -49,82 +80,93 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Se status for pago e valor pago exceder o valor do cheque, gerar crédito
-    if (formData.status === 'pago' && formData.valor_pago > formData.valor) {
-      const excedente = formData.valor_pago - formData.valor;
-      const confirmar = window.confirm(
-        `⚠️ ATENÇÃO!\n\n` +
-        `Valor pago: ${formatCurrency(formData.valor_pago)}\n` +
-        `Valor do cheque: ${formatCurrency(formData.valor)}\n` +
-        `Excedente: ${formatCurrency(excedente)}\n\n` +
-        `Um crédito de ${formatCurrency(excedente)} será gerado para o cliente.\n\n` +
-        `Deseja continuar?`
-      );
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+
+    try {
+      // Se status for pago e valor pago exceder o valor do cheque, gerar crédito
+      if (formData.status === 'pago' && formData.valor_pago > formData.valor) {
+        const excedente = formData.valor_pago - formData.valor;
+        const confirmar = window.confirm(
+          `⚠️ ATENÇÃO!\n\n` +
+          `Valor pago: ${formatCurrency(formData.valor_pago)}\n` +
+          `Valor do cheque: ${formatCurrency(formData.valor)}\n` +
+          `Excedente: ${formatCurrency(excedente)}\n\n` +
+          `Um crédito de ${formatCurrency(excedente)} será gerado para o cliente.\n\n` +
+          `Deseja continuar?`
+        );
+        
+        if (!confirmar) {
+          setIsSubmitting(false);
+          return;
+        }
+        
+        // Buscar próximo número de crédito
+        const todosCreditos = await base44.entities.Credito.list();
+        const proximoNumero = todosCreditos.length > 0 
+          ? Math.max(...todosCreditos.map(c => c.numero_credito || 0)) + 1 
+          : 1;
+        
+        // Criar crédito
+        await base44.entities.Credito.create({
+          numero_credito: proximoNumero,
+          cliente_codigo: formData.cliente_codigo,
+          cliente_nome: formData.cliente_nome || formData.emitente,
+          valor: excedente,
+          origem: `Excedente Cheque ${formData.numero_cheque}`,
+          status: 'disponivel'
+        });
+        
+        // Atualizar formData com o número do crédito gerado
+        formData.credito_gerado_numero = proximoNumero;
+        
+        toast.success(`Crédito #${proximoNumero} de ${formatCurrency(excedente)} gerado!`);
+      }
       
-      if (!confirmar) return;
-      
-      // Buscar próximo número de crédito
-      const todosCreditos = await base44.entities.Credito.list();
-      const proximoNumero = todosCreditos.length > 0 
-        ? Math.max(...todosCreditos.map(c => c.numero_credito || 0)) + 1 
-        : 1;
-      
-      // Criar crédito
-      await base44.entities.Credito.create({
-        numero_credito: proximoNumero,
-        cliente_codigo: formData.cliente_codigo,
-        cliente_nome: formData.cliente_nome || formData.emitente,
-        valor: excedente,
-        origem: `Excedente Cheque ${formData.numero_cheque}`,
-        status: 'disponivel'
-      });
-      
-      // Atualizar formData com o número do crédito gerado
-      formData.credito_gerado_numero = proximoNumero;
-      
-      toast.success(`Crédito #${proximoNumero} de ${formatCurrency(excedente)} gerado!`);
+      await onSave(formData);
+    } catch (error) {
+      toast.error('Erro ao salvar cheque: ' + (error.message || 'Tente novamente'));
+      setIsSubmitting(false);
     }
-    
-    onSave(formData);
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Visual do Cheque */}
-      <Card className="p-6 bg-gradient-to-br from-blue-50 to-cyan-50 border-2 border-blue-200">
+      <Card className={`p-6 bg-gradient-to-br ${corCheque.from} ${corCheque.to} border-2 ${corCheque.border}`}>
         <div className="space-y-4">
           <div className="flex justify-between items-start">
             <div>
               <p className="text-xs text-slate-500">BANCO</p>
-              <p className="font-bold text-lg">{formData.banco || '___________'}</p>
+              <p className={`font-bold text-lg ${corCheque.text}`}>{formData.banco || '___________'}</p>
             </div>
             <div className="text-right">
               <p className="text-xs text-slate-500">Nº DO CHEQUE</p>
-              <p className="font-mono font-bold text-lg">{formData.numero_cheque || '___________'}</p>
+              <p className={`font-mono font-bold text-lg ${corCheque.text}`}>{formData.numero_cheque || '___________'}</p>
             </div>
           </div>
           
-          <div className="border-t border-blue-300 pt-3">
+          <div className={`border-t ${corCheque.border} pt-3`}>
             <p className="text-xs text-slate-500">PAGUE POR ESTE CHEQUE A QUANTIA DE</p>
             <p className="font-bold text-2xl text-green-700">
               {formData.valor ? `R$ ${parseFloat(formData.valor).toFixed(2)}` : 'R$ ____,__'}
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 border-t border-blue-300 pt-3">
+          <div className={`grid grid-cols-2 gap-4 border-t ${corCheque.border} pt-3`}>
             <div>
               <p className="text-xs text-slate-500">A</p>
-              <p className="font-medium">{formData.emitente || '__________________'}</p>
+              <p className={`font-medium ${corCheque.text}`}>{formData.emitente || '__________________'}</p>
             </div>
             <div>
               <p className="text-xs text-slate-500">DATA</p>
-              <p className="font-medium">
+              <p className={`font-medium ${corCheque.text}`}>
                 {formData.data_emissao ? new Date(formData.data_emissao).toLocaleDateString('pt-BR') : '__/__/____'}
               </p>
             </div>
           </div>
 
-          <div className="text-xs text-slate-500 border-t border-blue-300 pt-2">
+          <div className={`text-xs text-slate-500 border-t ${corCheque.border} pt-2`}>
             <p>AG: {formData.agencia || '____'} / CONTA: {formData.conta || '____________'}</p>
           </div>
         </div>
@@ -143,12 +185,30 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
         </div>
         <div>
           <Label htmlFor="banco">Banco *</Label>
-          <Input
-            id="banco"
-            value={formData.banco}
-            onChange={(e) => setFormData({ ...formData, banco: e.target.value })}
-            required
-          />
+          <Select 
+            value={formData.banco} 
+            onValueChange={(v) => setFormData({ ...formData, banco: v })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione o banco" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ITAÚ">Itaú</SelectItem>
+              <SelectItem value="BRADESCO">Bradesco</SelectItem>
+              <SelectItem value="SANTANDER">Santander</SelectItem>
+              <SelectItem value="BANCO DO BRASIL">Banco do Brasil</SelectItem>
+              <SelectItem value="CAIXA ECONÔMICA">Caixa Econômica Federal</SelectItem>
+              <SelectItem value="NUBANK">Nubank</SelectItem>
+              <SelectItem value="INTER">Banco Inter</SelectItem>
+              <SelectItem value="C6 BANK">C6 Bank</SelectItem>
+              <SelectItem value="SICOOB">Sicoob</SelectItem>
+              <SelectItem value="SICREDI">Sicredi</SelectItem>
+              <SelectItem value="ORIGINAL">Banco Original</SelectItem>
+              <SelectItem value="SAFRA">Banco Safra</SelectItem>
+              <SelectItem value="BTG PACTUAL">BTG Pactual</SelectItem>
+              <SelectItem value="OUTROS">Outros</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -348,11 +408,11 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
       </div>
 
       <div className="flex justify-end gap-3 pt-4 border-t">
-        <Button type="button" variant="outline" onClick={onCancel}>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
           Cancelar
         </Button>
-        <Button type="submit">
-          {cheque ? 'Atualizar' : 'Cadastrar'} Cheque
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Salvando...' : (cheque ? 'Atualizar' : 'Cadastrar')} Cheque
         </Button>
       </div>
     </form>
