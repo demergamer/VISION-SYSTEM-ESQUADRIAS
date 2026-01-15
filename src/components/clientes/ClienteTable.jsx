@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Edit, Eye, Phone, MapPin, User, ShoppingCart, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/components/UserNotRegisteredError";
 
 export default function ClienteTable({ 
   clientes, 
@@ -21,6 +22,8 @@ export default function ClienteTable({
   onInvite,
   isLoading 
 }) {
+  const { canDo } = usePermissions();
+  
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -138,43 +141,51 @@ export default function ClienteTable({
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center justify-center gap-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => onView(cli)}
-                      className="h-8 w-8 p-0"
-                      title="Ver detalhes"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => onEdit(cli)}
-                      className="h-8 w-8 p-0"
-                      title="Editar"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => onViewPedidos(cli)}
-                      className="h-8 w-8 p-0"
-                      title="Ver pedidos"
-                    >
-                      <ShoppingCart className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => onInvite(cli)}
-                      className="h-8 w-8 p-0"
-                      title="Convidar para o portal"
-                      disabled={!cli.email}
-                    >
-                      <Mail className="w-4 h-4" />
-                    </Button>
+                    {canDo('Clientes', 'visualizar') && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onView(cli)}
+                        className="h-8 w-8 p-0"
+                        title="Ver detalhes"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                    )}
+                    {canDo('Clientes', 'editar') && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onEdit(cli)}
+                        className="h-8 w-8 p-0"
+                        title="Editar"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                    )}
+                    {canDo('Clientes', 'visualizar') && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onViewPedidos(cli)}
+                        className="h-8 w-8 p-0"
+                        title="Ver pedidos"
+                      >
+                        <ShoppingCart className="w-4 h-4" />
+                      </Button>
+                    )}
+                    {canDo('Clientes', 'adicionar') && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onInvite(cli)}
+                        className="h-8 w-8 p-0"
+                        title="Convidar para o portal"
+                        disabled={!cli.email}
+                      >
+                        <Mail className="w-4 h-4" />
+                      </Button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>

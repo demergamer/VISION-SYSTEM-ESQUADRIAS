@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Edit, Eye, DollarSign, XCircle, MapPin, Calendar, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, differenceInDays } from "date-fns";
+import { usePermissions } from "@/components/UserNotRegisteredError";
 
 export default function PedidoTable({ 
   pedidos, 
@@ -22,6 +23,8 @@ export default function PedidoTable({
   onReverter,
   isLoading 
 }) {
+  const { canDo } = usePermissions();
+  
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -116,16 +119,18 @@ export default function PedidoTable({
               </TableCell>
               <TableCell>
                 <div className="flex items-center justify-center gap-1">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => onView(pedido)}
-                    className="h-8 w-8 p-0"
-                    title="Ver detalhes"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </Button>
-                  {pedido.status === 'pago' && onReverter && (
+                  {canDo('Pedidos', 'visualizar') && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onView(pedido)}
+                      className="h-8 w-8 p-0"
+                      title="Ver detalhes"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                  )}
+                  {pedido.status === 'pago' && onReverter && canDo('Pedidos', 'liquidar') && (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -138,33 +143,39 @@ export default function PedidoTable({
                   )}
                   {pedido.status !== 'pago' && pedido.status !== 'cancelado' && (
                     <>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => onEdit(pedido)}
-                        className="h-8 w-8 p-0"
-                        title="Editar"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => onLiquidar(pedido)}
-                        className="h-8 w-8 p-0 text-emerald-600"
-                        title="Liquidar"
-                      >
-                        <DollarSign className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => onCancelar(pedido)}
-                        className="h-8 w-8 p-0 text-red-600"
-                        title="Cancelar"
-                      >
-                        <XCircle className="w-4 h-4" />
-                      </Button>
+                      {canDo('Pedidos', 'editar') && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => onEdit(pedido)}
+                          className="h-8 w-8 p-0"
+                          title="Editar"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                      )}
+                      {canDo('Pedidos', 'liquidar') && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => onLiquidar(pedido)}
+                          className="h-8 w-8 p-0 text-emerald-600"
+                          title="Liquidar"
+                        >
+                          <DollarSign className="w-4 h-4" />
+                        </Button>
+                      )}
+                      {canDo('Pedidos', 'editar') && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => onCancelar(pedido)}
+                          className="h-8 w-8 p-0 text-red-600"
+                          title="Cancelar"
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </Button>
+                      )}
                     </>
                   )}
                 </div>

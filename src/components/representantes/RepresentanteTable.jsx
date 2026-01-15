@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Edit, Eye, Phone, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/components/UserNotRegisteredError";
 
 export default function RepresentanteTable({ 
   representantes, 
@@ -19,6 +20,8 @@ export default function RepresentanteTable({
   onView,
   isLoading 
 }) {
+  const { canDo } = usePermissions();
+  
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -139,22 +142,26 @@ export default function RepresentanteTable({
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center justify-center gap-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => onView(rep)}
-                      className="h-8 w-8 p-0"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => onEdit(rep)}
-                      className="h-8 w-8 p-0"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
+                    {canDo('Representantes', 'visualizar') && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onView(rep)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                    )}
+                    {canDo('Representantes', 'editar') && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onEdit(rep)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>
