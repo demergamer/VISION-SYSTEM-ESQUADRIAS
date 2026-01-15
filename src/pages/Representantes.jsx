@@ -134,21 +134,33 @@ export default function Representantes() {
 
   // Mutations
   const createMutation = useMutation({
-    mutationFn: (data) => base44.entities.Representante.create(data),
+    mutationFn: async (data) => {
+      return await base44.entities.Representante.create(data);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['representantes'] });
       setShowAddModal(false);
       toast.success('Representante cadastrado com sucesso!');
+    },
+    onError: (error) => {
+      console.error('Erro ao criar representante:', error);
+      toast.error('Erro ao cadastrar representante: ' + (error.message || 'Tente novamente'));
     }
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.Representante.update(id, data),
+    mutationFn: async ({ id, data }) => {
+      return await base44.entities.Representante.update(id, data);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['representantes'] });
       setShowEditModal(false);
       setSelectedRepresentante(null);
       toast.success('Representante atualizado com sucesso!');
+    },
+    onError: (error) => {
+      console.error('Erro ao atualizar representante:', error);
+      toast.error('Erro ao atualizar representante: ' + (error.message || 'Tente novamente'));
     }
   });
 

@@ -118,21 +118,33 @@ export default function Clientes() {
 
   // Mutations
   const createMutation = useMutation({
-    mutationFn: (data) => base44.entities.Cliente.create(data),
+    mutationFn: async (data) => {
+      return await base44.entities.Cliente.create(data);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
       setShowAddModal(false);
       toast.success('Cliente cadastrado com sucesso!');
+    },
+    onError: (error) => {
+      console.error('Erro ao criar cliente:', error);
+      toast.error('Erro ao cadastrar cliente: ' + (error.message || 'Tente novamente'));
     }
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.Cliente.update(id, data),
+    mutationFn: async ({ id, data }) => {
+      return await base44.entities.Cliente.update(id, data);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
       setShowEditModal(false);
       setSelectedCliente(null);
       toast.success('Cliente atualizado com sucesso!');
+    },
+    onError: (error) => {
+      console.error('Erro ao atualizar cliente:', error);
+      toast.error('Erro ao atualizar cliente: ' + (error.message || 'Tente novamente'));
     }
   });
 
