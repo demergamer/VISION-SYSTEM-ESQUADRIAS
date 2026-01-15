@@ -34,9 +34,7 @@ export default function Welcome() {
       whileHover={{ scale: 1.02, backgroundColor: "rgba(255, 255, 255, 0.15)" }}
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
-      className="group w-full max-w-sm flex items-center justify-between p-4 mb-3 
-                 bg-white/10 backdrop-blur-xl border border-white/10 
-                 rounded-2xl shadow-lg transition-all duration-300"
+      className="group w-full max-w-sm flex items-center justify-between p-4 mb-3 bg-white/10 backdrop-blur-xl border border-white/10 rounded-2xl shadow-lg transition-all duration-300"
     >
       <div className="flex items-center gap-4">
         <div className="p-3 bg-white/10 rounded-full text-white group-hover:bg-white group-hover:text-black transition-colors duration-300">
@@ -69,4 +67,71 @@ export default function Welcome() {
           alt="J&C Esquadrias"
           className="w-48 md:w-64 h-auto mx-auto mb-6 drop-shadow-2xl"
         />
-        <h1 className="
+        
+        {/* Correção aplicada aqui na linha do h1 */}
+        <h1 className="text-white text-3xl md:text-4xl font-extrabold tracking-tight">
+          <span className="text-yellow-400">J&C</span> <span className="text-white/90">Esquadrias</span>
+        </h1>
+        
+        <p className="text-white/40 text-sm mt-2 font-light">
+          Selecione seu perfil de acesso
+        </p>
+      </motion.div>
+
+      {/* Botões */}
+      <div className="w-full flex flex-col items-center z-10 gap-1">
+        
+        <AppleButton 
+          title="Cliente" 
+          subtitle="Área de pedidos e entregas" 
+          icon={User} 
+          onClick={handleCliente} 
+          delay={0.2}
+        />
+
+        <AppleButton 
+          title="Representante" 
+          subtitle="Acesso restrito a vendas" 
+          icon={Briefcase} 
+          onClick={handleRepresentante} 
+          delay={0.3}
+        />
+
+        <AppleButton 
+          title="Administrador" 
+          subtitle="Gestão e controle financeiro" 
+          icon={ShieldCheck} 
+          onClick={handleAdmin} 
+          delay={0.4}
+        />
+
+      </div>
+
+      {/* Rodapé Premium */}
+      <motion.div 
+        initial={{ opacity: 0 }} 
+        animate={{ opacity: 1 }} 
+        transition={{ delay: 1 }}
+        className="absolute bottom-8 text-white/20 text-xs font-light tracking-widest uppercase"
+      >
+        Segurança J&C System
+      </motion.div>
+
+      {/* Notificação Flutuante (Toast) para Representante */}
+      <AnimatePresence>
+        {showNotification && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="absolute bottom-20 bg-white/20 backdrop-blur-md border border-white/10 text-white px-6 py-3 rounded-full flex items-center gap-2 shadow-2xl z-50"
+          >
+            <Lock size={16} />
+            <span className="text-sm font-medium">Módulo em desenvolvimento</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+    </div>
+  );
+}
