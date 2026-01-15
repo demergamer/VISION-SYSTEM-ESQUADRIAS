@@ -493,7 +493,9 @@ export default function Pedidos() {
 
       // Calcular quanto pagar por pedido proporcionalmente
       const totalSaldos = data.pedidos.reduce((sum, p) => sum + p.saldo_original, 0);
-      const valorTotalPago = data.totalPago;
+      
+      // Total pago + crédito usado + desconto + devolução = o que efetivamente abate do saldo
+      const valorTotalAbatimento = data.totalPago + (data.creditoUsado || 0) + (data.desconto || 0) + (data.devolucao || 0);
       
       // Marcar créditos como usados se houver
       if (data.creditoUsado > 0) {
@@ -522,10 +524,15 @@ export default function Pedidos() {
         if (!pedido) continue;
 
         const proporcao = pedidoData.saldo_original / totalSaldos;
-        const valorPagoPedido = valorTotalPago * proporcao;
+        
+        // Valor que será pago de fato (dinheiro, pix, etc)
+        const valorPagoPedido = data.totalPago * proporcao;
+        
+        // Total abatido (incluindo desconto, devolução, crédito)
+        const valorAbatidoPedido = valorTotalAbatimento * proporcao;
 
         const novoTotalPago = (pedido.total_pago || 0) + valorPagoPedido;
-        const novoSaldo = pedido.valor_pedido - novoTotalPago;
+        const novoSaldo = pedido.valor_pedido - (pedido.total_pago || 0) - valorAbatidoPedido;
 
         let novoStatus = 'aberto';
         if (novoSaldo <= 0.01) {
