@@ -4,8 +4,11 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { AlertCircle, FileText, CreditCard, TrendingDown, CheckCircle, XCircle, Clock, DollarSign, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AlertCircle, FileText, CreditCard, TrendingDown, CheckCircle, XCircle, Clock, DollarSign, Search, Eye } from "lucide-react";
 import { format } from "date-fns";
+import ModalContainer from "@/components/modals/ModalContainer";
+import ChequeDetails from "@/components/cheques/ChequeDetails";
 
 export default function PortalCliente() {
   const [filtros, setFiltros] = useState({
@@ -30,6 +33,8 @@ export default function PortalCliente() {
 
   const [abaPedidos, setAbaPedidos] = useState('aPagar');
   const [abaCheques, setAbaCheques] = useState('devolvidos');
+  const [chequeDetalhe, setChequeDetalhe] = useState(null);
+  const [showChequeModal, setShowChequeModal] = useState(false);
 
   const { data: user } = useQuery({
     queryKey: ['user'],
@@ -645,7 +650,19 @@ export default function PortalCliente() {
                             </span>
                           )}
                         </div>
-                        <p className="text-lg font-bold text-slate-900 ml-4">{formatCurrency(cheque.valor)}</p>
+                        <div className="flex items-center gap-3 ml-4">
+                          <p className="text-lg font-bold text-slate-900">{formatCurrency(cheque.valor)}</p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setChequeDetalhe(cheque);
+                              setShowChequeModal(true);
+                            }}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
                       {cheque.emitente && (
                         <div className="mt-2 bg-white p-2 rounded-lg">
@@ -678,6 +695,21 @@ export default function PortalCliente() {
             )}
           </div>
         </div>
+
+        {/* Modal Detalhes do Cheque */}
+        <ModalContainer
+          open={showChequeModal}
+          onClose={() => setShowChequeModal(false)}
+          title="Detalhes do Cheque"
+        >
+          {chequeDetalhe && (
+            <ChequeDetails
+              cheque={chequeDetalhe}
+              onEdit={() => {}}
+              onClose={() => setShowChequeModal(false)}
+            />
+          )}
+        </ModalContainer>
 
         {/* Seção Créditos */}
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
