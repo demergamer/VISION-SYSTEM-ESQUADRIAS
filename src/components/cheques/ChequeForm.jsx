@@ -80,9 +80,7 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
     });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
+  const handleSave = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
 
@@ -134,7 +132,7 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="space-y-6">
       {/* Visual do Cheque */}
       <Card className={`p-6 bg-gradient-to-br ${corCheque.from} ${corCheque.to} border-2 ${corCheque.border}`}>
         <div className="space-y-4">
@@ -183,7 +181,6 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
             id="numero_cheque"
             value={formData.numero_cheque}
             onChange={(e) => setFormData({ ...formData, numero_cheque: e.target.value })}
-            required
           />
         </div>
         <div>
@@ -236,7 +233,7 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
 
       <div>
         <Label htmlFor="cliente">Cliente *</Label>
-        <Select value={formData.cliente_codigo} onValueChange={handleClienteChange} required>
+        <Select value={formData.cliente_codigo} onValueChange={handleClienteChange}>
           <SelectTrigger>
             <SelectValue placeholder="Selecione o cliente" />
           </SelectTrigger>
@@ -282,7 +279,6 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
             step="0.01"
             value={formData.valor}
             onChange={(e) => setFormData({ ...formData, valor: e.target.value })}
-            required
           />
         </div>
         <div>
@@ -301,7 +297,6 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
             type="date"
             value={formData.data_vencimento}
             onChange={(e) => setFormData({ ...formData, data_vencimento: e.target.value })}
-            required
           />
         </div>
       </div>
@@ -358,7 +353,6 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
                   step="0.01"
                   value={formData.valor_pago}
                   onChange={(e) => setFormData({ ...formData, valor_pago: parseFloat(e.target.value) || 0 })}
-                  required
                 />
               </div>
               <div>
@@ -427,10 +421,10 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
         <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={isSubmitting}>
+        <Button type="button" onClick={handleSave} disabled={isSubmitting}>
           {isSubmitting ? 'Salvando...' : (cheque ? 'Atualizar' : 'Cadastrar')} Cheque
         </Button>
       </div>
-    </form>
+    </div>
   );
 }
