@@ -76,9 +76,6 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, is
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.cliente_codigo || !form.numero_pedido || !form.data_entrega || !form.valor_pedido) {
-      return;
-    }
     const dataToSave = {
       ...form,
       saldo_restante: form.valor_pedido - form.total_pago

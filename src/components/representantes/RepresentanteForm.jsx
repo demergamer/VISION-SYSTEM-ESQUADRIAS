@@ -28,9 +28,6 @@ export default function RepresentanteForm({ representante, onSave, onCancel, isL
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.codigo || !form.nome) {
-      return;
-    }
     onSave(form);
   };
 
