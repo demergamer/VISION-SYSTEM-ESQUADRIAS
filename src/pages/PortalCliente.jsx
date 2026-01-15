@@ -119,7 +119,7 @@ export default function PortalCliente() {
 
   // Filtrar cheques do cliente
   const meusCheques = useMemo(() => {
-    if (!clienteData) return { aVencer: [], compensados: [], devolvidos: [] };
+    if (!clienteData) return { aVencer: [], compensados: [], devolvidos: [], pagos: [] };
     let clienteCheques = cheques.filter(c => c.cliente_codigo === clienteData.codigo);
     
     // Aplicar filtros
@@ -158,7 +158,8 @@ export default function PortalCliente() {
     return {
       aVencer: clienteCheques.filter(c => c.status === 'normal' && new Date(c.data_vencimento) >= hoje),
       compensados: clienteCheques.filter(c => c.status === 'pago'),
-      devolvidos: clienteCheques.filter(c => c.status === 'devolvido')
+      devolvidos: clienteCheques.filter(c => c.status === 'devolvido' && !c.valor_pago),
+      pagos: clienteCheques.filter(c => c.status === 'devolvido' && c.valor_pago)
     };
   }, [cheques, clienteData, filtrosCheques]);
 
@@ -497,7 +498,7 @@ export default function PortalCliente() {
             </div>
           </div>
           <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               <button 
                 onClick={() => setAbaCheques('aVencer')}
                 className={`group p-5 rounded-xl transition-all text-left ${
@@ -548,6 +549,23 @@ export default function PortalCliente() {
                 </div>
                 <p className="text-2xl font-bold text-slate-900">{formatCurrency(totais.chequesDevolvidos)}</p>
                 <p className="text-xs text-slate-500 mt-1">{meusCheques.devolvidos.length} cheques</p>
+              </button>
+              <button 
+                onClick={() => setAbaCheques('pagos')}
+                className={`group p-5 rounded-xl transition-all text-left ${
+                  abaCheques === 'pagos' 
+                    ? 'bg-gradient-to-br from-blue-50 to-white border-2 border-blue-200 shadow-md' 
+                    : 'bg-white border border-slate-200 hover:shadow-md'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-2 bg-white rounded-lg shadow-sm">
+                    <CheckCircle className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <p className="text-sm font-medium text-slate-700">Pagos</p>
+                </div>
+                <p className="text-2xl font-bold text-slate-900">{meusCheques.pagos.length}</p>
+                <p className="text-xs text-slate-500 mt-1">devolvidos pagos</p>
               </button>
             </div>
 
@@ -609,7 +627,7 @@ export default function PortalCliente() {
             {meusCheques[abaCheques].length > 0 ? (
               <div className="space-y-3 pt-4 border-t border-slate-100">
                 <h3 className="font-medium text-slate-700 text-sm mb-3">
-                  {abaCheques === 'aVencer' ? 'A Vencer' : abaCheques === 'compensados' ? 'Compensados' : 'Devolvidos'}
+                  {abaCheques === 'aVencer' ? 'A Vencer' : abaCheques === 'compensados' ? 'Compensados' : abaCheques === 'devolvidos' ? 'Devolvidos' : 'Pagos'}
                 </h3>
                 {meusCheques[abaCheques].map(cheque => {
                   const diasAtraso = calcularDiasAtraso(cheque.data_vencimento);
@@ -635,6 +653,11 @@ export default function PortalCliente() {
                                 Devolvido
                               </span>
                             )}
+                            {abaCheques === 'pagos' && (
+                              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                                Pago
+                              </span>
+                            )}
                           </div>
                           <p className="text-xs text-slate-500 mt-1">
                             {cheque.banco} • Venc: {format(new Date(cheque.data_vencimento), 'dd/MM/yyyy')}
@@ -642,6 +665,11 @@ export default function PortalCliente() {
                           {cheque.data_compensacao && abaCheques === 'compensados' && (
                             <p className="text-xs text-green-600 mt-0.5">
                               Compensado em: {format(new Date(cheque.data_compensacao), 'dd/MM/yyyy')}
+                            </p>
+                          )}
+                          {cheque.data_pagamento && abaCheques === 'pagos' && (
+                            <p className="text-xs text-blue-600 mt-0.5">
+                              Pago em: {format(new Date(cheque.data_pagamento), 'dd/MM/yyyy')} • {cheque.forma_pagamento}
                             </p>
                           )}
                           {diasAtraso > 0 && abaCheques === 'devolvidos' && (
@@ -689,7 +717,7 @@ export default function PortalCliente() {
             ) : (
               <div className="pt-4 border-t border-slate-100">
                 <p className="text-center text-slate-400 py-8 text-sm">
-                  Nenhum cheque {abaCheques === 'aVencer' ? 'a vencer' : abaCheques === 'compensados' ? 'compensado' : 'devolvido'}
+                  Nenhum cheque {abaCheques === 'aVencer' ? 'a vencer' : abaCheques === 'compensados' ? 'compensado' : abaCheques === 'devolvidos' ? 'devolvido' : 'pago'}
                 </p>
               </div>
             )}
