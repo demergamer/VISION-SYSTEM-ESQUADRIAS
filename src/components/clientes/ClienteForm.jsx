@@ -58,9 +58,12 @@ export default function ClienteForm({ cliente, representantes = [], onSave, onCa
     });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    await onSave(form);
+    if (!form.codigo || !form.nome || !form.representante_codigo) {
+      return;
+    }
+    onSave(form);
   };
 
   return (
