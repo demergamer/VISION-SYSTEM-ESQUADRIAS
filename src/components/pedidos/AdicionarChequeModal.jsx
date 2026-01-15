@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function AdicionarChequeModal({ clienteInfo, onSave, onCancel, onSaveAndAddAnother }) {
   const [formData, setFormData] = useState({
@@ -89,11 +90,25 @@ export default function AdicionarChequeModal({ clienteInfo, onSave, onCancel, on
         </div>
         <div>
           <Label>Banco *</Label>
-          <Input
-            value={formData.banco}
-            onChange={(e) => setFormData({ ...formData, banco: e.target.value })}
-            required
-          />
+          <Select 
+            value={formData.banco} 
+            onValueChange={(v) => setFormData({ ...formData, banco: v })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione o banco" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ITAÚ">Itaú</SelectItem>
+              <SelectItem value="BRADESCO">Bradesco</SelectItem>
+              <SelectItem value="SANTANDER">Santander</SelectItem>
+              <SelectItem value="BANCO DO BRASIL">Banco do Brasil</SelectItem>
+              <SelectItem value="CAIXA ECONÔMICA">Caixa Econômica Federal</SelectItem>
+              <SelectItem value="NUBANK">Nubank</SelectItem>
+              <SelectItem value="INTER">Banco Inter</SelectItem>
+              <SelectItem value="C6 BANK">C6 Bank</SelectItem>
+              <SelectItem value="OUTROS">Outros</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
