@@ -45,6 +45,7 @@ import {
 import StatCard from "@/components/dashboard/StatCard";
 import ModalContainer from "@/components/modals/ModalContainer";
 import PedidoForm from "@/components/pedidos/PedidoForm";
+import PedidoDetails from "@/components/pedidos/PedidoDetails";
 import PedidoTable from "@/components/pedidos/PedidoTable";
 import LiquidacaoForm from "@/components/pedidos/LiquidacaoForm";
 import ImportarPedidos from "@/components/pedidos/ImportarPedidos";
@@ -64,6 +65,7 @@ export default function Pedidos() {
   const [activeTab, setActiveTab] = useState('abertos');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showLiquidarModal, setShowLiquidarModal] = useState(false);
   const [showCancelarDialog, setShowCancelarDialog] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -230,7 +232,11 @@ export default function Pedidos() {
 
   const handleView = (pedido) => {
     setSelectedPedido(pedido);
-    setShowEditModal(true);
+    if (pedido.status === 'pago') {
+      setShowDetailsModal(true);
+    } else {
+      setShowEditModal(true);
+    }
   };
 
   const handleLiquidar = (pedido) => {
@@ -837,6 +843,28 @@ export default function Pedidos() {
             }}
             isLoading={updateMutation.isPending}
           />
+        </ModalContainer>
+
+        {/* Details Modal */}
+        <ModalContainer
+          open={showDetailsModal}
+          onClose={() => {
+            setShowDetailsModal(false);
+            setSelectedPedido(null);
+          }}
+          title="Detalhes do Pedido"
+          description="Visualização completa do pedido"
+          size="xl"
+        >
+          {selectedPedido && (
+            <PedidoDetails
+              pedido={selectedPedido}
+              onClose={() => {
+                setShowDetailsModal(false);
+                setSelectedPedido(null);
+              }}
+            />
+          )}
         </ModalContainer>
 
         {/* Liquidar Modal */}
