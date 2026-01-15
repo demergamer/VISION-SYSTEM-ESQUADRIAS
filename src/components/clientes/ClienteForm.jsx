@@ -117,7 +117,6 @@ export default function ClienteForm({ cliente, representantes = [], onSave, onCa
           <Select
             value={form.representante_codigo}
             onValueChange={handleRepresentanteChange}
-            required
           >
             <SelectTrigger>
               <SelectValue placeholder="Selecione o representante" />
