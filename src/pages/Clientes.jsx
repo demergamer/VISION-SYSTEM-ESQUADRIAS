@@ -164,6 +164,20 @@ export default function Clientes() {
     toast.success('Informações atualizadas!');
   };
 
+  const handleInvite = async (cli) => {
+    if (!cli.email) {
+      toast.error('Cliente não possui email cadastrado');
+      return;
+    }
+
+    try {
+      await base44.users.inviteUser(cli.email, 'user');
+      toast.success(`Convite enviado para ${cli.email}`);
+    } catch (error) {
+      toast.error('Erro ao enviar convite: ' + (error.message || 'Tente novamente'));
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="max-w-7xl mx-auto p-6 space-y-6">
@@ -245,6 +259,7 @@ export default function Clientes() {
             onEdit={handleEdit}
             onView={handleView}
             onViewPedidos={handleViewPedidos}
+            onInvite={handleInvite}
             isLoading={loadingClientes}
           />
         </Card>

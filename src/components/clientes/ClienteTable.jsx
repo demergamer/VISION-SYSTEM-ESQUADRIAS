@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Edit, Eye, Phone, MapPin, User, ShoppingCart } from "lucide-react";
+import { Edit, Eye, Phone, MapPin, User, ShoppingCart, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function ClienteTable({ 
@@ -18,6 +18,7 @@ export default function ClienteTable({
   onEdit, 
   onView,
   onViewPedidos,
+  onInvite,
   isLoading 
 }) {
   const formatCurrency = (value) => {
@@ -163,6 +164,16 @@ export default function ClienteTable({
                       title="Ver pedidos"
                     >
                       <ShoppingCart className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onInvite(cli)}
+                      className="h-8 w-8 p-0"
+                      title="Convidar para o portal"
+                      disabled={!cli.email}
+                    >
+                      <Mail className="w-4 h-4" />
                     </Button>
                   </div>
                 </TableCell>

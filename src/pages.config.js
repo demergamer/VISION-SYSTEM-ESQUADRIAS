@@ -3,10 +3,10 @@ import Clientes from './pages/Clientes';
 import Creditos from './pages/Creditos';
 import Dashboard from './pages/Dashboard';
 import Pedidos from './pages/Pedidos';
+import PortalCliente from './pages/PortalCliente';
 import Representantes from './pages/Representantes';
 import Representation from './pages/Representation';
 import Welcome from './pages/Welcome';
-import PortalCliente from './pages/PortalCliente';
 import __Layout from './Layout.jsx';
 
 
@@ -16,10 +16,10 @@ export const PAGES = {
     "Creditos": Creditos,
     "Dashboard": Dashboard,
     "Pedidos": Pedidos,
+    "PortalCliente": PortalCliente,
     "Representantes": Representantes,
     "Representation": Representation,
     "Welcome": Welcome,
-    "PortalCliente": PortalCliente,
 }
 
 export const pagesConfig = {
