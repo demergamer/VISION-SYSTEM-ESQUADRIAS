@@ -20,6 +20,7 @@ import {
 
 import StatCard from "@/components/dashboard/StatCard";
 import NavigationCard from "@/components/dashboard/NavigationCard";
+import PermissionGuard from "@/components/PermissionGuard";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -213,7 +214,8 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
+    <PermissionGuard setor="Dashboard">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
       <div className="max-w-7xl mx-auto p-6 space-y-8">
         {/* Header */}
         <div className="space-y-2">
@@ -315,5 +317,6 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
+    </PermissionGuard>
   );
 }

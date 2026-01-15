@@ -36,6 +36,7 @@ import StatCard from "@/components/dashboard/StatCard";
 import ModalContainer from "@/components/modals/ModalContainer";
 import ChequeForm from "@/components/cheques/ChequeForm";
 import ChequeDetails from "@/components/cheques/ChequeDetails";
+import PermissionGuard from "@/components/PermissionGuard";
 
 export default function Cheques() {
   const queryClient = useQueryClient();
@@ -179,7 +180,8 @@ export default function Cheques() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <PermissionGuard setor="Cheques">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="max-w-7xl mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -464,5 +466,6 @@ export default function Cheques() {
         </AlertDialog>
       </div>
     </div>
+    </PermissionGuard>
   );
 }
