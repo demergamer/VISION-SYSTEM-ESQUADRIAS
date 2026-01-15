@@ -71,63 +71,14 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
     });
   };
 
-  const handleSave = async () => {
-    if (isSubmitting) return;
-    
-    setIsSubmitting(true);
-
-    try {
-      // Validações básicas
-      if (!formData.numero_cheque || !formData.cliente_codigo || !formData.valor || !formData.data_vencimento) {
-        toast.error('Preencha todos os campos obrigatórios');
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Se status for pago e valor pago exceder o valor do cheque, gerar crédito
-      if (formData.status === 'pago' && parseFloat(formData.valor_pago) > parseFloat(formData.valor)) {
-        const excedente = parseFloat(formData.valor_pago) - parseFloat(formData.valor);
-        const confirmar = window.confirm(
-          `⚠️ ATENÇÃO!\n\n` +
-          `Valor pago: ${formatCurrency(formData.valor_pago)}\n` +
-          `Valor do cheque: ${formatCurrency(formData.valor)}\n` +
-          `Excedente: ${formatCurrency(excedente)}\n\n` +
-          `Um crédito de ${formatCurrency(excedente)} será gerado para o cliente.\n\n` +
-          `Deseja continuar?`
-        );
-        
-        if (!confirmar) {
-          setIsSubmitting(false);
-          return;
-        }
-        
-        // Buscar próximo número de crédito
-        const todosCreditos = await base44.entities.Credito.list();
-        const proximoNumero = todosCreditos.length > 0 
-          ? Math.max(...todosCreditos.map(c => c.numero_credito || 0)) + 1 
-          : 1;
-        
-        // Criar crédito
-        await base44.entities.Credito.create({
-          numero_credito: proximoNumero,
-          cliente_codigo: formData.cliente_codigo,
-          cliente_nome: formData.cliente_nome || formData.emitente,
-          valor: excedente,
-          origem: `Excedente Cheque ${formData.numero_cheque}`,
-          status: 'disponivel'
-        });
-        
-        formData.credito_gerado_numero = proximoNumero;
-        toast.success(`Crédito #${proximoNumero} de ${formatCurrency(excedente)} gerado!`);
-      }
-      
-      await onSave(formData);
-      setIsSubmitting(false);
-    } catch (error) {
-      console.error('Erro ao salvar:', error);
-      toast.error('Erro ao salvar: ' + (error.message || 'Tente novamente'));
-      setIsSubmitting(false);
+  const handleSave = () => {
+    // Validações básicas
+    if (!formData.numero_cheque || !formData.cliente_codigo || !formData.valor || !formData.data_vencimento) {
+      toast.error('Preencha todos os campos obrigatórios');
+      return;
     }
+
+    onSave(formData);
   };
 
   return (
@@ -376,11 +327,11 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
       </div>
 
       <div className="flex justify-end gap-3 pt-4 border-t">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+        <Button type="button" variant="outline" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button type="button" onClick={handleSave} disabled={isSubmitting}>
-          {isSubmitting ? 'Salvando... Cheque' : (cheque ? 'Atualizar' : 'Cadastrar') + ' Cheque'}
+        <Button type="button" onClick={handleSave}>
+          {cheque ? 'Atualizar' : 'Cadastrar'} Cheque
         </Button>
       </div>
     </div>
