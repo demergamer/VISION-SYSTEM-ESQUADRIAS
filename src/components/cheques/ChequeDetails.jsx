@@ -51,6 +51,9 @@ export default function ChequeDetails({ cheque, onEdit, onClose }) {
             <div>
               <p className="text-xs text-slate-500">A</p>
               <p className="font-medium text-lg">{cheque.emitente}</p>
+              {cheque.emitente_cpf_cnpj && (
+                <p className="text-sm font-mono text-slate-600 mt-1">{cheque.emitente_cpf_cnpj}</p>
+              )}
             </div>
             <div>
               <p className="text-xs text-slate-500">DATA DE EMISSÃO</p>
