@@ -58,13 +58,8 @@ export default function ClienteForm({ cliente, representantes = [], onSave, onCa
     });
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSave(form);
-  };
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
           <Label htmlFor="codigo">Código *</Label>
@@ -210,11 +205,11 @@ export default function ClienteForm({ cliente, representantes = [], onSave, onCa
           <X className="w-4 h-4 mr-2" />
           Cancelar
         </Button>
-        <Button type="submit" disabled={isLoading}>
+        <Button type="button" onClick={() => onSave(form)} disabled={isLoading}>
           <Save className="w-4 h-4 mr-2" />
           {cliente ? 'Atualizar' : 'Cadastrar'}
         </Button>
       </div>
-    </form>
+    </div>
   );
 }

@@ -74,8 +74,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, is
     setForm(newForm);
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const handleSave = () => {
     const dataToSave = {
       ...form,
       saldo_restante: form.valor_pedido - form.total_pago
@@ -84,7 +83,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, is
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
           <Label htmlFor="cliente">Cliente *</Label>
@@ -198,11 +197,11 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, is
           <X className="w-4 h-4 mr-2" />
           Cancelar
         </Button>
-        <Button type="submit" disabled={isLoading}>
+        <Button type="button" onClick={handleSave} disabled={isLoading}>
           <Save className="w-4 h-4 mr-2" />
           {pedido ? 'Atualizar' : 'Cadastrar'}
         </Button>
       </div>
-    </form>
+    </div>
   );
 }
