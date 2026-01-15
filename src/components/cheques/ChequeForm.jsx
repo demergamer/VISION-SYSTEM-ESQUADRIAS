@@ -15,6 +15,7 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
     agencia: '',
     conta: '',
     emitente: '',
+    emitente_cpf_cnpj: '',
     cliente_codigo: '',
     cliente_nome: '',
     valor: '',
@@ -69,14 +70,13 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
 
   const handleClienteChange = (codigoCliente) => {
     const cliente = clientes.find(c => c.codigo === codigoCliente);
-    const emitenteInfo = cliente?.nome || '';
-    const cnpjInfo = cliente?.cnpj ? ` - CNPJ: ${cliente.cnpj}` : '';
     
     setFormData({
       ...formData,
       cliente_codigo: codigoCliente,
       cliente_nome: cliente?.nome || '',
-      emitente: formData.emitente || (emitenteInfo + cnpjInfo)
+      emitente: formData.emitente || cliente?.nome || '',
+      emitente_cpf_cnpj: formData.emitente_cpf_cnpj || cliente?.cnpj || ''
     });
   };
 
@@ -260,6 +260,17 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
           placeholder="Deixe em branco para usar dados do cliente"
         />
         <p className="text-xs text-slate-500 mt-1">Preencha apenas se for diferente do cliente</p>
+      </div>
+
+      <div>
+        <Label htmlFor="emitente_cpf_cnpj">CPF/CNPJ do Emitente (opcional)</Label>
+        <Input
+          id="emitente_cpf_cnpj"
+          value={formData.emitente_cpf_cnpj}
+          onChange={(e) => setFormData({ ...formData, emitente_cpf_cnpj: e.target.value })}
+          placeholder="Deixe em branco para usar dados do cliente"
+        />
+        <p className="text-xs text-slate-500 mt-1">Preencha apenas se o emitente for diferente do cliente</p>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
