@@ -14,9 +14,11 @@ import ModalContainer from "@/components/modals/ModalContainer";
 import UsuarioForm from "@/components/usuarios/UsuarioForm";
 import ConvidarUsuarioForm from "@/components/usuarios/ConvidarUsuarioForm";
 import PermissionGuard from "@/components/PermissionGuard";
+import { usePermissions } from "@/components/UserNotRegisteredError";
 
 export default function Usuarios() {
   const queryClient = useQueryClient();
+  const { canDo } = usePermissions();
   const [searchTerm, setSearchTerm] = useState('');
   const [showEditModal, setShowEditModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -84,10 +86,12 @@ export default function Usuarios() {
               <p className="text-slate-500">Gerenciamento de usuários do sistema</p>
             </div>
           </div>
-          <Button onClick={() => setShowInviteModal(true)} className="gap-2">
-            <UserPlus className="w-4 h-4" />
-            Convidar Usuário
-          </Button>
+          {canDo('Usuarios', 'adicionar') && (
+            <Button onClick={() => setShowInviteModal(true)} className="gap-2">
+              <UserPlus className="w-4 h-4" />
+              Convidar Usuário
+            </Button>
+          )}
         </div>
 
         {/* Stats */}
@@ -191,13 +195,15 @@ export default function Usuarios() {
                       </td>
                       <td className="p-4">
                         <div className="flex justify-end gap-2">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => handleEdit(user)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
+                          {canDo('Usuarios', 'editar') && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => handleEdit(user)}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>

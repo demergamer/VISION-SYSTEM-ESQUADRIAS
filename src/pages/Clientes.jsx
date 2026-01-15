@@ -27,10 +27,12 @@ import ClienteForm from "@/components/clientes/ClienteForm";
 import ClienteTable from "@/components/clientes/ClienteTable";
 import ClienteDetails from "@/components/clientes/ClienteDetails";
 import PermissionGuard from "@/components/PermissionGuard";
+import { usePermissions } from "@/components/UserNotRegisteredError";
 
 export default function Clientes() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { canDo } = usePermissions();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -229,10 +231,12 @@ export default function Clientes() {
               <RefreshCw className="w-4 h-4" />
               Atualizar
             </Button>
-            <Button onClick={() => setShowAddModal(true)} className="gap-2">
-              <UserPlus className="w-4 h-4" />
-              Novo Cliente
-            </Button>
+            {canDo('Clientes', 'adicionar') && (
+              <Button onClick={() => setShowAddModal(true)} className="gap-2">
+                <UserPlus className="w-4 h-4" />
+                Novo Cliente
+              </Button>
+            )}
           </div>
         </div>
 

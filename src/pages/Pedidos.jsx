@@ -58,9 +58,11 @@ import LiquidacaoMassa from "@/components/pedidos/LiquidacaoMassa";
 import PedidoAguardandoItem from "@/components/pedidos/PedidoAguardandoItem";
 import RotaCobrancaModal from "@/components/pedidos/RotaCobrancaModal";
 import PermissionGuard from "@/components/PermissionGuard";
+import { usePermissions } from "@/components/UserNotRegisteredError";
 
 export default function Pedidos() {
   const queryClient = useQueryClient();
+  const { canDo } = usePermissions();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('todos');
   const [activeTab, setActiveTab] = useState('abertos');
@@ -635,22 +637,26 @@ export default function Pedidos() {
               <RefreshCw className="w-4 h-4" />
               Atualizar
             </Button>
-            <Button variant="outline" onClick={() => setShowImportModal(true)} className="gap-2">
-              <Upload className="w-4 h-4" />
-              Importar
-            </Button>
-            <Button variant="outline" onClick={() => setShowLiquidacaoMassaModal(true)} className="gap-2">
-              <DollarSign className="w-4 h-4" />
-              Liquidação em Massa
-            </Button>
-            <Button variant="outline" onClick={() => setShowRotaCobrancaModal(true)} className="gap-2">
-              <FileText className="w-4 h-4" />
-              Rota Cobrança Gilson
-            </Button>
-            <Button onClick={() => setShowAddModal(true)} className="gap-2">
-              <Plus className="w-4 h-4" />
-              Novo Pedido
-            </Button>
+            {canDo('Pedidos', 'adicionar') && (
+              <>
+                <Button variant="outline" onClick={() => setShowImportModal(true)} className="gap-2">
+                  <Upload className="w-4 h-4" />
+                  Importar
+                </Button>
+                <Button variant="outline" onClick={() => setShowLiquidacaoMassaModal(true)} className="gap-2">
+                  <DollarSign className="w-4 h-4" />
+                  Liquidação em Massa
+                </Button>
+                <Button variant="outline" onClick={() => setShowRotaCobrancaModal(true)} className="gap-2">
+                  <FileText className="w-4 h-4" />
+                  Rota Cobrança Gilson
+                </Button>
+                <Button onClick={() => setShowAddModal(true)} className="gap-2">
+                  <Plus className="w-4 h-4" />
+                  Novo Pedido
+                </Button>
+              </>
+            )}
           </div>
         </div>
 

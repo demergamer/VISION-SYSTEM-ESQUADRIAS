@@ -1,31 +1,57 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { base44 } from '@/api/base44Client';
+import { Card } from "@/components/ui/card";
+import { ShieldAlert } from "lucide-react";
 
-const UserNotRegisteredError = () => {
+export function usePermissions() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    base44.auth.me()
+      .then(setUser)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const canAccess = (setor) => {
+    if (!user) return false;
+    const permissoes = user.permissoes || {};
+    const perm = permissoes[setor];
+    return perm === true || perm?.acesso === true;
+  };
+
+  const canDo = (setor, funcao) => {
+    if (!user) return false;
+    const permissoes = user.permissoes || {};
+    const setorPerms = permissoes[setor];
+    
+    // Se não tem acesso ao setor, não pode fazer nada
+    if (!setorPerms?.acesso && setorPerms !== true) return false;
+    
+    // Se for setor simples (true/false)
+    if (setorPerms === true) return true;
+    
+    // Verificar função específica
+    return setorPerms?.[funcao] === true;
+  };
+
+  return { user, loading, canAccess, canDo };
+}
+
+export default function UserNotRegisteredError() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-white to-slate-50">
-      <div className="max-w-md w-full p-8 bg-white rounded-lg shadow-lg border border-slate-100">
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 mb-6 rounded-full bg-orange-100">
-            <svg className="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-          </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-4">Access Restricted</h1>
-          <p className="text-slate-600 mb-8">
-            You are not registered to use this application. Please contact the app administrator to request access.
-          </p>
-          <div className="p-4 bg-slate-50 rounded-md text-sm text-slate-600">
-            <p>If you believe this is an error, you can:</p>
-            <ul className="list-disc list-inside mt-2 space-y-1">
-              <li>Verify you are logged in with the correct account</li>
-              <li>Contact the app administrator for access</li>
-              <li>Try logging out and back in again</li>
-            </ul>
-          </div>
-        </div>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-6">
+      <Card className="p-8 max-w-md text-center">
+        <ShieldAlert className="w-16 h-16 text-red-500 mx-auto mb-4" />
+        <h2 className="text-2xl font-bold text-slate-800 mb-2">Acesso Negado</h2>
+        <p className="text-slate-600">
+          Você não tem permissão para realizar esta ação.
+        </p>
+        <p className="text-sm text-slate-500 mt-4">
+          Entre em contato com o administrador do sistema.
+        </p>
+      </Card>
     </div>
   );
-};
-
-export default UserNotRegisteredError;
+}

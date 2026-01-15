@@ -24,9 +24,11 @@ import RepresentanteForm from "@/components/representantes/RepresentanteForm";
 import RepresentanteTable from "@/components/representantes/RepresentanteTable";
 import RepresentanteDetails from "@/components/representantes/RepresentanteDetails";
 import PermissionGuard from "@/components/PermissionGuard";
+import { usePermissions } from "@/components/UserNotRegisteredError";
 
 export default function Representantes() {
   const queryClient = useQueryClient();
+  const { canDo } = usePermissions();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -211,10 +213,12 @@ export default function Representantes() {
               <RefreshCw className="w-4 h-4" />
               Atualizar
             </Button>
-            <Button onClick={() => setShowAddModal(true)} className="gap-2">
-              <UserPlus className="w-4 h-4" />
-              Novo Representante
-            </Button>
+            {canDo('Representantes', 'adicionar') && (
+              <Button onClick={() => setShowAddModal(true)} className="gap-2">
+                <UserPlus className="w-4 h-4" />
+                Novo Representante
+              </Button>
+            )}
           </div>
         </div>
 

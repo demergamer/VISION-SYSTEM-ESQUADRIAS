@@ -37,9 +37,11 @@ import ModalContainer from "@/components/modals/ModalContainer";
 import ChequeForm from "@/components/cheques/ChequeForm";
 import ChequeDetails from "@/components/cheques/ChequeDetails";
 import PermissionGuard from "@/components/PermissionGuard";
+import { usePermissions } from "@/components/UserNotRegisteredError";
 
 export default function Cheques() {
   const queryClient = useQueryClient();
+  const { canDo } = usePermissions();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -196,10 +198,12 @@ export default function Cheques() {
               <p className="text-slate-500">Controle de cheques recebidos</p>
             </div>
           </div>
-          <Button onClick={() => setShowAddModal(true)} className="gap-2">
-            <Plus className="w-4 h-4" />
-            Novo Cheque
-          </Button>
+          {canDo('Cheques', 'adicionar') && (
+            <Button onClick={() => setShowAddModal(true)} className="gap-2">
+              <Plus className="w-4 h-4" />
+              Novo Cheque
+            </Button>
+          )}
         </div>
 
         {/* Stats */}
@@ -321,20 +325,26 @@ export default function Cheques() {
                         </td>
                         <td className="p-4">
                           <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="sm" onClick={() => handleView(cheque)}>
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleEdit(cheque)}>
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => handleDelete(cheque)}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            {canDo('Cheques', 'visualizar') && (
+                              <Button variant="ghost" size="sm" onClick={() => handleView(cheque)}>
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                            )}
+                            {canDo('Cheques', 'editar') && (
+                              <Button variant="ghost" size="sm" onClick={() => handleEdit(cheque)}>
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                            )}
+                            {canDo('Cheques', 'excluir') && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => handleDelete(cheque)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
                           </div>
                         </td>
                       </tr>
