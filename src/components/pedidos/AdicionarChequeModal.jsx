@@ -11,12 +11,13 @@ export default function AdicionarChequeModal({ clienteInfo, onSave, onCancel, on
     agencia: '',
     conta: '',
     emitente: clienteInfo?.cliente_nome || '',
+    emitente_cpf_cnpj: '',
     cliente_codigo: clienteInfo?.cliente_codigo || '',
     cliente_nome: clienteInfo?.cliente_nome || '',
     valor: '',
     data_emissao: new Date().toISOString().split('T')[0],
     data_vencimento: '',
-    status: 'pendente'
+    status: 'normal'
   });
 
   const handleSubmit = (addAnother = false) => {
@@ -109,6 +110,25 @@ export default function AdicionarChequeModal({ clienteInfo, onSave, onCancel, on
           <Input
             value={formData.conta}
             onChange={(e) => setFormData({ ...formData, conta: e.target.value })}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label>Emitente *</Label>
+          <Input
+            value={formData.emitente}
+            onChange={(e) => setFormData({ ...formData, emitente: e.target.value })}
+            required
+          />
+        </div>
+        <div>
+          <Label>CPF/CNPJ do Emitente</Label>
+          <Input
+            value={formData.emitente_cpf_cnpj}
+            onChange={(e) => setFormData({ ...formData, emitente_cpf_cnpj: e.target.value })}
+            placeholder="000.000.000-00"
           />
         </div>
       </div>
