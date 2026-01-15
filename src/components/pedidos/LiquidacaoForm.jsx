@@ -50,7 +50,15 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
   const handleSaveCheque = async (chequeData) => {
     try {
       await base44.entities.Cheque.create(chequeData);
-      setChequesSalvos(prev => [...prev, chequeData]);
+      const novosCheques = [...chequesSalvos, chequeData];
+      setChequesSalvos(novosCheques);
+      
+      // Atualizar valor pago com a soma dos cheques
+      if (formaPagamento === 'cheque') {
+        const totalCheques = novosCheques.reduce((sum, ch) => sum + (parseFloat(ch.valor) || 0), 0);
+        setValorPagamento(totalCheques);
+      }
+      
       setShowChequeModal(false);
       toast.success('Cheque cadastrado!');
     } catch (error) {
@@ -61,7 +69,15 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
   const handleSaveChequeAndAddAnother = async (chequeData) => {
     try {
       await base44.entities.Cheque.create(chequeData);
-      setChequesSalvos(prev => [...prev, chequeData]);
+      const novosCheques = [...chequesSalvos, chequeData];
+      setChequesSalvos(novosCheques);
+      
+      // Atualizar valor pago com a soma dos cheques
+      if (formaPagamento === 'cheque') {
+        const totalCheques = novosCheques.reduce((sum, ch) => sum + (parseFloat(ch.valor) || 0), 0);
+        setValorPagamento(totalCheques);
+      }
+      
       toast.success('Cheque cadastrado! Adicione outro.');
     } catch (error) {
       toast.error('Erro ao cadastrar cheque');
