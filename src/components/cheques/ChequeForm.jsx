@@ -69,11 +69,14 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
 
   const handleClienteChange = (codigoCliente) => {
     const cliente = clientes.find(c => c.codigo === codigoCliente);
+    const emitenteInfo = cliente?.nome || '';
+    const cnpjInfo = cliente?.cnpj ? ` - CNPJ: ${cliente.cnpj}` : '';
+    
     setFormData({
       ...formData,
       cliente_codigo: codigoCliente,
       cliente_nome: cliente?.nome || '',
-      emitente: cliente?.nome || formData.emitente
+      emitente: formData.emitente || (emitenteInfo + cnpjInfo)
     });
   };
 
@@ -232,29 +235,31 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
       </div>
 
       <div>
-        <Label htmlFor="cliente">Cliente (opcional)</Label>
-        <Select value={formData.cliente_codigo} onValueChange={handleClienteChange}>
+        <Label htmlFor="cliente">Cliente *</Label>
+        <Select value={formData.cliente_codigo} onValueChange={handleClienteChange} required>
           <SelectTrigger>
             <SelectValue placeholder="Selecione o cliente" />
           </SelectTrigger>
           <SelectContent>
             {clientes.map(c => (
               <SelectItem key={c.id} value={c.codigo}>
-                {c.nome} ({c.codigo})
+                {c.nome} ({c.codigo}) {c.cnpj ? `- ${c.cnpj}` : ''}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        <p className="text-xs text-slate-500 mt-1">Selecione o cliente que emitiu o cheque</p>
       </div>
 
       <div>
-        <Label htmlFor="emitente">Emitente *</Label>
+        <Label htmlFor="emitente">Emitente (opcional)</Label>
         <Input
           id="emitente"
           value={formData.emitente}
           onChange={(e) => setFormData({ ...formData, emitente: e.target.value })}
-          required
+          placeholder="Deixe em branco para usar dados do cliente"
         />
+        <p className="text-xs text-slate-500 mt-1">Preencha apenas se for diferente do cliente</p>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
