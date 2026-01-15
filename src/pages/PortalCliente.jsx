@@ -1,12 +1,24 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, FileText, CreditCard, TrendingDown, CheckCircle, XCircle, Clock, DollarSign } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { AlertCircle, FileText, CreditCard, TrendingDown, CheckCircle, XCircle, Clock, DollarSign, Search } from "lucide-react";
 import { format } from "date-fns";
 
 export default function PortalCliente() {
+  const [filtros, setFiltros] = useState({
+    numeroPedido: '',
+    rota: '',
+    dataEntregaInicio: '',
+    dataEntregaFim: '',
+    dataPagamentoInicio: '',
+    dataPagamentoFim: '',
+    valorMin: '',
+    valorMax: ''
+  });
+
   const { data: user } = useQuery({
     queryKey: ['user'],
     queryFn: () => base44.auth.me()
@@ -37,13 +49,56 @@ export default function PortalCliente() {
   // Filtrar pedidos do cliente
   const meusPedidos = useMemo(() => {
     if (!clienteData) return { aPagar: [], pagos: [], cancelados: [] };
-    const clientePedidos = pedidos.filter(p => p.cliente_codigo === clienteData.codigo);
+    let clientePedidos = pedidos.filter(p => p.cliente_codigo === clienteData.codigo);
+    
+    // Aplicar filtros
+    if (filtros.numeroPedido) {
+      clientePedidos = clientePedidos.filter(p => 
+        p.numero_pedido?.toLowerCase().includes(filtros.numeroPedido.toLowerCase())
+      );
+    }
+    if (filtros.rota) {
+      clientePedidos = clientePedidos.filter(p => 
+        p.rota_codigo?.toLowerCase().includes(filtros.rota.toLowerCase())
+      );
+    }
+    if (filtros.dataEntregaInicio) {
+      clientePedidos = clientePedidos.filter(p => 
+        new Date(p.data_entrega) >= new Date(filtros.dataEntregaInicio)
+      );
+    }
+    if (filtros.dataEntregaFim) {
+      clientePedidos = clientePedidos.filter(p => 
+        new Date(p.data_entrega) <= new Date(filtros.dataEntregaFim)
+      );
+    }
+    if (filtros.dataPagamentoInicio) {
+      clientePedidos = clientePedidos.filter(p => 
+        p.data_pagamento && new Date(p.data_pagamento) >= new Date(filtros.dataPagamentoInicio)
+      );
+    }
+    if (filtros.dataPagamentoFim) {
+      clientePedidos = clientePedidos.filter(p => 
+        p.data_pagamento && new Date(p.data_pagamento) <= new Date(filtros.dataPagamentoFim)
+      );
+    }
+    if (filtros.valorMin) {
+      clientePedidos = clientePedidos.filter(p => 
+        p.valor_pedido >= parseFloat(filtros.valorMin)
+      );
+    }
+    if (filtros.valorMax) {
+      clientePedidos = clientePedidos.filter(p => 
+        p.valor_pedido <= parseFloat(filtros.valorMax)
+      );
+    }
+    
     return {
       aPagar: clientePedidos.filter(p => p.status === 'aberto' || p.status === 'parcial'),
       pagos: clientePedidos.filter(p => p.status === 'pago'),
       cancelados: clientePedidos.filter(p => p.status === 'cancelado')
     };
-  }, [pedidos, clienteData]);
+  }, [pedidos, clienteData, filtros]);
 
   // Filtrar cheques do cliente
   const meusCheques = useMemo(() => {
@@ -98,6 +153,11 @@ export default function PortalCliente() {
     const entrega = new Date(dataEntrega);
     const diff = Math.floor((hoje - entrega) / (1000 * 60 * 60 * 24));
     return diff > 0 ? diff : 0;
+  };
+
+  const formatNumero = (numero) => {
+    if (!numero) return '';
+    return numero.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   };
 
   if (!clienteData) {
@@ -206,6 +266,78 @@ export default function PortalCliente() {
               </div>
             </div>
 
+            {/* Filtros de Pesquisa */}
+            <div className="pt-4 border-t border-slate-100 mb-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Search className="w-4 h-4 text-slate-500" />
+                <h3 className="font-medium text-slate-700 text-sm">Pesquisar Pedidos</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                <Input
+                  placeholder="Nº Pedido"
+                  value={filtros.numeroPedido}
+                  onChange={(e) => setFiltros({...filtros, numeroPedido: e.target.value})}
+                  className="text-sm"
+                />
+                <Input
+                  placeholder="Rota"
+                  value={filtros.rota}
+                  onChange={(e) => setFiltros({...filtros, rota: e.target.value})}
+                  className="text-sm"
+                />
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-500">Data Entrega (De)</label>
+                  <Input
+                    type="date"
+                    value={filtros.dataEntregaInicio}
+                    onChange={(e) => setFiltros({...filtros, dataEntregaInicio: e.target.value})}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-500">Data Entrega (Até)</label>
+                  <Input
+                    type="date"
+                    value={filtros.dataEntregaFim}
+                    onChange={(e) => setFiltros({...filtros, dataEntregaFim: e.target.value})}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-500">Data Pagamento (De)</label>
+                  <Input
+                    type="date"
+                    value={filtros.dataPagamentoInicio}
+                    onChange={(e) => setFiltros({...filtros, dataPagamentoInicio: e.target.value})}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-500">Data Pagamento (Até)</label>
+                  <Input
+                    type="date"
+                    value={filtros.dataPagamentoFim}
+                    onChange={(e) => setFiltros({...filtros, dataPagamentoFim: e.target.value})}
+                    className="text-sm"
+                  />
+                </div>
+                <Input
+                  type="number"
+                  placeholder="Valor Mínimo"
+                  value={filtros.valorMin}
+                  onChange={(e) => setFiltros({...filtros, valorMin: e.target.value})}
+                  className="text-sm"
+                />
+                <Input
+                  type="number"
+                  placeholder="Valor Máximo"
+                  value={filtros.valorMax}
+                  onChange={(e) => setFiltros({...filtros, valorMax: e.target.value})}
+                  className="text-sm"
+                />
+              </div>
+            </div>
+
             {meusPedidos.aPagar.length > 0 && (
               <div className="space-y-3 pt-4 border-t border-slate-100">
                 <h3 className="font-medium text-slate-700 text-sm mb-3">Pendentes</h3>
@@ -218,7 +350,7 @@ export default function PortalCliente() {
                       <div className="flex items-start justify-between mb-2">
                         <div>
                           <div className="flex items-center gap-2">
-                            <p className="font-semibold text-slate-800">#{pedido.numero_pedido}</p>
+                            <p className="font-semibold text-slate-800">#{formatNumero(pedido.numero_pedido)}</p>
                             {diasAtraso > 0 && (
                               <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-full">
                                 {diasAtraso}d atraso
@@ -226,8 +358,14 @@ export default function PortalCliente() {
                             )}
                           </div>
                           <p className="text-xs text-slate-500 mt-1">
-                            {format(new Date(pedido.data_entrega), 'dd/MM/yyyy')}
+                            Entrega: {format(new Date(pedido.data_entrega), 'dd/MM/yyyy')}
+                            {pedido.rota_codigo && ` • Rota: ${pedido.rota_codigo}`}
                           </p>
+                          {pedido.data_pagamento && (
+                            <p className="text-xs text-green-600 mt-0.5">
+                              Pago em: {format(new Date(pedido.data_pagamento), 'dd/MM/yyyy')}
+                            </p>
+                          )}
                         </div>
                         <div className="text-right">
                           <p className="text-lg font-bold text-slate-900">{formatCurrency(saldo)}</p>
