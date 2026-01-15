@@ -41,7 +41,6 @@ export default function RepresentanteForm({ representante, onSave, onCancel, isL
             value={form.codigo}
             onChange={(e) => setForm({ ...form, codigo: e.target.value })}
             placeholder="Ex: REP001"
-            required
             disabled={!!representante}
           />
         </div>
@@ -53,7 +52,6 @@ export default function RepresentanteForm({ representante, onSave, onCancel, isL
             value={form.nome}
             onChange={(e) => setForm({ ...form, nome: e.target.value })}
             placeholder="Nome do representante"
-            required
           />
         </div>
 

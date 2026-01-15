@@ -113,7 +113,6 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, is
             value={form.numero_pedido}
             onChange={(e) => setForm({ ...form, numero_pedido: e.target.value })}
             placeholder="Ex: PED001"
-            required
           />
         </div>
 
@@ -124,7 +123,6 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, is
             type="date"
             value={form.data_entrega}
             onChange={(e) => setForm({ ...form, data_entrega: e.target.value })}
-            required
           />
         </div>
 
@@ -150,7 +148,6 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, is
             step="0.01"
             value={form.valor_pedido}
             onChange={(e) => handleValorChange('valor_pedido', parseFloat(e.target.value) || 0)}
-            required
           />
         </div>
 
