@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button"; // Importei o Button
+import { Button } from "@/components/ui/button"; 
 import { 
   Users, ShoppingCart, CreditCard, AlertCircle, 
   Search, Briefcase, Wallet, LogOut, TrendingUp, Calendar
@@ -14,7 +14,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { format, differenceInDays } from "date-fns";
-import { useNavigate } from 'react-router-dom'; // Para redirecionar no logout
+import { useNavigate } from 'react-router-dom';
 
 // --- Componente Widget de Estatística ---
 const StatWidget = ({ title, value, subtitle, icon: Icon, color }) => {
@@ -44,19 +44,22 @@ const StatWidget = ({ title, value, subtitle, icon: Icon, color }) => {
 
 export default function PortalDoRepresentante() {
   const navigate = useNavigate();
+  
+  // 1. Estados
   const [user, setUser] = useState(null);
   const [representante, setRepresentante] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('clientes');
 
-  // --- 1. DEFINIÇÃO DO HANDLE LOGOUT (CORREÇÃO DO ERRO) ---
-  // A função deve ser declarada ANTES de ser usada em qualquer lugar
+  // 2. CORREÇÃO DO ERRO: handleLogout definido logo no início
   const handleLogout = () => {
-    localStorage.removeItem('auth_token'); // Remove o token (ajuste conforme sua lógica de auth)
-    window.location.href = '/'; // Redireciona para login ou home
+    // Remove o token ou limpa a sessão
+    // Ajuste a chave 'sb-access-token' ou 'auth_token' conforme o que você usa no base44
+    localStorage.clear(); 
+    window.location.href = '/'; // Redireciona para a raiz/login
   };
 
-  // --- 2. BUSCAS DE DADOS ---
+  // 3. Efeitos e Buscas
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
@@ -78,7 +81,7 @@ export default function PortalDoRepresentante() {
   const { data: todosPedidos = [] } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list(), enabled: !!representante });
   const { data: todosCheques = [] } = useQuery({ queryKey: ['cheques'], queryFn: () => base44.entities.Cheque.list(), enabled: !!representante });
 
-  // --- 3. FILTROS E CÁLCULOS ---
+  // 4. Lógica de Filtros
   const meusClientes = useMemo(() => {
     if (!representante) return [];
     return todosClientes.filter(c => c.representante_codigo === representante.codigo);
@@ -130,25 +133,34 @@ export default function PortalDoRepresentante() {
   const filteredPedidos = meusPedidosAbertos.filter(p => p.cliente_nome?.toLowerCase().includes(searchTerm.toLowerCase()) || p.numero_pedido?.toLowerCase().includes(searchTerm.toLowerCase()));
   const filteredCheques = meusCheques.filter(ch => ch.cliente_nome?.toLowerCase().includes(searchTerm.toLowerCase()) || ch.numero_cheque?.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  // --- 4. RENDERIZAÇÃO ---
-
+  // 5. Renderização Condicional (Acesso Restrito)
+  // Como handleLogout já foi definido lá em cima, agora podemos usá-lo aqui sem erro.
   if (!user || !representante) {
     return (
       <div className="min-h-screen bg-[#F5F7FA] flex items-center justify-center p-6">
-        <Card className="p-8 max-w-md text-center border-amber-200 bg-amber-50">
+        <Card className="p-8 max-w-md text-center border-amber-200 bg-amber-50 shadow-lg">
           <div className="bg-amber-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
              <AlertCircle className="w-8 h-8 text-amber-600" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-800 mb-2">Acesso Restrito</h2>
-          <p className="text-slate-600 mb-6">Este portal é exclusivo para representantes cadastrados. Se você é um representante, verifique seu login.</p>
-          <Button onClick={handleLogout} variant="outline" className="border-amber-300 text-amber-800 hover:bg-amber-100">
-            Voltar ao Login
-          </Button>
+          <h2 className="text-2xl font-bold text-slate-800 mb-2">Aguardando Identificação</h2>
+          <p className="text-slate-600 mb-6">
+            Estamos verificando seu perfil de representante... <br/>
+            <span className="text-xs mt-2 block">(Se demorar muito, seu email pode não estar vinculado a um representante.)</span>
+          </p>
+          <div className="flex justify-center gap-3">
+             <Button onClick={() => window.location.reload()} variant="outline" className="bg-white">
+                Tentar Novamente
+             </Button>
+             <Button onClick={handleLogout} variant="destructive">
+                Sair
+             </Button>
+          </div>
         </Card>
       </div>
     );
   }
 
+  // 6. Renderização Principal (Dashboard)
   return (
     <div className="min-h-screen bg-[#F5F7FA] p-4 md:p-8 font-sans text-slate-900">
       <div className="max-w-[1600px] mx-auto space-y-8">
@@ -159,14 +171,13 @@ export default function PortalDoRepresentante() {
             <h1 className="text-3xl font-bold tracking-tight text-slate-900">
               Olá, <span className="text-blue-600">{representante.nome}</span>
             </h1>
-            <p className="text-slate-500 text-lg">Resumo da sua carteira de clientes</p>
+            <p className="text-slate-500 text-lg">Aqui está o resumo da sua carteira de clientes</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 flex items-center gap-2">
+            <div className="bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 flex items-center gap-2 hidden md:flex">
               <Briefcase className="w-4 h-4 text-slate-400" />
               <span className="text-sm font-medium text-slate-600">Representante</span>
             </div>
-            {/* Botão de Logout Adicionado */}
             <Button onClick={handleLogout} variant="ghost" className="text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-xl">
               <LogOut className="w-5 h-5 mr-2" />
               Sair
