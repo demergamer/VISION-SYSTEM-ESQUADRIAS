@@ -28,6 +28,9 @@ export default function PortalCliente() {
     valorMax: ''
   });
 
+  const [abaPedidos, setAbaPedidos] = useState('aPagar');
+  const [abaCheques, setAbaCheques] = useState('devolvidos');
+
   const { data: user } = useQuery({
     queryKey: ['user'],
     queryFn: () => base44.auth.me()
@@ -276,7 +279,14 @@ export default function PortalCliente() {
           </div>
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div className="group p-5 bg-gradient-to-br from-red-50 to-white border border-red-100 rounded-xl hover:shadow-md transition-all">
+              <button 
+                onClick={() => setAbaPedidos('aPagar')}
+                className={`group p-5 rounded-xl transition-all text-left ${
+                  abaPedidos === 'aPagar' 
+                    ? 'bg-gradient-to-br from-red-50 to-white border-2 border-red-200 shadow-md' 
+                    : 'bg-white border border-slate-200 hover:shadow-md'
+                }`}
+              >
                 <div className="flex items-center gap-2 mb-3">
                   <div className="p-2 bg-white rounded-lg shadow-sm">
                     <Clock className="w-4 h-4 text-red-600" />
@@ -285,8 +295,15 @@ export default function PortalCliente() {
                 </div>
                 <p className="text-2xl font-bold text-slate-900">{formatCurrency(totais.pedidosAPagar)}</p>
                 <p className="text-xs text-slate-500 mt-1">{meusPedidos.aPagar.length} pedidos</p>
-              </div>
-              <div className="group p-5 bg-gradient-to-br from-green-50 to-white border border-green-100 rounded-xl hover:shadow-md transition-all">
+              </button>
+              <button 
+                onClick={() => setAbaPedidos('pagos')}
+                className={`group p-5 rounded-xl transition-all text-left ${
+                  abaPedidos === 'pagos' 
+                    ? 'bg-gradient-to-br from-green-50 to-white border-2 border-green-200 shadow-md' 
+                    : 'bg-white border border-slate-200 hover:shadow-md'
+                }`}
+              >
                 <div className="flex items-center gap-2 mb-3">
                   <div className="p-2 bg-white rounded-lg shadow-sm">
                     <CheckCircle className="w-4 h-4 text-green-600" />
@@ -295,8 +312,15 @@ export default function PortalCliente() {
                 </div>
                 <p className="text-2xl font-bold text-slate-900">{formatCurrency(totais.pedidosPagos)}</p>
                 <p className="text-xs text-slate-500 mt-1">{meusPedidos.pagos.length} pedidos</p>
-              </div>
-              <div className="group p-5 bg-gradient-to-br from-slate-50 to-white border border-slate-100 rounded-xl hover:shadow-md transition-all">
+              </button>
+              <button 
+                onClick={() => setAbaPedidos('cancelados')}
+                className={`group p-5 rounded-xl transition-all text-left ${
+                  abaPedidos === 'cancelados' 
+                    ? 'bg-gradient-to-br from-slate-50 to-white border-2 border-slate-300 shadow-md' 
+                    : 'bg-white border border-slate-200 hover:shadow-md'
+                }`}
+              >
                 <div className="flex items-center gap-2 mb-3">
                   <div className="p-2 bg-white rounded-lg shadow-sm">
                     <XCircle className="w-4 h-4 text-slate-600" />
@@ -305,7 +329,7 @@ export default function PortalCliente() {
                 </div>
                 <p className="text-2xl font-bold text-slate-900">{meusPedidos.cancelados.length}</p>
                 <p className="text-xs text-slate-500 mt-1">pedidos</p>
-              </div>
+              </button>
             </div>
 
             {/* Filtros de Pesquisa */}
@@ -380,22 +404,35 @@ export default function PortalCliente() {
               </div>
             </div>
 
-            {meusPedidos.aPagar.length > 0 && (
+            {/* Lista de Pedidos Baseada na Aba Selecionada */}
+            {meusPedidos[abaPedidos].length > 0 ? (
               <div className="space-y-3 pt-4 border-t border-slate-100">
-                <h3 className="font-medium text-slate-700 text-sm mb-3">Pendentes</h3>
-                {meusPedidos.aPagar.map(pedido => {
+                <h3 className="font-medium text-slate-700 text-sm mb-3">
+                  {abaPedidos === 'aPagar' ? 'Pendentes' : abaPedidos === 'pagos' ? 'Pagos' : 'Cancelados'}
+                </h3>
+                {meusPedidos[abaPedidos].map(pedido => {
                   const saldo = pedido.saldo_restante || (pedido.valor_pedido - (pedido.total_pago || 0));
                   const diasAtraso = calcularDiasAtraso(pedido.data_entrega);
                   
                   return (
                     <div key={pedido.id} className="p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors">
                       <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <div className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <p className="font-semibold text-slate-800">#{formatNumero(pedido.numero_pedido)}</p>
-                            {diasAtraso > 0 && (
+                            {diasAtraso > 0 && abaPedidos === 'aPagar' && (
                               <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-full">
                                 {diasAtraso}d atraso
+                              </span>
+                            )}
+                            {abaPedidos === 'pagos' && (
+                              <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                                Pago
+                              </span>
+                            )}
+                            {abaPedidos === 'cancelados' && (
+                              <span className="px-2 py-0.5 bg-slate-200 text-slate-700 text-xs font-medium rounded-full">
+                                Cancelado
                               </span>
                             )}
                           </div>
@@ -409,17 +446,38 @@ export default function PortalCliente() {
                             </p>
                           )}
                         </div>
-                        <div className="text-right">
-                          <p className="text-lg font-bold text-slate-900">{formatCurrency(saldo)}</p>
-                          <p className="text-xs text-slate-500">de {formatCurrency(pedido.valor_pedido)}</p>
+                        <div className="text-right ml-4">
+                          {abaPedidos === 'aPagar' ? (
+                            <>
+                              <p className="text-lg font-bold text-slate-900">{formatCurrency(saldo)}</p>
+                              <p className="text-xs text-slate-500">de {formatCurrency(pedido.valor_pedido)}</p>
+                            </>
+                          ) : (
+                            <p className="text-lg font-bold text-slate-900">{formatCurrency(pedido.valor_pedido)}</p>
+                          )}
                         </div>
                       </div>
                       {pedido.observacao && (
-                        <p className="text-xs text-slate-600 mt-2 bg-white p-2 rounded-lg">{pedido.observacao}</p>
+                        <div className="mt-2 bg-white p-2 rounded-lg">
+                          <p className="text-xs text-slate-500 font-medium mb-1">Observação:</p>
+                          <p className="text-xs text-slate-700">{pedido.observacao}</p>
+                        </div>
+                      )}
+                      {pedido.outras_informacoes && (
+                        <div className="mt-2 bg-white p-2 rounded-lg">
+                          <p className="text-xs text-slate-500 font-medium mb-1">Outras Informações:</p>
+                          <p className="text-xs text-slate-700">{pedido.outras_informacoes}</p>
+                        </div>
                       )}
                     </div>
                   );
                 })}
+              </div>
+            ) : (
+              <div className="pt-4 border-t border-slate-100">
+                <p className="text-center text-slate-400 py-8 text-sm">
+                  Nenhum pedido {abaPedidos === 'aPagar' ? 'pendente' : abaPedidos === 'pagos' ? 'pago' : 'cancelado'}
+                </p>
               </div>
             )}
           </div>
@@ -435,7 +493,14 @@ export default function PortalCliente() {
           </div>
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div className="group p-5 bg-gradient-to-br from-yellow-50 to-white border border-yellow-100 rounded-xl hover:shadow-md transition-all">
+              <button 
+                onClick={() => setAbaCheques('aVencer')}
+                className={`group p-5 rounded-xl transition-all text-left ${
+                  abaCheques === 'aVencer' 
+                    ? 'bg-gradient-to-br from-yellow-50 to-white border-2 border-yellow-200 shadow-md' 
+                    : 'bg-white border border-slate-200 hover:shadow-md'
+                }`}
+              >
                 <div className="flex items-center gap-2 mb-3">
                   <div className="p-2 bg-white rounded-lg shadow-sm">
                     <Clock className="w-4 h-4 text-yellow-600" />
@@ -444,8 +509,15 @@ export default function PortalCliente() {
                 </div>
                 <p className="text-2xl font-bold text-slate-900">{formatCurrency(totais.chequesAVencer)}</p>
                 <p className="text-xs text-slate-500 mt-1">{meusCheques.aVencer.length} cheques</p>
-              </div>
-              <div className="group p-5 bg-gradient-to-br from-green-50 to-white border border-green-100 rounded-xl hover:shadow-md transition-all">
+              </button>
+              <button 
+                onClick={() => setAbaCheques('compensados')}
+                className={`group p-5 rounded-xl transition-all text-left ${
+                  abaCheques === 'compensados' 
+                    ? 'bg-gradient-to-br from-green-50 to-white border-2 border-green-200 shadow-md' 
+                    : 'bg-white border border-slate-200 hover:shadow-md'
+                }`}
+              >
                 <div className="flex items-center gap-2 mb-3">
                   <div className="p-2 bg-white rounded-lg shadow-sm">
                     <CheckCircle className="w-4 h-4 text-green-600" />
@@ -454,8 +526,15 @@ export default function PortalCliente() {
                 </div>
                 <p className="text-2xl font-bold text-slate-900">{meusCheques.compensados.length}</p>
                 <p className="text-xs text-slate-500 mt-1">cheques</p>
-              </div>
-              <div className="group p-5 bg-gradient-to-br from-red-50 to-white border border-red-100 rounded-xl hover:shadow-md transition-all">
+              </button>
+              <button 
+                onClick={() => setAbaCheques('devolvidos')}
+                className={`group p-5 rounded-xl transition-all text-left ${
+                  abaCheques === 'devolvidos' 
+                    ? 'bg-gradient-to-br from-red-50 to-white border-2 border-red-200 shadow-md' 
+                    : 'bg-white border border-slate-200 hover:shadow-md'
+                }`}
+              >
                 <div className="flex items-center gap-2 mb-3">
                   <div className="p-2 bg-white rounded-lg shadow-sm">
                     <XCircle className="w-4 h-4 text-red-600" />
@@ -464,7 +543,7 @@ export default function PortalCliente() {
                 </div>
                 <p className="text-2xl font-bold text-slate-900">{formatCurrency(totais.chequesDevolvidos)}</p>
                 <p className="text-xs text-slate-500 mt-1">{meusCheques.devolvidos.length} cheques</p>
-              </div>
+              </button>
             </div>
 
             {/* Filtros de Pesquisa */}
@@ -521,34 +600,80 @@ export default function PortalCliente() {
               </div>
             </div>
 
-            {meusCheques.devolvidos.length > 0 && (
+            {/* Lista de Cheques Baseada na Aba Selecionada */}
+            {meusCheques[abaCheques].length > 0 ? (
               <div className="space-y-3 pt-4 border-t border-slate-100">
-                <h3 className="font-medium text-slate-700 text-sm mb-3">Devolvidos</h3>
-                {meusCheques.devolvidos.map(cheque => {
+                <h3 className="font-medium text-slate-700 text-sm mb-3">
+                  {abaCheques === 'aVencer' ? 'A Vencer' : abaCheques === 'compensados' ? 'Compensados' : 'Devolvidos'}
+                </h3>
+                {meusCheques[abaCheques].map(cheque => {
                   const diasAtraso = calcularDiasAtraso(cheque.data_vencimento);
                   
                   return (
                     <div key={cheque.id} className="p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors">
                       <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <p className="font-semibold text-slate-800">#{formatNumero(cheque.numero_cheque)}</p>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-semibold text-slate-800">#{formatNumero(cheque.numero_cheque)}</p>
+                            {abaCheques === 'aVencer' && (
+                              <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-xs font-medium rounded-full">
+                                A Vencer
+                              </span>
+                            )}
+                            {abaCheques === 'compensados' && (
+                              <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                                Compensado
+                              </span>
+                            )}
+                            {abaCheques === 'devolvidos' && (
+                              <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-full">
+                                Devolvido
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-slate-500 mt-1">
                             {cheque.banco} • Venc: {format(new Date(cheque.data_vencimento), 'dd/MM/yyyy')}
                           </p>
-                          {diasAtraso > 0 && (
+                          {cheque.data_compensacao && abaCheques === 'compensados' && (
+                            <p className="text-xs text-green-600 mt-0.5">
+                              Compensado em: {format(new Date(cheque.data_compensacao), 'dd/MM/yyyy')}
+                            </p>
+                          )}
+                          {diasAtraso > 0 && abaCheques === 'devolvidos' && (
                             <span className="inline-block mt-2 px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-full">
                               {diasAtraso}d vencido
                             </span>
                           )}
                         </div>
-                        <p className="text-lg font-bold text-slate-900">{formatCurrency(cheque.valor)}</p>
+                        <p className="text-lg font-bold text-slate-900 ml-4">{formatCurrency(cheque.valor)}</p>
                       </div>
-                      {cheque.motivo_devolucao && (
-                        <p className="text-xs text-slate-600 mt-2 bg-white p-2 rounded-lg">{cheque.motivo_devolucao}</p>
+                      {cheque.emitente && (
+                        <div className="mt-2 bg-white p-2 rounded-lg">
+                          <p className="text-xs text-slate-500 font-medium mb-1">Emitente:</p>
+                          <p className="text-xs text-slate-700">{cheque.emitente}</p>
+                        </div>
+                      )}
+                      {cheque.motivo_devolucao && abaCheques === 'devolvidos' && (
+                        <div className="mt-2 bg-white p-2 rounded-lg">
+                          <p className="text-xs text-slate-500 font-medium mb-1">Motivo da Devolução:</p>
+                          <p className="text-xs text-slate-700">{cheque.motivo_devolucao}</p>
+                        </div>
+                      )}
+                      {cheque.observacao && (
+                        <div className="mt-2 bg-white p-2 rounded-lg">
+                          <p className="text-xs text-slate-500 font-medium mb-1">Observação:</p>
+                          <p className="text-xs text-slate-700">{cheque.observacao}</p>
+                        </div>
                       )}
                     </div>
                   );
                 })}
+              </div>
+            ) : (
+              <div className="pt-4 border-t border-slate-100">
+                <p className="text-center text-slate-400 py-8 text-sm">
+                  Nenhum cheque {abaCheques === 'aVencer' ? 'a vencer' : abaCheques === 'compensados' ? 'compensado' : 'devolvido'}
+                </p>
               </div>
             )}
           </div>
