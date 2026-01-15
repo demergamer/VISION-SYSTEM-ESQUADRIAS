@@ -1,18 +1,20 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button"; // Importei o Button
 import { 
-  Users, ShoppingCart, CreditCard, DollarSign, TrendingUp, AlertCircle, 
-  Search, Briefcase, Calendar, CheckCircle, ArrowRight, Wallet
+  Users, ShoppingCart, CreditCard, AlertCircle, 
+  Search, Briefcase, Wallet, LogOut, TrendingUp, Calendar
 } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { format, differenceInDays } from "date-fns";
+import { useNavigate } from 'react-router-dom'; // Para redirecionar no logout
 
 // --- Componente Widget de Estatística ---
 const StatWidget = ({ title, value, subtitle, icon: Icon, color }) => {
@@ -41,12 +43,20 @@ const StatWidget = ({ title, value, subtitle, icon: Icon, color }) => {
 };
 
 export default function PortalDoRepresentante() {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [representante, setRepresentante] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('clientes');
 
-  // --- Buscas de Dados (Lógica Original Mantida) ---
+  // --- 1. DEFINIÇÃO DO HANDLE LOGOUT (CORREÇÃO DO ERRO) ---
+  // A função deve ser declarada ANTES de ser usada em qualquer lugar
+  const handleLogout = () => {
+    localStorage.removeItem('auth_token'); // Remove o token (ajuste conforme sua lógica de auth)
+    window.location.href = '/'; // Redireciona para login ou home
+  };
+
+  // --- 2. BUSCAS DE DADOS ---
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
@@ -68,7 +78,7 @@ export default function PortalDoRepresentante() {
   const { data: todosPedidos = [] } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list(), enabled: !!representante });
   const { data: todosCheques = [] } = useQuery({ queryKey: ['cheques'], queryFn: () => base44.entities.Cheque.list(), enabled: !!representante });
 
-  // --- Filtros e Cálculos ---
+  // --- 3. FILTROS E CÁLCULOS ---
   const meusClientes = useMemo(() => {
     if (!representante) return [];
     return todosClientes.filter(c => c.representante_codigo === representante.codigo);
@@ -120,7 +130,7 @@ export default function PortalDoRepresentante() {
   const filteredPedidos = meusPedidosAbertos.filter(p => p.cliente_nome?.toLowerCase().includes(searchTerm.toLowerCase()) || p.numero_pedido?.toLowerCase().includes(searchTerm.toLowerCase()));
   const filteredCheques = meusCheques.filter(ch => ch.cliente_nome?.toLowerCase().includes(searchTerm.toLowerCase()) || ch.numero_cheque?.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  // --- Renderização ---
+  // --- 4. RENDERIZAÇÃO ---
 
   if (!user || !representante) {
     return (
@@ -130,7 +140,10 @@ export default function PortalDoRepresentante() {
              <AlertCircle className="w-8 h-8 text-amber-600" />
           </div>
           <h2 className="text-2xl font-bold text-slate-800 mb-2">Acesso Restrito</h2>
-          <p className="text-slate-600">Este portal é exclusivo para representantes cadastrados. Se você é um representante, verifique seu login.</p>
+          <p className="text-slate-600 mb-6">Este portal é exclusivo para representantes cadastrados. Se você é um representante, verifique seu login.</p>
+          <Button onClick={handleLogout} variant="outline" className="border-amber-300 text-amber-800 hover:bg-amber-100">
+            Voltar ao Login
+          </Button>
         </Card>
       </div>
     );
@@ -146,11 +159,18 @@ export default function PortalDoRepresentante() {
             <h1 className="text-3xl font-bold tracking-tight text-slate-900">
               Olá, <span className="text-blue-600">{representante.nome}</span>
             </h1>
-            <p className="text-slate-500 text-lg">Aqui está o resumo da sua carteira de clientes</p>
+            <p className="text-slate-500 text-lg">Resumo da sua carteira de clientes</p>
           </div>
-          <div className="bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 flex items-center gap-2">
-            <Briefcase className="w-4 h-4 text-slate-400" />
-            <span className="text-sm font-medium text-slate-600">Representante Oficial</span>
+          <div className="flex items-center gap-3">
+            <div className="bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 flex items-center gap-2">
+              <Briefcase className="w-4 h-4 text-slate-400" />
+              <span className="text-sm font-medium text-slate-600">Representante</span>
+            </div>
+            {/* Botão de Logout Adicionado */}
+            <Button onClick={handleLogout} variant="ghost" className="text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-xl">
+              <LogOut className="w-5 h-5 mr-2" />
+              Sair
+            </Button>
           </div>
         </div>
 
