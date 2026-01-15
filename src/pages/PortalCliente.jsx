@@ -19,6 +19,15 @@ export default function PortalCliente() {
     valorMax: ''
   });
 
+  const [filtrosCheques, setFiltrosCheques] = useState({
+    numeroCheque: '',
+    banco: '',
+    dataVencimentoInicio: '',
+    dataVencimentoFim: '',
+    valorMin: '',
+    valorMax: ''
+  });
+
   const { data: user } = useQuery({
     queryKey: ['user'],
     queryFn: () => base44.auth.me()
@@ -103,14 +112,47 @@ export default function PortalCliente() {
   // Filtrar cheques do cliente
   const meusCheques = useMemo(() => {
     if (!clienteData) return { aVencer: [], compensados: [], devolvidos: [] };
-    const clienteCheques = cheques.filter(c => c.cliente_codigo === clienteData.codigo);
+    let clienteCheques = cheques.filter(c => c.cliente_codigo === clienteData.codigo);
+    
+    // Aplicar filtros
+    if (filtrosCheques.numeroCheque) {
+      clienteCheques = clienteCheques.filter(c => 
+        c.numero_cheque?.toLowerCase().includes(filtrosCheques.numeroCheque.toLowerCase())
+      );
+    }
+    if (filtrosCheques.banco) {
+      clienteCheques = clienteCheques.filter(c => 
+        c.banco?.toLowerCase().includes(filtrosCheques.banco.toLowerCase())
+      );
+    }
+    if (filtrosCheques.dataVencimentoInicio) {
+      clienteCheques = clienteCheques.filter(c => 
+        new Date(c.data_vencimento) >= new Date(filtrosCheques.dataVencimentoInicio)
+      );
+    }
+    if (filtrosCheques.dataVencimentoFim) {
+      clienteCheques = clienteCheques.filter(c => 
+        new Date(c.data_vencimento) <= new Date(filtrosCheques.dataVencimentoFim)
+      );
+    }
+    if (filtrosCheques.valorMin) {
+      clienteCheques = clienteCheques.filter(c => 
+        c.valor >= parseFloat(filtrosCheques.valorMin)
+      );
+    }
+    if (filtrosCheques.valorMax) {
+      clienteCheques = clienteCheques.filter(c => 
+        c.valor <= parseFloat(filtrosCheques.valorMax)
+      );
+    }
+    
     const hoje = new Date();
     return {
       aVencer: clienteCheques.filter(c => c.status === 'normal' && new Date(c.data_vencimento) >= hoje),
       compensados: clienteCheques.filter(c => c.status === 'pago'),
       devolvidos: clienteCheques.filter(c => c.status === 'devolvido')
     };
-  }, [cheques, clienteData]);
+  }, [cheques, clienteData, filtrosCheques]);
 
   // Buscar créditos do cliente
   const { data: creditos = [] } = useQuery({
@@ -425,6 +467,60 @@ export default function PortalCliente() {
               </div>
             </div>
 
+            {/* Filtros de Pesquisa */}
+            <div className="pt-4 border-t border-slate-100 mb-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Search className="w-4 h-4 text-slate-500" />
+                <h3 className="font-medium text-slate-700 text-sm">Pesquisar Cheques</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                <Input
+                  placeholder="Nº Cheque"
+                  value={filtrosCheques.numeroCheque}
+                  onChange={(e) => setFiltrosCheques({...filtrosCheques, numeroCheque: e.target.value})}
+                  className="text-sm"
+                />
+                <Input
+                  placeholder="Banco"
+                  value={filtrosCheques.banco}
+                  onChange={(e) => setFiltrosCheques({...filtrosCheques, banco: e.target.value})}
+                  className="text-sm"
+                />
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-500">Vencimento (De)</label>
+                  <Input
+                    type="date"
+                    value={filtrosCheques.dataVencimentoInicio}
+                    onChange={(e) => setFiltrosCheques({...filtrosCheques, dataVencimentoInicio: e.target.value})}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-500">Vencimento (Até)</label>
+                  <Input
+                    type="date"
+                    value={filtrosCheques.dataVencimentoFim}
+                    onChange={(e) => setFiltrosCheques({...filtrosCheques, dataVencimentoFim: e.target.value})}
+                    className="text-sm"
+                  />
+                </div>
+                <Input
+                  type="number"
+                  placeholder="Valor Mínimo"
+                  value={filtrosCheques.valorMin}
+                  onChange={(e) => setFiltrosCheques({...filtrosCheques, valorMin: e.target.value})}
+                  className="text-sm"
+                />
+                <Input
+                  type="number"
+                  placeholder="Valor Máximo"
+                  value={filtrosCheques.valorMax}
+                  onChange={(e) => setFiltrosCheques({...filtrosCheques, valorMax: e.target.value})}
+                  className="text-sm"
+                />
+              </div>
+            </div>
+
             {meusCheques.devolvidos.length > 0 && (
               <div className="space-y-3 pt-4 border-t border-slate-100">
                 <h3 className="font-medium text-slate-700 text-sm mb-3">Devolvidos</h3>
@@ -435,9 +531,9 @@ export default function PortalCliente() {
                     <div key={cheque.id} className="p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors">
                       <div className="flex items-start justify-between mb-2">
                         <div>
-                          <p className="font-semibold text-slate-800">#{cheque.numero_cheque}</p>
+                          <p className="font-semibold text-slate-800">#{formatNumero(cheque.numero_cheque)}</p>
                           <p className="text-xs text-slate-500 mt-1">
-                            {cheque.banco} • {format(new Date(cheque.data_vencimento), 'dd/MM/yyyy')}
+                            {cheque.banco} • Venc: {format(new Date(cheque.data_vencimento), 'dd/MM/yyyy')}
                           </p>
                           {diasAtraso > 0 && (
                             <span className="inline-block mt-2 px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-full">
