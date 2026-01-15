@@ -155,11 +155,21 @@ export default function PortalCliente() {
     }
     
     const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    
     return {
-      aVencer: clienteCheques.filter(c => c.status === 'normal' && new Date(c.data_vencimento) >= hoje),
-      compensados: clienteCheques.filter(c => c.status === 'pago'),
-      devolvidos: clienteCheques.filter(c => c.status === 'devolvido' && !c.valor_pago),
-      pagos: clienteCheques.filter(c => c.status === 'devolvido' && c.valor_pago)
+      aVencer: clienteCheques.filter(c => {
+        const vencimento = new Date(c.data_vencimento);
+        vencimento.setHours(0, 0, 0, 0);
+        return c.status === 'normal' && vencimento > hoje;
+      }),
+      compensados: clienteCheques.filter(c => {
+        const vencimento = new Date(c.data_vencimento);
+        vencimento.setHours(0, 0, 0, 0);
+        return c.status === 'normal' && vencimento <= hoje;
+      }),
+      devolvidos: clienteCheques.filter(c => c.status === 'devolvido'),
+      pagos: clienteCheques.filter(c => c.status === 'pago')
     };
   }, [cheques, clienteData, filtrosCheques]);
 
