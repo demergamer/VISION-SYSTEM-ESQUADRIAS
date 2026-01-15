@@ -23,6 +23,7 @@ import {
   ArrowLeft,
   Filter,
   Upload,
+  Truck,
   Clock,
   CheckCircle,
   XCircle
@@ -47,10 +48,14 @@ import PedidoForm from "@/components/pedidos/PedidoForm";
 import PedidoTable from "@/components/pedidos/PedidoTable";
 import LiquidacaoForm from "@/components/pedidos/LiquidacaoForm";
 import ImportarPedidos from "@/components/pedidos/ImportarPedidos";
+import RotasList from "@/components/pedidos/RotasList";
+import RotaChecklist from "@/components/pedidos/RotaChecklist";
+import AlterarPortadorModal from "@/components/pedidos/AlterarPortadorModal";
 import ClienteForm from "@/components/clientes/ClienteForm";
 import CancelarPedidoModal from "@/components/pedidos/CancelarPedidoModal";
 import LiquidacaoMassa from "@/components/pedidos/LiquidacaoMassa";
 import PedidoAguardandoItem from "@/components/pedidos/PedidoAguardandoItem";
+import RotaCobrancaModal from "@/components/pedidos/RotaCobrancaModal";
 
 export default function Pedidos() {
   const queryClient = useQueryClient();
@@ -62,10 +67,14 @@ export default function Pedidos() {
   const [showLiquidarModal, setShowLiquidarModal] = useState(false);
   const [showCancelarDialog, setShowCancelarDialog] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showRotaModal, setShowRotaModal] = useState(false);
+  const [showAlterarPortadorModal, setShowAlterarPortadorModal] = useState(false);
   const [showCadastrarClienteModal, setShowCadastrarClienteModal] = useState(false);
   const [showCancelarPedidoModal, setShowCancelarPedidoModal] = useState(false);
   const [showLiquidacaoMassaModal, setShowLiquidacaoMassaModal] = useState(false);
+  const [showRotaCobrancaModal, setShowRotaCobrancaModal] = useState(false);
   const [selectedPedido, setSelectedPedido] = useState(null);
+  const [selectedRota, setSelectedRota] = useState(null);
   const [pedidoParaCadastro, setPedidoParaCadastro] = useState(null);
   const [pedidoParaCancelar, setPedidoParaCancelar] = useState(null);
   const [showReverterDialog, setShowReverterDialog] = useState(false);
@@ -91,9 +100,19 @@ export default function Pedidos() {
     queryFn: () => base44.entities.Cliente.list()
   });
 
+  const { data: rotas = [], isLoading: loadingRotas, refetch: refetchRotas } = useQuery({
+    queryKey: ['rotas'],
+    queryFn: () => base44.entities.RotaImportada.list('-created_date')
+  });
+
   const { data: representantes = [] } = useQuery({
     queryKey: ['representantes'],
     queryFn: () => base44.entities.Representante.list()
+  });
+
+  const { data: cheques = [] } = useQuery({
+    queryKey: ['cheques'],
+    queryFn: () => base44.entities.Cheque.list()
   });
 
   // Estatísticas
@@ -189,6 +208,12 @@ export default function Pedidos() {
     return filtered;
   }, [pedidos, activeTab, searchTerm]);
 
+  // Pedidos da rota selecionada
+  const pedidosDaRota = useMemo(() => {
+    if (!selectedRota) return [];
+    return pedidos.filter(p => p.rota_importada_id === selectedRota.id);
+  }, [pedidos, selectedRota]);
+
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -221,13 +246,105 @@ export default function Pedidos() {
 
   const handleRefresh = () => {
     refetchPedidos();
+    refetchRotas();
     toast.success('Informações atualizadas!');
   };
 
   const handleImportComplete = () => {
     queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+    queryClient.invalidateQueries({ queryKey: ['rotas'] });
     setShowImportModal(false);
     toast.success('Pedidos importados com sucesso!');
+  };
+
+  const handleSelectRota = async (rota) => {
+    try {
+      // Buscar todos os pedidos da rota
+      const pedidosDaRotaAtual = pedidos.filter(p => p.rota_importada_id === rota.id);
+      const pedidosPendentes = pedidosDaRotaAtual.filter(p => p.cliente_pendente);
+      
+      let atualizados = 0;
+      
+      // Verificar e atualizar pedidos com clientes que foram cadastrados
+      for (const pedido of pedidosPendentes) {
+        // Procurar cliente cadastrado com nome similar (normalizar strings)
+        const nomeClientePedido = pedido.cliente_nome?.toLowerCase().trim() || '';
+        
+        const clienteEncontrado = clientes.find(c => {
+          const nomeCliente = c.nome?.toLowerCase().trim() || '';
+          // Verificar se os nomes são iguais ou se um contém o outro
+          return nomeCliente === nomeClientePedido || 
+                 nomeCliente.includes(nomeClientePedido) || 
+                 nomeClientePedido.includes(nomeCliente);
+        });
+        
+        if (clienteEncontrado) {
+          // Atualizar pedido vinculando ao cliente
+          await base44.entities.Pedido.update(pedido.id, {
+            cliente_codigo: clienteEncontrado.codigo,
+            cliente_regiao: clienteEncontrado.regiao,
+            representante_codigo: clienteEncontrado.representante_codigo,
+            representante_nome: clienteEncontrado.representante_nome,
+            porcentagem_comissao: clienteEncontrado.porcentagem_comissao,
+            cliente_pendente: false
+          });
+          atualizados++;
+        }
+      }
+      
+      // Atualizar lista de pedidos se houver atualizações
+      if (atualizados > 0) {
+        await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+        toast.success(`${atualizados} pedido(s) vinculado(s) automaticamente!`);
+      }
+      
+      setSelectedRota(rota);
+      setShowRotaModal(true);
+    } catch (error) {
+      console.error('Erro ao verificar pedidos:', error);
+      setSelectedRota(rota);
+      setShowRotaModal(true);
+    }
+  };
+
+  const handleSaveRotaChecklist = async ({ rota: rotaData, pedidos: pedidosData }) => {
+    try {
+      // Atualizar rota
+      await base44.entities.RotaImportada.update(selectedRota.id, rotaData);
+      
+      // Atualizar pedidos
+      for (const pedido of pedidosData) {
+        await base44.entities.Pedido.update(pedido.id, {
+          confirmado_entrega: pedido.confirmado_entrega,
+          status: pedido.status
+        });
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+      queryClient.invalidateQueries({ queryKey: ['rotas'] });
+      setShowRotaModal(false);
+      setSelectedRota(null);
+      toast.success('Rota atualizada com sucesso!');
+    } catch (error) {
+      toast.error('Erro ao salvar alterações');
+    }
+  };
+
+  const handleAlterarPortador = (rota) => {
+    setSelectedRota(rota);
+    setShowAlterarPortadorModal(true);
+  };
+
+  const handleSaveAlterarPortador = async (motorista) => {
+    try {
+      await base44.entities.RotaImportada.update(selectedRota.id, motorista);
+      queryClient.invalidateQueries({ queryKey: ['rotas'] });
+      setShowAlterarPortadorModal(false);
+      setSelectedRota(null);
+      toast.success('Portador alterado e PDF gerado!');
+    } catch (error) {
+      toast.error('Erro ao alterar portador');
+    }
   };
 
   const handleCadastrarCliente = (pedido) => {
@@ -281,10 +398,16 @@ export default function Pedidos() {
     }
   };
 
+  const handleCancelarPedidoRota = (pedido) => {
+    setPedidoParaCancelar(pedido);
+    setShowCancelarPedidoModal(true);
+  };
+
   const handleSaveCancelarPedido = async (data) => {
     try {
       await base44.entities.Pedido.update(pedidoParaCancelar.id, data);
       await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+      await queryClient.invalidateQueries({ queryKey: ['rotas'] });
       setShowCancelarPedidoModal(false);
       setPedidoParaCancelar(null);
       toast.success('Pedido cancelado com sucesso!');
@@ -300,6 +423,7 @@ export default function Pedidos() {
         status: 'aberto'
       });
       await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+      await queryClient.invalidateQueries({ queryKey: ['rotas'] });
       toast.success('Pedido confirmado!');
     } catch (error) {
       toast.error('Erro ao confirmar pedido');
@@ -504,6 +628,10 @@ export default function Pedidos() {
               <DollarSign className="w-4 h-4" />
               Liquidação em Massa
             </Button>
+            <Button variant="outline" onClick={() => setShowRotaCobrancaModal(true)} className="gap-2">
+              <FileText className="w-4 h-4" />
+              Rota Cobrança Gilson
+            </Button>
             <Button onClick={() => setShowAddModal(true)} className="gap-2">
               <Plus className="w-4 h-4" />
               Novo Pedido
@@ -541,7 +669,7 @@ export default function Pedidos() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
             <TabsTrigger value="aguardando" className="gap-2">
               <Clock className="w-4 h-4" />
               <span className="hidden sm:inline">Aguardando</span>
@@ -570,7 +698,33 @@ export default function Pedidos() {
                 {stats.cancelados}
               </span>
             </TabsTrigger>
+            <TabsTrigger value="rotas" className="gap-2">
+              <Truck className="w-4 h-4" />
+              <span className="hidden sm:inline">Rotas</span>
+              <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-xs">
+                {rotas.length}
+              </span>
+            </TabsTrigger>
           </TabsList>
+
+          {/* Tab: Rotas */}
+          <TabsContent value="rotas" className="mt-6">
+            <Card className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-semibold">Rotas Importadas</h2>
+                <Button onClick={() => setShowImportModal(true)} className="gap-2">
+                  <Upload className="w-4 h-4" />
+                  Importar Planilha
+                </Button>
+              </div>
+              <RotasList 
+                rotas={rotas} 
+                onSelectRota={handleSelectRota}
+                onAlterarPortador={handleAlterarPortador}
+                isLoading={loadingRotas}
+              />
+            </Card>
+          </TabsContent>
 
           {/* Tab: Aguardando */}
           <TabsContent value="aguardando" className="mt-6">
@@ -711,9 +865,60 @@ export default function Pedidos() {
         >
           <ImportarPedidos
             clientes={clientes}
+            rotas={rotas}
             onImportComplete={handleImportComplete}
             onCancel={() => setShowImportModal(false)}
           />
+        </ModalContainer>
+
+        {/* Rota Checklist Modal */}
+        <ModalContainer
+          open={showRotaModal}
+          onClose={() => {
+            setShowRotaModal(false);
+            setSelectedRota(null);
+          }}
+          title="Checklist da Rota"
+          description="Confirme os pedidos entregues"
+          size="lg"
+        >
+          {selectedRota && (
+            <RotaChecklist
+              rota={selectedRota}
+              pedidos={pedidosDaRota}
+              onSave={handleSaveRotaChecklist}
+              onCadastrarCliente={handleCadastrarCliente}
+              onCancelarPedido={handleCancelarPedidoRota}
+              onCancel={() => {
+                setShowRotaModal(false);
+                setSelectedRota(null);
+              }}
+            />
+          )}
+        </ModalContainer>
+
+        {/* Alterar Portador Modal */}
+        <ModalContainer
+          open={showAlterarPortadorModal}
+          onClose={() => {
+            setShowAlterarPortadorModal(false);
+            setSelectedRota(null);
+          }}
+          title="Alterar Portador da Rota"
+          description="Gere um relatório PDF e altere o motorista responsável"
+          size="lg"
+        >
+          {selectedRota && (
+            <AlterarPortadorModal
+              rota={selectedRota}
+              pedidos={pedidosDaRota}
+              onSave={handleSaveAlterarPortador}
+              onCancel={() => {
+                setShowAlterarPortadorModal(false);
+                setSelectedRota(null);
+              }}
+            />
+          )}
         </ModalContainer>
 
         {/* Cadastrar Cliente Modal */}
@@ -774,6 +979,15 @@ export default function Pedidos() {
             onCancel={() => setShowLiquidacaoMassaModal(false)}
           />
         </ModalContainer>
+
+        {/* Rota Cobrança Gilson Modal */}
+        {showRotaCobrancaModal && (
+          <RotaCobrancaModal
+            pedidos={pedidos}
+            cheques={cheques}
+            onClose={() => setShowRotaCobrancaModal(false)}
+          />
+        )}
 
         {/* Reverter Liquidação Dialog */}
         <AlertDialog open={showReverterDialog} onOpenChange={setShowReverterDialog}>
