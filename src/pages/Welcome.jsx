@@ -1,6 +1,6 @@
+```jsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createPageUrl } from "@/utils";
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Briefcase, ShieldCheck, ChevronRight, Lock } from 'lucide-react';
 
@@ -12,8 +12,6 @@ export default function Welcome() {
   
   const handleCliente = () => {
     // Redireciona para o Portal do Cliente
-    // Se for rota interna: navigate('/PortalCliente')
-    // Se for link completo: window.location.href = '...'
     window.location.href = 'https://gestor-financeiro-pro-8984498a.base44.app/PortalCliente';
   };
 
@@ -68,12 +66,12 @@ export default function Welcome() {
         className="text-center z-10 mb-12"
       >
         <img 
-          src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/fa98a5f2b_LOGOJCFUNDOTRANSPARENTE-Copia.png"
+          src="image_0.png"
           alt="J&C Esquadrias"
           className="w-48 md:w-64 h-auto mx-auto mb-6 drop-shadow-2xl"
         />
-        <h1 className="text-white text-2xl font-medium tracking-tight">
-          J&C <span className="text-gray-500">Esquadrias</span>
+        <h1 className="text-white text-3xl md:text-4xl font-extrabold tracking-tight">
+          <span className="text-yellow-400">J&C</span> <span className="text-white/90">Esquadrias</span>
         </h1>
         <p className="text-white/40 text-sm mt-2 font-light">
           Selecione seu perfil de acesso
@@ -137,3 +135,5 @@ export default function Welcome() {
     </div>
   );
 }
+
+```
