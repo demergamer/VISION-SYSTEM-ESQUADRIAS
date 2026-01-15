@@ -28,6 +28,7 @@ const navItems = [
   { name: 'Comissões', icon: Wallet, page: 'Comissoes' },
   { name: 'Balanço', icon: BarChart3, page: 'Balanco' },
   { name: 'Relatórios', icon: PieChart, page: 'Relatorios' },
+  { name: 'Usuários', icon: Users, page: 'Usuarios' },
 ];
 
 export default function Layout({ children, currentPageName }) {
