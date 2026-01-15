@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import StatCard from "@/components/dashboard/StatCard";
 import ModalContainer from "@/components/modals/ModalContainer";
 import CreditoDetails from "@/components/creditos/CreditoDetails";
+import PermissionGuard from "@/components/PermissionGuard";
 
 export default function Creditos() {
   const queryClient = useQueryClient();
@@ -76,7 +77,8 @@ export default function Creditos() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <PermissionGuard setor="Creditos">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="max-w-7xl mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -232,5 +234,6 @@ export default function Creditos() {
         </ModalContainer>
       </div>
     </div>
+    </PermissionGuard>
   );
 }

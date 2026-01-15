@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import ModalContainer from "@/components/modals/ModalContainer";
 import UsuarioForm from "@/components/usuarios/UsuarioForm";
 import ConvidarUsuarioForm from "@/components/usuarios/ConvidarUsuarioForm";
+import PermissionGuard from "@/components/PermissionGuard";
 
 export default function Usuarios() {
   const queryClient = useQueryClient();
@@ -67,7 +68,8 @@ export default function Usuarios() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <PermissionGuard setor="Usuarios">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="max-w-7xl mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -244,5 +246,6 @@ export default function Usuarios() {
         </ModalContainer>
       </div>
     </div>
+    </PermissionGuard>
   );
 }

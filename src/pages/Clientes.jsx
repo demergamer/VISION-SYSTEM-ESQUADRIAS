@@ -26,6 +26,7 @@ import ModalContainer from "@/components/modals/ModalContainer";
 import ClienteForm from "@/components/clientes/ClienteForm";
 import ClienteTable from "@/components/clientes/ClienteTable";
 import ClienteDetails from "@/components/clientes/ClienteDetails";
+import PermissionGuard from "@/components/PermissionGuard";
 
 export default function Clientes() {
   const navigate = useNavigate();
@@ -207,7 +208,8 @@ export default function Clientes() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <PermissionGuard setor="Clientes">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="max-w-7xl mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -360,5 +362,6 @@ export default function Clientes() {
         </ModalContainer>
       </div>
     </div>
+    </PermissionGuard>
   );
 }
