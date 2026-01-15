@@ -20,18 +20,17 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
   const [descontoTipo, setDescontoTipo] = useState('reais'); // 'reais' ou 'porcentagem'
   const [descontoValor, setDescontoValor] = useState('');
   const [devolucao, setDevolucao] = useState('');
-  const [valorPago, setValorPago] = useState('');
-  const [formaPagamento, setFormaPagamento] = useState('dinheiro');
-  const [parcelasCreditoQtd, setParcelasCreditoQtd] = useState('1');
+  const [formasPagamento, setFormasPagamento] = useState([{
+    tipo: 'dinheiro',
+    valor: '',
+    parcelas: '1',
+    dadosCheque: { numero: '', banco: '', agencia: '' },
+    chequesSalvos: []
+  }]);
   const [showChequeModal, setShowChequeModal] = useState(false);
-  const [chequesSalvos, setChequesSalvos] = useState([]);
+  const [chequeModalIndex, setChequeModalIndex] = useState(0);
   const [creditoDisponivelTotal, setCreditoDisponivelTotal] = useState(0);
   const [creditoAUsar, setCreditoAUsar] = useState(0);
-  const [dadosCheque, setDadosCheque] = useState({
-    numero: '',
-    banco: '',
-    agencia: ''
-  });
 
   // Buscar créditos do primeiro cliente selecionado
   const { data: creditos = [] } = useQuery({
@@ -103,26 +102,32 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     const devolucaoValor = parseFloat(devolucao) || 0;
     const totalComDesconto = totalOriginal - desconto - devolucaoValor;
     
+    const totalPago = formasPagamento.reduce((sum, fp) => 
+      sum + (parseFloat(fp.valor) || 0), 0
+    ) + creditoAUsar;
+    
     return {
       totalOriginal,
       desconto,
       devolucaoValor,
-      totalComDesconto
+      totalComDesconto,
+      totalPago
     };
   };
 
   const handleSaveCheque = async (chequeData) => {
     try {
       await base44.entities.Cheque.create(chequeData);
-      const novosCheques = [...chequesSalvos, chequeData];
-      setChequesSalvos(novosCheques);
+      const novasFormas = [...formasPagamento];
+      novasFormas[chequeModalIndex].chequesSalvos.push(chequeData);
       
-      // Atualizar valor pago com a soma dos cheques
-      if (formaPagamento === 'cheque') {
-        const totalCheques = novosCheques.reduce((sum, ch) => sum + (parseFloat(ch.valor) || 0), 0);
-        setValorPago(String(totalCheques));
-      }
+      // Atualizar valor com a soma dos cheques
+      const totalCheques = novasFormas[chequeModalIndex].chequesSalvos.reduce(
+        (sum, ch) => sum + (parseFloat(ch.valor) || 0), 0
+      );
+      novasFormas[chequeModalIndex].valor = String(totalCheques);
       
+      setFormasPagamento(novasFormas);
       setShowChequeModal(false);
       toast.success('Cheque cadastrado!');
     } catch (error) {
@@ -133,19 +138,47 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
   const handleSaveChequeAndAddAnother = async (chequeData) => {
     try {
       await base44.entities.Cheque.create(chequeData);
-      const novosCheques = [...chequesSalvos, chequeData];
-      setChequesSalvos(novosCheques);
+      const novasFormas = [...formasPagamento];
+      novasFormas[chequeModalIndex].chequesSalvos.push(chequeData);
       
-      // Atualizar valor pago com a soma dos cheques
-      if (formaPagamento === 'cheque') {
-        const totalCheques = novosCheques.reduce((sum, ch) => sum + (parseFloat(ch.valor) || 0), 0);
-        setValorPago(String(totalCheques));
-      }
+      // Atualizar valor com a soma dos cheques
+      const totalCheques = novasFormas[chequeModalIndex].chequesSalvos.reduce(
+        (sum, ch) => sum + (parseFloat(ch.valor) || 0), 0
+      );
+      novasFormas[chequeModalIndex].valor = String(totalCheques);
       
+      setFormasPagamento(novasFormas);
       toast.success('Cheque cadastrado! Adicione outro.');
     } catch (error) {
       toast.error('Erro ao cadastrar cheque');
     }
+  };
+
+  const adicionarFormaPagamento = () => {
+    setFormasPagamento([...formasPagamento, {
+      tipo: 'dinheiro',
+      valor: '',
+      parcelas: '1',
+      dadosCheque: { numero: '', banco: '', agencia: '' },
+      chequesSalvos: []
+    }]);
+  };
+
+  const removerFormaPagamento = (index) => {
+    if (formasPagamento.length > 1) {
+      setFormasPagamento(formasPagamento.filter((_, i) => i !== index));
+    }
+  };
+
+  const atualizarFormaPagamento = (index, campo, valor) => {
+    const novasFormas = [...formasPagamento];
+    if (campo.includes('.')) {
+      const [obj, prop] = campo.split('.');
+      novasFormas[index][obj][prop] = valor;
+    } else {
+      novasFormas[index][campo] = valor;
+    }
+    setFormasPagamento(novasFormas);
   };
 
   const handleLiquidar = () => {
@@ -154,20 +187,19 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       return;
     }
 
-    if (!valorPago || parseFloat(valorPago) <= 0) {
+    const totais = calcularTotais();
+    
+    if (totais.totalPago <= 0) {
       alert('Informe o valor pago');
       return;
     }
-
-    const totais = calcularTotais();
-    const valorTotalComCredito = parseFloat(valorPago) + creditoAUsar;
     
     // Confirmar se valor pago excede o total
-    if (valorTotalComCredito > totais.totalComDesconto) {
-      const excedente = valorTotalComCredito - totais.totalComDesconto;
+    if (totais.totalPago > totais.totalComDesconto) {
+      const excedente = totais.totalPago - totais.totalComDesconto;
       const confirmar = window.confirm(
         `⚠️ ATENÇÃO!\n\n` +
-        `Valor total a pagar: ${formatCurrency(valorTotalComCredito)}\n` +
+        `Valor total a pagar: ${formatCurrency(totais.totalPago)}\n` +
         `Total em aberto: ${formatCurrency(totais.totalComDesconto)}\n` +
         `Excedente: ${formatCurrency(excedente)}\n\n` +
         `Um crédito de ${formatCurrency(excedente)} será gerado para o cliente.\n\n` +
@@ -178,26 +210,31 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     }
     
     // Calcular crédito gerado
-    const creditoGerado = valorTotalComCredito > totais.totalComDesconto 
-      ? valorTotalComCredito - totais.totalComDesconto 
+    const creditoGerado = totais.totalPago > totais.totalComDesconto 
+      ? totais.totalPago - totais.totalComDesconto 
       : 0;
 
     // Construir string de formas de pagamento
-    let formasPagamentoStr = `${formaPagamento.toUpperCase()}: ${formatCurrency(parseFloat(valorPago))}`;
-    if (formaPagamento === 'credito' && parcelasCreditoQtd !== '1') {
-      formasPagamentoStr += ` (${parcelasCreditoQtd}x)`;
-    }
-    if (formaPagamento === 'cheque' && dadosCheque.numero) {
-      formasPagamentoStr += ` | Cheque: ${dadosCheque.numero}`;
-      if (dadosCheque.banco) formasPagamentoStr += ` - Banco: ${dadosCheque.banco}`;
-      if (dadosCheque.agencia) formasPagamentoStr += ` - Ag: ${dadosCheque.agencia}`;
-    }
-    if (chequesSalvos.length > 0) {
-      formasPagamentoStr += ` | ${chequesSalvos.length} cheque(s) cadastrado(s)`;
-    }
-    if (creditoAUsar > 0) {
-      formasPagamentoStr += ` | CRÉDITO: ${formatCurrency(creditoAUsar)}`;
-    }
+    const formasPagamentoStr = formasPagamento
+      .filter(fp => parseFloat(fp.valor) > 0)
+      .map(fp => {
+        let str = `${fp.tipo.toUpperCase()}: ${formatCurrency(parseFloat(fp.valor))}`;
+        if (fp.tipo === 'credito' && fp.parcelas !== '1') {
+          str += ` (${fp.parcelas}x)`;
+        }
+        if (fp.tipo === 'cheque' && fp.dadosCheque.numero) {
+          str += ` | Cheque: ${fp.dadosCheque.numero}`;
+          if (fp.dadosCheque.banco) str += ` - ${fp.dadosCheque.banco}`;
+        }
+        if (fp.chequesSalvos.length > 0) {
+          str += ` | ${fp.chequesSalvos.length} cheque(s)`;
+        }
+        return str;
+      })
+      .join(' | ');
+    
+    const formasFinal = formasPagamentoStr + 
+      (creditoAUsar > 0 ? ` | CRÉDITO: ${formatCurrency(creditoAUsar)}` : '');
     
     onSave({
       pedidos: selectedPedidos.map(p => ({
@@ -210,8 +247,8 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       devolucao: totais.devolucaoValor,
       credito: creditoGerado,
       creditoUsado: creditoAUsar,
-      totalPago: parseFloat(valorPago),
-      formaPagamento: formasPagamentoStr
+      totalPago: totais.totalPago - creditoAUsar,
+      formaPagamento: formasFinal
     });
   };
 
@@ -345,100 +382,139 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
             </div>
           </div>
 
-          {/* Valor Pago */}
-          <div className="space-y-2">
-            <Label>Valor Pago *</Label>
-            <div className="relative">
-              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="Valor pago pelo cliente"
-                value={valorPago}
-                onChange={(e) => setValorPago(e.target.value)}
-                className="pl-10"
-                required
-              />
-            </div>
-          </div>
-
-          {/* Forma de Pagamento */}
-          <div className="space-y-2">
-            <Label>Forma de Pagamento *</Label>
-            <Select value={formaPagamento} onValueChange={setFormaPagamento}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="dinheiro">Dinheiro</SelectItem>
-                <SelectItem value="pix">PIX</SelectItem>
-                <SelectItem value="cheque">Cheque</SelectItem>
-                <SelectItem value="servicos">Serviços</SelectItem>
-                <SelectItem value="debito">Débito</SelectItem>
-                <SelectItem value="credito">Crédito</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Parcelas (se for crédito) */}
-          {formaPagamento === 'credito' && (
-            <div className="space-y-2">
-              <Label>Parcelamento</Label>
-              <Select value={parcelasCreditoQtd} onValueChange={setParcelasCreditoQtd}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
-                    <SelectItem key={n} value={String(n)}>{n}x</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* Dados do Cheque */}
-          {formaPagamento === 'cheque' && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-2">
-                  <Label>Número do Cheque</Label>
-                  <Input
-                    value={dadosCheque.numero}
-                    onChange={(e) => setDadosCheque({...dadosCheque, numero: e.target.value})}
-                    placeholder="123456"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Banco</Label>
-                  <Input
-                    value={dadosCheque.banco}
-                    onChange={(e) => setDadosCheque({...dadosCheque, banco: e.target.value})}
-                    placeholder="Ex: 001"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Agência</Label>
-                  <Input
-                    value={dadosCheque.agencia}
-                    onChange={(e) => setDadosCheque({...dadosCheque, agencia: e.target.value})}
-                    placeholder="1234"
-                  />
-                </div>
-              </div>
+          {/* Formas de Pagamento */}
+          <div className="space-y-3 pt-3 border-t">
+            <div className="flex items-center justify-between">
+              <Label className="text-base font-semibold">Formas de Pagamento</Label>
               <Button 
                 type="button" 
+                size="sm" 
                 variant="outline" 
-                onClick={() => setShowChequeModal(true)}
-                className="w-full"
+                onClick={adicionarFormaPagamento}
               >
-                {chequesSalvos.length > 0 
-                  ? `${chequesSalvos.length} Cheque(s) Cadastrado(s) - Adicionar Mais` 
-                  : 'Cadastrar Cheque Completo'}
+                + Adicionar Forma
               </Button>
             </div>
-          )}
+
+            {formasPagamento.map((fp, index) => (
+              <Card key={index} className="p-3 bg-white">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Forma {index + 1}</span>
+                    {formasPagamento.length > 1 && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => removerFormaPagamento(index)}
+                        className="text-red-600 hover:text-red-700 h-6"
+                      >
+                        Remover
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Tipo *</Label>
+                      <Select 
+                        value={fp.tipo} 
+                        onValueChange={(v) => atualizarFormaPagamento(index, 'tipo', v)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                          <SelectItem value="pix">PIX</SelectItem>
+                          <SelectItem value="cheque">Cheque</SelectItem>
+                          <SelectItem value="servicos">Serviços</SelectItem>
+                          <SelectItem value="debito">Débito</SelectItem>
+                          <SelectItem value="credito">Crédito</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Valor (R$) *</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={fp.valor}
+                        onChange={(e) => atualizarFormaPagamento(index, 'valor', e.target.value)}
+                        disabled={fp.tipo === 'cheque' && fp.chequesSalvos.length > 0}
+                      />
+                    </div>
+                  </div>
+
+                  {fp.tipo === 'credito' && (
+                    <div className="space-y-2">
+                      <Label>Parcelas</Label>
+                      <Select 
+                        value={fp.parcelas} 
+                        onValueChange={(v) => atualizarFormaPagamento(index, 'parcelas', v)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                            <SelectItem key={n} value={String(n)}>{n}x</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {fp.tipo === 'cheque' && (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <Label className="text-xs">Nº Cheque</Label>
+                          <Input
+                            value={fp.dadosCheque.numero}
+                            onChange={(e) => atualizarFormaPagamento(index, 'dadosCheque.numero', e.target.value)}
+                            placeholder="123456"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Banco</Label>
+                          <Input
+                            value={fp.dadosCheque.banco}
+                            onChange={(e) => atualizarFormaPagamento(index, 'dadosCheque.banco', e.target.value)}
+                            placeholder="001"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Agência</Label>
+                          <Input
+                            value={fp.dadosCheque.agencia}
+                            onChange={(e) => atualizarFormaPagamento(index, 'dadosCheque.agencia', e.target.value)}
+                            placeholder="1234"
+                          />
+                        </div>
+                      </div>
+                      <Button 
+                        type="button" 
+                        size="sm"
+                        variant="outline" 
+                        onClick={() => {
+                          setChequeModalIndex(index);
+                          setShowChequeModal(true);
+                        }}
+                        className="w-full"
+                      >
+                        {fp.chequesSalvos.length > 0 
+                          ? `${fp.chequesSalvos.length} Cheque(s) - Adicionar Mais` 
+                          : 'Cadastrar Cheque Completo'}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
 
           {/* Crédito Disponível */}
           {selectedPedidos.length > 0 && creditoDisponivelTotal > 0 && (
@@ -490,12 +566,28 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
                 <span>- {formatCurrency(totais.devolucaoValor)}</span>
               </div>
             )}
-            <div className="flex justify-between text-lg font-bold pt-2 border-t">
+            <div className="flex justify-between text-base font-semibold pt-2 border-t">
               <span>Total a Pagar:</span>
-              <span className={totais.totalComDesconto < 0 ? 'text-green-600' : ''}>
+              <span className={totais.totalComDesconto < 0 ? 'text-green-600' : 'text-amber-600'}>
                 {formatCurrency(Math.abs(totais.totalComDesconto))}
               </span>
             </div>
+            {creditoAUsar > 0 && (
+              <div className="flex justify-between text-sm text-green-600">
+                <span>Crédito Usado:</span>
+                <span>- {formatCurrency(creditoAUsar)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-lg font-bold text-blue-700 pt-2 border-t">
+              <span>Total Pago:</span>
+              <span>{formatCurrency(totais.totalPago)}</span>
+            </div>
+            {totais.totalPago > totais.totalComDesconto && (
+              <div className="flex justify-between text-sm text-green-600 font-medium">
+                <span>Crédito a Gerar:</span>
+                <span>+ {formatCurrency(totais.totalPago - totais.totalComDesconto)}</span>
+              </div>
+            )}
             {totais.totalComDesconto < 0 && (
               <p className="text-sm text-green-600 text-center">
                 ⚠️ Crédito a pagar ao cliente: {formatCurrency(Math.abs(totais.totalComDesconto))}
