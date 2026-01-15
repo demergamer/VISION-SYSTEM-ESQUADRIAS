@@ -15,8 +15,19 @@ import {
   CheckCircle,
   Clock,
   XCircle,
-  AlertTriangle
+  AlertTriangle,
+  Trash2
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { toast } from "sonner";
@@ -32,7 +43,9 @@ export default function Cheques() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedCheque, setSelectedCheque] = useState(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   const { data: cheques = [], isLoading } = useQuery({
     queryKey: ['cheques'],
@@ -66,6 +79,20 @@ export default function Cheques() {
     },
     onError: (error) => {
       toast.error('Erro ao atualizar: ' + (error.message || 'Tente novamente'));
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id) => base44.entities.Cheque.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cheques'] });
+      setShowDeleteDialog(false);
+      setSelectedCheque(null);
+      setDeleteConfirmText('');
+      toast.success('Cheque excluído com sucesso!');
+    },
+    onError: (error) => {
+      toast.error('Erro ao excluir: ' + (error.message || 'Tente novamente'));
     }
   });
 
@@ -135,6 +162,20 @@ export default function Cheques() {
   const handleEdit = (cheque) => {
     setSelectedCheque(cheque);
     setShowEditModal(true);
+  };
+
+  const handleDelete = (cheque) => {
+    setSelectedCheque(cheque);
+    setDeleteConfirmText('');
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDelete = () => {
+    if (deleteConfirmText.toLowerCase() === 'confirmar') {
+      deleteMutation.mutate(selectedCheque.id);
+    } else {
+      toast.error('Digite "confirmar" para excluir o cheque');
+    }
   };
 
   return (
@@ -284,6 +325,14 @@ export default function Cheques() {
                             <Button variant="ghost" size="sm" onClick={() => handleEdit(cheque)}>
                               <Edit className="w-4 h-4" />
                             </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => handleDelete(cheque)}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
                           </div>
                         </td>
                       </tr>
@@ -358,6 +407,61 @@ export default function Cheques() {
             />
           )}
         </ModalContainer>
+
+        {/* Delete Dialog */}
+        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+                <AlertTriangle className="w-5 h-5" />
+                Excluir Cheque
+              </AlertDialogTitle>
+              <AlertDialogDescription className="space-y-4">
+                <p className="text-slate-700">
+                  ⚠️ <strong>ATENÇÃO:</strong> Esta ação irá excluir permanentemente o cheque do sistema.
+                </p>
+                
+                {selectedCheque && (
+                  <div className="p-3 bg-red-50 rounded-lg border border-red-200">
+                    <p className="font-semibold text-slate-800">Cheque: {selectedCheque.numero_cheque}</p>
+                    <p className="text-sm text-slate-600">Cliente: {selectedCheque.cliente_nome}</p>
+                    <p className="text-sm text-slate-600">Valor: {formatCurrency(selectedCheque.valor)}</p>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-slate-700">
+                    Para confirmar, digite <strong className="text-red-600">confirmar</strong> no campo abaixo:
+                  </p>
+                  <Input
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder="Digite 'confirmar' para excluir"
+                    className="border-red-300 focus:border-red-500"
+                  />
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel 
+                onClick={() => {
+                  setShowDeleteDialog(false);
+                  setDeleteConfirmText('');
+                  setSelectedCheque(null);
+                }}
+              >
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDelete}
+                disabled={deleteConfirmText.toLowerCase() !== 'confirmar'}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Excluir Cheque
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
