@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client'; // Import necessário para atualizar pedidos em lote
+import { base44 } from '@/api/base44Client';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,14 +28,140 @@ export default function RotaChecklist({
     nome: rota.motorista_nome || ''
   });
   
-  // Novo estado para edição do nome da rota
+  // Estado para renomear rota
   const [isEditingName, setIsEditingName] = useState(false);
   const [rotaNome, setRotaNome] = useState(rota.codigo_rota || '');
 
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
-  // ... (Função gerarPDFExpedicao mantida igual, omitida para brevidade) ...
-  const gerarPDFExpedicao = () => { /* ... código original do PDF ... */ };
+  const gerarPDFExpedicao = () => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.width;
+    let yPos = 20;
+
+    doc.setFontSize(16);
+    doc.setFont(undefined, 'bold');
+    doc.text('RELATÓRIO DE EXPEDIÇÃO', pageWidth / 2, yPos, { align: 'center' });
+    yPos += 10;
+
+    doc.setFontSize(11);
+    doc.text(`Rota: ${rotaNome}`, 20, yPos);
+    yPos += 6;
+    doc.text(`Data: ${format(new Date(rota.data_importacao), 'dd/MM/yyyy')}`, 20, yPos);
+    yPos += 6;
+    doc.text(`Motorista: ${motoristaEdit.nome || 'Não informado'} (${motoristaEdit.codigo || '-'})`, 20, yPos);
+    yPos += 10;
+
+    doc.setLineWidth(0.5);
+    doc.line(20, yPos, pageWidth - 20, yPos);
+    yPos += 10;
+
+    const confirmados = pedidosState.filter(p => p.confirmado_entrega);
+    const pendentes = pedidosState.filter(p => !p.confirmado_entrega);
+
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text(`PEDIDOS CONFIRMADOS (${confirmados.length})`, 20, yPos);
+    yPos += 7;
+
+    if (confirmados.length > 0) {
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'bold');
+      doc.text('Nº Pedido', 20, yPos);
+      doc.text('Cliente', 60, yPos);
+      doc.text('Valor', 160, yPos);
+      yPos += 5;
+      doc.setLineWidth(0.3);
+      doc.line(20, yPos, pageWidth - 20, yPos);
+      yPos += 4;
+
+      doc.setFont(undefined, 'normal');
+      confirmados.forEach((p) => {
+        if (yPos > 270) {
+          doc.addPage();
+          yPos = 20;
+        }
+        doc.text(p.numero_pedido || '-', 20, yPos);
+        const clienteTruncado = (p.cliente_nome || '-').length > 35 
+          ? (p.cliente_nome || '-').substring(0, 32) + '...' 
+          : (p.cliente_nome || '-');
+        doc.text(clienteTruncado, 60, yPos);
+        doc.text(formatCurrency(p.valor_pedido), 160, yPos);
+        yPos += 5;
+      });
+    } else {
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(9);
+      doc.text('Nenhum pedido confirmado', 20, yPos);
+      yPos += 5;
+    }
+
+    yPos += 5;
+
+    if (yPos > 240) {
+      doc.addPage();
+      yPos = 20;
+    }
+
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text(`PEDIDOS PENDENTES (${pendentes.length})`, 20, yPos);
+    yPos += 7;
+
+    if (pendentes.length > 0) {
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'bold');
+      doc.text('Nº Pedido', 20, yPos);
+      doc.text('Cliente', 60, yPos);
+      doc.text('Valor', 160, yPos);
+      yPos += 5;
+      doc.setLineWidth(0.3);
+      doc.line(20, yPos, pageWidth - 20, yPos);
+      yPos += 4;
+
+      doc.setFont(undefined, 'normal');
+      pendentes.forEach((p) => {
+        if (yPos > 270) {
+          doc.addPage();
+          yPos = 20;
+        }
+        doc.text(p.numero_pedido || '-', 20, yPos);
+        const clienteTruncado = (p.cliente_nome || '-').length > 35 
+          ? (p.cliente_nome || '-').substring(0, 32) + '...' 
+          : (p.cliente_nome || '-');
+        doc.text(clienteTruncado, 60, yPos);
+        doc.text(formatCurrency(p.valor_pedido), 160, yPos);
+        yPos += 5;
+      });
+    } else {
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(9);
+      doc.text('Nenhum pedido pendente', 20, yPos);
+      yPos += 5;
+    }
+
+    yPos += 5;
+    doc.setLineWidth(0.5);
+    doc.line(20, yPos, pageWidth - 20, yPos);
+    yPos += 7;
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    const valorConfirmado = confirmados.reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
+    const valorPendente = pendentes.reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
+    doc.text(`Total Confirmado: ${formatCurrency(valorConfirmado)}`, 20, yPos);
+    yPos += 6;
+    doc.text(`Total Pendente: ${formatCurrency(valorPendente)}`, 20, yPos);
+    yPos += 6;
+    doc.text(`Total Geral: ${formatCurrency(valorConfirmado + valorPendente)}`, 20, yPos);
+
+    yPos += 10;
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'normal');
+    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm:ss')}`, 20, yPos);
+
+    const nomeArquivo = `Expedicao_${rotaNome.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`;
+    doc.save(nomeArquivo);
+  };
 
   const handleToggle = (pedido) => {
     if (pedido.cliente_pendente) {
@@ -57,17 +183,13 @@ export default function RotaChecklist({
   const pendentes = total - confirmados;
 
   const handleSave = async () => {
-    // 1. Preparar dados da rota
     let novoStatus = 'pendente';
-    if (confirmados === total) novoStatus = 'concluida';
+    if (confirmados === total && total > 0) novoStatus = 'concluida';
     else if (confirmados > 0) novoStatus = 'parcial';
 
-    // 2. Verificar se houve mudança de nome
+    // Se o nome da rota mudou, atualiza todos os pedidos vinculados
     if (rotaNome !== rota.codigo_rota) {
-        // Se mudou o nome, precisamos atualizar todos os pedidos vinculados a esta rota
         try {
-            // Nota: Isso pode demorar um pouco se forem muitos pedidos, idealmente seria feito no backend
-            // Mas faremos aqui no frontend via loop
             for (const pedido of pedidos) {
                 await base44.entities.Pedido.update(pedido.id, {
                     rota_entrega: rotaNome
@@ -75,13 +197,12 @@ export default function RotaChecklist({
             }
         } catch (error) {
             console.error("Erro ao propagar nome da rota:", error);
-            // Continua salvando o resto mesmo com erro
         }
     }
 
     const rotaData = {
-        id: rota.id, // Importante passar o ID para update
-        codigo_rota: rotaNome, // Novo nome
+        id: rota.id,
+        codigo_rota: rotaNome,
         motorista_codigo: motoristaEdit.codigo,
         motorista_nome: motoristaEdit.nome,
         pedidos_confirmados: confirmados,
