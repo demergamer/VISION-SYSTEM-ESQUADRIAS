@@ -11,7 +11,6 @@ import {
   Search, 
   RefreshCw,
   TrendingUp,
-  AlertTriangle,
   UserCheck,
   ArrowLeft,
   Ban,
@@ -29,7 +28,7 @@ import ClienteDetails from "@/components/clientes/ClienteDetails";
 import PermissionGuard from "@/components/PermissionGuard";
 import { usePermissions } from "@/components/UserNotRegisteredError";
 
-export default function Clientes() {
+export default function ClientesPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canDo } = usePermissions();
@@ -211,28 +210,28 @@ export default function Clientes() {
 
   return (
     <PermissionGuard setor="Clientes">
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <div className="max-w-7xl mx-auto p-6 space-y-6">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 font-sans text-slate-900">
+      <div className="max-w-[1600px] mx-auto p-6 md:p-8 space-y-8">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Link to={createPageUrl('Dashboard')}>
-              <Button variant="ghost" size="icon" className="rounded-xl">
-                <ArrowLeft className="w-5 h-5" />
+              <Button variant="ghost" size="icon" className="rounded-xl hover:bg-white hover:shadow-sm">
+                <ArrowLeft className="w-5 h-5 text-slate-500" />
               </Button>
             </Link>
             <div>
-              <h1 className="text-2xl font-bold text-slate-800">Clientes</h1>
-              <p className="text-slate-500">Cadastro e gestão de clientes</p>
+              <h1 className="text-3xl font-bold tracking-tight text-slate-900">Clientes</h1>
+              <p className="text-slate-500 mt-1">Cadastro e gestão de clientes</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" onClick={handleRefresh} className="gap-2">
+            <Button variant="outline" onClick={handleRefresh} className="bg-white border-slate-200 shadow-sm hover:bg-slate-50 text-slate-600 gap-2 rounded-xl h-10">
               <RefreshCw className="w-4 h-4" />
               Atualizar
             </Button>
             {canDo('Clientes', 'adicionar') && (
-              <Button onClick={() => setShowAddModal(true)} className="gap-2">
+              <Button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 gap-2 rounded-xl h-10 px-6">
                 <UserPlus className="w-4 h-4" />
                 Novo Cliente
               </Button>
@@ -242,48 +241,23 @@ export default function Clientes() {
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <StatCard
-            title="Total Cadastrados"
-            value={generalStats.total}
-            icon={Building2}
-            color="blue"
-          />
-          <StatCard
-            title="Ativos (60 dias)"
-            value={generalStats.ativos}
-            icon={UserCheck}
-            color="green"
-          />
-          <StatCard
-            title="Inativos"
-            value={generalStats.inativos}
-            icon={Users}
-            color="slate"
-          />
-          <StatCard
-            title="+ R$ 30k Compras"
-            value={generalStats.com30k}
-            icon={TrendingUp}
-            color="purple"
-          />
-          <StatCard
-            title="Bloqueados"
-            value={generalStats.bloqueados}
-            icon={Ban}
-            color="red"
-          />
+          <StatCard title="Total Cadastrados" value={generalStats.total} icon={Building2} color="blue" />
+          <StatCard title="Ativos (60 dias)" value={generalStats.ativos} icon={UserCheck} color="green" />
+          <StatCard title="Inativos" value={generalStats.inativos} icon={Users} color="slate" />
+          <StatCard title="+ R$ 30k Compras" value={generalStats.com30k} icon={TrendingUp} color="purple" />
+          <StatCard title="Bloqueados" value={generalStats.bloqueados} icon={Ban} color="red" />
         </div>
 
         {/* Search and Table */}
-        <Card className="overflow-hidden">
-          <div className="p-4 border-b bg-white">
-            <div className="relative max-w-md">
+        <Card className="border border-slate-100 shadow-sm rounded-2xl overflow-hidden bg-white">
+          <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="relative w-full md:w-96">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input
                 placeholder="Buscar por nome, código, região ou representante..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="pl-10 bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all"
               />
             </div>
           </div>
@@ -308,6 +282,7 @@ export default function Clientes() {
         >
           <ClienteForm
             representantes={representantes}
+            todosClientes={clientes} // PASSANDO A LISTA PARA VALIDAÇÃO
             onSave={(data) => createMutation.mutate(data)}
             onCancel={() => setShowAddModal(false)}
             isLoading={createMutation.isPending}
@@ -328,6 +303,7 @@ export default function Clientes() {
           <ClienteForm
             cliente={selectedCliente}
             representantes={representantes}
+            todosClientes={clientes} // PASSANDO A LISTA PARA VALIDAÇÃO
             onSave={(data) => updateMutation.mutate({ id: selectedCliente.id, data })}
             onCancel={() => {
               setShowEditModal(false);
