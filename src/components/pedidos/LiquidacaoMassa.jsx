@@ -229,7 +229,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         saldo_original: p.saldo_restante || (p.valor_pedido - (p.total_pago || 0)),
         cliente_codigo: p.cliente_codigo,
         cliente_nome: p.cliente_nome,
-        valor_total_pedido: p.valor_pedido // Importante para calcular saldo restante
+        valor_total_pedido: p.valor_pedido
       })),
       desconto: totais.desconto,
       devolucao: totais.devolucaoValor,
@@ -237,7 +237,8 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       creditoUsado: creditoAUsar,
       totalPago: totais.totalPago - creditoAUsar,
       formaPagamento: formasFinal,
-      cheques: todosChequesUsados
+      cheques: todosChequesUsados,
+      totalDivida: totais.totalComDesconto // Necessário para cálculo proporcional
     });
   };
 
@@ -391,7 +392,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
             </div>
             {totais.totalPago < totais.totalComDesconto && (
                 <div className="flex justify-between font-bold text-base text-red-600 border-t pt-2 border-red-100">
-                    <span>Faltam Pagar:</span>
+                    <span>Faltam Pagar (Ficará Parcial):</span>
                     <span>{formatCurrency(totais.totalComDesconto - totais.totalPago)}</span>
                 </div>
             )}
