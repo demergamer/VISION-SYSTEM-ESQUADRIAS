@@ -18,7 +18,7 @@ export default function Welcome() {
   };
 
   const handleRepresentante = () => {
-    // Redirecionamento direto para o link solicitado
+    // Link direto para o editor/preview conforme solicitado
     window.location.href = 'https://gestor-financeiro-pro-8984498a.base44.app/PortalDoRepresentante';
   };
 
@@ -33,7 +33,7 @@ export default function Welcome() {
       onClick={onClick}
       className="group w-full max-w-sm flex items-center justify-between p-4 mb-3 
                  bg-white/10 backdrop-blur-xl border border-white/10 
-                 rounded-2xl shadow-lg transition-all duration-300"
+                 rounded-2xl shadow-lg transition-all duration-300 relative z-20"
     >
       <div className="flex items-center gap-4">
         <div className="p-3 bg-white/10 rounded-full text-white group-hover:bg-white group-hover:text-black transition-colors duration-300">
@@ -49,19 +49,35 @@ export default function Welcome() {
   );
 
   return (
-    // 'fixed inset-0': Fixa a tela ocupando tudo (top, bottom, left, right = 0)
-    // 'z-50': Garante que fique ACIMA da barra lateral
-    <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center p-6 overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col items-center justify-center p-6 overflow-hidden">
       
-      {/* Background Decorativo */}
-      <div className="absolute top-[-20%] left-1/2 transform -translate-x-1/2 w-[600px] h-[600px] bg-blue-900/20 rounded-full blur-[120px] pointer-events-none" />
+      {/* --- EFEITO VAGALUME / RESPIRAÇÃO --- */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <motion.div
+          animate={{
+            scale: [1, 1.5, 1], // Cresce e diminui
+            opacity: [0.3, 0.6, 0.3], // Brilha e apaga levemente
+          }}
+          transition={{
+            duration: 6, // Duração longa para ser suave (6 segundos)
+            repeat: Infinity, // Loop infinito
+            ease: "easeInOut", // Movimento natural
+          }}
+          className="w-[300px] h-[300px] md:w-[500px] md:h-[500px] bg-blue-600 rounded-full blur-[100px]"
+        />
+      </div>
 
+      {/* Camada de Blur extra para espalhar a luz (Efeito Neblina) */}
+      <div className="absolute inset-0 backdrop-blur-3xl z-0 pointer-events-none" />
+
+      {/* --- CONTEÚDO DA PÁGINA --- */}
+      
       {/* Logo e Cabeçalho */}
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.8, ease: "easeOut" }}
-        className="text-center z-10 mb-8"
+        className="text-center z-10 mb-8 relative"
       >
         <img 
           src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/fa98a5f2b_LOGOJCFUNDOTRANSPARENTE-Copia.png"
@@ -69,17 +85,17 @@ export default function Welcome() {
           className="w-48 md:w-64 h-auto mx-auto mb-6 drop-shadow-2xl"
         />
         
-        <h1 className="text-white text-3xl md:text-4xl font-extrabold tracking-tight">
+        <h1 className="text-white text-3xl md:text-4xl font-extrabold tracking-tight drop-shadow-lg">
           <span className="text-yellow-400">J&C</span> <span className="text-white/90">Esquadrias</span>
         </h1>
         
-        <p className="text-white/40 text-sm mt-2 font-light">
+        <p className="text-white/60 text-sm mt-2 font-light tracking-wide">
           Selecione seu perfil de acesso
         </p>
       </motion.div>
 
       {/* Botões */}
-      <div className="w-full flex flex-col items-center z-10 gap-1">
+      <div className="w-full flex flex-col items-center z-10 gap-1 relative">
         
         <AppleButton 
           title="Cliente" 
@@ -112,12 +128,12 @@ export default function Welcome() {
         initial={{ opacity: 0 }} 
         animate={{ opacity: 1 }} 
         transition={{ delay: 1 }}
-        className="absolute bottom-8 text-white/20 text-xs font-light tracking-widest uppercase"
+        className="absolute bottom-8 text-white/30 text-xs font-light tracking-widest uppercase z-10"
       >
         Segurança J&C System
       </motion.div>
 
-      {/* Notificação Flutuante (Mantida caso queira reutilizar depois, mas não será ativada pelo botão representante agora) */}
+      {/* Notificação (Mantida oculta por enquanto) */}
       <AnimatePresence>
         {showNotification && (
           <motion.div
