@@ -10,9 +10,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Save, X } from "lucide-react";
+// ADICIONADO: Importar o ícone Plus
+import { Save, X, Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, isLoading }) {
+// ADICIONADO: nova prop 'onCadastrarCliente' na assinatura do componente
+export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, onCadastrarCliente, isLoading }) {
   const [form, setForm] = useState({
     cliente_codigo: '',
     cliente_nome: '',
@@ -82,27 +85,50 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, is
     onSave(dataToSave);
   };
 
+  // Estilos comuns para inputs para manter o padrão "iPhone"
+  const inputClass = "h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all";
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 py-2">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        {/* MODIFICADO: Campo Cliente com botão lateral */}
         <div className="space-y-2">
           <Label htmlFor="cliente">Cliente *</Label>
-          <Select
-            value={form.cliente_codigo}
-            onValueChange={handleClienteChange}
-            disabled={!!pedido}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione o cliente" />
-            </SelectTrigger>
-            <SelectContent>
-              {clientes.map((cli) => (
-                <SelectItem key={cli.codigo} value={cli.codigo}>
-                  {cli.codigo} - {cli.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+              <Select
+                value={form.cliente_codigo}
+                onValueChange={handleClienteChange}
+                disabled={!!pedido} // Desabilita se estiver editando
+              >
+                {/* Adicionado className="flex-1" para ocupar o espaço */}
+                <SelectTrigger className={cn(inputClass, "flex-1")}>
+                  <SelectValue placeholder="Selecione o cliente" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clientes.map((cli) => (
+                    <SelectItem key={cli.codigo} value={cli.codigo}>
+                      {cli.codigo} - {cli.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* ADICIONADO: Botão discreto de adicionar */}
+              {/* Só mostra se não estiver editando um pedido existente E se a função foi passada */}
+              {!pedido && onCadastrarCliente && (
+                  <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={onCadastrarCliente}
+                      className="h-11 w-11 rounded-xl border border-slate-200 text-slate-400 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all"
+                      title="Cadastrar Novo Cliente Rápido"
+                  >
+                      <Plus className="h-5 w-5" />
+                  </Button>
+              )}
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -112,6 +138,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, is
             value={form.numero_pedido}
             onChange={(e) => setForm({ ...form, numero_pedido: e.target.value })}
             placeholder="Ex: PED001"
+            className={inputClass}
           />
         </div>
 
@@ -122,49 +149,62 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, is
             type="date"
             value={form.data_entrega}
             onChange={(e) => setForm({ ...form, data_entrega: e.target.value })}
+            className={inputClass}
           />
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="porcentagem_comissao">Comissão (%)</Label>
-          <Input
-            id="porcentagem_comissao"
-            type="number"
-            min="0"
-            max="100"
-            step="0.1"
-            value={form.porcentagem_comissao}
-            onChange={(e) => setForm({ ...form, porcentagem_comissao: parseFloat(e.target.value) || 0 })}
-          />
+          <div className="relative">
+            <Input
+                id="porcentagem_comissao"
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={form.porcentagem_comissao}
+                onChange={(e) => setForm({ ...form, porcentagem_comissao: parseFloat(e.target.value) || 0 })}
+                className={cn(inputClass, "pr-8")}
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">%</span>
+           </div>
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="valor_pedido">Valor do Pedido (R$) *</Label>
-          <Input
-            id="valor_pedido"
-            type="number"
-            min="0"
-            step="0.01"
-            value={form.valor_pedido}
-            onChange={(e) => handleValorChange('valor_pedido', parseFloat(e.target.value) || 0)}
-          />
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">R$</span>
+            <Input
+                id="valor_pedido"
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.valor_pedido}
+                onChange={(e) => handleValorChange('valor_pedido', parseFloat(e.target.value) || 0)}
+                className={cn(inputClass, "pl-9 font-medium text-slate-700")}
+            />
+          </div>
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="total_pago">Total Pago (R$)</Label>
-          <Input
-            id="total_pago"
-            type="number"
-            min="0"
-            step="0.01"
-            value={form.total_pago}
-            onChange={(e) => handleValorChange('total_pago', parseFloat(e.target.value) || 0)}
-          />
+          <div className="relative">
+             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">R$</span>
+             <Input
+                id="total_pago"
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.total_pago}
+                onChange={(e) => handleValorChange('total_pago', parseFloat(e.target.value) || 0)}
+                className={cn(inputClass, "pl-9 font-medium text-slate-700")}
+             />
+          </div>
         </div>
 
         <div className="space-y-2 md:col-span-2">
           <Label>Saldo Restante</Label>
-          <div className="p-3 bg-slate-100 rounded-lg font-semibold text-lg">
+          <div className="h-11 flex items-center px-4 bg-slate-100 border border-slate-200 rounded-xl font-semibold text-lg text-slate-700">
             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(form.saldo_restante)}
           </div>
         </div>
@@ -177,6 +217,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, is
             onChange={(e) => setForm({ ...form, observacao: e.target.value })}
             placeholder="Observações sobre o pedido..."
             rows={3}
+            className={cn(inputClass, "h-auto py-3")}
           />
         </div>
 
@@ -188,16 +229,17 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, is
             onChange={(e) => setForm({ ...form, outras_informacoes: e.target.value })}
             placeholder="Informações adicionais..."
             rows={2}
+            className={cn(inputClass, "h-auto py-3")}
           />
         </div>
       </div>
 
-      <div className="flex justify-end gap-3 pt-4 border-t">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
+      <div className="flex justify-end gap-3 pt-6 border-t">
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading} className="h-11 px-6 rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900">
           <X className="w-4 h-4 mr-2" />
           Cancelar
         </Button>
-        <Button type="button" onClick={handleSave} disabled={isLoading}>
+        <Button type="button" onClick={handleSave} disabled={isLoading} className="h-11 px-8 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200">
           <Save className="w-4 h-4 mr-2" />
           {pedido ? 'Atualizar' : 'Cadastrar'}
         </Button>
