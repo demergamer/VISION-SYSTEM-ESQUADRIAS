@@ -43,6 +43,7 @@ import { usePermissions } from "@/components/UserNotRegisteredError";
 const PedidoAguardandoCard = ({ pedido, onConfirmar, onCancelar, onCadastrarCliente }) => {
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
   const formatDate = (dateString) => {
+    if (!dateString) return '-';
     try {
       return format(new Date(dateString), 'dd/MM/yyyy');
     } catch (e) {
@@ -200,6 +201,12 @@ export default function Pedidos() {
     return filtered;
   }, [pedidos, activeTab, searchTerm]);
 
+  // PROTEÇÃO: Garante que selectedRota exista antes de filtrar
+  const pedidosDaRota = useMemo(() => {
+    if (!selectedRota) return [];
+    return pedidos.filter(p => p.rota_importada_id === selectedRota.id);
+  }, [pedidos, selectedRota]);
+
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
   const handleEdit = (pedido) => { setSelectedPedido(pedido); setShowEditModal(true); };
@@ -208,20 +215,64 @@ export default function Pedidos() {
   const handleCancelar = (pedido) => { setPedidoParaCancelar(pedido); setShowCancelarPedidoModal(true); };
   const handleRefresh = () => { refetchPedidos(); refetchRotas(); toast.success('Atualizado!'); };
   const handleImportComplete = () => { queryClient.invalidateQueries({ queryKey: ['pedidos'] }); queryClient.invalidateQueries({ queryKey: ['rotas'] }); setShowImportModal(false); toast.success('Importação concluída!'); };
-  const handleSelectRota = async (rota) => { setSelectedRota(rota); setShowRotaModal(true); }; 
   
-  // ATUALIZAÇÃO: Forçar refresh das rotas após salvar o checklist
+  // CORREÇÃO: Removida a lógica complexa de dentro do try principal para evitar travamentos
+  // A lógica de verificação agora é mais segura e não impede a abertura do modal
+  const handleSelectRota = async (rota) => { 
+    // Primeiro abre o modal para não travar a interface
+    setSelectedRota(rota);
+    setShowRotaModal(true);
+
+    // Depois tenta fazer a verificação de clientes em background
+    try {
+      const pedidosDaRotaAtual = pedidos.filter(p => p.rota_importada_id === rota.id);
+      const pedidosPendentes = pedidosDaRotaAtual.filter(p => p.cliente_pendente);
+      
+      if (pedidosPendentes.length > 0) {
+          let atualizados = 0;
+          for (const pedido of pedidosPendentes) {
+            const nomeClientePedido = pedido.cliente_nome?.toLowerCase().trim() || '';
+            const clienteEncontrado = clientes.find(c => {
+              const nomeCliente = c.nome?.toLowerCase().trim() || '';
+              return nomeCliente === nomeClientePedido || nomeCliente.includes(nomeClientePedido) || nomeClientePedido.includes(nomeCliente);
+            });
+            if (clienteEncontrado) {
+              await base44.entities.Pedido.update(pedido.id, {
+                cliente_codigo: clienteEncontrado.codigo,
+                cliente_regiao: clienteEncontrado.regiao,
+                representante_codigo: clienteEncontrado.representante_codigo,
+                representante_nome: clienteEncontrado.representante_nome,
+                porcentagem_comissao: clienteEncontrado.porcentagem_comissao,
+                cliente_pendente: false
+              });
+              atualizados++;
+            }
+          }
+          if (atualizados > 0) {
+            await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+            toast.success(`${atualizados} pedido(s) vinculado(s) automaticamente!`);
+          }
+      }
+    } catch (error) {
+      console.error('Erro na verificação silenciosa de pedidos:', error);
+      // Não faz nada visualmente para não assustar o usuário, já que o modal abriu
+    }
+  };
+
   const handleSaveRotaChecklist = async (data) => { 
       try {
           await base44.entities.RotaImportada.update(data.rota.id, data.rota);
-          for (const pedido of data.pedidos) {
-              await base44.entities.Pedido.update(pedido.id, {
+          // Atualiza os pedidos em paralelo para ser mais rápido
+          const promises = data.pedidos.map(pedido => 
+              base44.entities.Pedido.update(pedido.id, {
                   confirmado_entrega: pedido.confirmado_entrega,
                   status: pedido.status
-              });
-          }
+              })
+          );
+          await Promise.all(promises);
+
           await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
-          await queryClient.invalidateQueries({ queryKey: ['rotas'] }); // IMPORTANTE: Atualiza a lista de rotas
+          await queryClient.invalidateQueries({ queryKey: ['rotas'] }); 
           setShowRotaModal(false); 
           toast.success('Rota e pedidos atualizados!'); 
       } catch (error) {
@@ -233,10 +284,55 @@ export default function Pedidos() {
   const handleAlterarPortador = (rota) => { setSelectedRota(rota); setShowAlterarPortadorModal(true); };
   const handleSaveAlterarPortador = async (motorista) => { setShowAlterarPortadorModal(false); toast.success('Portador alterado!'); };
   const handleCadastrarCliente = (pedido) => { setPedidoParaCadastro(pedido); setShowCadastrarClienteModal(true); };
-  const handleSaveNovoCliente = async (clienteData) => { /* ... Lógica Cliente Salvo ... */ setShowCadastrarClienteModal(false); setPedidoParaCadastro(null); toast.success('Cliente cadastrado!'); };
+  const handleSaveNovoCliente = async (clienteData) => { 
+      try {
+        const novoCliente = await base44.entities.Cliente.create(clienteData);
+        const nomeNovoCliente = clienteData.nome?.toLowerCase().trim() || '';
+        const pedidosComMesmoCliente = pedidos.filter(p => {
+          const nomePedido = p.cliente_nome?.toLowerCase().trim() || '';
+          return nomePedido === nomeNovoCliente || nomePedido.includes(nomeNovoCliente) || nomeNovoCliente.includes(nomePedido);
+        });
+        for (const pedido of pedidosComMesmoCliente) {
+          const updateData = {
+            cliente_codigo: novoCliente.codigo,
+            cliente_regiao: novoCliente.regiao,
+            representante_codigo: novoCliente.representante_codigo,
+            representante_nome: novoCliente.representante_nome,
+            porcentagem_comissao: novoCliente.porcentagem_comissao,
+            cliente_pendente: false
+          };
+          if (pedidoParaCadastro && pedido.id === pedidoParaCadastro.id) {
+            updateData.confirmado_entrega = true;
+            updateData.status = 'aberto';
+          }
+          await base44.entities.Pedido.update(pedido.id, updateData);
+        }
+        await queryClient.invalidateQueries({ queryKey: ['clientes'] });
+        await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+        setShowCadastrarClienteModal(false);
+        setPedidoParaCadastro(null);
+        toast.success(`Cliente cadastrado! ${pedidosComMesmoCliente.length} pedido(s) vinculados.`);
+      } catch (error) { toast.error('Erro ao cadastrar cliente'); }
+  };
+  
   const handleCancelarPedidoRota = (pedido) => { setPedidoParaCancelar(pedido); setShowCancelarPedidoModal(true); };
-  const handleSaveCancelarPedido = async (data) => { /* ... Cancelar ... */ setShowCancelarPedidoModal(false); toast.success('Pedido cancelado!'); };
-  const handleConfirmarAguardando = async (pedido) => { /* ... Confirmar ... */ toast.success('Pedido confirmado!'); };
+  const handleSaveCancelarPedido = async (data) => { 
+      try {
+          await base44.entities.Pedido.update(pedidoParaCancelar.id, data);
+          await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+          setShowCancelarPedidoModal(false);
+          toast.success('Pedido cancelado!');
+      } catch(e) { toast.error('Erro ao cancelar'); }
+  };
+  
+  const handleConfirmarAguardando = async (pedido) => {
+    try {
+      await base44.entities.Pedido.update(pedido.id, { confirmado_entrega: true, status: 'aberto' });
+      await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+      toast.success('Pedido confirmado!');
+    } catch (error) { toast.error('Erro ao confirmar'); }
+  };
+
   const handleReverterLiquidacao = async () => { 
       if (!pedidoParaReverter) return;
       try {
@@ -256,13 +352,11 @@ export default function Pedidos() {
       } catch (e) { toast.error('Erro ao reverter'); }
   };
 
-  // --- FUNÇÃO DE LIQUIDAÇÃO EM MASSA ATUALIZADA (LÓGICA PARCIAL E CORREÇÃO DE CÁLCULO) ---
   const handleLiquidacaoMassa = async (data) => {
     try {
         const mesAtual = new Date().toISOString().slice(0, 7);
         const hoje = new Date().toISOString().split('T')[0];
 
-        // 1. Gerar Crédito (Excedente)
         if (data.credito > 0 && data.pedidos.length > 0) {
              const primeiroPedido = data.pedidos[0];
              const todosCreditos = await base44.entities.Credito.list();
@@ -279,12 +373,36 @@ export default function Pedidos() {
              });
         }
 
-        // 2. Consumir Créditos (Lógica simplificada)
-        if (data.creditoUsado > 0) {
-            // ... (Mesma lógica de consumo de crédito) ...
+        if (data.creditoUsado > 0 && data.pedidos.length > 0) {
+            const primeiroPedido = data.pedidos[0];
+            const todosCreditos = await base44.entities.Credito.list();
+            const creditosDisponiveis = todosCreditos.filter(c => 
+                c.cliente_codigo === primeiroPedido.cliente_codigo && c.status === 'disponivel'
+            );
+            let valorParaAbater = data.creditoUsado;
+            for (const cred of creditosDisponiveis) {
+                if (valorParaAbater <= 0) break;
+                if (cred.valor <= valorParaAbater) {
+                    await base44.entities.Credito.update(cred.id, { status: 'usado', data_uso: hoje, pedido_uso_id: primeiroPedido.id });
+                    valorParaAbater -= cred.valor;
+                } else {
+                    const saldoRestanteCredito = cred.valor - valorParaAbater;
+                    await base44.entities.Credito.update(cred.id, { status: 'usado', data_uso: hoje, pedido_uso_id: primeiroPedido.id });
+                    const proximoNumero = todosCreditos.length > 0 ? Math.max(...todosCreditos.map(c => c.numero_credito || 0)) + 1 : 1;
+                    await base44.entities.Credito.create({
+                        numero_credito: proximoNumero + 1,
+                        cliente_codigo: cred.cliente_codigo,
+                        cliente_nome: cred.cliente_nome,
+                        valor: saldoRestanteCredito,
+                        origem: `Saldo restante do crédito #${cred.numero_credito}`,
+                        status: 'disponivel',
+                        data_emissao: hoje
+                    });
+                    valorParaAbater = 0;
+                }
+            }
         }
 
-        // 3. Montar Texto Detalhado dos Cheques
         let textoDetalheCheques = "";
         if (data.cheques && data.cheques.length > 0) {
             const detalhes = data.cheques.map(c => 
@@ -296,11 +414,6 @@ export default function Pedidos() {
         const listaNumerosPedidos = data.pedidos.map(p => `#${p.numero_pedido}`).join(", ");
         const textoOrigemParaCheques = `ORIGEM: Liquidação Pedidos ${listaNumerosPedidos}`;
 
-        // 5. Atualizar Pedidos com LÓGICA DE PAGAMENTO PARCIAL
-        // data.totalDivida = Soma dos saldos originais
-        // data.totalPago = Valor total pago (dinheiro + cheques + credito - troco)
-        // data.desconto = Valor total do desconto
-        
         const totalSaldoOriginal = data.totalDivida || data.pedidos.reduce((sum, p) => sum + (p.saldo_original || 0), 0);
         let descontoRestante = parseFloat(data.desconto || 0);
         let pagamentoRestante = parseFloat(data.totalPago || 0);
@@ -310,10 +423,8 @@ export default function Pedidos() {
             const pedidoOriginal = pedidos.find(item => item.id === p.id);
             if (!pedidoOriginal) continue;
 
-            // Proporção deste pedido no total da dívida
             const proporcao = totalSaldoOriginal > 0 ? (p.saldo_original || 0) / totalSaldoOriginal : 0;
 
-            // 1. Calcular Desconto para este pedido
             let descontoDestePedido = 0;
             if (descontoRestante > 0) {
                 if (i === data.pedidos.length - 1) {
@@ -324,8 +435,6 @@ export default function Pedidos() {
                 }
             }
 
-            // 2. Calcular Pagamento para este pedido
-            // O pagamento também é distribuído proporcionalmente ao saldo devedor
             let pagamentoDestePedido = 0;
             if (pagamentoRestante > 0) {
                  if (i === data.pedidos.length - 1) {
@@ -345,24 +454,21 @@ export default function Pedidos() {
                 ? `${currentInfo}\n[${new Date().toLocaleDateString('pt-BR')}] LIQUIDAÇÃO EM MASSA: ${formaPagamentoTexto}${infoDesconto}${infoParcial}${textoDetalheCheques}`
                 : `[${new Date().toLocaleDateString('pt-BR')}] LIQUIDAÇÃO EM MASSA: ${formaPagamentoTexto}${infoDesconto}${infoParcial}${textoDetalheCheques}`;
 
-            // Atualização de Valores
             const descontoAnterior = parseFloat(pedidoOriginal.desconto_dado || 0);
             const novoDescontoDado = descontoAnterior + descontoDestePedido;
             
             const totalPagoAnterior = parseFloat(pedidoOriginal.total_pago || 0);
             const novoTotalPago = totalPagoAnterior + pagamentoDestePedido;
             
-            // Novo Saldo = Valor Total - (Total Pago Acumulado + Desconto Acumulado)
-            // Se ficar negativo (por arredondamento), zera.
             let novoSaldo = parseFloat(pedidoOriginal.valor_pedido) - (novoTotalPago + novoDescontoDado);
-            if (novoSaldo < 0.05) novoSaldo = 0; // Margem de erro para arredondamento
+            if (novoSaldo < 0.05) novoSaldo = 0;
 
             await base44.entities.Pedido.update(p.id, {
-                status: novoSaldo <= 0 ? 'pago' : 'parcial', // Se sobrou saldo, é parcial
+                status: novoSaldo <= 0 ? 'pago' : 'parcial',
                 saldo_restante: novoSaldo,
                 total_pago: novoTotalPago,
                 desconto_dado: novoDescontoDado,
-                data_pagamento: hoje, // Data do último pagamento
+                data_pagamento: hoje,
                 mes_pagamento: mesAtual,
                 outras_informacoes: newInfo
             });
@@ -492,7 +598,7 @@ export default function Pedidos() {
             ))}
           </Tabs>
 
-          <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Novo Pedido" description="Cadastre um novo pedido a receber" size="lg"><PedidoForm clientes={clientes} onSave={(data) => createMutation.mutate(data)} onCancel={() => setShowAddModal(false)} isLoading={createMutation.isPending} /></ModalContainer>
+          <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Novo Pedido" description="Cadastre um novo pedido a receber" size="lg"><PedidoForm clientes={clientes} onSave={(data) => createMutation.mutate(data)} onCancel={() => setShowAddModal(false)} isLoading={createMutation.isPending} onCadastrarCliente={() => { setShowAddModal(false); setShowCadastrarClienteModal(true); }} /></ModalContainer>
           <ModalContainer open={showEditModal} onClose={() => { setShowEditModal(false); setSelectedPedido(null); }} title="Editar Pedido" description="Atualize os dados do pedido" size="lg"><PedidoForm pedido={selectedPedido} clientes={clientes} onSave={(data) => updateMutation.mutate({ id: selectedPedido.id, data })} onCancel={() => { setShowEditModal(false); setSelectedPedido(null); }} isLoading={updateMutation.isPending} /></ModalContainer>
           <ModalContainer open={showDetailsModal} onClose={() => { setShowDetailsModal(false); setSelectedPedido(null); }} title="Detalhes do Pedido" description="Visualização completa do pedido" size="xl">{selectedPedido && <PedidoDetails pedido={selectedPedido} onClose={() => { setShowDetailsModal(false); setSelectedPedido(null); }} />}</ModalContainer>
           <ModalContainer open={showLiquidarModal} onClose={() => { setShowLiquidarModal(false); setSelectedPedido(null); }} title="Liquidação de Pedido" description="Registre o pagamento do pedido">{selectedPedido && <LiquidacaoForm pedido={selectedPedido} onSave={(data) => updateMutation.mutate({ id: selectedPedido.id, data })} onCancel={() => { setShowLiquidarModal(false); setSelectedPedido(null); }} isLoading={updateMutation.isPending} />}</ModalContainer>
