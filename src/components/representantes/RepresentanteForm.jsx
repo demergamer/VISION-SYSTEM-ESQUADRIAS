@@ -9,6 +9,7 @@ export default function RepresentanteForm({ representante, onSave, onCancel, isL
   const [form, setForm] = useState({
     codigo: '',
     nome: '',
+    email: '', // Novo campo adicionado
     regiao: '',
     telefone: '',
     bloqueado: false
@@ -19,6 +20,7 @@ export default function RepresentanteForm({ representante, onSave, onCancel, isL
       setForm({
         codigo: representante.codigo || '',
         nome: representante.nome || '',
+        email: representante.email || '', // Carrega o email existente
         regiao: representante.regiao || '',
         telefone: representante.telefone || '',
         bloqueado: representante.bloqueado || false
@@ -50,6 +52,18 @@ export default function RepresentanteForm({ representante, onSave, onCancel, isL
           />
         </div>
 
+        {/* --- NOVO CAMPO EMAIL --- */}
+        <div className="space-y-2">
+          <Label htmlFor="email">Email de Acesso *</Label>
+          <Input
+            id="email"
+            type="email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            placeholder="email@exemplo.com"
+          />
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="regiao">Região de Serviço</Label>
           <Input
@@ -74,7 +88,7 @@ export default function RepresentanteForm({ representante, onSave, onCancel, isL
       <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
         <div>
           <Label htmlFor="bloqueado" className="font-medium">Bloquear Representante</Label>
-          <p className="text-sm text-slate-500">Impede novas operações</p>
+          <p className="text-sm text-slate-500">Impede o acesso ao portal</p>
         </div>
         <Switch
           id="bloqueado"
