@@ -11,7 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   Users, ShoppingCart, CreditCard, AlertCircle, 
   Search, Briefcase, LogOut, Loader2, 
-  ChevronDown, ChevronRight, MapPin, Truck, Eye, FileText, CheckCircle2, XCircle, Clock
+  ChevronDown, ChevronRight, MapPin, Truck, Eye, Wallet, CalendarClock, PackageCheck
 } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -43,26 +43,30 @@ const StatWidget = ({ title, value, subtitle, icon: Icon, colorClass }) => (
   </div>
 );
 
-// --- COMPONENTE: MODAL DE DETALHES (Pedido ou Cheque) ---
+// --- COMPONENTE: MODAL DE DETALHES ---
 const DetailsModal = ({ item, type, open, onOpenChange }) => {
   if (!item) return null;
+
+  const getTitle = () => {
+    if (type === 'pedido') return `Pedido #${item.numero_pedido}`;
+    if (type === 'cheque') return `Cheque #${item.numero_cheque}`;
+    if (type === 'credito') return `Crédito Ref. ${item.referencia || 'N/A'}`;
+    return 'Detalhes';
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
-            {type === 'pedido' ? <ShoppingCart className="w-5 h-5" /> : <CreditCard className="w-5 h-5" />}
-            Detalhes do {type === 'pedido' ? 'Pedido' : 'Cheque'}
+            {type === 'pedido' ? <ShoppingCart className="w-5 h-5" /> : type === 'cheque' ? <CreditCard className="w-5 h-5" /> : <Wallet className="w-5 h-5" />}
+            Detalhes do Item
           </DialogTitle>
-          <DialogDescription>
-            {type === 'pedido' ? `Pedido #${item.numero_pedido}` : `Cheque #${item.numero_cheque}`}
-          </DialogDescription>
+          <DialogDescription>{getTitle()}</DialogDescription>
         </DialogHeader>
         
         <ScrollArea className="flex-1 p-4 bg-slate-50 rounded-xl border mt-2">
           <div className="space-y-4">
-            {/* Renderização dinâmica dos campos para não precisar criar layout fixo */}
             {Object.entries(item).map(([key, value]) => {
               if (key === 'id' || key === 'representante_codigo' || typeof value === 'object') return null;
               return (
@@ -77,7 +81,6 @@ const DetailsModal = ({ item, type, open, onOpenChange }) => {
               )
             })}
             
-            {/* Se for pedido e tiver itens (assumindo estrutura jsonb ou similar) */}
             {type === 'pedido' && item.itens && (
               <div className="mt-6">
                 <h4 className="font-bold text-slate-800 mb-2">Itens do Pedido</h4>
@@ -94,12 +97,14 @@ const DetailsModal = ({ item, type, open, onOpenChange }) => {
 };
 
 // --- COMPONENTE: LINHA DO CLIENTE EXPANSÍVEL ---
-const ClientRow = ({ cliente, pedidos, cheques, onViewDetails }) => {
+const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState('abertos');
 
   // Cálculos do Cliente
   const totalDevendo = pedidos.reduce((acc, p) => acc + (p.saldo_restante || 0), 0);
+  
+  // Filtro de Atrasados (> 20 dias e aberto/parcial)
   const pedidosAtrasados = pedidos.filter(p => {
     return (p.status === 'aberto' || p.status === 'parcial') && 
            differenceInDays(new Date(), new Date(p.data_entrega)) > 20;
@@ -108,8 +113,15 @@ const ClientRow = ({ cliente, pedidos, cheques, onViewDetails }) => {
 
   // Filtros dos Pedidos
   const pedidosAbertos = pedidos.filter(p => (p.status === 'aberto' || p.status === 'parcial') && !pedidosAtrasados.includes(p));
+  const pedidosEmTransito = pedidos.filter(p => p.status === 'em_transito'); // Pedidos "Não Ticados"
   const pedidosPagos = pedidos.filter(p => p.status === 'pago');
   const pedidosCancelados = pedidos.filter(p => p.status === 'cancelado');
+
+  // Filtros de Cheques e Créditos
+  const chequesAVencer = cheques.filter(c => c.status === 'normal' && new Date(c.data_vencimento) >= new Date());
+  const valorChequesAVencer = chequesAVencer.reduce((acc, c) => acc + (c.valor || 0), 0);
+  
+  const totalCreditos = creditos.reduce((acc, c) => acc + (c.valor || 0), 0);
 
   return (
     <div className={`mb-4 bg-white rounded-2xl border transition-all duration-300 ${isExpanded ? 'shadow-md border-blue-200 ring-1 ring-blue-100' : 'shadow-sm border-slate-100'}`}>
@@ -136,7 +148,7 @@ const ClientRow = ({ cliente, pedidos, cheques, onViewDetails }) => {
         </div>
 
         <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-end">
-          <div className="text-right">
+          <div className="text-right hidden sm:block">
             <p className="text-xs text-slate-400 uppercase font-bold">Saldo Devedor</p>
             <p className={cn("text-lg font-bold", totalDevendo > 0 ? "text-slate-800" : "text-emerald-600")}>
               {formatCurrency(totalDevendo)}
@@ -146,31 +158,65 @@ const ClientRow = ({ cliente, pedidos, cheques, onViewDetails }) => {
         </div>
       </div>
 
-      {/* ÁREA EXPANDIDA (Abas de Pedidos e Cheques) */}
+      {/* ÁREA EXPANDIDA */}
       {isExpanded && (
         <div className="px-5 pb-5 animate-in fade-in slide-in-from-top-2 duration-300">
           <div className="h-px w-full bg-slate-100 mb-4" />
           
+          {/* TOTALIZADORES INDIVIDUAIS (DASHBOARD DO CLIENTE) */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+            <div className="bg-purple-50 border border-purple-100 p-4 rounded-xl flex items-center gap-4">
+              <div className="bg-purple-100 p-2 rounded-lg"><CalendarClock className="w-5 h-5 text-purple-600" /></div>
+              <div>
+                <p className="text-xs text-purple-600 font-bold uppercase">Cheques a Vencer</p>
+                <p className="text-lg font-bold text-slate-800">{formatCurrency(valorChequesAVencer)}</p>
+              </div>
+            </div>
+            
+            <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl flex items-center gap-4">
+              <div className="bg-emerald-100 p-2 rounded-lg"><Wallet className="w-5 h-5 text-emerald-600" /></div>
+              <div>
+                <p className="text-xs text-emerald-600 font-bold uppercase">Créditos Disponíveis</p>
+                <p className="text-lg font-bold text-slate-800">{formatCurrency(totalCreditos)}</p>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl flex items-center gap-4">
+              <div className="bg-amber-100 p-2 rounded-lg"><Truck className="w-5 h-5 text-amber-600" /></div>
+              <div>
+                <p className="text-xs text-amber-600 font-bold uppercase">Pedidos em Trânsito</p>
+                <p className="text-lg font-bold text-slate-800">{pedidosEmTransito.length} <span className="text-xs font-normal text-slate-500">pedidos</span></p>
+              </div>
+            </div>
+          </div>
+
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="bg-slate-100 p-1 rounded-xl h-auto flex-wrap justify-start gap-2 mb-4 w-full sm:w-auto">
               <TabsTrigger value="abertos" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm">
-                Em Aberto <Badge className="ml-2 bg-blue-100 text-blue-700 hover:bg-blue-100 border-0">{pedidosAbertos.length}</Badge>
+                Abertos <Badge className="ml-2 bg-blue-100 text-blue-700 hover:bg-blue-100 border-0">{pedidosAbertos.length}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="transito" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-amber-600 data-[state=active]:shadow-sm">
+                Em Trânsito <Badge className="ml-2 bg-amber-100 text-amber-700 hover:bg-amber-100 border-0">{pedidosEmTransito.length}</Badge>
               </TabsTrigger>
               <TabsTrigger value="atrasados" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-red-600 data-[state=active]:shadow-sm">
                 Em Atraso <Badge className="ml-2 bg-red-100 text-red-700 hover:bg-red-100 border-0">{pedidosAtrasados.length}</Badge>
               </TabsTrigger>
               <TabsTrigger value="pagos" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-emerald-600 data-[state=active]:shadow-sm">
-                Pagos/Finalizados
+                Finalizados
               </TabsTrigger>
               <TabsTrigger value="cheques" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-purple-600 data-[state=active]:shadow-sm">
-                Cheques <Badge className="ml-2 bg-purple-100 text-purple-700 hover:bg-purple-100 border-0">{cheques.length}</Badge>
+                Cheques
+              </TabsTrigger>
+              <TabsTrigger value="creditos" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-emerald-600 data-[state=active]:shadow-sm">
+                Créditos <Badge className="ml-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-0">{creditos.length}</Badge>
               </TabsTrigger>
             </TabsList>
 
             {/* TABELA DE PEDIDOS (Reutilizável) */}
-            {['abertos', 'atrasados', 'pagos', 'cancelados'].map(statusTab => {
+            {['abertos', 'transito', 'atrasados', 'pagos', 'cancelados'].map(statusTab => {
               let currentList = [];
               if(statusTab === 'abertos') currentList = pedidosAbertos;
+              if(statusTab === 'transito') currentList = pedidosEmTransito;
               if(statusTab === 'atrasados') currentList = pedidosAtrasados;
               if(statusTab === 'pagos') currentList = pedidosPagos;
               if(statusTab === 'cancelados') currentList = pedidosCancelados;
@@ -269,6 +315,48 @@ const ClientRow = ({ cliente, pedidos, cheques, onViewDetails }) => {
               )}
             </TabsContent>
 
+            {/* TABELA DE CRÉDITOS */}
+            <TabsContent value="creditos" className="mt-0">
+              {creditos.length > 0 ? (
+                <div className="rounded-xl border border-slate-100 overflow-hidden">
+                  <Table>
+                    <TableHeader className="bg-slate-50/50">
+                      <TableRow>
+                        <TableHead>Referência</TableHead>
+                        <TableHead>Data</TableHead>
+                        <TableHead>Descrição</TableHead>
+                        <TableHead className="text-right">Valor Original</TableHead>
+                        <TableHead className="text-right">Valor Usado</TableHead>
+                        <TableHead className="text-right">Disponível</TableHead>
+                        <TableHead className="w-[50px]"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {creditos.map(c => (
+                        <TableRow key={c.id} className="hover:bg-slate-50/50">
+                          <TableCell className="font-mono">{c.referencia || '-'}</TableCell>
+                          <TableCell>{c.data_emissao ? format(new Date(c.data_emissao), 'dd/MM/yyyy') : '-'}</TableCell>
+                          <TableCell className="max-w-[200px] truncate" title={c.descricao}>{c.descricao || 'Crédito em conta'}</TableCell>
+                          <TableCell className="text-right text-slate-500">{formatCurrency(c.valor_original)}</TableCell>
+                          <TableCell className="text-right text-red-400">{formatCurrency(c.valor_usado)}</TableCell>
+                          <TableCell className="text-right font-bold text-emerald-600">{formatCurrency(c.valor)}</TableCell>
+                          <TableCell>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:bg-emerald-50" onClick={() => onViewDetails(c, 'credito')}>
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-slate-400 bg-slate-50/30 rounded-xl border border-dashed border-slate-200">
+                  Nenhum crédito disponível.
+                </div>
+              )}
+            </TabsContent>
+
           </Tabs>
         </div>
       )}
@@ -283,7 +371,6 @@ export default function PainelRepresentante() {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   
-  // Estado para o Modal de Detalhes
   const [detailsModal, setDetailsModal] = useState({ open: false, item: null, type: null });
 
   // 1. Busca de Dados
@@ -308,15 +395,14 @@ export default function PainelRepresentante() {
   const { data: todosClientes = [] } = useQuery({ queryKey: ['clientes', representante?.id], queryFn: () => base44.entities.Cliente.list(), enabled: !!representante });
   const { data: todosPedidos = [] } = useQuery({ queryKey: ['pedidos', representante?.id], queryFn: () => base44.entities.Pedido.list(), enabled: !!representante });
   const { data: todosCheques = [] } = useQuery({ queryKey: ['cheques', representante?.id], queryFn: () => base44.entities.Cheque.list(), enabled: !!representante });
+  const { data: todosCreditos = [] } = useQuery({ queryKey: ['creditos', representante?.id], queryFn: () => base44.entities.Credito.list(), enabled: !!representante });
 
   // 2. Filtros e Agrupamento
   const meusClientes = useMemo(() => {
     if (!representante) return [];
     
-    // Filtra clientes do representante
     let clientes = todosClientes.filter(c => c.representante_codigo === representante.codigo);
     
-    // Filtra pela busca
     if (searchTerm) {
       clientes = clientes.filter(c => 
         c.nome?.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -325,13 +411,13 @@ export default function PainelRepresentante() {
       );
     }
 
-    // Anexa pedidos e cheques a cada cliente para facilitar a renderização
     return clientes.map(c => ({
       ...c,
       pedidos: todosPedidos.filter(p => p.cliente_codigo === c.codigo),
-      cheques: todosCheques.filter(ch => ch.cliente_codigo === c.codigo)
+      cheques: todosCheques.filter(ch => ch.cliente_codigo === c.codigo),
+      creditos: todosCreditos.filter(cr => cr.cliente_codigo === c.codigo)
     }));
-  }, [representante, todosClientes, todosPedidos, todosCheques, searchTerm]);
+  }, [representante, todosClientes, todosPedidos, todosCheques, todosCreditos, searchTerm]);
 
   // 3. Estatísticas Globais (KPIs)
   const stats = useMemo(() => {
@@ -339,7 +425,7 @@ export default function PainelRepresentante() {
     
     const clientesComVendas30k = meusClientes.filter(c => {
       const totalVendas = c.pedidos
-        .filter(p => p.status !== 'cancelado') // Opcional: filtrar período
+        .filter(p => p.status !== 'cancelado')
         .reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
       return totalVendas > 30000;
     }).length;
@@ -349,7 +435,7 @@ export default function PainelRepresentante() {
       .reduce((sum, p) => sum + (p.saldo_restante || 0), 0);
 
     const chequesTotal = todosCheques
-      .filter(c => meusClientes.some(cli => cli.codigo === c.cliente_codigo)) // Cheques dos meus clientes
+      .filter(c => meusClientes.some(cli => cli.codigo === c.cliente_codigo))
       .reduce((sum, c) => sum + (c.valor || 0), 0);
 
     return {
@@ -360,7 +446,6 @@ export default function PainelRepresentante() {
     };
   }, [meusClientes, todosPedidos, todosCheques, representante]);
 
-  // Handler para abrir detalhes
   const handleViewDetails = (item, type) => {
     setDetailsModal({ open: true, item, type });
   };
@@ -395,7 +480,7 @@ export default function PainelRepresentante() {
   return (
     <div className="min-h-screen bg-[#F2F2F7] pb-20 font-sans text-slate-900">
       
-      {/* Sticky Header com Blur (Estilo iOS) */}
+      {/* Sticky Header com Blur */}
       <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-black/5 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Olá, <span className="text-blue-600">{representante.nome.split(' ')[0]}</span></h1>
@@ -459,6 +544,7 @@ export default function PainelRepresentante() {
                 cliente={cliente} 
                 pedidos={cliente.pedidos} 
                 cheques={cliente.cheques}
+                creditos={cliente.creditos}
                 onViewDetails={handleViewDetails}
               />
             ))
