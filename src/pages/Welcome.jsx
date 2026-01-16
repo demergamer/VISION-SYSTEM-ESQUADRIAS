@@ -18,8 +18,8 @@ export default function Welcome() {
   };
 
   const handleRepresentante = () => {
-    setShowNotification(true);
-    setTimeout(() => setShowNotification(false), 3000);
+    // Redirecionamento direto para o link solicitado
+    window.location.href = 'https://app.base44.com/apps/69679dca54bbc0458984498a/editor/preview/PortalDoRepresentante';
   };
 
   // --- Componente de Botão Premium ---
@@ -49,9 +49,8 @@ export default function Welcome() {
   );
 
   return (
-    // MUDANÇA PRINCIPAL AQUI:
     // 'fixed inset-0': Fixa a tela ocupando tudo (top, bottom, left, right = 0)
-    // 'z-50': Garante que fique ACIMA da barra lateral (que geralmente tem z-index menor)
+    // 'z-50': Garante que fique ACIMA da barra lateral
     <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center p-6 overflow-hidden">
       
       {/* Background Decorativo */}
@@ -118,7 +117,7 @@ export default function Welcome() {
         Segurança J&C System
       </motion.div>
 
-      {/* Notificação Flutuante */}
+      {/* Notificação Flutuante (Mantida caso queira reutilizar depois, mas não será ativada pelo botão representante agora) */}
       <AnimatePresence>
         {showNotification && (
           <motion.div
