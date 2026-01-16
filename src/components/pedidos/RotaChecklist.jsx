@@ -183,13 +183,17 @@ export default function RotaChecklist({
   const pendentes = total - confirmados;
 
   const handleSave = async () => {
+    // 1. Preparar dados da rota
     let novoStatus = 'pendente';
     if (confirmados === total && total > 0) novoStatus = 'concluida';
     else if (confirmados > 0) novoStatus = 'parcial';
 
-    // Se o nome da rota mudou, atualiza todos os pedidos vinculados
+    // 2. Verificar se houve mudança de nome
     if (rotaNome !== rota.codigo_rota) {
+        // Se mudou o nome, precisamos atualizar todos os pedidos vinculados a esta rota
         try {
+            // Nota: Isso pode demorar um pouco se forem muitos pedidos, idealmente seria feito no backend
+            // Mas faremos aqui no frontend via loop
             for (const pedido of pedidos) {
                 await base44.entities.Pedido.update(pedido.id, {
                     rota_entrega: rotaNome
@@ -197,12 +201,13 @@ export default function RotaChecklist({
             }
         } catch (error) {
             console.error("Erro ao propagar nome da rota:", error);
+            // Continua salvando o resto mesmo com erro
         }
     }
 
     const rotaData = {
-        id: rota.id,
-        codigo_rota: rotaNome,
+        id: rota.id, // Importante passar o ID para update
+        codigo_rota: rotaNome, // Novo nome
         motorista_codigo: motoristaEdit.codigo,
         motorista_nome: motoristaEdit.nome,
         pedidos_confirmados: confirmados,
