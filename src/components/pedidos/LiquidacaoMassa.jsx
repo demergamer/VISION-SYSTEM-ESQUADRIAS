@@ -238,7 +238,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       totalPago: totais.totalPago - creditoAUsar,
       formaPagamento: formasFinal,
       cheques: todosChequesUsados,
-      totalDivida: totais.totalComDesconto // Necessário para cálculo proporcional
+      totalDivida: totais.totalComDesconto
     });
   };
 
