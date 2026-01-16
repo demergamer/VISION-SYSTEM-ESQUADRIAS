@@ -6,6 +6,7 @@ import {
   User, 
   Phone, 
   MapPin, 
+  Mail, // Importei o ícone de Email
   Users, 
   TrendingUp,
   AlertTriangle,
@@ -45,7 +46,11 @@ export default function RepresentanteDetails({ representante, stats, onEdit, onC
           </div>
           <div>
             <h2 className="text-2xl font-bold text-slate-800">{representante.nome}</h2>
-            <p className="text-slate-500 font-mono">{representante.codigo}</p>
+            <div className="flex items-center gap-2 text-slate-500">
+               <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-sm">{representante.codigo}</span>
+               {/* Exibe o email abaixo do nome */}
+               <span className="text-sm">• {representante.email}</span>
+            </div>
           </div>
         </div>
         <div className="flex gap-2">
@@ -66,7 +71,20 @@ export default function RepresentanteDetails({ representante, stats, onEdit, onC
       </div>
 
       {/* Info Cards */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Card de Email Adicionado */}
+        <Card className="p-4 bg-slate-50 border-slate-200">
+          <div className="flex items-center gap-3">
+            <Mail className="w-5 h-5 text-slate-400" />
+            <div className="overflow-hidden">
+              <p className="text-xs text-slate-500 uppercase">Email</p>
+              <p className="font-medium text-slate-800 truncate" title={representante.email}>
+                {representante.email || 'Não informado'}
+              </p>
+            </div>
+          </div>
+        </Card>
+
         <Card className="p-4 bg-slate-50 border-slate-200">
           <div className="flex items-center gap-3">
             <MapPin className="w-5 h-5 text-slate-400" />
@@ -76,6 +94,7 @@ export default function RepresentanteDetails({ representante, stats, onEdit, onC
             </div>
           </div>
         </Card>
+
         <Card className="p-4 bg-slate-50 border-slate-200">
           <div className="flex items-center gap-3">
             <Phone className="w-5 h-5 text-slate-400" />
