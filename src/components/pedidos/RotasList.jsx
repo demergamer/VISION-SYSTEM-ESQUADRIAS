@@ -16,10 +16,19 @@ export default function RotasList({ rotas, onSelectRota, onAlterarPortador, isLo
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
   };
 
+  const safeFormatDate = (date) => {
+    if (!date) return '-';
+    try {
+        return format(new Date(date), 'dd/MM/yyyy');
+    } catch {
+        return '-';
+    }
+  };
+
   const filteredRotas = rotas.filter(rota => 
     rota.codigo_rota?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     rota.motorista_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (rota.data_importacao && format(new Date(rota.data_importacao), 'dd/MM/yyyy').includes(searchTerm))
+    safeFormatDate(rota.data_importacao).includes(searchTerm)
   );
 
   const getStatusConfig = (status, confirmados, total) => {
@@ -90,7 +99,7 @@ export default function RotasList({ rotas, onSelectRota, onAlterarPortador, isLo
                   <div className="flex flex-wrap gap-4 text-sm text-slate-600">
                     <div className="flex items-center gap-1">
                       <Calendar className="w-4 h-4" />
-                      {format(new Date(rota.data_importacao), 'dd/MM/yyyy')}
+                      {safeFormatDate(rota.data_importacao)}
                     </div>
                     {rota.motorista_nome && (
                       <div className="flex items-center gap-1">
