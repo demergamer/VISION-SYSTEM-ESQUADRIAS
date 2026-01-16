@@ -11,7 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   Users, ShoppingCart, CreditCard, AlertCircle, 
   Search, Briefcase, LogOut, Loader2, 
-  ChevronDown, ChevronRight, MapPin, Truck, Eye, Wallet, CalendarClock, PackageCheck
+  ChevronDown, ChevronRight, MapPin, Truck, Eye, Wallet, CalendarClock, DollarSign
 } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -133,7 +133,7 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails }) => {
       >
         <div className="flex items-center gap-4">
           <div className={cn(
-            "w-12 h-12 rounded-full flex items-center justify-center transition-colors",
+            "w-12 h-12 rounded-full flex items-center justify-center transition-colors shrink-0",
             temAtraso ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-600"
           )}>
             {temAtraso ? <AlertCircle className="w-6 h-6" /> : <Users className="w-6 h-6" />}
@@ -147,14 +147,9 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails }) => {
           </div>
         </div>
 
-        <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-end">
-          <div className="text-right hidden sm:block">
-            <p className="text-xs text-slate-400 uppercase font-bold">Saldo Devedor</p>
-            <p className={cn("text-lg font-bold", totalDevendo > 0 ? "text-slate-800" : "text-emerald-600")}>
-              {formatCurrency(totalDevendo)}
-            </p>
-          </div>
-          {isExpanded ? <ChevronDown className="w-5 h-5 text-slate-400" /> : <ChevronRight className="w-5 h-5 text-slate-400" />}
+        <div className="flex items-center gap-2 text-slate-400">
+          <span className="text-sm font-medium">Ver detalhes</span>
+          {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
         </div>
       </div>
 
@@ -164,7 +159,25 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails }) => {
           <div className="h-px w-full bg-slate-100 mb-4" />
           
           {/* TOTALIZADORES INDIVIDUAIS (DASHBOARD DO CLIENTE) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+            
+            {/* 1. Saldo Devedor (Descido do Cabeçalho) */}
+            <div className={cn(
+              "border p-4 rounded-xl flex items-center gap-4",
+              totalDevendo > 0 ? "bg-red-50 border-red-100" : "bg-slate-50 border-slate-100"
+            )}>
+              <div className={cn("p-2 rounded-lg", totalDevendo > 0 ? "bg-red-100" : "bg-white")}>
+                <DollarSign className={cn("w-5 h-5", totalDevendo > 0 ? "text-red-600" : "text-slate-600")} />
+              </div>
+              <div>
+                <p className={cn("text-xs font-bold uppercase", totalDevendo > 0 ? "text-red-600" : "text-slate-500")}>
+                  Saldo Devedor
+                </p>
+                <p className="text-lg font-bold text-slate-800">{formatCurrency(totalDevendo)}</p>
+              </div>
+            </div>
+
+            {/* 2. Cheques a Vencer */}
             <div className="bg-purple-50 border border-purple-100 p-4 rounded-xl flex items-center gap-4">
               <div className="bg-purple-100 p-2 rounded-lg"><CalendarClock className="w-5 h-5 text-purple-600" /></div>
               <div>
@@ -173,6 +186,7 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails }) => {
               </div>
             </div>
             
+            {/* 3. Créditos Disponíveis */}
             <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl flex items-center gap-4">
               <div className="bg-emerald-100 p-2 rounded-lg"><Wallet className="w-5 h-5 text-emerald-600" /></div>
               <div>
@@ -181,15 +195,17 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails }) => {
               </div>
             </div>
 
+            {/* 4. Pedidos em Trânsito */}
             <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl flex items-center gap-4">
               <div className="bg-amber-100 p-2 rounded-lg"><Truck className="w-5 h-5 text-amber-600" /></div>
               <div>
-                <p className="text-xs text-amber-600 font-bold uppercase">Pedidos em Trânsito</p>
+                <p className="text-xs text-amber-600 font-bold uppercase">Em Trânsito</p>
                 <p className="text-lg font-bold text-slate-800">{pedidosEmTransito.length} <span className="text-xs font-normal text-slate-500">pedidos</span></p>
               </div>
             </div>
           </div>
 
+          {/* ABAS DE DADOS */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="bg-slate-100 p-1 rounded-xl h-auto flex-wrap justify-start gap-2 mb-4 w-full sm:w-auto">
               <TabsTrigger value="abertos" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm">
