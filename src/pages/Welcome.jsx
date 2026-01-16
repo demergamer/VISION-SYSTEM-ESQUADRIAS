@@ -18,7 +18,6 @@ export default function Welcome() {
   };
 
   const handleRepresentante = () => {
-    // Link direto para o editor/preview conforme solicitado
     window.location.href = 'https://gestor-financeiro-pro-8984498a.base44.app/PortalDoRepresentante';
   };
 
@@ -49,25 +48,25 @@ export default function Welcome() {
   );
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col items-center justify-center p-6 overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center p-6 overflow-hidden">
       
-      {/* --- EFEITO VAGALUME / RESPIRAÇÃO --- */}
+      {/* --- EFEITO VAGALUME INTENSO (Nebulosa) --- */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <motion.div
           animate={{
-            scale: [1, 1.5, 1], // Cresce e diminui
-            opacity: [0.3, 0.6, 0.3], // Brilha e apaga levemente
+            scale: [0.5, 4, 0.5], // Cresce muito (invade a tela) e diminui
+            opacity: [0, 0.7, 0], // Vai do PRETO TOTAL (0) ao AZUL (0.7) e volta ao PRETO
           }}
           transition={{
-            duration: 6, // Duração longa para ser suave (6 segundos)
-            repeat: Infinity, // Loop infinito
-            ease: "easeInOut", // Movimento natural
+            duration: 10, // Bem lento (10 segundos o ciclo)
+            repeat: Infinity,
+            ease: "easeInOut", // Suavidade na ida e na volta
           }}
-          className="w-[300px] h-[300px] md:w-[500px] md:h-[500px] bg-blue-600 rounded-full blur-[100px]"
+          className="w-[300px] h-[300px] md:w-[500px] md:h-[500px] bg-blue-700 rounded-full blur-[120px]"
         />
       </div>
 
-      {/* Camada de Blur extra para espalhar a luz (Efeito Neblina) */}
+      {/* Camada de Blur para suavizar tudo */}
       <div className="absolute inset-0 backdrop-blur-3xl z-0 pointer-events-none" />
 
       {/* --- CONTEÚDO DA PÁGINA --- */}
@@ -133,7 +132,7 @@ export default function Welcome() {
         Segurança J&C System
       </motion.div>
 
-      {/* Notificação (Mantida oculta por enquanto) */}
+      {/* Notificação (Mantida caso precise) */}
       <AnimatePresence>
         {showNotification && (
           <motion.div
