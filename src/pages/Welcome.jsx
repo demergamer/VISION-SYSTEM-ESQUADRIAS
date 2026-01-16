@@ -19,7 +19,7 @@ export default function Welcome() {
 
   const handleRepresentante = () => {
     // Redirecionamento direto para o link solicitado
-    window.location.href = 'https://app.base44.com/apps/69679dca54bbc0458984498a/editor/preview/PortalDoRepresentante';
+    window.location.href = 'https://gestor-financeiro-pro-8984498a.base44.app/PortalDoRepresentante';
   };
 
   // --- Componente de Botão Premium ---
