@@ -24,7 +24,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     tipo: 'dinheiro',
     valor: '',
     parcelas: '1',
-    dadosCheque: { numero: '', banco: '', agencia: '', conta: '' }, // Adicionado conta
+    dadosCheque: { numero: '', banco: '', agencia: '', conta: '' },
     chequesSalvos: []
   }]);
   const [showChequeModal, setShowChequeModal] = useState(false);
@@ -32,7 +32,6 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
   const [creditoDisponivelTotal, setCreditoDisponivelTotal] = useState(0);
   const [creditoAUsar, setCreditoAUsar] = useState(0);
 
-  // Buscar créditos
   const { data: creditos = [] } = useQuery({
     queryKey: ['creditos', selectedPedidos[0]?.cliente_codigo],
     queryFn: async () => {
@@ -50,9 +49,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     setCreditoDisponivelTotal(total);
   }, [creditos]);
 
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
-  };
+  const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
   const filteredPedidos = useMemo(() => {
     return pedidos.filter(p => 
@@ -105,9 +102,8 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
 
   const handleSaveCheque = async (chequeData) => {
     try {
-      const novoCheque = await base44.entities.Cheque.create(chequeData); // O Backend retorna o objeto com ID
+      const novoCheque = await base44.entities.Cheque.create(chequeData);
       const novasFormas = [...formasPagamento];
-      // Salvamos o objeto completo retornado pelo banco (com ID)
       novasFormas[chequeModalIndex].chequesSalvos.push(novoCheque);
       
       const totalCheques = novasFormas[chequeModalIndex].chequesSalvos.reduce(
@@ -180,6 +176,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       return;
     }
     
+    // Alerta de Excedente (Crédito)
     if (totais.totalPago > totais.totalComDesconto) {
       const excedente = totais.totalPago - totais.totalComDesconto;
       const confirmar = window.confirm(
@@ -188,11 +185,21 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       if (!confirmar) return;
     }
     
-    const creditoGerado = totais.totalPago > totais.totalComDesconto 
-      ? totais.totalPago - totais.totalComDesconto 
-      : 0;
+    // Alerta de Pagamento Parcial
+    if (totais.totalPago < totais.totalComDesconto) {
+        const restante = totais.totalComDesconto - totais.totalPago;
+        const confirmar = window.confirm(
+            `⚠️ ATENÇÃO! Pagamento PARCIAL.\n\n` +
+            `Total da dívida: ${formatCurrency(totais.totalComDesconto)}\n` +
+            `Valor pago: ${formatCurrency(totais.totalPago)}\n` +
+            `Saldo restante: ${formatCurrency(restante)}\n\n` +
+            `Os pedidos ficarão com status "PARCIAL". Deseja continuar?`
+        );
+        if (!confirmar) return;
+    }
+    
+    const creditoGerado = Math.max(0, totais.totalPago - totais.totalComDesconto);
 
-    // Coletar TODOS os cheques usados na transação para enviar ao pai
     let todosChequesUsados = [];
     
     const formasPagamentoStr = formasPagamento
@@ -201,13 +208,10 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         let str = `${fp.tipo.toUpperCase()}: ${formatCurrency(parseFloat(fp.valor))}`;
         if (fp.tipo === 'credito' && fp.parcelas !== '1') str += ` (${fp.parcelas}x)`;
         
-        // Lógica para cheques avulsos (não salvos na lista mas preenchidos no input)
         if (fp.tipo === 'cheque' && fp.dadosCheque.numero) {
            str += ` | Cheque: ${fp.dadosCheque.numero} - ${fp.dadosCheque.banco}`;
-           // Nota: Cheques "avulsos" não salvos no banco não entram na lista de atualização cruzada
         }
         
-        // Lógica para cheques salvos no banco
         if (fp.chequesSalvos.length > 0) {
           str += ` | ${fp.chequesSalvos.length} cheque(s)`;
           todosChequesUsados = [...todosChequesUsados, ...fp.chequesSalvos];
@@ -221,10 +225,11 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     onSave({
       pedidos: selectedPedidos.map(p => ({
         id: p.id,
-        numero_pedido: p.numero_pedido, // Importante para o histórico do cheque
+        numero_pedido: p.numero_pedido,
         saldo_original: p.saldo_restante || (p.valor_pedido - (p.total_pago || 0)),
         cliente_codigo: p.cliente_codigo,
-        cliente_nome: p.cliente_nome
+        cliente_nome: p.cliente_nome,
+        valor_total_pedido: p.valor_pedido // Importante para calcular saldo restante
       })),
       desconto: totais.desconto,
       devolucao: totais.devolucaoValor,
@@ -232,7 +237,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       creditoUsado: creditoAUsar,
       totalPago: totais.totalPago - creditoAUsar,
       formaPagamento: formasFinal,
-      cheques: todosChequesUsados // Nova propriedade enviada
+      cheques: todosChequesUsados
     });
   };
 
@@ -240,7 +245,6 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
 
   return (
     <div className="space-y-6">
-      {/* Busca */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         <Input
@@ -251,7 +255,6 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         />
       </div>
 
-      {/* Selecionar Todos */}
       <div className="flex items-center gap-2">
         <Checkbox
           id="selectAll"
@@ -263,7 +266,6 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         </Label>
       </div>
 
-      {/* Lista de Pedidos */}
       <div className="max-h-96 overflow-y-auto space-y-2">
         {filteredPedidos.map((pedido) => {
           const saldo = pedido.saldo_restante || (pedido.valor_pedido - (pedido.total_pago || 0));
@@ -278,26 +280,11 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
               <div className="flex items-center gap-4">
                 <Checkbox checked={!!isSelected} />
                 <div className="flex-1 grid grid-cols-5 gap-4">
-                  <div>
-                    <p className="text-xs text-slate-500">Nº Pedido</p>
-                    <p className="font-mono text-sm font-medium">{pedido.numero_pedido}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500">Cliente</p>
-                    <p className="font-medium text-sm truncate">{pedido.cliente_nome}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500">Código</p>
-                    <p className="text-sm">{pedido.cliente_codigo}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500">Data Entrega</p>
-                    <p className="text-sm">{pedido.data_entrega ? new Date(pedido.data_entrega).toLocaleDateString('pt-BR') : '-'}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-slate-500">Saldo</p>
-                    <p className="font-bold text-sm">{formatCurrency(saldo)}</p>
-                  </div>
+                  <div><p className="text-xs text-slate-500">Nº Pedido</p><p className="font-mono text-sm font-medium">{pedido.numero_pedido}</p></div>
+                  <div><p className="text-xs text-slate-500">Cliente</p><p className="font-medium text-sm truncate">{pedido.cliente_nome}</p></div>
+                  <div><p className="text-xs text-slate-500">Código</p><p className="text-sm">{pedido.cliente_codigo}</p></div>
+                  <div><p className="text-xs text-slate-500">Data Entrega</p><p className="text-sm">{pedido.data_entrega ? new Date(pedido.data_entrega).toLocaleDateString('pt-BR') : '-'}</p></div>
+                  <div className="text-right"><p className="text-xs text-slate-500">Saldo</p><p className="font-bold text-sm">{formatCurrency(saldo)}</p></div>
                 </div>
               </div>
             </Card>
@@ -305,7 +292,6 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         })}
       </div>
 
-      {/* Inputs de Valores */}
       {selectedPedidos.length > 0 && (
         <Card className="p-4 bg-slate-50 space-y-4">
           <h3 className="font-semibold">Ajustes de Pagamento</h3>
@@ -313,14 +299,8 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
           <div className="space-y-2">
             <Label>Desconto</Label>
             <RadioGroup value={descontoTipo} onValueChange={setDescontoTipo} className="flex gap-4">
-              <div className="flex items-center gap-2">
-                <RadioGroupItem value="reais" id="reais" />
-                <Label htmlFor="reais">Em Reais (R$)</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <RadioGroupItem value="porcentagem" id="porcentagem" />
-                <Label htmlFor="porcentagem">Em Porcentagem (%)</Label>
-              </div>
+              <div className="flex items-center gap-2"><RadioGroupItem value="reais" id="reais" /><Label htmlFor="reais">Em Reais (R$)</Label></div>
+              <div className="flex items-center gap-2"><RadioGroupItem value="porcentagem" id="porcentagem" /><Label htmlFor="porcentagem">Em Porcentagem (%)</Label></div>
             </RadioGroup>
             <div className="relative">
               {descontoTipo === 'reais' ? <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /> : <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />}
@@ -336,7 +316,6 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
             </div>
           </div>
 
-          {/* Formas de Pagamento Dinâmicas */}
           <div className="space-y-3 pt-3 border-t">
             <div className="flex items-center justify-between">
               <Label className="text-base font-semibold">Formas de Pagamento</Label>
@@ -376,7 +355,6 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
 
                   {fp.tipo === 'cheque' && (
                     <div className="space-y-2">
-                      {/* Inputs Manuais (opcional se não usar o modal) */}
                       <div className="grid grid-cols-3 gap-2">
                          <div><Label className="text-xs">Nº Cheque</Label><Input value={fp.dadosCheque.numero} onChange={(e) => atualizarFormaPagamento(index, 'dadosCheque.numero', e.target.value)} /></div>
                          <div><Label className="text-xs">Banco</Label><Input value={fp.dadosCheque.banco} onChange={(e) => atualizarFormaPagamento(index, 'dadosCheque.banco', e.target.value)} /></div>
@@ -392,7 +370,6 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
             ))}
           </div>
 
-          {/* Seção de Créditos (Resumo) */}
           {creditoDisponivelTotal > 0 && (
             <Card className="p-4 bg-green-50 border-green-200">
                <div className="flex items-center gap-2 mb-2"><Wallet className="w-4 h-4 text-green-700"/><span className="font-bold text-green-700">Crédito Disponível: {formatCurrency(creditoDisponivelTotal)}</span></div>
@@ -403,7 +380,6 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
             </Card>
           )}
 
-          {/* Resumo Total */}
           <div className="pt-4 border-t space-y-2">
             <div className="flex justify-between font-bold text-lg text-blue-700">
               <span>Total Pago:</span>
@@ -413,11 +389,16 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
               <span>Total a Pagar:</span>
               <span>{formatCurrency(totais.totalComDesconto)}</span>
             </div>
+            {totais.totalPago < totais.totalComDesconto && (
+                <div className="flex justify-between font-bold text-base text-red-600 border-t pt-2 border-red-100">
+                    <span>Faltam Pagar:</span>
+                    <span>{formatCurrency(totais.totalComDesconto - totais.totalPago)}</span>
+                </div>
+            )}
           </div>
         </Card>
       )}
 
-      {/* Botões Finais */}
       <div className="flex justify-end gap-3 pt-4 border-t">
         <Button variant="outline" onClick={onCancel} disabled={isLoading}>Cancelar</Button>
         <Button onClick={handleLiquidar} disabled={isLoading || selectedPedidos.length === 0}>Liquidar</Button>
