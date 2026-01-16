@@ -365,8 +365,148 @@ export default function Pedidos() {
     } catch (error) { toast.error('Erro ao confirmar'); }
   };
 
-  const handleReverterLiquidacao = async () => { /* ... Lógica existente ... */ setShowReverterDialog(false); toast.success('Revertido!'); };
-  const handleLiquidacaoMassa = async (data) => { /* ... Lógica existente ... */ setShowLiquidacaoMassaModal(false); toast.success('Liquidado!'); };
+  const handleReverterLiquidacao = async () => { 
+      if (!pedidoParaReverter) return;
+      try {
+          await base44.entities.Pedido.update(pedidoParaReverter.id, {
+              status: 'aberto',
+              saldo_restante: pedidoParaReverter.valor_pedido,
+              total_pago: 0,
+              data_pagamento: null,
+              mes_pagamento: null,
+              outras_informacoes: pedidoParaReverter.outras_informacoes + `\n[${new Date().toLocaleDateString()}] Liquidação Revertida.`
+          });
+          
+          // Se tiver crédito gerado vinculado, precisaria estornar (não implementado aqui por segurança)
+          
+          await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+          setShowReverterDialog(false);
+          setPedidoParaReverter(null);
+          toast.success('Revertido!');
+      } catch (e) {
+          toast.error('Erro ao reverter');
+      }
+  };
+
+  // --- CORREÇÃO AQUI: FUNÇÃO DE LIQUIDAÇÃO EM MASSA IMPLEMENTADA ---
+  const handleLiquidacaoMassa = async (data) => {
+    try {
+        const mesAtual = new Date().toISOString().slice(0, 7);
+        const hoje = new Date().toISOString().split('T')[0];
+
+        // 1. Gerar crédito se houver excedente (Troco)
+        if (data.credito > 0 && data.pedidos.length > 0) {
+             const primeiroPedido = data.pedidos[0];
+             
+             // Buscar próximo ID de crédito
+             const todosCreditos = await base44.entities.Credito.list();
+             const proximoNumero = todosCreditos.length > 0 
+                ? Math.max(...todosCreditos.map(c => c.numero_credito || 0)) + 1 
+                : 1;
+
+             await base44.entities.Credito.create({
+                numero_credito: proximoNumero,
+                cliente_codigo: primeiroPedido.cliente_codigo,
+                cliente_nome: primeiroPedido.cliente_nome,
+                valor: data.credito,
+                origem: `Excedente Liquidação em Massa (${data.pedidos.length} pedidos)`,
+                pedido_origem_id: primeiroPedido.id,
+                status: 'disponivel',
+                data_emissao: hoje
+             });
+             toast.success(`Crédito de ${formatCurrency(data.credito)} gerado para o cliente.`);
+        }
+
+        // 2. Consumir créditos se utilizados (Atualizar status dos créditos existentes)
+        if (data.creditoUsado > 0 && data.pedidos.length > 0) {
+            const primeiroPedido = data.pedidos[0];
+            // Buscar créditos do cliente
+            const todosCreditos = await base44.entities.Credito.list();
+            const creditosDisponiveis = todosCreditos.filter(c => 
+                c.cliente_codigo === primeiroPedido.cliente_codigo && c.status === 'disponivel'
+            );
+
+            let valorParaAbater = data.creditoUsado;
+            
+            for (const cred of creditosDisponiveis) {
+                if (valorParaAbater <= 0) break;
+                
+                // Se o crédito for menor ou igual ao que precisamos usar, consumimos ele todo
+                if (cred.valor <= valorParaAbater) {
+                    await base44.entities.Credito.update(cred.id, {
+                        status: 'usado',
+                        data_uso: hoje,
+                        pedido_uso_id: primeiroPedido.id // Vincula ao primeiro pedido apenas como referência
+                    });
+                    valorParaAbater -= cred.valor;
+                } else {
+                    // Se o crédito é maior, precisamos "quebrar" ele:
+                    // 1. Atualizar o atual para usado com o valor parcial? 
+                    // Na estrutura atual, o crédito é usado integralmente ou sobra.
+                    // Para simplificar: Marcamos como usado e geramos um novo crédito com o troco (saldo restante do crédito).
+                    
+                    const saldoRestanteCredito = cred.valor - valorParaAbater;
+                    
+                    // Marca o original como usado
+                    await base44.entities.Credito.update(cred.id, {
+                        status: 'usado',
+                        data_uso: hoje,
+                        pedido_uso_id: primeiroPedido.id
+                    });
+
+                    // Gera novo crédito com a diferença (Troco do Crédito)
+                    const proximoNumero = todosCreditos.length > 0 
+                        ? Math.max(...todosCreditos.map(c => c.numero_credito || 0)) + 1 
+                        : 1;
+
+                    await base44.entities.Credito.create({
+                        numero_credito: proximoNumero + 1, // +1 para garantir não conflito com o gerado acima se houver
+                        cliente_codigo: cred.cliente_codigo,
+                        cliente_nome: cred.cliente_nome,
+                        valor: saldoRestanteCredito,
+                        origem: `Saldo restante do crédito #${cred.numero_credito}`,
+                        status: 'disponivel',
+                        data_emissao: hoje
+                    });
+                    
+                    valorParaAbater = 0;
+                }
+            }
+        }
+
+        // 3. Atualizar cada pedido
+        for (const p of data.pedidos) {
+            // Buscar pedido original para pegar o valor total e histórico
+            const pedidoOriginal = pedidos.find(item => item.id === p.id);
+            if (!pedidoOriginal) continue;
+
+            const currentInfo = pedidoOriginal.outras_informacoes || '';
+            const newInfo = currentInfo
+                ? `${currentInfo}\n[${new Date().toLocaleDateString('pt-BR')}] LIQUIDAÇÃO EM MASSA: ${data.formaPagamento}`
+                : `[${new Date().toLocaleDateString('pt-BR')}] LIQUIDAÇÃO EM MASSA: ${data.formaPagamento}`;
+
+            await base44.entities.Pedido.update(p.id, {
+                status: 'pago',
+                saldo_restante: 0,
+                total_pago: pedidoOriginal.valor_pedido, // Considera pago integralmente
+                data_pagamento: hoje,
+                mes_pagamento: mesAtual,
+                outras_informacoes: newInfo
+            });
+        }
+
+        await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+        await queryClient.invalidateQueries({ queryKey: ['cheques'] }); 
+        await queryClient.invalidateQueries({ queryKey: ['creditos'] });
+        
+        setShowLiquidacaoMassaModal(false);
+        toast.success('Liquidação em massa realizada com sucesso!');
+
+    } catch (error) {
+        console.error(error);
+        toast.error('Erro ao realizar liquidação em massa. Verifique o console.');
+    }
+  };
 
   return (
     <PermissionGuard setor="Pedidos">
@@ -535,7 +675,6 @@ export default function Pedidos() {
           </Tabs>
 
           {/* --- MODAIS --- */}
-          {/* ... (Modais mantidos iguais ao original para economizar espaço visual aqui, mas o código completo está acima) ... */}
           <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Novo Pedido" description="Cadastre um novo pedido a receber" size="lg">
             <PedidoForm clientes={clientes} onSave={(data) => createMutation.mutate(data)} onCancel={() => setShowAddModal(false)} isLoading={createMutation.isPending} />
           </ModalContainer>
