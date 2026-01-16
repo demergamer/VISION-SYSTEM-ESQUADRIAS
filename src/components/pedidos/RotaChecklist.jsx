@@ -20,19 +20,28 @@ export default function RotaChecklist({
   onCancelarPedido,
   isLoading 
 }) {
+  // Proteção contra lista vazia ou nula
   const [pedidosState, setPedidosState] = useState(
-    pedidos.map(p => ({ ...p, confirmado_entrega: p.confirmado_entrega || false }))
+    (pedidos || []).map(p => ({ ...p, confirmado_entrega: p.confirmado_entrega || false }))
   );
   const [motoristaEdit, setMotoristaEdit] = useState({
     codigo: rota.motorista_codigo || '',
     nome: rota.motorista_nome || ''
   });
   
-  // Estado para renomear rota
   const [isEditingName, setIsEditingName] = useState(false);
   const [rotaNome, setRotaNome] = useState(rota.codigo_rota || '');
 
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
+
+  const safeFormatDate = (date) => {
+    if (!date) return '-';
+    try {
+        return format(new Date(date), 'dd/MM/yyyy');
+    } catch {
+        return '-';
+    }
+  };
 
   const gerarPDFExpedicao = () => {
     const doc = new jsPDF();
@@ -47,7 +56,7 @@ export default function RotaChecklist({
     doc.setFontSize(11);
     doc.text(`Rota: ${rotaNome}`, 20, yPos);
     yPos += 6;
-    doc.text(`Data: ${format(new Date(rota.data_importacao), 'dd/MM/yyyy')}`, 20, yPos);
+    doc.text(`Data: ${safeFormatDate(rota.data_importacao)}`, 20, yPos);
     yPos += 6;
     doc.text(`Motorista: ${motoristaEdit.nome || 'Não informado'} (${motoristaEdit.codigo || '-'})`, 20, yPos);
     yPos += 10;
@@ -183,17 +192,12 @@ export default function RotaChecklist({
   const pendentes = total - confirmados;
 
   const handleSave = async () => {
-    // 1. Preparar dados da rota
     let novoStatus = 'pendente';
     if (confirmados === total && total > 0) novoStatus = 'concluida';
     else if (confirmados > 0) novoStatus = 'parcial';
 
-    // 2. Verificar se houve mudança de nome
     if (rotaNome !== rota.codigo_rota) {
-        // Se mudou o nome, precisamos atualizar todos os pedidos vinculados a esta rota
         try {
-            // Nota: Isso pode demorar um pouco se forem muitos pedidos, idealmente seria feito no backend
-            // Mas faremos aqui no frontend via loop
             for (const pedido of pedidos) {
                 await base44.entities.Pedido.update(pedido.id, {
                     rota_entrega: rotaNome
@@ -201,13 +205,12 @@ export default function RotaChecklist({
             }
         } catch (error) {
             console.error("Erro ao propagar nome da rota:", error);
-            // Continua salvando o resto mesmo com erro
         }
     }
 
     const rotaData = {
-        id: rota.id, // Importante passar o ID para update
-        codigo_rota: rotaNome, // Novo nome
+        id: rota.id,
+        codigo_rota: rotaNome,
         motorista_codigo: motoristaEdit.codigo,
         motorista_nome: motoristaEdit.nome,
         pedidos_confirmados: confirmados,
@@ -228,7 +231,6 @@ export default function RotaChecklist({
 
   return (
     <div className="space-y-6">
-      {/* Header da Rota */}
       <Card className="p-4 bg-slate-50">
         <div className="flex items-center gap-3 mb-4">
           <Truck className="w-6 h-6 text-slate-600" />
@@ -250,12 +252,11 @@ export default function RotaChecklist({
                 </div>
             )}
             <p className="text-sm text-slate-500">
-              Importada em {new Date(rota.data_importacao).toLocaleDateString('pt-BR')}
+              Importada em {safeFormatDate(rota.data_importacao)}
             </p>
           </div>
         </div>
 
-        {/* Motorista */}
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div className="space-y-2">
             <Label>Código do Motorista</Label>
@@ -275,7 +276,6 @@ export default function RotaChecklist({
           </div>
         </div>
 
-        {/* Estatísticas */}
         <div className="grid grid-cols-3 gap-4 text-sm">
           <div className="text-center p-3 bg-white rounded-lg">
             <p className="text-slate-500">Total</p>
@@ -292,7 +292,6 @@ export default function RotaChecklist({
         </div>
       </Card>
 
-      {/* Ações em lote */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Checkbox
@@ -307,7 +306,6 @@ export default function RotaChecklist({
         </Badge>
       </div>
 
-      {/* Lista de Pedidos */}
       <div className="space-y-2 max-h-96 overflow-y-auto">
         {pedidosState.map((pedido) => (
           <Card 
