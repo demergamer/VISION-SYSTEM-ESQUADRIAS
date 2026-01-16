@@ -374,10 +374,9 @@ export default function Pedidos() {
               total_pago: 0,
               data_pagamento: null,
               mes_pagamento: null,
+              desconto_dado: 0, // Resetar desconto
               outras_informacoes: pedidoParaReverter.outras_informacoes + `\n[${new Date().toLocaleDateString()}] Liquidação Revertida.`
           });
-          
-          // Se tiver crédito gerado vinculado, precisaria estornar (não implementado aqui por segurança)
           
           await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
           setShowReverterDialog(false);
@@ -388,7 +387,7 @@ export default function Pedidos() {
       }
   };
 
-  // --- CORREÇÃO AQUI: FUNÇÃO DE LIQUIDAÇÃO EM MASSA IMPLEMENTADA ---
+  // --- FUNÇÃO DE LIQUIDAÇÃO EM MASSA CORRIGIDA ---
   const handleLiquidacaoMassa = async (data) => {
     try {
         const mesAtual = new Date().toISOString().slice(0, 7);
@@ -397,8 +396,6 @@ export default function Pedidos() {
         // 1. Gerar crédito se houver excedente (Troco)
         if (data.credito > 0 && data.pedidos.length > 0) {
              const primeiroPedido = data.pedidos[0];
-             
-             // Buscar próximo ID de crédito
              const todosCreditos = await base44.entities.Credito.list();
              const proximoNumero = todosCreditos.length > 0 
                 ? Math.max(...todosCreditos.map(c => c.numero_credito || 0)) + 1 
@@ -417,10 +414,9 @@ export default function Pedidos() {
              toast.success(`Crédito de ${formatCurrency(data.credito)} gerado para o cliente.`);
         }
 
-        // 2. Consumir créditos se utilizados (Atualizar status dos créditos existentes)
+        // 2. Consumir créditos se utilizados
         if (data.creditoUsado > 0 && data.pedidos.length > 0) {
             const primeiroPedido = data.pedidos[0];
-            // Buscar créditos do cliente
             const todosCreditos = await base44.entities.Credito.list();
             const creditosDisponiveis = todosCreditos.filter(c => 
                 c.cliente_codigo === primeiroPedido.cliente_codigo && c.status === 'disponivel'
@@ -431,36 +427,27 @@ export default function Pedidos() {
             for (const cred of creditosDisponiveis) {
                 if (valorParaAbater <= 0) break;
                 
-                // Se o crédito for menor ou igual ao que precisamos usar, consumimos ele todo
                 if (cred.valor <= valorParaAbater) {
                     await base44.entities.Credito.update(cred.id, {
                         status: 'usado',
                         data_uso: hoje,
-                        pedido_uso_id: primeiroPedido.id // Vincula ao primeiro pedido apenas como referência
+                        pedido_uso_id: primeiroPedido.id
                     });
                     valorParaAbater -= cred.valor;
                 } else {
-                    // Se o crédito é maior, precisamos "quebrar" ele:
-                    // 1. Atualizar o atual para usado com o valor parcial? 
-                    // Na estrutura atual, o crédito é usado integralmente ou sobra.
-                    // Para simplificar: Marcamos como usado e geramos um novo crédito com o troco (saldo restante do crédito).
-                    
                     const saldoRestanteCredito = cred.valor - valorParaAbater;
-                    
-                    // Marca o original como usado
                     await base44.entities.Credito.update(cred.id, {
                         status: 'usado',
                         data_uso: hoje,
                         pedido_uso_id: primeiroPedido.id
                     });
 
-                    // Gera novo crédito com a diferença (Troco do Crédito)
                     const proximoNumero = todosCreditos.length > 0 
                         ? Math.max(...todosCreditos.map(c => c.numero_credito || 0)) + 1 
                         : 1;
 
                     await base44.entities.Credito.create({
-                        numero_credito: proximoNumero + 1, // +1 para garantir não conflito com o gerado acima se houver
+                        numero_credito: proximoNumero + 1,
                         cliente_codigo: cred.cliente_codigo,
                         cliente_nome: cred.cliente_nome,
                         valor: saldoRestanteCredito,
@@ -468,27 +455,56 @@ export default function Pedidos() {
                         status: 'disponivel',
                         data_emissao: hoje
                     });
-                    
                     valorParaAbater = 0;
                 }
             }
         }
 
-        // 3. Atualizar cada pedido
-        for (const p of data.pedidos) {
-            // Buscar pedido original para pegar o valor total e histórico
+        // 3. Atualizar cada pedido com DISTRIBUIÇÃO PROPORCIONAL DE DESCONTO
+        // Calcula o total da dívida selecionada para saber a proporção de cada pedido
+        const totalSaldoOriginal = data.pedidos.reduce((sum, p) => sum + (p.saldo_original || 0), 0);
+        let descontoRestante = parseFloat(data.desconto || 0);
+
+        for (let i = 0; i < data.pedidos.length; i++) {
+            const p = data.pedidos[i];
             const pedidoOriginal = pedidos.find(item => item.id === p.id);
             if (!pedidoOriginal) continue;
 
+            // Calcular a fatia do desconto para este pedido
+            let descontoDestePedido = 0;
+            if (totalSaldoOriginal > 0 && descontoRestante > 0) {
+                if (i === data.pedidos.length - 1) {
+                    // O último pega o que sobrou para evitar dízima (ex: 33.33 + 33.33 + 33.34)
+                    descontoDestePedido = descontoRestante;
+                } else {
+                    // Proporcional ao saldo devedor
+                    const proporcao = (p.saldo_original || 0) / totalSaldoOriginal;
+                    descontoDestePedido = parseFloat((data.desconto * proporcao).toFixed(2));
+                    descontoRestante -= descontoDestePedido;
+                }
+            }
+
             const currentInfo = pedidoOriginal.outras_informacoes || '';
+            const formaPagamentoTexto = data.formaPagamento || 'Liquidação em Massa';
+            const infoDesconto = descontoDestePedido > 0 ? ` (Desc. aplicado: R$ ${descontoDestePedido.toFixed(2)})` : '';
+            
             const newInfo = currentInfo
-                ? `${currentInfo}\n[${new Date().toLocaleDateString('pt-BR')}] LIQUIDAÇÃO EM MASSA: ${data.formaPagamento}`
-                : `[${new Date().toLocaleDateString('pt-BR')}] LIQUIDAÇÃO EM MASSA: ${data.formaPagamento}`;
+                ? `${currentInfo}\n[${new Date().toLocaleDateString('pt-BR')}] LIQUIDAÇÃO EM MASSA: ${formaPagamentoTexto}${infoDesconto}`
+                : `[${new Date().toLocaleDateString('pt-BR')}] LIQUIDAÇÃO EM MASSA: ${formaPagamentoTexto}${infoDesconto}`;
+
+            // *** CORREÇÃO CRUCIAL AQUI ***
+            // O Total Pago deve ser o Valor Original MENOS o Desconto Dado agora.
+            // E o desconto dado deve ser incrementado.
+            
+            const descontoAnterior = parseFloat(pedidoOriginal.desconto_dado || 0);
+            const novoDescontoDado = descontoAnterior + descontoDestePedido;
+            const novoTotalPago = parseFloat(pedidoOriginal.valor_pedido) - novoDescontoDado;
 
             await base44.entities.Pedido.update(p.id, {
                 status: 'pago',
                 saldo_restante: 0,
-                total_pago: pedidoOriginal.valor_pedido, // Considera pago integralmente
+                total_pago: novoTotalPago, // Agora considera o desconto!
+                desconto_dado: novoDescontoDado, // Salva o desconto no banco
                 data_pagamento: hoje,
                 mes_pagamento: mesAtual,
                 outras_informacoes: newInfo
@@ -630,10 +646,9 @@ export default function Pedidos() {
               </Card>
             </TabsContent>
 
-            {/* --- CONTEÚDO DA ABA: AGUARDANDO (AGORA COM CARDS MAIORES) --- */}
+            {/* --- CONTEÚDO DA ABA: AGUARDANDO --- */}
             <TabsContent value="aguardando" className="mt-0 focus-visible:outline-none">
               {filteredPedidos.length > 0 ? (
-                // Alterei aqui: grid-cols-2 e xl:grid-cols-3 para ficarem maiores
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                   {filteredPedidos.map((pedido) => (
                     <PedidoAguardandoCard
@@ -716,7 +731,7 @@ export default function Pedidos() {
                     <div className="mt-4 p-3 bg-slate-50 rounded-lg">
                       <p className="font-medium">Pedido: {pedidoParaReverter.numero_pedido}</p>
                       <p className="text-sm">Cliente: {pedidoParaReverter.cliente_nome}</p>
-                      <p className="text-sm mt-2 text-amber-600">Esta ação irá reverter o pedido para status "aberto" e, caso tenha gerado crédito, o crédito será estornado automaticamente.</p>
+                      <p className="text-sm mt-2 text-amber-600">Esta ação irá reverter o pedido para status "aberto", zerar o valor pago e o desconto.</p>
                     </div>
                   )}
                 </AlertDialogDescription>
