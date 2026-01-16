@@ -36,16 +36,19 @@ export default function Layout({ children, currentPageName }) {
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const [user, setUser] = React.useState(null);
 
+  // --- CORREÇÃO: Função movida para o topo ---
+  const handleLogout = () => {
+    base44.auth.logout();
+  };
+
   React.useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
 
   const hasAccess = (pageName) => {
     if (!user) return false;
-    
     const permissoes = user.permissoes || {};
     const perm = permissoes[pageName];
-    
     return perm === true || perm?.acesso === true;
   };
 
@@ -61,7 +64,7 @@ export default function Layout({ children, currentPageName }) {
           <Button
             variant="ghost"
             className="gap-2 text-slate-600 hover:text-red-600 hover:bg-red-50"
-            onClick={handleLogout}
+            onClick={handleLogout} // Agora vai funcionar
           >
             <LogOut className="w-4 h-4" />
             Sair
@@ -73,10 +76,6 @@ export default function Layout({ children, currentPageName }) {
       </div>
     );
   }
-
-  const handleLogout = () => {
-    base44.auth.logout();
-  };
 
   // Layout simplificado para clientes (role="user" ou página PortalCliente)
   if (user?.role === 'user' || currentPageName === 'PortalCliente') {
@@ -90,7 +89,7 @@ export default function Layout({ children, currentPageName }) {
           <Button
             variant="ghost"
             className="gap-2 text-slate-600 hover:text-red-600 hover:bg-red-50"
-            onClick={handleLogout}
+            onClick={handleLogout} // Agora vai funcionar
           >
             <LogOut className="w-4 h-4" />
             Sair
