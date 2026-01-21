@@ -11,7 +11,7 @@ import {
   FileText, ArrowLeft, Filter, Upload, Truck, Clock, CheckCircle, XCircle,
   MoreHorizontal, ChevronDown, Package, UserPlus,
   LayoutGrid, List, MapPin, Calendar, Edit, Eye, RotateCcw,
-  SlidersHorizontal, X as XIcon
+  SlidersHorizontal, X as XIcon, Loader2 // Adicionado icone Loader2
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -82,7 +82,7 @@ const FilterPanel = ({ filters, setFilters, onClear, isOpen }) => {
   );
 };
 
-// --- COMPONENTES VISUAIS ---
+// ... (Componentes PedidoGridCard, PedidoAguardandoCard e StatWidget mantidos - omitidos para brevidade pois não mudaram)
 const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReverter, canDo }) => {
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
   const getStatusBadge = (status, dataEntrega) => {
@@ -152,6 +152,9 @@ export default function Pedidos() {
   const [viewMode, setViewMode] = useState('table'); 
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({ dateStart: '', dateEnd: '', region: '', minValue: '' });
+  
+  // NOVO: Estado de Processamento para Loading
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Modais
   const [showAddModal, setShowAddModal] = useState(false);
@@ -252,6 +255,7 @@ export default function Pedidos() {
 
   // --- LÓGICA DE LIQUIDAÇÃO EM MASSA (CORRIGIDA E BLINDADA) ---
   const handleLiquidacaoMassa = async (data) => {
+    setIsProcessing(true); // INICIA LOADING
     try {
         const mesAtual = new Date().toISOString().slice(0, 7);
         const hoje = new Date().toISOString().split('T')[0];
@@ -290,7 +294,10 @@ export default function Pedidos() {
         // 4. ATUALIZAR PEDIDOS (LÓGICA AGRESSIVA DE ARREDONDAMENTO)
         const totalSaldoOriginal = data.totalDivida || data.pedidos.reduce((sum, p) => sum + (p.saldo_original || 0), 0);
         let descontoRestante = parseFloat(data.desconto || 0);
-        let pagamentoRestante = parseFloat(data.totalPago || 0);
+        
+        // CORREÇÃO: SOMAR CRÉDITO AO PAGAMENTO TOTAL
+        // Se o cliente pagou 100 em dinheiro + 50 de crédito, o poder de pagamento é 150.
+        let pagamentoRestante = parseFloat(data.totalPago || 0) + parseFloat(data.creditoUsado || 0);
 
         for (let i = 0; i < data.pedidos.length; i++) {
             const p = data.pedidos[i];
@@ -307,7 +314,7 @@ export default function Pedidos() {
             let pagamentoDestePedido = 0;
             if (pagamentoRestante > 0) {
                  if (i === data.pedidos.length - 1) pagamentoDestePedido = pagamentoRestante;
-                 else { pagamentoDestePedido = parseFloat((parseFloat(data.totalPago || 0) * proporcao).toFixed(2)); pagamentoRestante -= pagamentoDestePedido; }
+                 else { pagamentoDestePedido = parseFloat((parseFloat(pagamentoRestante) * proporcao).toFixed(2)); pagamentoRestante -= pagamentoDestePedido; }
             }
 
             const currentInfo = pedidoOriginal.outras_informacoes || '';
@@ -346,11 +353,24 @@ export default function Pedidos() {
         if (data.cheques && data.cheques.length > 0) { for (const cheque of data.cheques) { await base44.entities.Cheque.update(cheque.id, { observacao: textoOrigemParaCheques }); } }
         await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); await queryClient.invalidateQueries({ queryKey: ['cheques'] }); await queryClient.invalidateQueries({ queryKey: ['creditos'] });
         setShowLiquidacaoMassaModal(false); toast.success('Liquidação em massa realizada com sucesso!');
-    } catch (error) { console.error(error); toast.error('Erro ao realizar liquidação em massa.'); }
+    } catch (error) { console.error(error); toast.error('Erro ao realizar liquidação em massa.'); } finally { setIsProcessing(false); } // FINALIZA LOADING
   };
 
   return (
     <PermissionGuard setor="Pedidos">
+      {/* OVERLAY DE LOADING */}
+      {isProcessing && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm transition-all animate-in fade-in duration-300">
+            <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4 border border-slate-100">
+                <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+                <div className="text-center">
+                    <h3 className="text-lg font-bold text-slate-800">Processando Liquidação</h3>
+                    <p className="text-sm text-slate-500">Aguarde enquanto atualizamos os pedidos...</p>
+                </div>
+            </div>
+        </div>
+      )}
+
       <div className="min-h-screen bg-[#F5F7FA] pb-10 font-sans text-slate-900">
         <div className="max-w-[1600px] mx-auto p-4 md:p-8 space-y-8">
           {/* Header */}
