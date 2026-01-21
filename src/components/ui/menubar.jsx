@@ -40,7 +40,8 @@ const Menubar = React.forwardRef(({ className, ...props }, ref) => (
   <MenubarPrimitive.Root
     ref={ref}
     className={cn(
-      "flex h-9 items-center space-x-1 rounded-md border bg-background p-1 shadow-sm",
+      // MELHORIA 1: Efeito Glassmorphism (Vidro) + Borda suave
+      "flex h-9 items-center space-x-1 rounded-md border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-1 shadow-sm",
       className
     )}
     {...props} />
@@ -107,7 +108,8 @@ const MenubarItem = React.forwardRef(({ className, inset, ...props }, ref) => (
   <MenubarPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      // MELHORIA 2: Suporte automático para Ícones (gap-2 e tamanho fixo do svg)
+      "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>svg]:size-4 [&>svg]:shrink-0",
       inset && "pl-8",
       className
     )}
@@ -144,7 +146,7 @@ const MenubarRadioItem = React.forwardRef(({ className, children, ...props }, re
     {...props}>
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <MenubarPrimitive.ItemIndicator>
-        <Circle className="h-4 w-4 fill-current" />
+        <Circle className="h-2 w-2 fill-current" />
       </MenubarPrimitive.ItemIndicator>
     </span>
     {children}
@@ -173,9 +175,13 @@ const MenubarShortcut = ({
   ...props
 }) => {
   return (
-    (<span
-      className={cn("ml-auto text-xs tracking-widest text-muted-foreground", className)}
-      {...props} />)
+    <span
+      className={cn(
+        // MELHORIA 3: Visual de tecla física (KBD style)
+        "ml-auto text-xs font-mono tracking-widest text-muted-foreground bg-muted/50 border border-muted rounded px-1.5 py-0.5",
+        className
+      )}
+      {...props} />
   );
 }
 MenubarShortcut.displayname = "MenubarShortcut"
