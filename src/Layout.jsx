@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { 
   LayoutDashboard, 
@@ -11,12 +11,13 @@ import {
   BarChart3,
   PieChart,
   LogOut,
-  PanelLeft
+  Lock // Ícone para indicar desenvolvimento/bloqueado
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { base44 } from '@/api/base44Client';
+import { toast } from "sonner"; // Import para o aviso de desenvolvimento
 
-// Importando os componentes da nova Sidebar Poderosa
+// Importando os componentes da Sidebar
 import {
   SidebarProvider,
   Sidebar,
@@ -32,19 +33,47 @@ import {
   SidebarInset,
   SidebarTrigger,
   SidebarSeparator
-} from "@/components/ui/sidebar"; // Certifique-se que o caminho está correto
+} from "@/components/ui/sidebar";
 
-const navItems = [
-  { name: 'Dashboard', icon: LayoutDashboard, page: 'Dashboard' },
-  { name: 'Representantes', icon: Users, page: 'Representation' },
-  { name: 'Clientes', icon: Building2, page: 'Clientes' },
-  { name: 'Pedidos', icon: ShoppingCart, page: 'Pedidos' },
-  { name: 'Créditos', icon: Wallet, page: 'Creditos' },
-  { name: 'Cheques', icon: CreditCard, page: 'Cheques' },
-  { name: 'Comissões', icon: Wallet, page: 'Comissoes' },
-  { name: 'Balanço', icon: BarChart3, page: 'Balanco' },
-  { name: 'Relatórios', icon: PieChart, page: 'Relatorios' },
-  { name: 'Usuários', icon: Users, page: 'Usuarios' },
+// Definição da Estrutura do Menu por Tópicos
+const navStructure = [
+  {
+    category: "Principal",
+    items: [
+      { name: 'Dashboard', icon: LayoutDashboard, page: 'Dashboard' }
+    ]
+  },
+  {
+    category: "Cadastros",
+    items: [
+      { name: 'Clientes', icon: Building2, page: 'Clientes' },
+      { name: 'Representantes', icon: Users, page: 'Representation' }, // Link para Representantes
+      { name: 'Usuários', icon: Users, page: 'Usuarios' },
+    ]
+  },
+  {
+    category: "A Receber",
+    items: [
+      { name: 'Pedidos', icon: ShoppingCart, page: 'Pedidos' },
+      { name: 'Cheques', icon: CreditCard, page: 'Cheques' },
+      { name: 'Créditos', icon: Wallet, page: 'Creditos' },
+    ]
+  },
+  {
+    category: "A Pagar",
+    items: [
+      // Módulo em desenvolvimento
+      { name: 'Cheques', icon: CreditCard, page: 'ChequesPagar', isDev: true }, 
+      { name: 'Comissões', icon: Wallet, page: 'Comissoes' },
+    ]
+  },
+  {
+    category: "Feedback",
+    items: [
+      { name: 'Relatórios', icon: PieChart, page: 'Relatorios' },
+      { name: 'Balanço', icon: BarChart3, page: 'Balanco' },
+    ]
+  }
 ];
 
 export default function Layout({ children, currentPageName }) {
@@ -61,12 +90,24 @@ export default function Layout({ children, currentPageName }) {
 
   const hasAccess = (pageName) => {
     if (!user) return false;
+    // Permite acesso se for item de desenvolvimento para mostrar o aviso, 
+    // ou verifica permissões reais.
+    if (pageName === 'ChequesPagar') return true; 
+    
     const permissoes = user.permissoes || {};
     const perm = permissoes[pageName];
     return perm === true || perm?.acesso === true;
   };
 
-  // --- LAYOUTS ESPECIAIS (PORTAIS) MANTIDOS ---
+  const handleDevClick = (e) => {
+    e.preventDefault();
+    toast.info("Módulo em Desenvolvimento", {
+      description: "A gestão de Cheques a Pagar estará disponível em breve.",
+      icon: <Lock className="w-4 h-4 text-amber-500" />
+    });
+  };
+
+  // --- LAYOUTS ESPECIAIS (PORTAIS) ---
   if (currentPageName === 'PortalDoRepresentante' || currentPageName === 'PortalCliente') {
     const title = currentPageName === 'PortalDoRepresentante' ? 'Portal do Representante' : 'Portal do Cliente';
     return (
@@ -87,59 +128,68 @@ export default function Layout({ children, currentPageName }) {
     );
   }
 
-  // --- LAYOUT PRINCIPAL (ADMIN) COM A NOVA SIDEBAR ---
+  // --- LAYOUT PRINCIPAL (ADMIN) ---
   return (
     <SidebarProvider>
       <Sidebar variant="inset" collapsible="icon">
         {/* CABEÇALHO DA SIDEBAR */}
         <SidebarHeader>
           <div className="flex items-center gap-3 p-2">
-            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-blue-600 text-white">
+            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-blue-600 text-white shadow-md">
               <Building2 className="size-4" />
             </div>
             <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-semibold">J&C Esquadrias</span>
-              <span className="truncate text-xs text-slate-500">Financeiro</span>
+              <span className="truncate font-bold text-slate-800">J&C Esquadrias</span>
+              <span className="truncate text-xs text-slate-500 font-medium">Gestão Financeira</span>
             </div>
           </div>
         </SidebarHeader>
         
         <SidebarSeparator />
 
-        {/* CONTEÚDO DA NAVEGAÇÃO */}
+        {/* CONTEÚDO DA NAVEGAÇÃO ORGANIZADO POR GRUPOS */}
         <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupLabel>Plataforma</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {navItems
-                  .filter(item => hasAccess(item.page))
-                  .map((item) => {
-                    const isActive = currentPageName === item.page;
-                    return (
-                      <SidebarMenuItem key={item.page}>
-                        <SidebarMenuButton 
-                          asChild 
-                          isActive={isActive}
-                          onClick={() => navigate(createPageUrl(item.page))}
-                          tooltip={item.name}
-                          size="default"
-                        >
-                          {/* O uso de <a> ou <button> aqui é tratado pelo asChild do Radix */}
-                          <button className="cursor-pointer">
-                            <item.icon />
-                            <span>{item.name}</span>
-                          </button>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    );
-                  })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+          {navStructure.map((group, index) => (
+            <SidebarGroup key={index}>
+              {/* O Label some automaticamente quando a sidebar recolhe (graças ao CSS do componente Sidebar) */}
+              <SidebarGroupLabel>{group.category}</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {group.items
+                    .filter(item => hasAccess(item.page))
+                    .map((item) => {
+                      const isActive = currentPageName === item.page;
+                      return (
+                        <SidebarMenuItem key={item.page}>
+                          <SidebarMenuButton 
+                            asChild 
+                            isActive={isActive}
+                            tooltip={item.name}
+                            size="default"
+                            // Se for DEV, aplica estilo desabilitado visualmente
+                            className={item.isDev ? "opacity-70" : ""}
+                          >
+                            <button 
+                              className="cursor-pointer flex items-center w-full"
+                              onClick={item.isDev ? handleDevClick : () => navigate(createPageUrl(item.page))}
+                            >
+                              <item.icon className={item.isDev ? "text-slate-400" : ""} />
+                              <span>{item.name}</span>
+                              {item.isDev && (
+                                <Lock className="ml-auto w-3 h-3 text-slate-400" />
+                              )}
+                            </button>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ))}
         </SidebarContent>
 
-        {/* RODAPÉ DA SIDEBAR (PERFIL/LOGOUT) */}
+        {/* RODAPÉ DA SIDEBAR */}
         <SidebarFooter>
           <SidebarMenu>
             <SidebarMenuItem>
@@ -169,15 +219,17 @@ export default function Layout({ children, currentPageName }) {
 
       {/* ÁREA PRINCIPAL DO CONTEÚDO */}
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b bg-white/50 backdrop-blur-sm px-4 sticky top-0 z-10">
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b bg-white/50 backdrop-blur-sm px-4 sticky top-0 z-20">
           <SidebarTrigger className="-ml-1" />
           <div className="h-4 w-px bg-slate-200 mx-2" />
           <h1 className="font-semibold text-slate-800">
-            {navItems.find(i => i.page === currentPageName)?.name || 'J&C System'}
+            {navStructure
+              .flatMap(g => g.items)
+              .find(i => i.page === currentPageName)?.name || 'J&C System'}
           </h1>
         </header>
         
-        <div className="flex-1 p-4 md:p-8 pt-6">
+        <div className="flex-1 p-4 md:p-8 pt-6 overflow-x-hidden">
           {children}
         </div>
       </SidebarInset>
