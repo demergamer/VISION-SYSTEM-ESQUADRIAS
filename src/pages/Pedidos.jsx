@@ -4,19 +4,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge"; // Import Badge
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ShoppingCart, Plus, Search, RefreshCw, DollarSign, AlertTriangle,
   FileText, ArrowLeft, Filter, Upload, Truck, Clock, CheckCircle, XCircle,
   MoreHorizontal, ChevronDown, Package, UserPlus,
-  LayoutGrid, List, MapPin, Calendar, Edit, Eye, RotateCcw // Novos icones
+  LayoutGrid, List, MapPin, Calendar, Edit, Eye, RotateCcw
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { toast } from "sonner";
 import { format, differenceInDays } from "date-fns";
-import { cn } from "@/lib/utils"; // Import cn
+import { cn } from "@/lib/utils";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -42,13 +42,15 @@ import RotaCobrancaModal from "@/components/pedidos/RotaCobrancaModal";
 import PermissionGuard from "@/components/PermissionGuard";
 import { usePermissions } from "@/components/UserNotRegisteredError";
 
-// --- COMPONENTE DE CARD PARA O MODO "BLOCOS" (GRID) ---
+// --- NOVO COMPONENTE DE CARD PARA O MODO "BLOCOS" (GRID) ---
 const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReverter, canDo }) => {
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
   
   const getStatusBadge = (status, dataEntrega) => {
     const now = new Date();
-    const diasAtraso = differenceInDays(now, new Date(dataEntrega));
+    // Proteção para data inválida
+    const dataRef = dataEntrega ? new Date(dataEntrega) : new Date();
+    const diasAtraso = differenceInDays(now, dataRef);
 
     switch (status) {
       case 'aguardando': return <Badge className="bg-amber-100 text-amber-700 border-amber-200">Aguardando</Badge>;
@@ -62,14 +64,16 @@ const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReve
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-4 hover:shadow-md transition-all flex flex-col gap-3 group relative">
+    <div className="bg-white border border-slate-200 rounded-2xl p-4 hover:shadow-md transition-all flex flex-col gap-3 group relative h-full">
       <div className="flex justify-between items-start">
-        <div>
+        <div className="flex-1 min-w-0 pr-2">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">#{pedido.numero_pedido}</span>
-          <h3 className="font-bold text-slate-800 line-clamp-1" title={pedido.cliente_nome}>{pedido.cliente_nome}</h3>
-          <p className="text-xs text-slate-500 font-mono">{pedido.cliente_codigo}</p>
+          <h3 className="font-bold text-slate-800 truncate" title={pedido.cliente_nome}>{pedido.cliente_nome}</h3>
+          <p className="text-xs text-slate-500 font-mono truncate">{pedido.cliente_codigo}</p>
         </div>
-        {getStatusBadge(pedido.status, pedido.data_entrega)}
+        <div className="shrink-0">
+            {getStatusBadge(pedido.status, pedido.data_entrega)}
+        </div>
       </div>
 
       <div className="space-y-1 py-2 border-t border-slate-100 border-b">
@@ -83,11 +87,11 @@ const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReve
         </div>
       </div>
 
-      <div className="flex justify-between items-end">
+      <div className="flex justify-between items-end mt-auto">
         <div>
           <p className="text-xs text-slate-400">Saldo</p>
-          <p className={cn("text-lg font-bold", pedido.saldo_restante > 0 ? "text-amber-600" : "text-emerald-600")}>
-            {formatCurrency(pedido.saldo_restante || (pedido.valor_pedido - (pedido.total_pago || 0)))}
+          <p className={cn("text-lg font-bold", (pedido.saldo_restante || 0) > 0 ? "text-amber-600" : "text-emerald-600")}>
+            {formatCurrency(pedido.saldo_restante !== undefined ? pedido.saldo_restante : (pedido.valor_pedido - (pedido.total_pago || 0)))}
           </p>
         </div>
         <div className="text-right">
@@ -96,8 +100,8 @@ const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReve
         </div>
       </div>
 
-      {/* Ações Hover (aparecem ou ficam visíveis dependendo do design, aqui deixarei fixas no rodapé do card para mobile friendly) */}
-      <div className="flex gap-1 justify-end pt-2 mt-auto">
+      {/* Ações */}
+      <div className="flex gap-1 justify-end pt-2 border-t border-slate-50">
          {canDo('Pedidos', 'visualizar') && (
             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-100" onClick={() => onView(pedido)} title="Ver Detalhes">
                <Eye className="w-4 h-4 text-slate-500" />
@@ -132,7 +136,7 @@ const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReve
   );
 };
 
-// --- COMPONENTE ORIGINAL "AGUARDANDO" (MANTIDO) ---
+// --- COMPONENTE ORIGINAL "AGUARDANDO" ---
 const PedidoAguardandoCard = ({ pedido, onConfirmar, onCancelar, onCadastrarCliente }) => {
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
   const formatDate = (dateString) => {
@@ -216,8 +220,7 @@ export default function Pedidos() {
   const { canDo } = usePermissions();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('abertos');
-  // ESTADO DO MODO DE VISUALIZAÇÃO: 'table' ou 'grid'
-  const [viewMode, setViewMode] = useState('table'); 
+  const [viewMode, setViewMode] = useState('table'); // Estado para alternar visualização
   
   // Modais State
   const [showAddModal, setShowAddModal] = useState(false);
@@ -286,7 +289,7 @@ export default function Pedidos() {
     return filtered;
   }, [pedidos, activeTab, searchTerm]);
 
-  // PROTEÇÃO: Garante que selectedRota exista antes de filtrar
+  // CORREÇÃO: Definir pedidosDaRota aqui para evitar ReferenceError
   const pedidosDaRota = useMemo(() => {
     if (!selectedRota) return [];
     return pedidos.filter(p => p.rota_importada_id === selectedRota.id);
@@ -301,18 +304,11 @@ export default function Pedidos() {
   const handleRefresh = () => { refetchPedidos(); refetchRotas(); toast.success('Atualizado!'); };
   const handleImportComplete = () => { queryClient.invalidateQueries({ queryKey: ['pedidos'] }); queryClient.invalidateQueries({ queryKey: ['rotas'] }); setShowImportModal(false); toast.success('Importação concluída!'); };
   
-  // CORREÇÃO: Removida a lógica complexa de dentro do try principal para evitar travamentos
-  // A lógica de verificação agora é mais segura e não impede a abertura do modal
   const handleSelectRota = async (rota) => { 
-    // Primeiro abre o modal para não travar a interface
-    setSelectedRota(rota);
-    setShowRotaModal(true);
-
-    // Depois tenta fazer a verificação de clientes em background
+    setSelectedRota(rota); setShowRotaModal(true);
     try {
       const pedidosDaRotaAtual = pedidos.filter(p => p.rota_importada_id === rota.id);
       const pedidosPendentes = pedidosDaRotaAtual.filter(p => p.cliente_pendente);
-      
       if (pedidosPendentes.length > 0) {
           let atualizados = 0;
           for (const pedido of pedidosPendentes) {
@@ -338,32 +334,18 @@ export default function Pedidos() {
             toast.success(`${atualizados} pedido(s) vinculado(s) automaticamente!`);
           }
       }
-    } catch (error) {
-      console.error('Erro na verificação silenciosa de pedidos:', error);
-      // Não faz nada visualmente para não assustar o usuário, já que o modal abriu
-    }
+    } catch (error) { console.error('Erro na verificação silenciosa de pedidos:', error); }
   };
 
   const handleSaveRotaChecklist = async (data) => { 
       try {
           await base44.entities.RotaImportada.update(data.rota.id, data.rota);
-          // Atualiza os pedidos em paralelo para ser mais rápido
-          const promises = data.pedidos.map(pedido => 
-              base44.entities.Pedido.update(pedido.id, {
-                  confirmado_entrega: pedido.confirmado_entrega,
-                  status: pedido.status
-              })
-          );
+          const promises = data.pedidos.map(pedido => base44.entities.Pedido.update(pedido.id, { confirmado_entrega: pedido.confirmado_entrega, status: pedido.status }));
           await Promise.all(promises);
-
           await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
           await queryClient.invalidateQueries({ queryKey: ['rotas'] }); 
-          setShowRotaModal(false); 
-          toast.success('Rota e pedidos atualizados!'); 
-      } catch (error) {
-          toast.error("Erro ao salvar rota.");
-          console.error(error);
-      }
+          setShowRotaModal(false); toast.success('Rota e pedidos atualizados!'); 
+      } catch (error) { toast.error("Erro ao salvar rota."); console.error(error); }
   };
 
   const handleAlterarPortador = (rota) => { setSelectedRota(rota); setShowAlterarPortadorModal(true); };
@@ -378,62 +360,30 @@ export default function Pedidos() {
           return nomePedido === nomeNovoCliente || nomePedido.includes(nomeNovoCliente) || nomeNovoCliente.includes(nomePedido);
         });
         for (const pedido of pedidosComMesmoCliente) {
-          const updateData = {
-            cliente_codigo: novoCliente.codigo,
-            cliente_regiao: novoCliente.regiao,
-            representante_codigo: novoCliente.representante_codigo,
-            representante_nome: novoCliente.representante_nome,
-            porcentagem_comissao: novoCliente.porcentagem_comissao,
-            cliente_pendente: false
-          };
-          if (pedidoParaCadastro && pedido.id === pedidoParaCadastro.id) {
-            updateData.confirmado_entrega = true;
-            updateData.status = 'aberto';
-          }
+          const updateData = { cliente_codigo: novoCliente.codigo, cliente_regiao: novoCliente.regiao, representante_codigo: novoCliente.representante_codigo, representante_nome: novoCliente.representante_nome, porcentagem_comissao: novoCliente.porcentagem_comissao, cliente_pendente: false };
+          if (pedidoParaCadastro && pedido.id === pedidoParaCadastro.id) { updateData.confirmado_entrega = true; updateData.status = 'aberto'; }
           await base44.entities.Pedido.update(pedido.id, updateData);
         }
         await queryClient.invalidateQueries({ queryKey: ['clientes'] });
         await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
-        setShowCadastrarClienteModal(false);
-        setPedidoParaCadastro(null);
-        toast.success(`Cliente cadastrado! ${pedidosComMesmoCliente.length} pedido(s) vinculados.`);
+        setShowCadastrarClienteModal(false); setPedidoParaCadastro(null); toast.success(`Cliente cadastrado! ${pedidosComMesmoCliente.length} pedido(s) vinculados.`);
       } catch (error) { toast.error('Erro ao cadastrar cliente'); }
   };
   
   const handleCancelarPedidoRota = (pedido) => { setPedidoParaCancelar(pedido); setShowCancelarPedidoModal(true); };
   const handleSaveCancelarPedido = async (data) => { 
-      try {
-          await base44.entities.Pedido.update(pedidoParaCancelar.id, data);
-          await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
-          setShowCancelarPedidoModal(false);
-          toast.success('Pedido cancelado!');
-      } catch(e) { toast.error('Erro ao cancelar'); }
+      try { await base44.entities.Pedido.update(pedidoParaCancelar.id, data); await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); setShowCancelarPedidoModal(false); toast.success('Pedido cancelado!'); } catch(e) { toast.error('Erro ao cancelar'); }
   };
   
   const handleConfirmarAguardando = async (pedido) => {
-    try {
-      await base44.entities.Pedido.update(pedido.id, { confirmado_entrega: true, status: 'aberto' });
-      await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
-      toast.success('Pedido confirmado!');
-    } catch (error) { toast.error('Erro ao confirmar'); }
+    try { await base44.entities.Pedido.update(pedido.id, { confirmado_entrega: true, status: 'aberto' }); await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); toast.success('Pedido confirmado!'); } catch (error) { toast.error('Erro ao confirmar'); }
   };
 
   const handleReverterLiquidacao = async () => { 
       if (!pedidoParaReverter) return;
       try {
-          await base44.entities.Pedido.update(pedidoParaReverter.id, {
-              status: 'aberto',
-              saldo_restante: pedidoParaReverter.valor_pedido,
-              total_pago: 0,
-              data_pagamento: null,
-              mes_pagamento: null,
-              desconto_dado: 0,
-              outras_informacoes: pedidoParaReverter.outras_informacoes + `\n[${new Date().toLocaleDateString()}] Liquidação Revertida.`
-          });
-          await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
-          setShowReverterDialog(false);
-          setPedidoParaReverter(null);
-          toast.success('Revertido!');
+          await base44.entities.Pedido.update(pedidoParaReverter.id, { status: 'aberto', saldo_restante: pedidoParaReverter.valor_pedido, total_pago: 0, data_pagamento: null, mes_pagamento: null, desconto_dado: 0, outras_informacoes: pedidoParaReverter.outras_informacoes + `\n[${new Date().toLocaleDateString()}] Liquidação Revertida.` });
+          await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); setShowReverterDialog(false); setPedidoParaReverter(null); toast.success('Revertido!');
       } catch (e) { toast.error('Erro ao reverter'); }
   };
 
@@ -446,53 +396,30 @@ export default function Pedidos() {
              const primeiroPedido = data.pedidos[0];
              const todosCreditos = await base44.entities.Credito.list();
              const proximoNumero = todosCreditos.length > 0 ? Math.max(...todosCreditos.map(c => c.numero_credito || 0)) + 1 : 1;
-             await base44.entities.Credito.create({
-                numero_credito: proximoNumero,
-                cliente_codigo: primeiroPedido.cliente_codigo,
-                cliente_nome: primeiroPedido.cliente_nome,
-                valor: data.credito,
-                origem: `Excedente Liquidação em Massa (${data.pedidos.length} pedidos)`,
-                pedido_origem_id: primeiroPedido.id,
-                status: 'disponivel',
-                data_emissao: hoje
-             });
+             await base44.entities.Credito.create({ numero_credito: proximoNumero, cliente_codigo: primeiroPedido.cliente_codigo, cliente_nome: primeiroPedido.cliente_nome, valor: data.credito, origem: `Excedente Liquidação em Massa (${data.pedidos.length} pedidos)`, pedido_origem_id: primeiroPedido.id, status: 'disponivel', data_emissao: hoje });
         }
 
         if (data.creditoUsado > 0 && data.pedidos.length > 0) {
             const primeiroPedido = data.pedidos[0];
             const todosCreditos = await base44.entities.Credito.list();
-            const creditosDisponiveis = todosCreditos.filter(c => 
-                c.cliente_codigo === primeiroPedido.cliente_codigo && c.status === 'disponivel'
-            );
+            const creditosDisponiveis = todosCreditos.filter(c => c.cliente_codigo === primeiroPedido.cliente_codigo && c.status === 'disponivel');
             let valorParaAbater = data.creditoUsado;
             for (const cred of creditosDisponiveis) {
                 if (valorParaAbater <= 0) break;
-                if (cred.valor <= valorParaAbater) {
-                    await base44.entities.Credito.update(cred.id, { status: 'usado', data_uso: hoje, pedido_uso_id: primeiroPedido.id });
-                    valorParaAbater -= cred.valor;
-                } else {
-                    const saldoRestanteCredito = cred.valor - valorParaAbater;
-                    await base44.entities.Credito.update(cred.id, { status: 'usado', data_uso: hoje, pedido_uso_id: primeiroPedido.id });
-                    const proximoNumero = todosCreditos.length > 0 ? Math.max(...todosCreditos.map(c => c.numero_credito || 0)) + 1 : 1;
-                    await base44.entities.Credito.create({
-                        numero_credito: proximoNumero + 1,
-                        cliente_codigo: cred.cliente_codigo,
-                        cliente_nome: cred.cliente_nome,
-                        valor: saldoRestanteCredito,
-                        origem: `Saldo restante do crédito #${cred.numero_credito}`,
-                        status: 'disponivel',
-                        data_emissao: hoje
-                    });
-                    valorParaAbater = 0;
+                if (cred.valor <= valorParaAbater) { await base44.entities.Credito.update(cred.id, { status: 'usado', data_uso: hoje, pedido_uso_id: primeiroPedido.id }); valorParaAbater -= cred.valor; } 
+                else { 
+                    const saldoRestanteCredito = cred.valor - valorParaAbater; 
+                    await base44.entities.Credito.update(cred.id, { status: 'usado', data_uso: hoje, pedido_uso_id: primeiroPedido.id }); 
+                    const proximoNumero = todosCreditos.length > 0 ? Math.max(...todosCreditos.map(c => c.numero_credito || 0)) + 1 : 1; 
+                    await base44.entities.Credito.create({ numero_credito: proximoNumero + 1, cliente_codigo: cred.cliente_codigo, cliente_nome: cred.cliente_nome, valor: saldoRestanteCredito, origem: `Saldo restante do crédito #${cred.numero_credito}`, status: 'disponivel', data_emissao: hoje }); 
+                    valorParaAbater = 0; 
                 }
             }
         }
 
         let textoDetalheCheques = "";
         if (data.cheques && data.cheques.length > 0) {
-            const detalhes = data.cheques.map(c => 
-                `Cheque Nº ${c.numero_cheque} (${c.banco || 'Bco N/A'}${c.agencia ? '/Ag '+c.agencia : ''}${c.conta ? '/CC '+c.conta : ''}) - R$ ${formatCurrency(c.valor)}`
-            );
+            const detalhes = data.cheques.map(c => `Cheque Nº ${c.numero_cheque} (${c.banco || 'Bco N/A'}${c.agencia ? '/Ag '+c.agencia : ''}${c.conta ? '/CC '+c.conta : ''}) - R$ ${formatCurrency(c.valor)}`);
             textoDetalheCheques = "\nDETALHE CHEQUES:\n" + detalhes.join("\n");
         }
 
@@ -509,73 +436,38 @@ export default function Pedidos() {
             if (!pedidoOriginal) continue;
 
             const proporcao = totalSaldoOriginal > 0 ? (p.saldo_original || 0) / totalSaldoOriginal : 0;
-
             let descontoDestePedido = 0;
             if (descontoRestante > 0) {
-                if (i === data.pedidos.length - 1) {
-                    descontoDestePedido = descontoRestante;
-                } else {
-                    descontoDestePedido = parseFloat((parseFloat(data.desconto || 0) * proporcao).toFixed(2));
-                    descontoRestante -= descontoDestePedido;
-                }
+                if (i === data.pedidos.length - 1) descontoDestePedido = descontoRestante;
+                else { descontoDestePedido = parseFloat((parseFloat(data.desconto || 0) * proporcao).toFixed(2)); descontoRestante -= descontoDestePedido; }
             }
 
             let pagamentoDestePedido = 0;
             if (pagamentoRestante > 0) {
-                 if (i === data.pedidos.length - 1) {
-                    pagamentoDestePedido = pagamentoRestante;
-                } else {
-                    pagamentoDestePedido = parseFloat((parseFloat(data.totalPago || 0) * proporcao).toFixed(2));
-                    pagamentoRestante -= pagamentoDestePedido;
-                }
+                 if (i === data.pedidos.length - 1) pagamentoDestePedido = pagamentoRestante;
+                 else { pagamentoDestePedido = parseFloat((parseFloat(data.totalPago || 0) * proporcao).toFixed(2)); pagamentoRestante -= pagamentoDestePedido; }
             }
 
             const currentInfo = pedidoOriginal.outras_informacoes || '';
             const formaPagamentoTexto = data.formaPagamento || 'Liquidação em Massa';
             const infoDesconto = descontoDestePedido > 0 ? ` (Desc. aplicado: R$ ${descontoDestePedido.toFixed(2)})` : '';
             const infoParcial = pagamentoDestePedido < (p.saldo_original - descontoDestePedido) ? ` [PARCIAL: Pagou R$ ${pagamentoDestePedido.toFixed(2)}]` : '';
-            
-            const newInfo = currentInfo
-                ? `${currentInfo}\n[${new Date().toLocaleDateString('pt-BR')}] LIQUIDAÇÃO EM MASSA: ${formaPagamentoTexto}${infoDesconto}${infoParcial}${textoDetalheCheques}`
-                : `[${new Date().toLocaleDateString('pt-BR')}] LIQUIDAÇÃO EM MASSA: ${formaPagamentoTexto}${infoDesconto}${infoParcial}${textoDetalheCheques}`;
+            const newInfo = currentInfo ? `${currentInfo}\n[${new Date().toLocaleDateString('pt-BR')}] LIQUIDAÇÃO EM MASSA: ${formaPagamentoTexto}${infoDesconto}${infoParcial}${textoDetalheCheques}` : `[${new Date().toLocaleDateString('pt-BR')}] LIQUIDAÇÃO EM MASSA: ${formaPagamentoTexto}${infoDesconto}${infoParcial}${textoDetalheCheques}`;
 
             const descontoAnterior = parseFloat(pedidoOriginal.desconto_dado || 0);
             const novoDescontoDado = descontoAnterior + descontoDestePedido;
-            
             const totalPagoAnterior = parseFloat(pedidoOriginal.total_pago || 0);
             const novoTotalPago = totalPagoAnterior + pagamentoDestePedido;
-            
             let novoSaldo = parseFloat(pedidoOriginal.valor_pedido) - (novoTotalPago + novoDescontoDado);
             if (novoSaldo < 0.05) novoSaldo = 0;
 
-            await base44.entities.Pedido.update(p.id, {
-                status: novoSaldo <= 0 ? 'pago' : 'parcial',
-                saldo_restante: novoSaldo,
-                total_pago: novoTotalPago,
-                desconto_dado: novoDescontoDado,
-                data_pagamento: hoje,
-                mes_pagamento: mesAtual,
-                outras_informacoes: newInfo
-            });
+            await base44.entities.Pedido.update(p.id, { status: novoSaldo <= 0 ? 'pago' : 'parcial', saldo_restante: novoSaldo, total_pago: novoTotalPago, desconto_dado: novoDescontoDado, data_pagamento: hoje, mes_pagamento: mesAtual, outras_informacoes: newInfo });
         }
 
-        if (data.cheques && data.cheques.length > 0) {
-            for (const cheque of data.cheques) {
-                await base44.entities.Cheque.update(cheque.id, { observacao: textoOrigemParaCheques });
-            }
-        }
-
-        await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
-        await queryClient.invalidateQueries({ queryKey: ['cheques'] }); 
-        await queryClient.invalidateQueries({ queryKey: ['creditos'] });
-        
-        setShowLiquidacaoMassaModal(false);
-        toast.success('Liquidação em massa realizada com sucesso!');
-
-    } catch (error) {
-        console.error(error);
-        toast.error('Erro ao realizar liquidação em massa.');
-    }
+        if (data.cheques && data.cheques.length > 0) { for (const cheque of data.cheques) { await base44.entities.Cheque.update(cheque.id, { observacao: textoOrigemParaCheques }); } }
+        await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); await queryClient.invalidateQueries({ queryKey: ['cheques'] }); await queryClient.invalidateQueries({ queryKey: ['creditos'] });
+        setShowLiquidacaoMassaModal(false); toast.success('Liquidação em massa realizada com sucesso!');
+    } catch (error) { console.error(error); toast.error('Erro ao realizar liquidação em massa.'); }
   };
 
   return (
@@ -685,7 +577,7 @@ export default function Pedidos() {
 
             <TabsContent value="aguardando" className="mt-0 focus-visible:outline-none">
               {filteredPedidos.length > 0 ? (
-                // 'aguardando' sempre usa o layout de card grande, independente do viewMode, por ser um fluxo específico
+                // 'aguardando' sempre usa o layout de card grande
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                   {filteredPedidos.map((pedido) => (
                     <PedidoAguardandoCard key={pedido.id} pedido={pedido} onConfirmar={handleConfirmarAguardando} onCancelar={handleCancelar} onCadastrarCliente={handleCadastrarCliente} />
@@ -734,9 +626,7 @@ export default function Pedidos() {
           <ModalContainer open={showDetailsModal} onClose={() => { setShowDetailsModal(false); setSelectedPedido(null); }} title="Detalhes do Pedido" description="Visualização completa do pedido" size="xl">{selectedPedido && <PedidoDetails pedido={selectedPedido} onClose={() => { setShowDetailsModal(false); setSelectedPedido(null); }} />}</ModalContainer>
           <ModalContainer open={showLiquidarModal} onClose={() => { setShowLiquidarModal(false); setSelectedPedido(null); }} title="Liquidação de Pedido" description="Registre o pagamento do pedido">{selectedPedido && <LiquidacaoForm pedido={selectedPedido} onSave={(data) => updateMutation.mutate({ id: selectedPedido.id, data })} onCancel={() => { setShowLiquidarModal(false); setSelectedPedido(null); }} isLoading={updateMutation.isPending} />}</ModalContainer>
           <ModalContainer open={showImportModal} onClose={() => setShowImportModal(false)} title="Importar Pedidos" description="Importe pedidos de uma planilha Excel" size="lg"><ImportarPedidos clientes={clientes} rotas={rotas} onImportComplete={handleImportComplete} onCancel={() => setShowImportModal(false)} /></ModalContainer>
-          <ModalContainer open={showRotaModal} onClose={() => { setShowRotaModal(false); setSelectedRota(null); }} title="Checklist da Rota" description="Confirme os pedidos entregues" size="lg">
-            {selectedRota && <RotaChecklist rota={selectedRota} pedidos={pedidosDaRota} onSave={handleSaveRotaChecklist} onCadastrarCliente={handleCadastrarCliente} onCancelarPedido={handleCancelarPedidoRota} onCancel={() => { setShowRotaModal(false); setSelectedRota(null); }} />}
-          </ModalContainer>
+          <ModalContainer open={showRotaModal} onClose={() => { setShowRotaModal(false); setSelectedRota(null); }} title="Checklist da Rota" description="Confirme os pedidos entregues" size="lg">{selectedRota && <RotaChecklist rota={selectedRota} pedidos={pedidosDaRota} onSave={handleSaveRotaChecklist} onCadastrarCliente={handleCadastrarCliente} onCancelarPedido={handleCancelarPedidoRota} onCancel={() => { setShowRotaModal(false); setSelectedRota(null); }} />}</ModalContainer>
           <ModalContainer open={showAlterarPortadorModal} onClose={() => { setShowAlterarPortadorModal(false); setSelectedRota(null); }} title="Alterar Portador da Rota" description="Gere um relatório PDF e altere o motorista responsável" size="lg">{selectedRota && <AlterarPortadorModal rota={selectedRota} pedidos={pedidosDaRota} onSave={handleSaveAlterarPortador} onCancel={() => { setShowAlterarPortadorModal(false); setSelectedRota(null); }} />}</ModalContainer>
           <ModalContainer open={showCadastrarClienteModal} onClose={() => { setShowCadastrarClienteModal(false); setPedidoParaCadastro(null); }} title="Cadastrar Cliente Pendente" description={`Cliente: ${pedidoParaCadastro?.cliente_nome || ''}`} size="lg"><ClienteForm cliente={pedidoParaCadastro ? { nome: pedidoParaCadastro.cliente_nome } : null} representantes={representantes} onSave={handleSaveNovoCliente} onCancel={() => { setShowCadastrarClienteModal(false); setPedidoParaCadastro(null); }} /></ModalContainer>
           <ModalContainer open={showCancelarPedidoModal} onClose={() => { setShowCancelarPedidoModal(false); setPedidoParaCancelar(null); }} title="Cancelar Pedido" description="Informe o motivo do cancelamento">{pedidoParaCancelar && <CancelarPedidoModal pedido={pedidoParaCancelar} onSave={handleSaveCancelarPedido} onCancel={() => { setShowCancelarPedidoModal(false); setPedidoParaCancelar(null); }} />}</ModalContainer>
