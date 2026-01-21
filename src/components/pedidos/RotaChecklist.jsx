@@ -20,20 +20,23 @@ export default function RotaChecklist({
   onCancelarPedido,
   isLoading 
 }) {
-  // Proteção contra lista vazia ou nula
+  // Proteção: Garante que pedidos seja um array
   const [pedidosState, setPedidosState] = useState(
     (pedidos || []).map(p => ({ ...p, confirmado_entrega: p.confirmado_entrega || false }))
   );
+  
+  // Proteção: Garante que rota não seja null/undefined ao acessar propriedades
   const [motoristaEdit, setMotoristaEdit] = useState({
-    codigo: rota.motorista_codigo || '',
-    nome: rota.motorista_nome || ''
+    codigo: rota?.motorista_codigo || '',
+    nome: rota?.motorista_nome || ''
   });
   
   const [isEditingName, setIsEditingName] = useState(false);
-  const [rotaNome, setRotaNome] = useState(rota.codigo_rota || '');
+  const [rotaNome, setRotaNome] = useState(rota?.codigo_rota || '');
 
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
+  // Função segura para datas (Evita Tela Branca)
   const safeFormatDate = (date) => {
     if (!date) return '-';
     try {
@@ -231,6 +234,7 @@ export default function RotaChecklist({
 
   return (
     <div className="space-y-6">
+      {/* Header da Rota */}
       <Card className="p-4 bg-slate-50">
         <div className="flex items-center gap-3 mb-4">
           <Truck className="w-6 h-6 text-slate-600" />
@@ -252,11 +256,13 @@ export default function RotaChecklist({
                 </div>
             )}
             <p className="text-sm text-slate-500">
+              {/* CORREÇÃO AQUI: Uso da função segura safeFormatDate */}
               Importada em {safeFormatDate(rota.data_importacao)}
             </p>
           </div>
         </div>
 
+        {/* Motorista */}
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div className="space-y-2">
             <Label>Código do Motorista</Label>
@@ -276,6 +282,7 @@ export default function RotaChecklist({
           </div>
         </div>
 
+        {/* Estatísticas */}
         <div className="grid grid-cols-3 gap-4 text-sm">
           <div className="text-center p-3 bg-white rounded-lg">
             <p className="text-slate-500">Total</p>
@@ -292,6 +299,7 @@ export default function RotaChecklist({
         </div>
       </Card>
 
+      {/* Ações em lote */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Checkbox
@@ -306,6 +314,7 @@ export default function RotaChecklist({
         </Badge>
       </div>
 
+      {/* Lista de Pedidos */}
       <div className="space-y-2 max-h-96 overflow-y-auto">
         {pedidosState.map((pedido) => (
           <Card 
