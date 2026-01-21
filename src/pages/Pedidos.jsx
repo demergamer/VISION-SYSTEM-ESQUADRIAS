@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 
-// Componentes Internos (Modais e Formulários)
+// Componentes Internos
 import ModalContainer from "@/components/modals/ModalContainer";
 import PedidoForm from "@/components/pedidos/PedidoForm";
 import PedidoDetails from "@/components/pedidos/PedidoDetails";
@@ -82,7 +82,7 @@ const FilterPanel = ({ filters, setFilters, onClear, isOpen }) => {
   );
 };
 
-// --- COMPONENTES VISUAIS (Cards) ---
+// --- COMPONENTES VISUAIS ---
 const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReverter, canDo }) => {
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
   const getStatusBadge = (status, dataEntrega) => {
@@ -239,29 +239,30 @@ export default function Pedidos() {
   const handleCancelar = (pedido) => { setPedidoParaCancelar(pedido); setShowCancelarPedidoModal(true); };
   const handleRefresh = () => { refetchPedidos(); refetchRotas(); toast.success('Atualizado!'); };
   const handleImportComplete = () => { queryClient.invalidateQueries({ queryKey: ['pedidos'] }); queryClient.invalidateQueries({ queryKey: ['rotas'] }); setShowImportModal(false); toast.success('Importação concluída!'); };
-  const handleSelectRota = async (rota) => { /* ... Lógica da rota ... */ setSelectedRota(rota); setShowRotaModal(true); };
-  const handleSaveRotaChecklist = async (data) => { /* ... */ try { await base44.entities.RotaImportada.update(data.rota.id, data.rota); const promises = data.pedidos.map(pedido => base44.entities.Pedido.update(pedido.id, { confirmado_entrega: pedido.confirmado_entrega, status: pedido.status })); await Promise.all(promises); await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); await queryClient.invalidateQueries({ queryKey: ['rotas'] }); setShowRotaModal(false); toast.success('Rota e pedidos atualizados!'); } catch (error) { toast.error("Erro ao salvar rota."); } };
+  const handleSelectRota = async (rota) => { setSelectedRota(rota); setShowRotaModal(true); try { const pedidosDaRotaAtual = pedidos.filter(p => p.rota_importada_id === rota.id); const pedidosPendentes = pedidosDaRotaAtual.filter(p => p.cliente_pendente); if (pedidosPendentes.length > 0) { let atualizados = 0; for (const pedido of pedidosPendentes) { const nomeClientePedido = pedido.cliente_nome?.toLowerCase().trim() || ''; const clienteEncontrado = clientes.find(c => { const nomeCliente = c.nome?.toLowerCase().trim() || ''; return nomeCliente === nomeClientePedido || nomeCliente.includes(nomeClientePedido) || nomeClientePedido.includes(nomeCliente); }); if (clienteEncontrado) { await base44.entities.Pedido.update(pedido.id, { cliente_codigo: clienteEncontrado.codigo, cliente_regiao: clienteEncontrado.regiao, representante_codigo: clienteEncontrado.representante_codigo, representante_nome: clienteEncontrado.representante_nome, porcentagem_comissao: clienteEncontrado.porcentagem_comissao, cliente_pendente: false }); atualizados++; } } if (atualizados > 0) { await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); toast.success(`${atualizados} pedido(s) vinculado(s) automaticamente!`); } } } catch (error) { console.error('Erro na verificação silenciosa de pedidos:', error); } };
+  const handleSaveRotaChecklist = async (data) => { try { await base44.entities.RotaImportada.update(data.rota.id, data.rota); const promises = data.pedidos.map(pedido => base44.entities.Pedido.update(pedido.id, { confirmado_entrega: pedido.confirmado_entrega, status: pedido.status })); await Promise.all(promises); await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); await queryClient.invalidateQueries({ queryKey: ['rotas'] }); setShowRotaModal(false); toast.success('Rota e pedidos atualizados!'); } catch (error) { toast.error("Erro ao salvar rota."); } };
   const handleAlterarPortador = (rota) => { setSelectedRota(rota); setShowAlterarPortadorModal(true); };
   const handleSaveAlterarPortador = async (motorista) => { setShowAlterarPortadorModal(false); toast.success('Portador alterado!'); };
   const handleCadastrarCliente = (pedido) => { setPedidoParaCadastro(pedido); setShowCadastrarClienteModal(true); };
-  const handleSaveNovoCliente = async (clienteData) => { /* ... */ try { const novoCliente = await base44.entities.Cliente.create(clienteData); const nomeNovoCliente = clienteData.nome?.toLowerCase().trim() || ''; const pedidosComMesmoCliente = pedidos.filter(p => { const nomePedido = p.cliente_nome?.toLowerCase().trim() || ''; return nomePedido === nomeNovoCliente || nomePedido.includes(nomeNovoCliente) || nomeNovoCliente.includes(nomePedido); }); for (const pedido of pedidosComMesmoCliente) { const updateData = { cliente_codigo: novoCliente.codigo, cliente_regiao: novoCliente.regiao, representante_codigo: novoCliente.representante_codigo, representante_nome: novoCliente.representante_nome, porcentagem_comissao: novoCliente.porcentagem_comissao, cliente_pendente: false }; if (pedidoParaCadastro && pedido.id === pedidoParaCadastro.id) { updateData.confirmado_entrega = true; updateData.status = 'aberto'; } await base44.entities.Pedido.update(pedido.id, updateData); } await queryClient.invalidateQueries({ queryKey: ['clientes'] }); await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); setShowCadastrarClienteModal(false); setPedidoParaCadastro(null); toast.success(`Cliente cadastrado! ${pedidosComMesmoCliente.length} pedido(s) vinculados.`); } catch (error) { toast.error('Erro ao cadastrar cliente'); } };
+  const handleSaveNovoCliente = async (clienteData) => { try { const novoCliente = await base44.entities.Cliente.create(clienteData); const nomeNovoCliente = clienteData.nome?.toLowerCase().trim() || ''; const pedidosComMesmoCliente = pedidos.filter(p => { const nomePedido = p.cliente_nome?.toLowerCase().trim() || ''; return nomePedido === nomeNovoCliente || nomePedido.includes(nomeNovoCliente) || nomeNovoCliente.includes(nomePedido); }); for (const pedido of pedidosComMesmoCliente) { const updateData = { cliente_codigo: novoCliente.codigo, cliente_regiao: novoCliente.regiao, representante_codigo: novoCliente.representante_codigo, representante_nome: novoCliente.representante_nome, porcentagem_comissao: novoCliente.porcentagem_comissao, cliente_pendente: false }; if (pedidoParaCadastro && pedido.id === pedidoParaCadastro.id) { updateData.confirmado_entrega = true; updateData.status = 'aberto'; } await base44.entities.Pedido.update(pedido.id, updateData); } await queryClient.invalidateQueries({ queryKey: ['clientes'] }); await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); setShowCadastrarClienteModal(false); setPedidoParaCadastro(null); toast.success(`Cliente cadastrado! ${pedidosComMesmoCliente.length} pedido(s) vinculados.`); } catch (error) { toast.error('Erro ao cadastrar cliente'); } };
   const handleCancelarPedidoRota = (pedido) => { setPedidoParaCancelar(pedido); setShowCancelarPedidoModal(true); };
-  const handleSaveCancelarPedido = async (data) => { /* ... */ try { await base44.entities.Pedido.update(pedidoParaCancelar.id, data); await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); setShowCancelarPedidoModal(false); toast.success('Pedido cancelado!'); } catch(e) { toast.error('Erro ao cancelar'); } };
-  const handleConfirmarAguardando = async (pedido) => { /* ... */ try { await base44.entities.Pedido.update(pedido.id, { confirmado_entrega: true, status: 'aberto' }); await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); toast.success('Pedido confirmado!'); } catch (error) { toast.error('Erro ao confirmar'); } };
-  const handleReverterLiquidacao = async () => { /* ... */ if (!pedidoParaReverter) return; try { await base44.entities.Pedido.update(pedidoParaReverter.id, { status: 'aberto', saldo_restante: pedidoParaReverter.valor_pedido, total_pago: 0, data_pagamento: null, mes_pagamento: null, desconto_dado: 0, outras_informacoes: pedidoParaReverter.outras_informacoes + `\n[${new Date().toLocaleDateString()}] Liquidação Revertida.` }); await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); setShowReverterDialog(false); setPedidoParaReverter(null); toast.success('Revertido!'); } catch (e) { toast.error('Erro ao reverter'); } };
+  const handleSaveCancelarPedido = async (data) => { try { await base44.entities.Pedido.update(pedidoParaCancelar.id, data); await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); setShowCancelarPedidoModal(false); toast.success('Pedido cancelado!'); } catch(e) { toast.error('Erro ao cancelar'); } };
+  const handleConfirmarAguardando = async (pedido) => { try { await base44.entities.Pedido.update(pedido.id, { confirmado_entrega: true, status: 'aberto' }); await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); toast.success('Pedido confirmado!'); } catch (error) { toast.error('Erro ao confirmar'); } };
+  const handleReverterLiquidacao = async () => { if (!pedidoParaReverter) return; try { await base44.entities.Pedido.update(pedidoParaReverter.id, { status: 'aberto', saldo_restante: pedidoParaReverter.valor_pedido, total_pago: 0, data_pagamento: null, mes_pagamento: null, desconto_dado: 0, outras_informacoes: pedidoParaReverter.outras_informacoes + `\n[${new Date().toLocaleDateString()}] Liquidação Revertida.` }); await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); setShowReverterDialog(false); setPedidoParaReverter(null); toast.success('Revertido!'); } catch (e) { toast.error('Erro ao reverter'); } };
 
-  // --- LÓGICA DE LIQUIDAÇÃO EM MASSA (CORRIGIDA) ---
+  // --- LÓGICA DE LIQUIDAÇÃO EM MASSA (CORRIGIDA E BLINDADA) ---
   const handleLiquidacaoMassa = async (data) => {
     try {
         const mesAtual = new Date().toISOString().slice(0, 7);
         const hoje = new Date().toISOString().split('T')[0];
 
-        // 1. Crédito Excedente
-        if (data.credito > 0 && data.pedidos.length > 0) {
+        // 1. Crédito Excedente (Garantir que seja > 0.01 centavo)
+        const valorCredito = parseFloat(data.credito || 0);
+        if (valorCredito > 0.01 && data.pedidos.length > 0) {
              const primeiroPedido = data.pedidos[0];
              const todosCreditos = await base44.entities.Credito.list();
              const proximoNumero = todosCreditos.length > 0 ? Math.max(...todosCreditos.map(c => c.numero_credito || 0)) + 1 : 1;
-             await base44.entities.Credito.create({ numero_credito: proximoNumero, cliente_codigo: primeiroPedido.cliente_codigo, cliente_nome: primeiroPedido.cliente_nome, valor: data.credito, origem: `Excedente Liquidação em Massa (${data.pedidos.length} pedidos)`, pedido_origem_id: primeiroPedido.id, status: 'disponivel', data_emissao: hoje });
+             await base44.entities.Credito.create({ numero_credito: proximoNumero, cliente_codigo: primeiroPedido.cliente_codigo, cliente_nome: primeiroPedido.cliente_nome, valor: valorCredito, origem: `Excedente Liquidação em Massa (${data.pedidos.length} pedidos)`, pedido_origem_id: primeiroPedido.id, status: 'disponivel', data_emissao: hoje });
         }
 
         // 2. Consumo de Crédito
@@ -269,7 +270,7 @@ export default function Pedidos() {
             const primeiroPedido = data.pedidos[0];
             const todosCreditos = await base44.entities.Credito.list();
             const creditosDisponiveis = todosCreditos.filter(c => c.cliente_codigo === primeiroPedido.cliente_codigo && c.status === 'disponivel');
-            let valorParaAbater = data.creditoUsado;
+            let valorParaAbater = parseFloat(data.creditoUsado);
             for (const cred of creditosDisponiveis) {
                 if (valorParaAbater <= 0) break;
                 if (cred.valor <= valorParaAbater) { await base44.entities.Credito.update(cred.id, { status: 'usado', data_uso: hoje, pedido_uso_id: primeiroPedido.id }); valorParaAbater -= cred.valor; } 
@@ -286,7 +287,7 @@ export default function Pedidos() {
         const listaNumerosPedidos = data.pedidos.map(p => `#${p.numero_pedido}`).join(", ");
         const textoOrigemParaCheques = `ORIGEM: Liquidação Pedidos ${listaNumerosPedidos}`;
 
-        // 4. ATUALIZAR PEDIDOS (Correção Agressiva)
+        // 4. ATUALIZAR PEDIDOS (LÓGICA AGRESSIVA DE ARREDONDAMENTO)
         const totalSaldoOriginal = data.totalDivida || data.pedidos.reduce((sum, p) => sum + (p.saldo_original || 0), 0);
         let descontoRestante = parseFloat(data.desconto || 0);
         let pagamentoRestante = parseFloat(data.totalPago || 0);
@@ -323,8 +324,8 @@ export default function Pedidos() {
             // CORREÇÃO CRÍTICA AQUI:
             let novoSaldo = parseFloat(pedidoOriginal.valor_pedido) - (novoTotalPago + novoDescontoDado);
             
-            // Se o saldo for menor que 10 centavos, zera forçadamente.
-            if (Math.abs(novoSaldo) < 0.10) {
+            // BLINDAGEM: Se o saldo for menor que 5 centavos (seja positivo ou negativo por erro de float), zera na força bruta.
+            if (Math.abs(novoSaldo) < 0.05) {
                 novoSaldo = 0;
             }
 
