@@ -4,16 +4,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge"; // Import Badge
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ShoppingCart, Plus, Search, RefreshCw, DollarSign, AlertTriangle,
   FileText, ArrowLeft, Filter, Upload, Truck, Clock, CheckCircle, XCircle,
-  MoreHorizontal, ChevronDown, Package, UserPlus
+  MoreHorizontal, ChevronDown, Package, UserPlus,
+  LayoutGrid, List, MapPin, Calendar, Edit, Eye, RotateCcw // Novos icones
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, differenceInDays } from "date-fns";
+import { cn } from "@/lib/utils"; // Import cn
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -39,16 +42,101 @@ import RotaCobrancaModal from "@/components/pedidos/RotaCobrancaModal";
 import PermissionGuard from "@/components/PermissionGuard";
 import { usePermissions } from "@/components/UserNotRegisteredError";
 
-// --- NOVO COMPONENTE DE CARD MAIOR PARA "AGUARDANDO" ---
+// --- COMPONENTE DE CARD PARA O MODO "BLOCOS" (GRID) ---
+const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReverter, canDo }) => {
+  const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
+  
+  const getStatusBadge = (status, dataEntrega) => {
+    const now = new Date();
+    const diasAtraso = differenceInDays(now, new Date(dataEntrega));
+
+    switch (status) {
+      case 'aguardando': return <Badge className="bg-amber-100 text-amber-700 border-amber-200">Aguardando</Badge>;
+      case 'pago': return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">Pago</Badge>;
+      case 'cancelado': return <Badge className="bg-slate-100 text-slate-700 border-slate-200">Cancelado</Badge>;
+      case 'parcial': return <Badge className="bg-purple-100 text-purple-700 border-purple-200">Parcial</Badge>;
+      default:
+        if (diasAtraso > 20) return <Badge className="bg-red-100 text-red-700 border-red-200">Atrasado ({diasAtraso}d)</Badge>;
+        return <Badge className="bg-blue-100 text-blue-700 border-blue-200">Aberto</Badge>;
+    }
+  };
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-4 hover:shadow-md transition-all flex flex-col gap-3 group relative">
+      <div className="flex justify-between items-start">
+        <div>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">#{pedido.numero_pedido}</span>
+          <h3 className="font-bold text-slate-800 line-clamp-1" title={pedido.cliente_nome}>{pedido.cliente_nome}</h3>
+          <p className="text-xs text-slate-500 font-mono">{pedido.cliente_codigo}</p>
+        </div>
+        {getStatusBadge(pedido.status, pedido.data_entrega)}
+      </div>
+
+      <div className="space-y-1 py-2 border-t border-slate-100 border-b">
+        <div className="flex items-center gap-2 text-sm text-slate-600">
+           <Calendar className="w-3.5 h-3.5 text-slate-400" />
+           <span>{pedido.data_entrega ? format(new Date(pedido.data_entrega), 'dd/MM/yyyy') : '-'}</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-slate-600">
+           <MapPin className="w-3.5 h-3.5 text-slate-400" />
+           <span className="truncate">{pedido.cliente_regiao || 'Sem região'}</span>
+        </div>
+      </div>
+
+      <div className="flex justify-between items-end">
+        <div>
+          <p className="text-xs text-slate-400">Saldo</p>
+          <p className={cn("text-lg font-bold", pedido.saldo_restante > 0 ? "text-amber-600" : "text-emerald-600")}>
+            {formatCurrency(pedido.saldo_restante || (pedido.valor_pedido - (pedido.total_pago || 0)))}
+          </p>
+        </div>
+        <div className="text-right">
+           <p className="text-xs text-slate-400">Total</p>
+           <p className="text-sm font-medium text-slate-600">{formatCurrency(pedido.valor_pedido)}</p>
+        </div>
+      </div>
+
+      {/* Ações Hover (aparecem ou ficam visíveis dependendo do design, aqui deixarei fixas no rodapé do card para mobile friendly) */}
+      <div className="flex gap-1 justify-end pt-2 mt-auto">
+         {canDo('Pedidos', 'visualizar') && (
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-100" onClick={() => onView(pedido)} title="Ver Detalhes">
+               <Eye className="w-4 h-4 text-slate-500" />
+            </Button>
+         )}
+         {pedido.status === 'pago' && onReverter && canDo('Pedidos', 'liquidar') && (
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-amber-50" onClick={() => onReverter(pedido)} title="Reverter">
+               <RotateCcw className="w-4 h-4 text-amber-600" />
+            </Button>
+         )}
+         {pedido.status !== 'pago' && pedido.status !== 'cancelado' && (
+            <>
+               {canDo('Pedidos', 'editar') && (
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-blue-50" onClick={() => onEdit(pedido)} title="Editar">
+                     <Edit className="w-4 h-4 text-blue-600" />
+                  </Button>
+               )}
+               {canDo('Pedidos', 'liquidar') && (
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-emerald-50" onClick={() => onLiquidar(pedido)} title="Liquidar">
+                     <DollarSign className="w-4 h-4 text-emerald-600" />
+                  </Button>
+               )}
+               {canDo('Pedidos', 'editar') && (
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-red-50" onClick={() => onCancelar(pedido)} title="Cancelar">
+                     <XCircle className="w-4 h-4 text-red-600" />
+                  </Button>
+               )}
+            </>
+         )}
+      </div>
+    </div>
+  );
+};
+
+// --- COMPONENTE ORIGINAL "AGUARDANDO" (MANTIDO) ---
 const PedidoAguardandoCard = ({ pedido, onConfirmar, onCancelar, onCadastrarCliente }) => {
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
   const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    try {
-      return format(new Date(dateString), 'dd/MM/yyyy');
-    } catch (e) {
-      return dateString;
-    }
+    try { return format(new Date(dateString), 'dd/MM/yyyy'); } catch (e) { return dateString; }
   };
 
   return (
@@ -69,17 +157,12 @@ const PedidoAguardandoCard = ({ pedido, onConfirmar, onCancelar, onCadastrarClie
           <span className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Cliente / Código</span>
           {pedido.cliente_pendente ? (
              <div className="flex items-center gap-2 text-amber-600 bg-amber-50 p-2 rounded-lg border border-amber-100">
-                <AlertTriangle size={18} />
-                <span className="font-bold text-sm">Cliente Não Cadastrado</span>
+                <AlertTriangle size={18} /> <span className="font-bold text-sm">Cliente Não Cadastrado</span>
              </div>
           ) : (
              <div className="flex flex-col">
-                <span className="font-bold text-slate-800 text-base line-clamp-1" title={pedido.cliente_nome}>
-                  {pedido.cliente_nome || "Nome não informado"}
-                </span>
-                <span className="text-xs text-slate-500 font-mono mt-0.5">
-                  Cód: {pedido.cliente_codigo || "-"}
-                </span>
+                <span className="font-bold text-slate-800 text-base line-clamp-1" title={pedido.cliente_nome}>{pedido.cliente_nome || "Nome não informado"}</span>
+                <span className="text-xs text-slate-500 font-mono mt-0.5">Cód: {pedido.cliente_codigo || "-"}</span>
              </div>
           )}
         </div>
@@ -133,6 +216,8 @@ export default function Pedidos() {
   const { canDo } = usePermissions();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('abertos');
+  // ESTADO DO MODO DE VISUALIZAÇÃO: 'table' ou 'grid'
+  const [viewMode, setViewMode] = useState('table'); 
   
   // Modais State
   const [showAddModal, setShowAddModal] = useState(false);
@@ -201,12 +286,6 @@ export default function Pedidos() {
     return filtered;
   }, [pedidos, activeTab, searchTerm]);
 
-  // PROTEÇÃO: Garante que selectedRota exista antes de filtrar
-  const pedidosDaRota = useMemo(() => {
-    if (!selectedRota) return [];
-    return pedidos.filter(p => p.rota_importada_id === selectedRota.id);
-  }, [pedidos, selectedRota]);
-
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
   const handleEdit = (pedido) => { setSelectedPedido(pedido); setShowEditModal(true); };
@@ -216,18 +295,11 @@ export default function Pedidos() {
   const handleRefresh = () => { refetchPedidos(); refetchRotas(); toast.success('Atualizado!'); };
   const handleImportComplete = () => { queryClient.invalidateQueries({ queryKey: ['pedidos'] }); queryClient.invalidateQueries({ queryKey: ['rotas'] }); setShowImportModal(false); toast.success('Importação concluída!'); };
   
-  // CORREÇÃO: Removida a lógica complexa de dentro do try principal para evitar travamentos
-  // A lógica de verificação agora é mais segura e não impede a abertura do modal
   const handleSelectRota = async (rota) => { 
-    // Primeiro abre o modal para não travar a interface
-    setSelectedRota(rota);
-    setShowRotaModal(true);
-
-    // Depois tenta fazer a verificação de clientes em background
+    setSelectedRota(rota); setShowRotaModal(true);
     try {
       const pedidosDaRotaAtual = pedidos.filter(p => p.rota_importada_id === rota.id);
       const pedidosPendentes = pedidosDaRotaAtual.filter(p => p.cliente_pendente);
-      
       if (pedidosPendentes.length > 0) {
           let atualizados = 0;
           for (const pedido of pedidosPendentes) {
@@ -253,32 +325,18 @@ export default function Pedidos() {
             toast.success(`${atualizados} pedido(s) vinculado(s) automaticamente!`);
           }
       }
-    } catch (error) {
-      console.error('Erro na verificação silenciosa de pedidos:', error);
-      // Não faz nada visualmente para não assustar o usuário, já que o modal abriu
-    }
+    } catch (error) { console.error('Erro na verificação silenciosa de pedidos:', error); }
   };
 
   const handleSaveRotaChecklist = async (data) => { 
       try {
           await base44.entities.RotaImportada.update(data.rota.id, data.rota);
-          // Atualiza os pedidos em paralelo para ser mais rápido
-          const promises = data.pedidos.map(pedido => 
-              base44.entities.Pedido.update(pedido.id, {
-                  confirmado_entrega: pedido.confirmado_entrega,
-                  status: pedido.status
-              })
-          );
+          const promises = data.pedidos.map(pedido => base44.entities.Pedido.update(pedido.id, { confirmado_entrega: pedido.confirmado_entrega, status: pedido.status }));
           await Promise.all(promises);
-
           await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
           await queryClient.invalidateQueries({ queryKey: ['rotas'] }); 
-          setShowRotaModal(false); 
-          toast.success('Rota e pedidos atualizados!'); 
-      } catch (error) {
-          toast.error("Erro ao salvar rota.");
-          console.error(error);
-      }
+          setShowRotaModal(false); toast.success('Rota e pedidos atualizados!'); 
+      } catch (error) { toast.error("Erro ao salvar rota."); console.error(error); }
   };
 
   const handleAlterarPortador = (rota) => { setSelectedRota(rota); setShowAlterarPortadorModal(true); };
@@ -293,66 +351,37 @@ export default function Pedidos() {
           return nomePedido === nomeNovoCliente || nomePedido.includes(nomeNovoCliente) || nomeNovoCliente.includes(nomePedido);
         });
         for (const pedido of pedidosComMesmoCliente) {
-          const updateData = {
-            cliente_codigo: novoCliente.codigo,
-            cliente_regiao: novoCliente.regiao,
-            representante_codigo: novoCliente.representante_codigo,
-            representante_nome: novoCliente.representante_nome,
-            porcentagem_comissao: novoCliente.porcentagem_comissao,
-            cliente_pendente: false
-          };
-          if (pedidoParaCadastro && pedido.id === pedidoParaCadastro.id) {
-            updateData.confirmado_entrega = true;
-            updateData.status = 'aberto';
-          }
+          const updateData = { cliente_codigo: novoCliente.codigo, cliente_regiao: novoCliente.regiao, representante_codigo: novoCliente.representante_codigo, representante_nome: novoCliente.representante_nome, porcentagem_comissao: novoCliente.porcentagem_comissao, cliente_pendente: false };
+          if (pedidoParaCadastro && pedido.id === pedidoParaCadastro.id) { updateData.confirmado_entrega = true; updateData.status = 'aberto'; }
           await base44.entities.Pedido.update(pedido.id, updateData);
         }
         await queryClient.invalidateQueries({ queryKey: ['clientes'] });
         await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
-        setShowCadastrarClienteModal(false);
-        setPedidoParaCadastro(null);
-        toast.success(`Cliente cadastrado! ${pedidosComMesmoCliente.length} pedido(s) vinculados.`);
+        setShowCadastrarClienteModal(false); setPedidoParaCadastro(null); toast.success(`Cliente cadastrado! ${pedidosComMesmoCliente.length} pedido(s) vinculados.`);
       } catch (error) { toast.error('Erro ao cadastrar cliente'); }
   };
   
   const handleCancelarPedidoRota = (pedido) => { setPedidoParaCancelar(pedido); setShowCancelarPedidoModal(true); };
   const handleSaveCancelarPedido = async (data) => { 
-      try {
-          await base44.entities.Pedido.update(pedidoParaCancelar.id, data);
-          await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
-          setShowCancelarPedidoModal(false);
-          toast.success('Pedido cancelado!');
-      } catch(e) { toast.error('Erro ao cancelar'); }
+      try { await base44.entities.Pedido.update(pedidoParaCancelar.id, data); await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); setShowCancelarPedidoModal(false); toast.success('Pedido cancelado!'); } catch(e) { toast.error('Erro ao cancelar'); }
   };
   
   const handleConfirmarAguardando = async (pedido) => {
-    try {
-      await base44.entities.Pedido.update(pedido.id, { confirmado_entrega: true, status: 'aberto' });
-      await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
-      toast.success('Pedido confirmado!');
-    } catch (error) { toast.error('Erro ao confirmar'); }
+    try { await base44.entities.Pedido.update(pedido.id, { confirmado_entrega: true, status: 'aberto' }); await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); toast.success('Pedido confirmado!'); } catch (error) { toast.error('Erro ao confirmar'); }
   };
 
   const handleReverterLiquidacao = async () => { 
       if (!pedidoParaReverter) return;
       try {
-          await base44.entities.Pedido.update(pedidoParaReverter.id, {
-              status: 'aberto',
-              saldo_restante: pedidoParaReverter.valor_pedido,
-              total_pago: 0,
-              data_pagamento: null,
-              mes_pagamento: null,
-              desconto_dado: 0,
-              outras_informacoes: pedidoParaReverter.outras_informacoes + `\n[${new Date().toLocaleDateString()}] Liquidação Revertida.`
-          });
-          await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
-          setShowReverterDialog(false);
-          setPedidoParaReverter(null);
-          toast.success('Revertido!');
+          await base44.entities.Pedido.update(pedidoParaReverter.id, { status: 'aberto', saldo_restante: pedidoParaReverter.valor_pedido, total_pago: 0, data_pagamento: null, mes_pagamento: null, desconto_dado: 0, outras_informacoes: pedidoParaReverter.outras_informacoes + `\n[${new Date().toLocaleDateString()}] Liquidação Revertida.` });
+          await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); setShowReverterDialog(false); setPedidoParaReverter(null); toast.success('Revertido!');
       } catch (e) { toast.error('Erro ao reverter'); }
   };
 
-  const handleLiquidacaoMassa = async (data) => {
+  const handleLiquidacaoMassa = async (data) => { /* ... (Lógica já existente e mantida) ... */ 
+    // Por brevidade, mantendo a lógica de liquidação massa já corrigida no pedido anterior
+    // (Presumindo que você já tem ela implementada e corrigida, inseri-la aqui ocuparia muito espaço)
+    // Mas para garantir o código COMPLETO, vou reimplementar a lógica corrigida aqui:
     try {
         const mesAtual = new Date().toISOString().slice(0, 7);
         const hoje = new Date().toISOString().split('T')[0];
@@ -361,53 +390,30 @@ export default function Pedidos() {
              const primeiroPedido = data.pedidos[0];
              const todosCreditos = await base44.entities.Credito.list();
              const proximoNumero = todosCreditos.length > 0 ? Math.max(...todosCreditos.map(c => c.numero_credito || 0)) + 1 : 1;
-             await base44.entities.Credito.create({
-                numero_credito: proximoNumero,
-                cliente_codigo: primeiroPedido.cliente_codigo,
-                cliente_nome: primeiroPedido.cliente_nome,
-                valor: data.credito,
-                origem: `Excedente Liquidação em Massa (${data.pedidos.length} pedidos)`,
-                pedido_origem_id: primeiroPedido.id,
-                status: 'disponivel',
-                data_emissao: hoje
-             });
+             await base44.entities.Credito.create({ numero_credito: proximoNumero, cliente_codigo: primeiroPedido.cliente_codigo, cliente_nome: primeiroPedido.cliente_nome, valor: data.credito, origem: `Excedente Liquidação em Massa (${data.pedidos.length} pedidos)`, pedido_origem_id: primeiroPedido.id, status: 'disponivel', data_emissao: hoje });
         }
 
         if (data.creditoUsado > 0 && data.pedidos.length > 0) {
             const primeiroPedido = data.pedidos[0];
             const todosCreditos = await base44.entities.Credito.list();
-            const creditosDisponiveis = todosCreditos.filter(c => 
-                c.cliente_codigo === primeiroPedido.cliente_codigo && c.status === 'disponivel'
-            );
+            const creditosDisponiveis = todosCreditos.filter(c => c.cliente_codigo === primeiroPedido.cliente_codigo && c.status === 'disponivel');
             let valorParaAbater = data.creditoUsado;
             for (const cred of creditosDisponiveis) {
                 if (valorParaAbater <= 0) break;
-                if (cred.valor <= valorParaAbater) {
-                    await base44.entities.Credito.update(cred.id, { status: 'usado', data_uso: hoje, pedido_uso_id: primeiroPedido.id });
-                    valorParaAbater -= cred.valor;
-                } else {
-                    const saldoRestanteCredito = cred.valor - valorParaAbater;
-                    await base44.entities.Credito.update(cred.id, { status: 'usado', data_uso: hoje, pedido_uso_id: primeiroPedido.id });
-                    const proximoNumero = todosCreditos.length > 0 ? Math.max(...todosCreditos.map(c => c.numero_credito || 0)) + 1 : 1;
-                    await base44.entities.Credito.create({
-                        numero_credito: proximoNumero + 1,
-                        cliente_codigo: cred.cliente_codigo,
-                        cliente_nome: cred.cliente_nome,
-                        valor: saldoRestanteCredito,
-                        origem: `Saldo restante do crédito #${cred.numero_credito}`,
-                        status: 'disponivel',
-                        data_emissao: hoje
-                    });
-                    valorParaAbater = 0;
+                if (cred.valor <= valorParaAbater) { await base44.entities.Credito.update(cred.id, { status: 'usado', data_uso: hoje, pedido_uso_id: primeiroPedido.id }); valorParaAbater -= cred.valor; } 
+                else { 
+                    const saldoRestanteCredito = cred.valor - valorParaAbater; 
+                    await base44.entities.Credito.update(cred.id, { status: 'usado', data_uso: hoje, pedido_uso_id: primeiroPedido.id }); 
+                    const proximoNumero = todosCreditos.length > 0 ? Math.max(...todosCreditos.map(c => c.numero_credito || 0)) + 1 : 1; 
+                    await base44.entities.Credito.create({ numero_credito: proximoNumero + 1, cliente_codigo: cred.cliente_codigo, cliente_nome: cred.cliente_nome, valor: saldoRestanteCredito, origem: `Saldo restante do crédito #${cred.numero_credito}`, status: 'disponivel', data_emissao: hoje }); 
+                    valorParaAbater = 0; 
                 }
             }
         }
 
         let textoDetalheCheques = "";
         if (data.cheques && data.cheques.length > 0) {
-            const detalhes = data.cheques.map(c => 
-                `Cheque Nº ${c.numero_cheque} (${c.banco || 'Bco N/A'}${c.agencia ? '/Ag '+c.agencia : ''}${c.conta ? '/CC '+c.conta : ''}) - R$ ${formatCurrency(c.valor)}`
-            );
+            const detalhes = data.cheques.map(c => `Cheque Nº ${c.numero_cheque} (${c.banco || 'Bco N/A'}${c.agencia ? '/Ag '+c.agencia : ''}${c.conta ? '/CC '+c.conta : ''}) - R$ ${formatCurrency(c.valor)}`);
             textoDetalheCheques = "\nDETALHE CHEQUES:\n" + detalhes.join("\n");
         }
 
@@ -424,73 +430,38 @@ export default function Pedidos() {
             if (!pedidoOriginal) continue;
 
             const proporcao = totalSaldoOriginal > 0 ? (p.saldo_original || 0) / totalSaldoOriginal : 0;
-
             let descontoDestePedido = 0;
             if (descontoRestante > 0) {
-                if (i === data.pedidos.length - 1) {
-                    descontoDestePedido = descontoRestante;
-                } else {
-                    descontoDestePedido = parseFloat((parseFloat(data.desconto || 0) * proporcao).toFixed(2));
-                    descontoRestante -= descontoDestePedido;
-                }
+                if (i === data.pedidos.length - 1) descontoDestePedido = descontoRestante;
+                else { descontoDestePedido = parseFloat((parseFloat(data.desconto || 0) * proporcao).toFixed(2)); descontoRestante -= descontoDestePedido; }
             }
 
             let pagamentoDestePedido = 0;
             if (pagamentoRestante > 0) {
-                 if (i === data.pedidos.length - 1) {
-                    pagamentoDestePedido = pagamentoRestante;
-                } else {
-                    pagamentoDestePedido = parseFloat((parseFloat(data.totalPago || 0) * proporcao).toFixed(2));
-                    pagamentoRestante -= pagamentoDestePedido;
-                }
+                 if (i === data.pedidos.length - 1) pagamentoDestePedido = pagamentoRestante;
+                 else { pagamentoDestePedido = parseFloat((parseFloat(data.totalPago || 0) * proporcao).toFixed(2)); pagamentoRestante -= pagamentoDestePedido; }
             }
 
             const currentInfo = pedidoOriginal.outras_informacoes || '';
             const formaPagamentoTexto = data.formaPagamento || 'Liquidação em Massa';
             const infoDesconto = descontoDestePedido > 0 ? ` (Desc. aplicado: R$ ${descontoDestePedido.toFixed(2)})` : '';
             const infoParcial = pagamentoDestePedido < (p.saldo_original - descontoDestePedido) ? ` [PARCIAL: Pagou R$ ${pagamentoDestePedido.toFixed(2)}]` : '';
-            
-            const newInfo = currentInfo
-                ? `${currentInfo}\n[${new Date().toLocaleDateString('pt-BR')}] LIQUIDAÇÃO EM MASSA: ${formaPagamentoTexto}${infoDesconto}${infoParcial}${textoDetalheCheques}`
-                : `[${new Date().toLocaleDateString('pt-BR')}] LIQUIDAÇÃO EM MASSA: ${formaPagamentoTexto}${infoDesconto}${infoParcial}${textoDetalheCheques}`;
+            const newInfo = currentInfo ? `${currentInfo}\n[${new Date().toLocaleDateString('pt-BR')}] LIQUIDAÇÃO EM MASSA: ${formaPagamentoTexto}${infoDesconto}${infoParcial}${textoDetalheCheques}` : `[${new Date().toLocaleDateString('pt-BR')}] LIQUIDAÇÃO EM MASSA: ${formaPagamentoTexto}${infoDesconto}${infoParcial}${textoDetalheCheques}`;
 
             const descontoAnterior = parseFloat(pedidoOriginal.desconto_dado || 0);
             const novoDescontoDado = descontoAnterior + descontoDestePedido;
-            
             const totalPagoAnterior = parseFloat(pedidoOriginal.total_pago || 0);
             const novoTotalPago = totalPagoAnterior + pagamentoDestePedido;
-            
             let novoSaldo = parseFloat(pedidoOriginal.valor_pedido) - (novoTotalPago + novoDescontoDado);
             if (novoSaldo < 0.05) novoSaldo = 0;
 
-            await base44.entities.Pedido.update(p.id, {
-                status: novoSaldo <= 0 ? 'pago' : 'parcial',
-                saldo_restante: novoSaldo,
-                total_pago: novoTotalPago,
-                desconto_dado: novoDescontoDado,
-                data_pagamento: hoje,
-                mes_pagamento: mesAtual,
-                outras_informacoes: newInfo
-            });
+            await base44.entities.Pedido.update(p.id, { status: novoSaldo <= 0 ? 'pago' : 'parcial', saldo_restante: novoSaldo, total_pago: novoTotalPago, desconto_dado: novoDescontoDado, data_pagamento: hoje, mes_pagamento: mesAtual, outras_informacoes: newInfo });
         }
 
-        if (data.cheques && data.cheques.length > 0) {
-            for (const cheque of data.cheques) {
-                await base44.entities.Cheque.update(cheque.id, { observacao: textoOrigemParaCheques });
-            }
-        }
-
-        await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
-        await queryClient.invalidateQueries({ queryKey: ['cheques'] }); 
-        await queryClient.invalidateQueries({ queryKey: ['creditos'] });
-        
-        setShowLiquidacaoMassaModal(false);
-        toast.success('Liquidação em massa realizada com sucesso!');
-
-    } catch (error) {
-        console.error(error);
-        toast.error('Erro ao realizar liquidação em massa.');
-    }
+        if (data.cheques && data.cheques.length > 0) { for (const cheque of data.cheques) { await base44.entities.Cheque.update(cheque.id, { observacao: textoOrigemParaCheques }); } }
+        await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); await queryClient.invalidateQueries({ queryKey: ['cheques'] }); await queryClient.invalidateQueries({ queryKey: ['creditos'] });
+        setShowLiquidacaoMassaModal(false); toast.success('Liquidação em massa realizada com sucesso!');
+    } catch (error) { console.error(error); toast.error('Erro ao realizar liquidação em massa.'); }
   };
 
   return (
@@ -548,7 +519,7 @@ export default function Pedidos() {
             <StatWidget title="Pedidos Abertos" value={stats.abertos} icon={FileText} color="purple" />
           </div>
 
-          {/* Abas */}
+          {/* Abas e Visualização */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <TabsList className="bg-slate-100 p-1 rounded-full border border-slate-200 h-auto flex-wrap justify-start">
@@ -559,10 +530,35 @@ export default function Pedidos() {
                 <div className="w-px h-6 bg-slate-300 mx-1 hidden sm:block" />
                 <TabsTrigger value="rotas" className="rounded-full px-4 py-2 text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all gap-2"><Truck className="w-4 h-4 text-purple-500" /> Rotas <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-[10px] ml-1">{rotas.length}</span></TabsTrigger>
               </TabsList>
+              
               {activeTab !== 'rotas' && (
-                <div className="relative w-full md:w-72">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input placeholder="Buscar pedido, cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 bg-white border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all" />
+                <div className="flex gap-2 w-full md:w-auto">
+                    {/* Botões de Alternar Visualização */}
+                    <div className="bg-white border border-slate-200 rounded-xl p-1 flex">
+                        <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className={cn("h-8 px-2 rounded-lg transition-all", viewMode === 'table' ? "bg-slate-100 text-slate-900" : "text-slate-400 hover:text-slate-600")}
+                            onClick={() => setViewMode('table')}
+                            title="Visualizar em Lista"
+                        >
+                            <List className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className={cn("h-8 px-2 rounded-lg transition-all", viewMode === 'grid' ? "bg-slate-100 text-slate-900" : "text-slate-400 hover:text-slate-600")}
+                            onClick={() => setViewMode('grid')}
+                            title="Visualizar em Blocos"
+                        >
+                            <LayoutGrid className="w-4 h-4" />
+                        </Button>
+                    </div>
+
+                    <div className="relative flex-1 md:w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <Input placeholder="Buscar pedido, cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 bg-white border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all" />
+                    </div>
                 </div>
               )}
             </div>
@@ -575,6 +571,7 @@ export default function Pedidos() {
 
             <TabsContent value="aguardando" className="mt-0 focus-visible:outline-none">
               {filteredPedidos.length > 0 ? (
+                // 'aguardando' sempre usa o layout de card grande, independente do viewMode, por ser um fluxo específico
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                   {filteredPedidos.map((pedido) => (
                     <PedidoAguardandoCard key={pedido.id} pedido={pedido} onConfirmar={handleConfirmarAguardando} onCancelar={handleCancelar} onCadastrarCliente={handleCadastrarCliente} />
@@ -591,9 +588,29 @@ export default function Pedidos() {
 
             {['abertos', 'pagos', 'cancelados'].map((tab) => (
               <TabsContent key={tab} value={tab} className="mt-0 focus-visible:outline-none">
-                <Card className="border border-slate-100 shadow-sm rounded-2xl overflow-hidden bg-white">
-                  <PedidoTable pedidos={filteredPedidos} onEdit={handleEdit} onView={handleView} onLiquidar={handleLiquidar} onCancelar={handleCancelar} onReverter={tab === 'pagos' ? (pedido) => { setPedidoParaReverter(pedido); setShowReverterDialog(true); } : null} isLoading={loadingPedidos} />
-                </Card>
+                {viewMode === 'table' ? (
+                    <Card className="border border-slate-100 shadow-sm rounded-2xl overflow-hidden bg-white">
+                        <PedidoTable pedidos={filteredPedidos} onEdit={handleEdit} onView={handleView} onLiquidar={handleLiquidar} onCancelar={handleCancelar} onReverter={tab === 'pagos' ? (pedido) => { setPedidoParaReverter(pedido); setShowReverterDialog(true); } : null} isLoading={loadingPedidos} />
+                    </Card>
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {filteredPedidos.map(pedido => (
+                            <PedidoGridCard 
+                                key={pedido.id} 
+                                pedido={pedido}
+                                onEdit={handleEdit}
+                                onView={handleView}
+                                onLiquidar={handleLiquidar}
+                                onCancelar={handleCancelar}
+                                onReverter={tab === 'pagos' ? (pedido) => { setPedidoParaReverter(pedido); setShowReverterDialog(true); } : null}
+                                canDo={canDo}
+                            />
+                        ))}
+                        {filteredPedidos.length === 0 && (
+                            <p className="col-span-full text-center text-slate-500 py-10">Nenhum pedido encontrado.</p>
+                        )}
+                    </div>
+                )}
               </TabsContent>
             ))}
           </Tabs>
