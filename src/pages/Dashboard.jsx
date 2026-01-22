@@ -7,7 +7,7 @@ import {
   Users, UserCheck, ShoppingCart, CreditCard, TrendingUp,
   AlertTriangle, DollarSign, FileText, PieChart, Wallet,
   Building2, BarChart3, ArrowRight, Activity, Ban,
-  ChevronDown, ChevronRight, Lock
+  ChevronDown, ChevronRight, Lock, Layers
 } from "lucide-react";
 import { toast } from "sonner"; // Para aviso de módulos em desenvolvimento
 
@@ -160,7 +160,21 @@ export default function Dashboard() {
       modules: [
         { title: "Clientes", description: "Base de clientes", icon: Building2, onClick: () => navigate(createPageUrl('Clientes')) },
         { title: "Representantes", description: "Equipe de vendas", icon: Users, onClick: () => navigate(createPageUrl('Representation')) },
-        { title: "Usuários", description: "Acesso ao sistema", icon: UserCheck, onClick: () => navigate(createPageUrl('Usuarios')) },
+        { title: "Fornecedores", description: "Gestão de fornecedores", icon: TrendingUp, onClick: () => navigate(createPageUrl('CadastroFornecedor')) },
+        { title: "Formas de Pagamento", description: "Configurar pagamentos", icon: CreditCard, onClick: () => navigate(createPageUrl('FormasPagamento')) },
+      ]
+    },
+    {
+      id: 'vendas',
+      title: "Vendas",
+      description: "Gestão comercial e orçamentos",
+      icon: ShoppingCart,
+      color: "purple",
+      modules: [
+        { title: "Solicitação de Cadastro", description: "Novos clientes", icon: UserCheck, onClick: () => navigate(createPageUrl('SolicitacaoCadastro')) },
+        { title: "Orçamentos", description: "Propostas comerciais", icon: FileText, onClick: () => navigate(createPageUrl('Orcamentos')) },
+        { title: "Cadastro de Peças", description: "Produtos e preços", icon: Building2, onClick: () => navigate(createPageUrl('CadastroPecas')) },
+        { title: "Agrupar Orçamentos", description: "Consolidar propostas", icon: Layers, onClick: () => navigate(createPageUrl('AgruparOrcamentos')) },
       ]
     },
     {

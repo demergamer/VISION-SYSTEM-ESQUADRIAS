@@ -4,7 +4,7 @@ import { createPageUrl } from "@/utils";
 import { 
   LayoutDashboard, Users, Building2, ShoppingCart, CreditCard, Wallet,
   BarChart3, PieChart, LogOut, Lock, Search, Bell, Menu, X, FileText,
-  ChevronRight, Command
+  ChevronRight, Command, Truck, UserPlus, Package, Layers
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,7 +44,17 @@ const navStructure = [
     items: [
       { name: 'Clientes', icon: Building2, page: 'Clientes' },
       { name: 'Representantes', icon: Users, page: 'Representation' },
-      { name: 'Usuários', icon: Users, page: 'Usuarios' },
+      { name: 'Fornecedores', icon: Truck, page: 'CadastroFornecedor' },
+      { name: 'Formas de Pagamento', icon: CreditCard, page: 'FormasPagamento' },
+    ]
+  },
+  {
+    category: "Vendas",
+    items: [
+      { name: 'Solicitação de Cadastro', icon: UserPlus, page: 'SolicitacaoCadastro' },
+      { name: 'Orçamentos', icon: FileText, page: 'Orcamentos' },
+      { name: 'Peças e Preços', icon: Package, page: 'CadastroPecas' },
+      { name: 'Agrupar Orçamentos', icon: Layers, page: 'AgruparOrcamentos' },
     ]
   },
   {
@@ -70,9 +80,10 @@ const navStructure = [
     ]
   },
   {
-    category: "Master", // Novo Módulo Master
+    category: "Master",
     items: [
       { name: 'Logs de Atividade', icon: FileText, page: 'Logs', isDev: true },
+      { name: 'Usuários', icon: Users, page: 'Usuarios' },
     ]
   }
 ];
@@ -166,7 +177,7 @@ export default function Layout({ children, currentPageName }) {
 
   const hasAccess = (pageName) => {
     if (!user) return false;
-    if (['ChequesPagar', 'Logs'].includes(pageName)) return true; // Sempre mostra itens DEV/Master
+    if (['ChequesPagar', 'Logs', 'CadastroFornecedor', 'FormasPagamento', 'SolicitacaoCadastro', 'Orcamentos', 'CadastroPecas', 'AgruparOrcamentos'].includes(pageName)) return true;
     const permissoes = user.permissoes || {};
     const perm = permissoes[pageName];
     return perm === true || perm?.acesso === true;

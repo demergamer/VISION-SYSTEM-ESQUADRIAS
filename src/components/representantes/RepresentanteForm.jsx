@@ -3,9 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Save, X } from "lucide-react";
+import { Save, X, Loader2 } from "lucide-react";
 
 export default function RepresentanteForm({ representante, onSave, onCancel, isLoading }) {
+  const [isSaving, setIsSaving] = React.useState(false);
   const [form, setForm] = useState({
     codigo: '',
     nome: '',
@@ -98,15 +99,44 @@ export default function RepresentanteForm({ representante, onSave, onCancel, isL
       </div>
 
       <div className="flex justify-end gap-3 pt-4 border-t">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading || isSaving}>
           <X className="w-4 h-4 mr-2" />
           Cancelar
         </Button>
-        <Button type="button" onClick={() => onSave(form)} disabled={isLoading}>
-          <Save className="w-4 h-4 mr-2" />
-          {representante ? 'Atualizar' : 'Cadastrar'}
+        <Button type="button" onClick={async () => {
+          setIsSaving(true);
+          try {
+            await onSave(form);
+          } finally {
+            setIsSaving(false);
+          }
+        }} disabled={isLoading || isSaving}>
+          {isSaving ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Salvando...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4 mr-2" />
+              {representante ? 'Atualizar' : 'Cadastrar'}
+            </>
+          )}
         </Button>
       </div>
+
+      {/* Overlay de Loading */}
+      {isSaving && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4">
+            <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+            <div className="text-center">
+              <h3 className="text-lg font-bold text-slate-800">Salvando Representante</h3>
+              <p className="text-sm text-slate-500">Aguarde um momento...</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -10,9 +10,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Save, X, AlertCircle } from "lucide-react";
+import { Save, X, AlertCircle, Upload, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { base44 } from '@/api/base44Client';
 
 export default function ClienteForm({ cliente, representantes = [], todosClientes = [], onSave, onCancel, isLoading }) {
   const [form, setForm] = useState({
@@ -32,6 +33,10 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
   });
 
   const [errors, setErrors] = useState({});
+  const [serasaFile, setSerasaFile] = useState(null);
+  const [serasaUploading, setSerasaUploading] = useState(false);
+  const [formasPagamento, setFormasPagamento] = useState([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (cliente) {
@@ -50,6 +55,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
         limite_credito: cliente.limite_credito || 0,
         bloqueado_manual: cliente.bloqueado_manual || false
       });
+      setFormasPagamento(cliente.formas_pagamento || []);
     }
   }, [cliente]);
 
@@ -103,9 +109,35 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSerasaUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    setSerasaUploading(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setSerasaFile(file_url);
+      toast.success('Arquivo Serasa enviado!');
+    } catch (error) {
+      toast.error('Erro ao enviar arquivo');
+    } finally {
+      setSerasaUploading(false);
+    }
+  };
+
+  const handleSubmit = async () => {
     if (validate()) {
-      onSave(form);
+      setIsSaving(true);
+      try {
+        const dataToSave = {
+          ...form,
+          formas_pagamento: formasPagamento,
+          serasa_file_url: serasaFile
+        };
+        await onSave(dataToSave);
+      } finally {
+        setIsSaving(false);
+      }
     } else {
       toast.error("Verifique os erros no formulário.");
     }
@@ -261,6 +293,63 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
         </div>
       </div>
 
+      {/* Upload Serasa */}
+      <div className="space-y-6">
+        <h3 className="text-sm font-medium text-slate-900 border-b pb-2 mb-4">Análise de Crédito</h3>
+        
+        <div className="space-y-2">
+          <Label htmlFor="serasa" className={labelClass}>Arquivo Serasa (PDF)</Label>
+          <div className="flex items-center gap-3">
+            <label className={cn(
+              "flex-1 flex items-center justify-center gap-2 h-11 px-4 rounded-xl border-2 border-dashed cursor-pointer transition-all",
+              serasaFile ? "border-green-300 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 hover:border-blue-300 hover:bg-blue-50 text-slate-600"
+            )}>
+              {serasaUploading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Upload className="w-4 h-4" />
+              )}
+              <span className="text-sm font-medium">
+                {serasaUploading ? 'Enviando...' : serasaFile ? 'Arquivo enviado' : 'Selecionar PDF'}
+              </span>
+              <input
+                id="serasa"
+                type="file"
+                accept=".pdf"
+                onChange={handleSerasaUpload}
+                className="hidden"
+                disabled={serasaUploading}
+              />
+            </label>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="formasPag" className={labelClass}>Formas de Pagamento Autorizadas</Label>
+          <div className="flex flex-wrap gap-2">
+            {['Dinheiro', 'PIX', 'Cheque', 'Crédito', 'Boleto', 'Cartão'].map(forma => (
+              <button
+                key={forma}
+                type="button"
+                onClick={() => {
+                  setFormasPagamento(prev =>
+                    prev.includes(forma) ? prev.filter(f => f !== forma) : [...prev, forma]
+                  );
+                }}
+                className={cn(
+                  "px-4 py-2 rounded-xl text-sm font-medium transition-all",
+                  formasPagamento.includes(forma)
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                )}
+              >
+                {forma}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Seção Contato */}
       <div className="space-y-6">
         <h3 className="text-sm font-medium text-slate-900 border-b pb-2 mb-4">Contato</h3>
@@ -306,15 +395,37 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
 
       {/* Ações */}
       <div className="flex justify-end gap-3 pt-6 border-t">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading} className="h-11 px-6 rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900">
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading || isSaving} className="h-11 px-6 rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900">
           <X className="w-4 h-4 mr-2" />
           Cancelar
         </Button>
-        <Button type="button" onClick={handleSubmit} disabled={isLoading} className="h-11 px-8 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200">
-          <Save className="w-4 h-4 mr-2" />
-          {cliente ? 'Salvar Alterações' : 'Cadastrar Cliente'}
+        <Button type="button" onClick={handleSubmit} disabled={isLoading || isSaving} className="h-11 px-8 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200">
+          {isSaving ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Salvando...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4 mr-2" />
+              {cliente ? 'Salvar Alterações' : 'Cadastrar Cliente'}
+            </>
+          )}
         </Button>
       </div>
+
+      {/* Overlay de Loading */}
+      {isSaving && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4">
+            <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+            <div className="text-center">
+              <h3 className="text-lg font-bold text-slate-800">Salvando Cliente</h3>
+              <p className="text-sm text-slate-500">Aguarde um momento...</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
