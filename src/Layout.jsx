@@ -154,8 +154,6 @@ export default function Layout({ children, currentPageName }) {
   const navigate = useNavigate();
   const [user, setUser] = React.useState(null);
   const [searchOpen, setSearchOpen] = React.useState(false);
-  const [sidebarOpen, setSidebarOpen] = React.useState(true);
-  const [lastInteraction, setLastInteraction] = React.useState(Date.now());
 
   // Atalho de Teclado CTRL+K ou CMD+K
   useEffect(() => {
@@ -173,29 +171,35 @@ export default function Layout({ children, currentPageName }) {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
 
-  // Auto-collapse sidebar após 15s sem interação
-  React.useEffect(() => {
-    const handleActivity = () => setLastInteraction(Date.now());
-    
-    const checkInactivity = setInterval(() => {
-      const timeSinceLastInteraction = Date.now() - lastInteraction;
-      if (timeSinceLastInteraction > 15000 && sidebarOpen) {
+  // Auto-collapse sidebar: fecha após 15s de mouse fora do sidebar
+  const [collapseTimer, setCollapseTimer] = React.useState(null);
+
+  const handleSidebarMouseEnter = () => {
+    if (collapseTimer) {
+      clearTimeout(collapseTimer);
+      setCollapseTimer(null);
+    }
+  };
+
+  const handleSidebarMouseLeave = () => {
+    const timer = setTimeout(() => {
+      const sidebarElement = document.querySelector('[data-sidebar="sidebar"]');
+      if (sidebarElement && !sidebarElement.matches(':hover')) {
         const sidebarTrigger = document.querySelector('[data-sidebar="trigger"]');
-        if (sidebarTrigger) sidebarTrigger.click();
+        const isOpen = sidebarElement.getAttribute('data-state') === 'expanded';
+        if (sidebarTrigger && isOpen) {
+          sidebarTrigger.click();
+        }
       }
-    }, 5000);
+    }, 15000);
+    setCollapseTimer(timer);
+  };
 
-    document.addEventListener('mousemove', handleActivity);
-    document.addEventListener('click', handleActivity);
-    document.addEventListener('keydown', handleActivity);
-
+  React.useEffect(() => {
     return () => {
-      clearInterval(checkInactivity);
-      document.removeEventListener('mousemove', handleActivity);
-      document.removeEventListener('click', handleActivity);
-      document.removeEventListener('keydown', handleActivity);
+      if (collapseTimer) clearTimeout(collapseTimer);
     };
-  }, [lastInteraction, sidebarOpen]);
+  }, [collapseTimer]);
 
   const handleLogout = () => {
     base44.auth.logout();
@@ -240,7 +244,12 @@ export default function Layout({ children, currentPageName }) {
   // --- LAYOUT PRINCIPAL (ADMIN) ---
   return (
     <SidebarProvider>
-      <Sidebar variant="inset" collapsible="icon">
+      <Sidebar 
+        variant="inset" 
+        collapsible="icon"
+        onMouseEnter={handleSidebarMouseEnter}
+        onMouseLeave={handleSidebarMouseLeave}
+      >
         <SidebarHeader>
           <div className="flex items-center gap-3 p-2">
             <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-blue-600 text-white shadow-md">
