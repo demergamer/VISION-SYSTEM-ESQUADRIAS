@@ -7,15 +7,15 @@ import { Button } from "@/components/ui/button";
 import { 
   AlertCircle, FileText, CreditCard, TrendingDown, CheckCircle, 
   XCircle, Clock, DollarSign, Search, Eye, Filter, ChevronDown, ChevronUp, ArrowRight,
-  Package, Truck, ShoppingCart, Lock, Send
+  Package, Truck // Importei novos ícones
 } from "lucide-react";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { toast } from "sonner";
 import ModalContainer from "@/components/modals/ModalContainer";
 import ChequeDetails from "@/components/cheques/ChequeDetails";
 import LiquidacaoSelfService from "@/components/portais/LiquidacaoSelfService";
 import { Badge } from "@/components/ui/badge";
+import { Lock, Send } from "lucide-react";
 
 export default function PortalCliente() {
   // --- Estados de Controle Visual ---
@@ -36,12 +36,10 @@ export default function PortalCliente() {
   // Mudei o padrão para 'aguardando' ou 'aPagar' conforme sua preferência
   const [abaPedidos, setAbaPedidos] = useState('aguardando'); 
   const [abaCheques, setAbaCheques] = useState('aVencer');
-  const [liquidacaoView, setLiquidacaoView] = useState('bordero'); // 'bordero' ou 'pedidos'
   const [chequeDetalhe, setChequeDetalhe] = useState(null);
   const [showChequeModal, setShowChequeModal] = useState(false);
   const [showLiquidacaoModal, setShowLiquidacaoModal] = useState(false);
   const [showSolicitarAcessoModal, setShowSolicitarAcessoModal] = useState(false);
-  const [expandedBordero, setExpandedBordero] = useState(null);
 
   // --- Queries de Dados ---
   const { data: user } = useQuery({ queryKey: ['user'], queryFn: () => base44.auth.me() });
@@ -49,8 +47,6 @@ export default function PortalCliente() {
   const { data: pedidos = [] } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list() });
   const { data: cheques = [] } = useQuery({ queryKey: ['cheques'], queryFn: () => base44.entities.Cheque.list() });
   const { data: creditos = [] } = useQuery({ queryKey: ['creditos'], queryFn: () => base44.entities.Credito.list() });
-  const { data: borderos = [] } = useQuery({ queryKey: ['borderos'], queryFn: () => base44.entities.Bordero.list('-created_date') });
-  const { data: liquidacoesPendentes = [] } = useQuery({ queryKey: ['liquidacoesPendentes'], queryFn: () => base44.entities.LiquidacaoPendente.list('-created_date') });
 
   // --- Lógica de Negócio ---
   const clienteData = useMemo(() => clientes.find(c => c.email === user?.email), [clientes, user]);
@@ -71,22 +67,13 @@ export default function PortalCliente() {
     if (filtros.valorMax) list = list.filter(p => p.valor_pedido <= parseFloat(filtros.valorMax));
 
     return {
+      // NOVA CATEGORIA: Status 'aguardando'
       aguardando: list.filter(p => p.status === 'aguardando'),
       aPagar: list.filter(p => p.status === 'aberto' || p.status === 'parcial'),
       pagos: list.filter(p => p.status === 'pago'),
       cancelados: list.filter(p => p.status === 'cancelado')
     };
   }, [pedidos, clienteData, filtros]);
-
-  const minhasAutorizacoes = useMemo(() => {
-    if (!clienteData) return [];
-    return liquidacoesPendentes.filter(lp => lp.cliente_codigo === clienteData.codigo && lp.status === 'pendente');
-  }, [liquidacoesPendentes, clienteData]);
-
-  const meusBorderos = useMemo(() => {
-    if (!clienteData) return [];
-    return borderos.filter(b => b.cliente_codigo === clienteData.codigo);
-  }, [borderos, clienteData]);
 
   const meusCheques = useMemo(() => {
     if (!clienteData) return { aVencer: [], compensados: [], devolvidos: [], pagos: [] };
@@ -265,17 +252,20 @@ export default function PortalCliente() {
           </div>
 
           {/* Abas de Navegação */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* --- NOVA ABA: AGUARDANDO --- */}
             <TabButton 
               active={abaPedidos === 'aguardando'} 
               onClick={() => setAbaPedidos('aguardando')}
-              icon={Package}
+              icon={Package} // Ícone de pacote
               label="Aguardando Entrega" 
               count={meusPedidos.aguardando.length}
               colorClass="text-amber-500"
               bgActive="bg-amber-50"
               borderActive="border-amber-200"
             />
+            {/* ----------------------------- */}
+
             <TabButton 
               active={abaPedidos === 'aPagar'} 
               onClick={() => setAbaPedidos('aPagar')}
@@ -287,21 +277,11 @@ export default function PortalCliente() {
               borderActive="border-red-200"
             />
             <TabButton 
-              active={abaPedidos === 'autorizacoes'} 
-              onClick={() => setAbaPedidos('autorizacoes')}
-              icon={AlertCircle} 
-              label="Aguardando Autorização" 
-              count={minhasAutorizacoes.length}
-              colorClass="text-orange-500"
-              bgActive="bg-orange-50"
-              borderActive="border-orange-200"
-            />
-            <TabButton 
-              active={abaPedidos === 'liquidacoes'} 
-              onClick={() => setAbaPedidos('liquidacoes')}
+              active={abaPedidos === 'pagos'} 
+              onClick={() => setAbaPedidos('pagos')}
               icon={CheckCircle} 
-              label="Liquidações" 
-              count={liquidacaoView === 'bordero' ? meusBorderos.length : meusPedidos.pagos.length}
+              label="Pagos" 
+              count={meusPedidos.pagos.length}
               colorClass="text-emerald-500"
               bgActive="bg-emerald-50"
               borderActive="border-emerald-200"
@@ -355,200 +335,9 @@ export default function PortalCliente() {
               )}
             </AnimatePresence>
 
-            {/* Conteúdo Específico da Aba */}
-            {abaPedidos === 'autorizacoes' ? (
-              <div className="border-t border-slate-100 p-6">
-                {minhasAutorizacoes.length > 0 ? (
-                  <div className="space-y-4">
-                    {minhasAutorizacoes.map(autorizacao => (
-                      <div key={autorizacao.id} className="bg-orange-50 border border-orange-200 rounded-xl p-5">
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <span className="text-xs font-bold text-orange-600 uppercase">Solicitação</span>
-                            <h3 className="text-xl font-bold text-slate-800">#{autorizacao.numero_solicitacao}</h3>
-                          </div>
-                          <Badge className="bg-orange-100 text-orange-700">Em Análise</Badge>
-                        </div>
-                        <div className="space-y-2 mb-3">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-slate-600">Data:</span>
-                            <span className="font-medium">{format(new Date(autorizacao.created_date), 'dd/MM/yyyy HH:mm')}</span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-slate-600">Pedidos:</span>
-                            <span className="font-semibold">{autorizacao.pedidos_ids?.length || 0}</span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-slate-600">Valor Proposto:</span>
-                            <span className="font-bold text-emerald-600">{formatCurrency(autorizacao.valor_final_proposto)}</span>
-                          </div>
-                        </div>
-                        {autorizacao.comprovante_url && (
-                          <a href={autorizacao.comprovante_url} target="_blank" rel="noopener noreferrer" className="block border border-orange-300 rounded-lg overflow-hidden hover:border-orange-500 transition-colors">
-                            <img src={autorizacao.comprovante_url} alt="Comprovante" className="w-full h-32 object-cover" />
-                          </a>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <AlertCircle className="w-6 h-6 text-slate-300" />
-                    </div>
-                    <p className="text-slate-500">Nenhuma solicitação em análise no momento.</p>
-                  </div>
-                )}
-              </div>
-            ) : abaPedidos === 'liquidacoes' ? (
-              <div className="border-t border-slate-100">
-                <div className="p-4 bg-white border-b border-slate-100 flex items-center gap-2">
-                  <Button 
-                    variant={liquidacaoView === 'bordero' ? 'default' : 'ghost'} 
-                    size="sm"
-                    onClick={() => setLiquidacaoView('bordero')}
-                    className={liquidacaoView === 'bordero' ? "bg-emerald-500 hover:bg-emerald-600 text-white" : ""}
-                  >
-                    <FileText className="w-4 h-4 mr-2" /> Borderôs ({meusBorderos.length})
-                  </Button>
-                  <Button 
-                    variant={liquidacaoView === 'pedidos' ? 'default' : 'ghost'} 
-                    size="sm"
-                    onClick={() => setLiquidacaoView('pedidos')}
-                    className={liquidacaoView === 'pedidos' ? "bg-emerald-500 hover:bg-emerald-600 text-white" : ""}
-                  >
-                    <ShoppingCart className="w-4 h-4 mr-2" /> Pedidos ({meusPedidos.pagos.length})
-                  </Button>
-                </div>
-
-                {liquidacaoView === 'bordero' ? (
-                  meusBorderos.length > 0 ? (
-                    <div className="divide-y divide-slate-100">
-                      {meusBorderos.map(bordero => (
-                        <div key={bordero.id} className="p-6 hover:bg-slate-50 transition-colors">
-                          <button
-                            onClick={() => setExpandedBordero(expandedBordero === bordero.id ? null : bordero.id)}
-                            className="w-full text-left"
-                          >
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
-                                  <FileText className="w-5 h-5 text-emerald-600" />
-                                </div>
-                                <div>
-                                  <h3 className="text-lg font-bold text-slate-800">Borderô #{bordero.numero_bordero}</h3>
-                                  <p className="text-xs text-slate-500">{format(new Date(bordero.created_date), 'dd/MM/yyyy HH:mm')}</p>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-xs text-slate-500">Valor Total</p>
-                                <p className="text-xl font-bold text-emerald-600">{formatCurrency(bordero.valor_total)}</p>
-                              </div>
-                            </div>
-                          </button>
-
-                          {expandedBordero === bordero.id && (
-                            <div className="mt-4 pt-4 border-t border-slate-200 space-y-4">
-                              <div className="grid grid-cols-2 gap-3 text-sm">
-                                <div>
-                                  <span className="text-slate-500">Pedidos:</span>
-                                  <span className="font-medium ml-2">{bordero.pedidos_ids?.length || 0}</span>
-                                </div>
-                                <div>
-                                  <span className="text-slate-500">Forma Pagamento:</span>
-                                  <span className="font-medium ml-2 text-xs">{bordero.forma_pagamento || 'N/A'}</span>
-                                </div>
-                              </div>
-
-                              {bordero.pedidos_ids && bordero.pedidos_ids.length > 0 && (
-                                <div>
-                                  <h4 className="font-semibold text-slate-700 mb-2 text-sm">Pedidos Liquidados:</h4>
-                                  <div className="space-y-2">
-                                    {bordero.pedidos_ids.map(pedidoId => {
-                                      const pedido = pedidos.find(p => p.id === pedidoId);
-                                      return pedido ? (
-                                        <div key={pedidoId} className="flex justify-between items-center p-2 bg-white border rounded-lg text-sm">
-                                          <span className="font-medium">#{formatNumero(pedido.numero_pedido)}</span>
-                                          <span className="text-slate-600">{formatCurrency(pedido.valor_pedido)}</span>
-                                        </div>
-                                      ) : null;
-                                    })}
-                                  </div>
-                                </div>
-                              )}
-
-                              {bordero.comprovantes_urls && bordero.comprovantes_urls.length > 0 && (
-                                <div>
-                                  <h4 className="font-semibold text-slate-700 mb-2 text-sm">Comprovantes:</h4>
-                                  <div className="grid grid-cols-2 gap-2">
-                                    {bordero.comprovantes_urls.map((url, idx) => (
-                                      <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="block border rounded-lg overflow-hidden hover:border-emerald-400 transition-colors">
-                                        <img src={url} alt={`Comprovante ${idx + 1}`} className="w-full h-24 object-cover" />
-                                      </a>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="p-12 text-center text-slate-400">
-                      <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <FileText className="w-6 h-6 text-slate-300" />
-                      </div>
-                      <p>Nenhum borderô encontrado.</p>
-                    </div>
-                  )
-                ) : (
-                  <div className="divide-y divide-slate-100">
-                    {meusPedidos.pagos.length > 0 ? (
-                      meusPedidos.pagos.map(pedido => {
-                        const borderoRef = pedido.bordero_numero ? `#B${pedido.bordero_numero}` : null;
-                        return (
-                          <div key={pedido.id} className="p-6 hover:bg-slate-50 transition-colors">
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-2">
-                                  <span className="text-lg font-bold text-slate-800">#{formatNumero(pedido.numero_pedido)}</span>
-                                  {borderoRef && (
-                                    <Badge className="bg-emerald-100 text-emerald-700 text-xs">
-                                      Borderô {borderoRef}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2 text-sm text-slate-600">
-                                  <Truck className="w-4 h-4 text-slate-400" />
-                                  <span className="font-medium">Rota:</span>
-                                  <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-700 font-semibold">
-                                    {pedido.rota_codigo || 'N/A'}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-xs text-slate-400 uppercase tracking-wider mb-0.5">Valor Pago</p>
-                                <p className="text-xl font-bold text-emerald-600">{formatCurrency(pedido.valor_pedido)}</p>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="p-12 text-center text-slate-400">
-                        <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <Search className="w-6 h-6 text-slate-300" />
-                        </div>
-                        <p>Nenhum pedido pago encontrado.</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="border-t border-slate-100">
-                {meusPedidos[abaPedidos].length > 0 ? (
+            {/* Lista de Pedidos */}
+            <div className="border-t border-slate-100">
+              {meusPedidos[abaPedidos].length > 0 ? (
                 <div className="divide-y divide-slate-100">
                   {meusPedidos[abaPedidos].map(pedido => {
                     const saldo = pedido.saldo_restante || (pedido.valor_pedido - (pedido.total_pago || 0));
@@ -609,24 +398,22 @@ export default function PortalCliente() {
                           )}
                         </div>
                       </div>
-                      );
-                      })}
-                      </div>
-                      ) : (
-                      <div className="p-12 text-center text-slate-400">
-                      <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                      {abaPedidos === 'aguardando' ? <Package className="w-6 h-6 text-amber-300" /> : <Search className="w-6 h-6 text-slate-300" />}
-                      </div>
-                      <p>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-12 text-center text-slate-400">
+                  <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                     {abaPedidos === 'aguardando' ? <Package className="w-6 h-6 text-amber-300" /> : <Search className="w-6 h-6 text-slate-300" />}
+                  </div>
+                  <p>
                       {abaPedidos === 'aguardando' 
                         ? 'Nenhum pedido aguardando entrega no momento.' 
                         : 'Nenhum pedido encontrado nesta categoria.'}
-                      </p>
-                      </div>
-                      )}
-                      </div>
-                      )}
-                      </div>
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -725,24 +512,23 @@ export default function PortalCliente() {
           </div>
         )}
       </div>
-    </div>
-    
-    <ModalContainer open={showChequeModal} onClose={() => setShowChequeModal(false)} title="Detalhes do Cheque">
-      {chequeDetalhe && <ChequeDetails cheque={chequeDetalhe} onEdit={() => {}} onClose={() => setShowChequeModal(false)} />}
-    </ModalContainer>
 
-    <ModalContainer open={showLiquidacaoModal} onClose={() => setShowLiquidacaoModal(false)} title="Solicitar Liquidação" size="xl">
-      <LiquidacaoSelfService
-        pedidos={meusPedidos.aPagar}
-        clienteCodigo={clienteData.codigo}
-        clienteNome={clienteData.nome}
-        onSuccess={() => {
-          setShowLiquidacaoModal(false);
-          toast.success('Solicitação enviada com sucesso!');
-        }}
-        onCancel={() => setShowLiquidacaoModal(false)}
-      />
-    </ModalContainer>
-  </div>
+      <ModalContainer open={showChequeModal} onClose={() => setShowChequeModal(false)} title="Detalhes do Cheque">
+        {chequeDetalhe && <ChequeDetails cheque={chequeDetalhe} onEdit={() => {}} onClose={() => setShowChequeModal(false)} />}
+      </ModalContainer>
+
+      <ModalContainer open={showLiquidacaoModal} onClose={() => setShowLiquidacaoModal(false)} title="Solicitar Liquidação" size="xl">
+        <LiquidacaoSelfService
+          pedidos={meusPedidos.aPagar}
+          clienteCodigo={clienteData.codigo}
+          clienteNome={clienteData.nome}
+          onSuccess={() => {
+            setShowLiquidacaoModal(false);
+            toast.success('Solicitação enviada com sucesso!');
+          }}
+          onCancel={() => setShowLiquidacaoModal(false)}
+        />
+      </ModalContainer>
+    </div>
   );
 }
