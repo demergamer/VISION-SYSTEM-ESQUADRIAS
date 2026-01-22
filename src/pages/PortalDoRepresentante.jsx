@@ -12,7 +12,7 @@ import {
   Users, ShoppingCart, CreditCard, AlertCircle, 
   Search, Briefcase, LogOut, Loader2, 
   ChevronDown, ChevronRight, MapPin, Truck, Eye, Wallet, CalendarClock, DollarSign,
-  Lock, UserPlus, Edit, Send
+  Lock, UserPlus, Edit, Send, FileText
 } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -101,9 +101,11 @@ const DetailsModal = ({ item, type, open, onOpenChange }) => {
 };
 
 // --- COMPONENTE: LINHA DO CLIENTE EXPANSÍVEL ---
-const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolicitarLiquidacao }) => {
+const ClientRow = ({ cliente, pedidos, cheques, creditos, borderos, autorizacoes, onViewDetails, onSolicitarLiquidacao }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState('abertos');
+  const [activeTab, setActiveTab] = useState('transito');
+  const [liquidacaoView, setLiquidacaoView] = useState('bordero');
+  const [expandedBordero, setExpandedBordero] = useState(null);
 
   // Cálculos do Cliente
   const totalDevendo = pedidos.reduce((acc, p) => acc + (p.saldo_restante || 0), 0);
@@ -116,8 +118,8 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
   const temAtraso = pedidosAtrasados.length > 0;
 
   // Filtros dos Pedidos
+  const pedidosEmTransito = pedidos.filter(p => p.status === 'aguardando');
   const pedidosAbertos = pedidos.filter(p => (p.status === 'aberto' || p.status === 'parcial') && !pedidosAtrasados.includes(p));
-  const pedidosEmTransito = pedidos.filter(p => p.status === 'em_transito'); // Pedidos "Não Ticados"
   const pedidosPagos = pedidos.filter(p => p.status === 'pago');
   const pedidosCancelados = pedidos.filter(p => p.status === 'cancelado');
 
@@ -220,34 +222,35 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
           {/* ABAS DE DADOS */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="bg-slate-100 p-1 rounded-xl h-auto flex-wrap justify-start gap-2 mb-4 w-full sm:w-auto">
-              <TabsTrigger value="abertos" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm">
-                Abertos <Badge className="ml-2 bg-blue-100 text-blue-700 hover:bg-blue-100 border-0">{pedidosAbertos.length}</Badge>
-              </TabsTrigger>
               <TabsTrigger value="transito" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-amber-600 data-[state=active]:shadow-sm">
                 Em Trânsito <Badge className="ml-2 bg-amber-100 text-amber-700 hover:bg-amber-100 border-0">{pedidosEmTransito.length}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="abertos" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm">
+                Abertos <Badge className="ml-2 bg-blue-100 text-blue-700 hover:bg-blue-100 border-0">{pedidosAbertos.length}</Badge>
               </TabsTrigger>
               <TabsTrigger value="atrasados" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-red-600 data-[state=active]:shadow-sm">
                 Em Atraso <Badge className="ml-2 bg-red-100 text-red-700 hover:bg-red-100 border-0">{pedidosAtrasados.length}</Badge>
               </TabsTrigger>
-              <TabsTrigger value="pagos" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-emerald-600 data-[state=active]:shadow-sm">
-                Finalizados
+              <TabsTrigger value="autorizacoes" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm">
+                Autorizações <Badge className="ml-2 bg-orange-100 text-orange-700 hover:bg-orange-100 border-0">{autorizacoes.length}</Badge>
               </TabsTrigger>
-              <TabsTrigger value="cheques" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-purple-600 data-[state=active]:shadow-sm">
-                Cheques
+              <TabsTrigger value="liquidacoes" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-emerald-600 data-[state=active]:shadow-sm">
+                Liquidações <Badge className="ml-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-0">{liquidacaoView === 'bordero' ? borderos.length : pedidosPagos.length}</Badge>
               </TabsTrigger>
               <TabsTrigger value="creditos" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-emerald-600 data-[state=active]:shadow-sm">
                 Créditos <Badge className="ml-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-0">{creditos.length}</Badge>
               </TabsTrigger>
+              <TabsTrigger value="cheques" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-purple-600 data-[state=active]:shadow-sm">
+                Cheques <Badge className="ml-2 bg-purple-100 text-purple-700 hover:bg-purple-100 border-0">{cheques.length}</Badge>
+              </TabsTrigger>
             </TabsList>
 
             {/* TABELA DE PEDIDOS (Reutilizável) */}
-            {['abertos', 'transito', 'atrasados', 'pagos', 'cancelados'].map(statusTab => {
+            {['transito', 'abertos', 'atrasados'].map(statusTab => {
               let currentList = [];
               if(statusTab === 'abertos') currentList = pedidosAbertos;
               if(statusTab === 'transito') currentList = pedidosEmTransito;
               if(statusTab === 'atrasados') currentList = pedidosAtrasados;
-              if(statusTab === 'pagos') currentList = pedidosPagos;
-              if(statusTab === 'cancelados') currentList = pedidosCancelados;
 
               return (
                 <TabsContent key={statusTab} value={statusTab} className="mt-0">
@@ -272,7 +275,7 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
                               <TableCell>
                                 <div className="flex items-center gap-2">
                                   <Truck className="w-4 h-4 text-slate-400" />
-                                  <span className="text-sm font-medium text-slate-700">{p.rota_entrega || 'Não definida'}</span>
+                                  <span className="text-sm font-medium text-slate-700">{p.rota_codigo || 'Não definida'}</span>
                                 </div>
                               </TableCell>
                               <TableCell className="text-right text-slate-500">{formatCurrency(p.valor_pedido)}</TableCell>
@@ -295,6 +298,184 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
                 </TabsContent>
               )
             })}
+
+            {/* ABA AUTORIZAÇÕES */}
+            <TabsContent value="autorizacoes" className="mt-0">
+              {autorizacoes.length > 0 ? (
+                <div className="space-y-3">
+                  {autorizacoes.map(autorizacao => (
+                    <div key={autorizacao.id} className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <span className="text-xs font-bold text-orange-600 uppercase">Solicitação</span>
+                          <h3 className="text-lg font-bold text-slate-800">#{autorizacao.numero_solicitacao}</h3>
+                        </div>
+                        <Badge className="bg-orange-100 text-orange-700">Em Análise</Badge>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Data:</span>
+                          <span className="font-medium">{format(new Date(autorizacao.created_date), 'dd/MM/yyyy HH:mm')}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Pedidos:</span>
+                          <span className="font-semibold">{autorizacao.pedidos_ids?.length || 0}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Valor Proposto:</span>
+                          <span className="font-bold text-emerald-600">{formatCurrency(autorizacao.valor_final_proposto)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-slate-400 bg-slate-50/30 rounded-xl border border-dashed border-slate-200">
+                  Nenhuma solicitação em análise no momento.
+                </div>
+              )}
+            </TabsContent>
+
+            {/* ABA LIQUIDAÇÕES */}
+            <TabsContent value="liquidacoes" className="mt-0">
+              <div className="mb-3 flex items-center gap-2 bg-white border border-slate-100 rounded-xl p-1 inline-flex">
+                <Button 
+                  variant={liquidacaoView === 'bordero' ? 'default' : 'ghost'} 
+                  size="sm"
+                  onClick={() => setLiquidacaoView('bordero')}
+                  className={liquidacaoView === 'bordero' ? "bg-emerald-500 hover:bg-emerald-600 text-white" : ""}
+                >
+                  <FileText className="w-4 h-4 mr-2" /> Borderôs ({borderos.length})
+                </Button>
+                <Button 
+                  variant={liquidacaoView === 'pedidos' ? 'default' : 'ghost'} 
+                  size="sm"
+                  onClick={() => setLiquidacaoView('pedidos')}
+                  className={liquidacaoView === 'pedidos' ? "bg-emerald-500 hover:bg-emerald-600 text-white" : ""}
+                >
+                  <ShoppingCart className="w-4 h-4 mr-2" /> Pedidos ({pedidosPagos.length})
+                </Button>
+              </div>
+
+              {liquidacaoView === 'bordero' ? (
+                borderos.length > 0 ? (
+                  <div className="space-y-3">
+                    {borderos.map(bordero => (
+                      <div key={bordero.id} className="border border-slate-100 rounded-xl bg-white hover:shadow-md transition-all">
+                        <button
+                          onClick={() => setExpandedBordero(expandedBordero === bordero.id ? null : bordero.id)}
+                          className="w-full p-4 text-left"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+                                <FileText className="w-5 h-5 text-emerald-600" />
+                              </div>
+                              <div>
+                                <h3 className="text-lg font-bold text-slate-800">Borderô #{bordero.numero_bordero}</h3>
+                                <p className="text-xs text-slate-500">{format(new Date(bordero.created_date), 'dd/MM/yyyy HH:mm')}</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-slate-500">Valor Total</p>
+                              <p className="text-xl font-bold text-emerald-600">{formatCurrency(bordero.valor_total)}</p>
+                            </div>
+                          </div>
+                        </button>
+
+                        {expandedBordero === bordero.id && (
+                          <div className="px-4 pb-4 pt-0 border-t border-slate-100 space-y-3">
+                            <div className="grid grid-cols-2 gap-3 text-sm mt-3">
+                              <div>
+                                <span className="text-slate-500">Pedidos:</span>
+                                <span className="font-medium ml-2">{bordero.pedidos_ids?.length || 0}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-500">Forma Pagamento:</span>
+                                <span className="font-medium ml-2 text-xs">{bordero.forma_pagamento || 'N/A'}</span>
+                              </div>
+                            </div>
+
+                            {bordero.pedidos_ids && bordero.pedidos_ids.length > 0 && (
+                              <div>
+                                <h4 className="font-semibold text-slate-700 mb-2 text-sm">Pedidos Liquidados:</h4>
+                                <div className="space-y-2">
+                                  {bordero.pedidos_ids.map(pedidoId => {
+                                    const pedido = pedidos.find(p => p.id === pedidoId);
+                                    return pedido ? (
+                                      <div key={pedidoId} className="flex justify-between items-center p-2 bg-slate-50 border rounded-lg text-sm">
+                                        <span className="font-medium">#{pedido.numero_pedido}</span>
+                                        <span className="text-slate-600">{formatCurrency(pedido.valor_pedido)}</span>
+                                      </div>
+                                    ) : null;
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {bordero.comprovantes_urls && bordero.comprovantes_urls.length > 0 && (
+                              <div>
+                                <h4 className="font-semibold text-slate-700 mb-2 text-sm">Comprovantes:</h4>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {bordero.comprovantes_urls.map((url, idx) => (
+                                    <a key={idx} href={url} target="_blank" rel="noopener noreferrer" download className="block border rounded-lg overflow-hidden hover:border-emerald-400 transition-colors">
+                                      <img src={url} alt={`Comprovante ${idx + 1}`} className="w-full h-24 object-cover" />
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-slate-400 bg-slate-50/30 rounded-xl border border-dashed border-slate-200">
+                    Nenhum borderô encontrado.
+                  </div>
+                )
+              ) : (
+                <div className="rounded-xl border border-slate-100 overflow-hidden">
+                  {pedidosPagos.length > 0 ? (
+                    <Table>
+                      <TableHeader className="bg-slate-50/50">
+                        <TableRow>
+                          <TableHead className="w-[100px]">Pedido</TableHead>
+                          <TableHead>Borderô</TableHead>
+                          <TableHead>Data Pag.</TableHead>
+                          <TableHead className="text-right">Valor</TableHead>
+                          <TableHead className="w-[50px]"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pedidosPagos.map(p => (
+                          <TableRow key={p.id} className="hover:bg-slate-50/50">
+                            <TableCell className="font-mono font-medium">#{p.numero_pedido}</TableCell>
+                            <TableCell>
+                              {p.bordero_numero ? (
+                                <Badge className="bg-emerald-100 text-emerald-700">#B{p.bordero_numero}</Badge>
+                              ) : '-'}
+                            </TableCell>
+                            <TableCell>{p.data_pagamento ? format(new Date(p.data_pagamento), 'dd/MM/yyyy') : '-'}</TableCell>
+                            <TableCell className="text-right font-bold text-emerald-600">{formatCurrency(p.valor_pedido)}</TableCell>
+                            <TableCell>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:bg-blue-50" onClick={() => onViewDetails(p, 'pedido')}>
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <div className="text-center py-8 text-slate-400 bg-slate-50/30 rounded-xl border border-dashed border-slate-200">
+                      Nenhum pedido pago encontrado.
+                    </div>
+                  )}
+                </div>
+              )}
+            </TabsContent>
 
             {/* TABELA DE CHEQUES */}
             <TabsContent value="cheques" className="mt-0">
@@ -427,6 +608,8 @@ export default function PainelRepresentante() {
   const { data: todosPedidos = [] } = useQuery({ queryKey: ['pedidos', representante?.id], queryFn: () => base44.entities.Pedido.list(), enabled: !!representante });
   const { data: todosCheques = [] } = useQuery({ queryKey: ['cheques', representante?.id], queryFn: () => base44.entities.Cheque.list(), enabled: !!representante });
   const { data: todosCreditos = [] } = useQuery({ queryKey: ['creditos', representante?.id], queryFn: () => base44.entities.Credito.list(), enabled: !!representante });
+  const { data: todosBorderos = [] } = useQuery({ queryKey: ['borderos', representante?.id], queryFn: () => base44.entities.Bordero.list('-created_date'), enabled: !!representante });
+  const { data: todasLiquidacoesPendentes = [] } = useQuery({ queryKey: ['liquidacoesPendentes', representante?.id], queryFn: () => base44.entities.LiquidacaoPendente.list('-created_date'), enabled: !!representante });
 
   // 2. Filtros e Agrupamento
   const meusClientes = useMemo(() => {
@@ -446,7 +629,9 @@ export default function PainelRepresentante() {
       ...c,
       pedidos: todosPedidos.filter(p => p.cliente_codigo === c.codigo),
       cheques: todosCheques.filter(ch => ch.cliente_codigo === c.codigo),
-      creditos: todosCreditos.filter(cr => cr.cliente_codigo === c.codigo)
+      creditos: todosCreditos.filter(cr => cr.cliente_codigo === c.codigo && cr.status === 'disponivel'),
+      borderos: todosBorderos.filter(b => b.cliente_codigo === c.codigo),
+      autorizacoes: todasLiquidacoesPendentes.filter(lp => lp.cliente_codigo === c.codigo && lp.status === 'pendente')
     }));
   }, [representante, todosClientes, todosPedidos, todosCheques, todosCreditos, searchTerm]);
 
@@ -593,6 +778,8 @@ export default function PainelRepresentante() {
                 pedidos={cliente.pedidos} 
                 cheques={cliente.cheques}
                 creditos={cliente.creditos}
+                borderos={cliente.borderos}
+                autorizacoes={cliente.autorizacoes}
                 onViewDetails={handleViewDetails}
                 onSolicitarLiquidacao={handleSolicitarLiquidacao}
               />
