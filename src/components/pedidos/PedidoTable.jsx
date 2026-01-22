@@ -21,7 +21,8 @@ export default function PedidoTable({
   onLiquidar,
   onCancelar,
   onReverter,
-  isLoading 
+  isLoading,
+  showBorderoRef = false
 }) {
   const { canDo } = usePermissions();
   
@@ -80,6 +81,7 @@ export default function PedidoTable({
             <TableHead className="font-semibold">Região</TableHead>
             <TableHead className="font-semibold">Data Entrega</TableHead>
             <TableHead className="font-semibold">Nº Pedido</TableHead>
+            {showBorderoRef && <TableHead className="font-semibold text-center">Ref. Borderô</TableHead>}
             <TableHead className="font-semibold text-right">Valor</TableHead>
             <TableHead className="font-semibold text-right">Pago</TableHead>
             <TableHead className="font-semibold text-right">Saldo</TableHead>
@@ -105,6 +107,17 @@ export default function PedidoTable({
                 </div>
               </TableCell>
               <TableCell className="font-mono">{pedido.numero_pedido}</TableCell>
+              {showBorderoRef && (
+                <TableCell className="text-center">
+                  {pedido.bordero_numero ? (
+                    <Badge variant="outline" className="font-mono text-xs border-emerald-300 text-emerald-700 bg-emerald-50">
+                      #{pedido.bordero_numero}
+                    </Badge>
+                  ) : (
+                    <span className="text-slate-400 text-xs">-</span>
+                  )}
+                </TableCell>
+              )}
               <TableCell className="text-right font-medium">
                 {formatCurrency(pedido.valor_pedido)}
               </TableCell>
