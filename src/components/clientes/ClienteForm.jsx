@@ -15,6 +15,42 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { base44 } from '@/api/base44Client';
 import { InputCpfCnpj } from "@/components/ui/input-mask";
+import { useQuery } from '@tanstack/react-query';
+
+function FormasPagamentoSelector({ formasSelecionadas, onChange }) {
+  const { data: formasCadastradas = [] } = useQuery({
+    queryKey: ['formasPagamento'],
+    queryFn: () => base44.entities.FormaPagamento.list()
+  });
+
+  const formasPadrao = ['Dinheiro', 'PIX', 'Cheque', 'Crédito', 'Boleto', 'Cartão'];
+  const formasCustomizadas = formasCadastradas.filter(f => f.ativa).map(f => f.nome);
+  const todasFormas = [...formasPadrao, ...formasCustomizadas];
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {todasFormas.map(forma => (
+        <button
+          key={forma}
+          type="button"
+          onClick={() => {
+            onChange(prev =>
+              prev.includes(forma) ? prev.filter(f => f !== forma) : [...prev, forma]
+            );
+          }}
+          className={cn(
+            "px-4 py-2 rounded-xl text-sm font-medium transition-all",
+            formasSelecionadas.includes(forma)
+              ? "bg-blue-600 text-white shadow-sm"
+              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+          )}
+        >
+          {forma}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function ClienteForm({ cliente, representantes = [], todosClientes = [], onSave, onCancel, isLoading }) {
   const [form, setForm] = useState({
@@ -326,27 +362,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
 
         <div className="space-y-2">
           <Label htmlFor="formasPag" className={labelClass}>Formas de Pagamento Autorizadas</Label>
-          <div className="flex flex-wrap gap-2">
-            {['Dinheiro', 'PIX', 'Cheque', 'Crédito', 'Boleto', 'Cartão'].map(forma => (
-              <button
-                key={forma}
-                type="button"
-                onClick={() => {
-                  setFormasPagamento(prev =>
-                    prev.includes(forma) ? prev.filter(f => f !== forma) : [...prev, forma]
-                  );
-                }}
-                className={cn(
-                  "px-4 py-2 rounded-xl text-sm font-medium transition-all",
-                  formasPagamento.includes(forma)
-                    ? "bg-blue-600 text-white shadow-sm"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                )}
-              >
-                {forma}
-              </button>
-            ))}
-          </div>
+          <FormasPagamentoSelector formasSelecionadas={formasPagamento} onChange={setFormasPagamento} />
         </div>
       </div>
 
