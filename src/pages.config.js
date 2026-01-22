@@ -1,6 +1,5 @@
 import AgruparOrcamentos from './pages/AgruparOrcamentos';
 import Balanco from './pages/Balanco';
-import CadastroPecas from './pages/CadastroPecas';
 import Cheques from './pages/Cheques';
 import Clientes from './pages/Clientes';
 import Comissoes from './pages/Comissoes';
@@ -20,13 +19,13 @@ import Welcome from './pages/Welcome';
 import Pagamentos from './pages/Pagamentos';
 import Fornecedores from './pages/Fornecedores';
 import Cadastro from './pages/Cadastro';
+import Produtos from './pages/Produtos';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
     "AgruparOrcamentos": AgruparOrcamentos,
     "Balanco": Balanco,
-    "CadastroPecas": CadastroPecas,
     "Cheques": Cheques,
     "Clientes": Clientes,
     "Comissoes": Comissoes,
@@ -46,6 +45,7 @@ export const PAGES = {
     "Pagamentos": Pagamentos,
     "Fornecedores": Fornecedores,
     "Cadastro": Cadastro,
+    "Produtos": Produtos,
 }
 
 export const pagesConfig = {

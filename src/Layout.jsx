@@ -53,7 +53,7 @@ const navStructure = [
     items: [
       { name: 'Solicitações', icon: UserPlus, page: 'Cadastro' },
       { name: 'Orçamentos', icon: FileText, page: 'Orcamentos', isDev: true },
-      { name: 'Produtos', icon: Package, page: 'CadastroPecas', isDev: true },
+      { name: 'Produtos', icon: Package, page: 'Produtos' },
       { name: 'Agrupar Orçamentos', icon: Layers, page: 'AgruparOrcamentos', isDev: true },
     ]
   },
@@ -203,7 +203,7 @@ export default function Layout({ children, currentPageName }) {
 
   const hasAccess = (pageName) => {
     if (!user) return false;
-    if (['Pagamentos', 'Logs', 'Fornecedores', 'FormasPagamento', 'Cadastro', 'Orcamentos', 'CadastroPecas', 'AgruparOrcamentos'].includes(pageName)) return true;
+    if (['Pagamentos', 'Logs', 'Fornecedores', 'FormasPagamento', 'Cadastro', 'Orcamentos', 'Produtos', 'AgruparOrcamentos'].includes(pageName)) return true;
     const permissoes = user.permissoes || {};
     const perm = permissoes[pageName];
     return perm === true || perm?.acesso === true;
