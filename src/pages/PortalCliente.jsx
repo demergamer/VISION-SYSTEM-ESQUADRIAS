@@ -7,15 +7,15 @@ import { Button } from "@/components/ui/button";
 import { 
   AlertCircle, FileText, CreditCard, TrendingDown, CheckCircle, 
   XCircle, Clock, DollarSign, Search, Eye, Filter, ChevronDown, ChevronUp, ArrowRight,
-  Package, Truck, ShoppingCart
+  Package, Truck, ShoppingCart, Lock, Send
 } from "lucide-react";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 import ModalContainer from "@/components/modals/ModalContainer";
 import ChequeDetails from "@/components/cheques/ChequeDetails";
 import LiquidacaoSelfService from "@/components/portais/LiquidacaoSelfService";
 import { Badge } from "@/components/ui/badge";
-import { Lock, Send } from "lucide-react";
 
 export default function PortalCliente() {
   // --- Estados de Controle Visual ---
@@ -724,24 +724,24 @@ export default function PortalCliente() {
             </div>
           </div>
         )}
+      
+        <ModalContainer open={showChequeModal} onClose={() => setShowChequeModal(false)} title="Detalhes do Cheque">
+          {chequeDetalhe && <ChequeDetails cheque={chequeDetalhe} onEdit={() => {}} onClose={() => setShowChequeModal(false)} />}
+        </ModalContainer>
+
+        <ModalContainer open={showLiquidacaoModal} onClose={() => setShowLiquidacaoModal(false)} title="Solicitar Liquidação" size="xl">
+          <LiquidacaoSelfService
+            pedidos={meusPedidos.aPagar}
+            clienteCodigo={clienteData.codigo}
+            clienteNome={clienteData.nome}
+            onSuccess={() => {
+              setShowLiquidacaoModal(false);
+              toast.success('Solicitação enviada com sucesso!');
+            }}
+            onCancel={() => setShowLiquidacaoModal(false)}
+          />
+        </ModalContainer>
       </div>
-
-      <ModalContainer open={showChequeModal} onClose={() => setShowChequeModal(false)} title="Detalhes do Cheque">
-        {chequeDetalhe && <ChequeDetails cheque={chequeDetalhe} onEdit={() => {}} onClose={() => setShowChequeModal(false)} />}
-      </ModalContainer>
-
-      <ModalContainer open={showLiquidacaoModal} onClose={() => setShowLiquidacaoModal(false)} title="Solicitar Liquidação" size="xl">
-        <LiquidacaoSelfService
-          pedidos={meusPedidos.aPagar}
-          clienteCodigo={clienteData.codigo}
-          clienteNome={clienteData.nome}
-          onSuccess={() => {
-            setShowLiquidacaoModal(false);
-            toast.success('Solicitação enviada com sucesso!');
-          }}
-          onCancel={() => setShowLiquidacaoModal(false)}
-        />
-      </ModalContainer>
     </div>
   );
 }
