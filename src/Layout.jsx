@@ -43,7 +43,7 @@ const navStructure = [
     category: "Cadastros",
     items: [
       { name: 'Clientes', icon: Building2, page: 'Clientes' },
-      { name: 'Representantes', icon: Users, page: 'Representation' },
+      { name: 'Representantes', icon: Users, page: 'Representantes' },
       { name: 'Fornecedores', icon: Truck, page: 'Fornecedores' },
       { name: 'Formas de Pagamento', icon: CreditCard, page: 'FormasPagamento' },
     ]
@@ -54,7 +54,7 @@ const navStructure = [
       { name: 'Solicitações', icon: UserPlus, page: 'Cadastro' },
       { name: 'Orçamentos', icon: FileText, page: 'Orcamentos' },
       { name: 'Produtos', icon: Package, page: 'Produtos' },
-      { name: 'Agrupar Orçamentos', icon: Layers, page: 'AgruparOrcamentos', isDev: true },
+      { name: 'Agrupar Orçamentos', icon: Layers, page: 'AgruparOrcamentos' },
     ]
   },
   {
@@ -68,7 +68,7 @@ const navStructure = [
   {
     category: "A Pagar",
     items: [
-      { name: 'Pagamentos', icon: CreditCard, page: 'Pagamentos', isDev: true }, 
+      { name: 'Pagamentos', icon: CreditCard, page: 'Pagamentos' }, 
       { name: 'Comissões', icon: Wallet, page: 'Comissoes' },
     ]
   },
