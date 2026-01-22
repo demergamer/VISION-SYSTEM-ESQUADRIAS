@@ -724,25 +724,25 @@ export default function PortalCliente() {
             </div>
           </div>
         )}
-        </div>
       </div>
-      
-      <ModalContainer open={showChequeModal} onClose={() => setShowChequeModal(false)} title="Detalhes do Cheque">
-        {chequeDetalhe && <ChequeDetails cheque={chequeDetalhe} onEdit={() => {}} onClose={() => setShowChequeModal(false)} />}
-      </ModalContainer>
+    </div>
+    
+    <ModalContainer open={showChequeModal} onClose={() => setShowChequeModal(false)} title="Detalhes do Cheque">
+      {chequeDetalhe && <ChequeDetails cheque={chequeDetalhe} onEdit={() => {}} onClose={() => setShowChequeModal(false)} />}
+    </ModalContainer>
 
-      <ModalContainer open={showLiquidacaoModal} onClose={() => setShowLiquidacaoModal(false)} title="Solicitar Liquidação" size="xl">
-        <LiquidacaoSelfService
-          pedidos={meusPedidos.aPagar}
-          clienteCodigo={clienteData.codigo}
-          clienteNome={clienteData.nome}
-          onSuccess={() => {
-            setShowLiquidacaoModal(false);
-            toast.success('Solicitação enviada com sucesso!');
-          }}
-          onCancel={() => setShowLiquidacaoModal(false)}
-        />
-      </ModalContainer>
-    </>
+    <ModalContainer open={showLiquidacaoModal} onClose={() => setShowLiquidacaoModal(false)} title="Solicitar Liquidação" size="xl">
+      <LiquidacaoSelfService
+        pedidos={meusPedidos.aPagar}
+        clienteCodigo={clienteData.codigo}
+        clienteNome={clienteData.nome}
+        onSuccess={() => {
+          setShowLiquidacaoModal(false);
+          toast.success('Solicitação enviada com sucesso!');
+        }}
+        onCancel={() => setShowLiquidacaoModal(false)}
+      />
+    </ModalContainer>
+  </div>
   );
 }
