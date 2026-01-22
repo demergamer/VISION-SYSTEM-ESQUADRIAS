@@ -176,7 +176,23 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button type="button" onClick={() => onSave(formData)}>
+        <Button type="button" onClick={() => {
+          // Validação de duplicidade
+          if (!cheque) {
+            const duplicado = todosCheques.find(c => 
+              c.banco === formData.banco && 
+              c.agencia === formData.agencia && 
+              c.conta === formData.conta && 
+              c.numero_cheque === formData.numero_cheque
+            );
+
+            if (duplicado) {
+              toast.error('Cheque já cadastrado com estes dados!');
+              return;
+            }
+          }
+          onSave(formData);
+        }}>
           {cheque ? 'Atualizar' : 'Cadastrar'} Cheque
         </Button>
       </div>
