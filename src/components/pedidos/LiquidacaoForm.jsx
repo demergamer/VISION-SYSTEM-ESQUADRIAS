@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DollarSign, CheckCircle, X, Wallet, Percent, Loader2 } from "lucide-react";
+import { DollarSign, CheckCircle, X, Wallet, Percent, Loader2, Upload, FileText, Trash2 } from "lucide-react";
 import ModalContainer from "@/components/modals/ModalContainer";
 import AdicionarChequeModal from "@/components/pedidos/AdicionarChequeModal";
 import { toast } from "sonner";
@@ -27,6 +27,8 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
   const [descontoValor, setDescontoValor] = useState('');
   const [devolucao, setDevolucao] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [comprovantes, setComprovantes] = useState([]);
+  const [uploadingFile, setUploadingFile] = useState(false);
 
   const { data: creditos = [] } = useQuery({
     queryKey: ['creditos', pedido.cliente_codigo],
@@ -147,7 +149,7 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
         pedidos_ids: [pedido.id],
         valor_total: valorPagamento + creditoAUsar,
         forma_pagamento: formaPagamentoStr,
-        comprovantes_urls: [],
+        comprovantes_urls: comprovantes,
         cheques_anexos: chequesAnexos,
         observacao: desconto > 0 ? `Desconto: ${formatCurrency(desconto)}` : '',
         liquidado_por: user.email
@@ -333,6 +335,76 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
           {creditoAUsar > 0 && <div className="flex justify-between text-green-600"><span>Crédito Usado:</span><span className="font-semibold">{formatCurrency(creditoAUsar)}</span></div>}
           <div className="flex justify-between border-t pt-2 text-lg"><span className="font-bold text-slate-800">Novo Saldo:</span><span className="font-bold text-emerald-700">{formatCurrency(Math.max(0, saldoAtual - calcularDesconto() - (parseFloat(devolucao) || 0) - valorPagamento - creditoAUsar))}</span></div>
         </div>
+      </Card>
+
+      {/* SEÇÃO DE ANEXOS */}
+      <Card className="p-6 space-y-4 bg-gradient-to-br from-slate-50 to-white border-slate-200">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <FileText className="w-5 h-5 text-blue-600" />
+              Anexos do Pagamento
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">Comprovantes, notas fiscais, recibos, etc.</p>
+          </div>
+          <label className="cursor-pointer">
+            <input 
+              type="file" 
+              multiple 
+              accept="image/*,.pdf" 
+              onChange={handleFileUpload}
+              disabled={uploadingFile}
+              className="hidden" 
+            />
+            <Button 
+              type="button" 
+              size="sm" 
+              variant="outline" 
+              disabled={uploadingFile}
+              className="gap-2"
+              onClick={(e) => e.preventDefault()}
+            >
+              {uploadingFile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              {uploadingFile ? 'Enviando...' : 'Anexar Arquivos'}
+            </Button>
+          </label>
+        </div>
+
+        {comprovantes.length > 0 && (
+          <div className="space-y-2">
+            {comprovantes.map((url, index) => (
+              <div key={index} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg hover:border-blue-300 transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
+                    <FileText className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-700">Comprovante {index + 1}</p>
+                    <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">
+                      Ver arquivo
+                    </a>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => removerComprovante(index)}
+                  className="text-red-600 hover:bg-red-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {comprovantes.length === 0 && !uploadingFile && (
+          <div className="text-center py-6 border-2 border-dashed border-slate-200 rounded-lg">
+            <Upload className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+            <p className="text-sm text-slate-400">Nenhum arquivo anexado</p>
+          </div>
+        )}
       </Card>
 
       <div className="flex justify-end gap-3 pt-4 border-t">
