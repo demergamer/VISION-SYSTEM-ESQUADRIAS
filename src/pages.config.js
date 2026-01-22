@@ -1,51 +1,51 @@
+import AgruparOrcamentos from './pages/AgruparOrcamentos';
+import Balanco from './pages/Balanco';
+import CadastroPecas from './pages/CadastroPecas';
 import Cheques from './pages/Cheques';
 import Clientes from './pages/Clientes';
+import Comissoes from './pages/Comissoes';
 import Creditos from './pages/Creditos';
 import Dashboard from './pages/Dashboard';
+import FormasPagamento from './pages/FormasPagamento';
+import Logs from './pages/Logs';
+import Orcamentos from './pages/Orcamentos';
 import Pedidos from './pages/Pedidos';
 import PortalCliente from './pages/PortalCliente';
 import PortalDoRepresentante from './pages/PortalDoRepresentante';
+import Relatorios from './pages/Relatorios';
 import Representantes from './pages/Representantes';
 import Representation from './pages/Representation';
 import Usuarios from './pages/Usuarios';
 import Welcome from './pages/Welcome';
-import Relatorios from './pages/Relatorios';
-import Comissoes from './pages/Comissoes';
-import Balanco from './pages/Balanco';
-import ChequesPagar from './pages/ChequesPagar';
-import Logs from './pages/Logs';
-import CadastroFornecedor from './pages/CadastroFornecedor';
-import FormasPagamento from './pages/FormasPagamento';
-import SolicitacaoCadastro from './pages/SolicitacaoCadastro';
-import Orcamentos from './pages/Orcamentos';
-import CadastroPecas from './pages/CadastroPecas';
-import AgruparOrcamentos from './pages/AgruparOrcamentos';
+import Pagamentos from './pages/Pagamentos';
+import Fornecedores from './pages/Fornecedores';
+import Cadastro from './pages/Cadastro';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
+    "AgruparOrcamentos": AgruparOrcamentos,
+    "Balanco": Balanco,
+    "CadastroPecas": CadastroPecas,
     "Cheques": Cheques,
     "Clientes": Clientes,
+    "Comissoes": Comissoes,
     "Creditos": Creditos,
     "Dashboard": Dashboard,
+    "FormasPagamento": FormasPagamento,
+    "Logs": Logs,
+    "Orcamentos": Orcamentos,
     "Pedidos": Pedidos,
     "PortalCliente": PortalCliente,
     "PortalDoRepresentante": PortalDoRepresentante,
+    "Relatorios": Relatorios,
     "Representantes": Representantes,
     "Representation": Representation,
     "Usuarios": Usuarios,
     "Welcome": Welcome,
-    "Relatorios": Relatorios,
-    "Comissoes": Comissoes,
-    "Balanco": Balanco,
-    "ChequesPagar": ChequesPagar,
-    "Logs": Logs,
-    "CadastroFornecedor": CadastroFornecedor,
-    "FormasPagamento": FormasPagamento,
-    "SolicitacaoCadastro": SolicitacaoCadastro,
-    "Orcamentos": Orcamentos,
-    "CadastroPecas": CadastroPecas,
-    "AgruparOrcamentos": AgruparOrcamentos,
+    "Pagamentos": Pagamentos,
+    "Fornecedores": Fornecedores,
+    "Cadastro": Cadastro,
 }
 
 export const pagesConfig = {

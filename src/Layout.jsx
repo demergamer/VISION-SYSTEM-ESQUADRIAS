@@ -44,16 +44,16 @@ const navStructure = [
     items: [
       { name: 'Clientes', icon: Building2, page: 'Clientes' },
       { name: 'Representantes', icon: Users, page: 'Representation' },
-      { name: 'Fornecedores', icon: Truck, page: 'CadastroFornecedor' },
+      { name: 'Fornecedores', icon: Truck, page: 'Fornecedores' },
       { name: 'Formas de Pagamento', icon: CreditCard, page: 'FormasPagamento' },
     ]
   },
   {
     category: "Vendas",
     items: [
-      { name: 'Solicitação de Cadastro', icon: UserPlus, page: 'SolicitacaoCadastro' },
+      { name: 'Solicitações', icon: UserPlus, page: 'Cadastro' },
       { name: 'Orçamentos', icon: FileText, page: 'Orcamentos' },
-      { name: 'Peças e Preços', icon: Package, page: 'CadastroPecas' },
+      { name: 'Produtos', icon: Package, page: 'CadastroPecas' },
       { name: 'Agrupar Orçamentos', icon: Layers, page: 'AgruparOrcamentos' },
     ]
   },
@@ -68,7 +68,7 @@ const navStructure = [
   {
     category: "A Pagar",
     items: [
-      { name: 'Cheques', icon: CreditCard, page: 'ChequesPagar', isDev: true }, 
+      { name: 'Pagamentos', icon: CreditCard, page: 'Pagamentos', isDev: true }, 
       { name: 'Comissões', icon: Wallet, page: 'Comissoes' },
     ]
   },
@@ -154,6 +154,8 @@ export default function Layout({ children, currentPageName }) {
   const navigate = useNavigate();
   const [user, setUser] = React.useState(null);
   const [searchOpen, setSearchOpen] = React.useState(false);
+  const [sidebarOpen, setSidebarOpen] = React.useState(true);
+  const [lastInteraction, setLastInteraction] = React.useState(Date.now());
 
   // Atalho de Teclado CTRL+K ou CMD+K
   useEffect(() => {
@@ -171,13 +173,37 @@ export default function Layout({ children, currentPageName }) {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
 
+  // Auto-collapse sidebar após 15s sem interação
+  React.useEffect(() => {
+    const handleActivity = () => setLastInteraction(Date.now());
+    
+    const checkInactivity = setInterval(() => {
+      const timeSinceLastInteraction = Date.now() - lastInteraction;
+      if (timeSinceLastInteraction > 15000 && sidebarOpen) {
+        const sidebarTrigger = document.querySelector('[data-sidebar="trigger"]');
+        if (sidebarTrigger) sidebarTrigger.click();
+      }
+    }, 5000);
+
+    document.addEventListener('mousemove', handleActivity);
+    document.addEventListener('click', handleActivity);
+    document.addEventListener('keydown', handleActivity);
+
+    return () => {
+      clearInterval(checkInactivity);
+      document.removeEventListener('mousemove', handleActivity);
+      document.removeEventListener('click', handleActivity);
+      document.removeEventListener('keydown', handleActivity);
+    };
+  }, [lastInteraction, sidebarOpen]);
+
   const handleLogout = () => {
     base44.auth.logout();
   };
 
   const hasAccess = (pageName) => {
     if (!user) return false;
-    if (['ChequesPagar', 'Logs', 'CadastroFornecedor', 'FormasPagamento', 'SolicitacaoCadastro', 'Orcamentos', 'CadastroPecas', 'AgruparOrcamentos'].includes(pageName)) return true;
+    if (['Pagamentos', 'Logs', 'Fornecedores', 'FormasPagamento', 'Cadastro', 'Orcamentos', 'CadastroPecas', 'AgruparOrcamentos'].includes(pageName)) return true;
     const permissoes = user.permissoes || {};
     const perm = permissoes[pageName];
     return perm === true || perm?.acesso === true;
@@ -289,7 +315,7 @@ export default function Layout({ children, currentPageName }) {
         {/* HEADER COM BUSCA E NOTIFICAÇÕES */}
         <header className="flex h-16 shrink-0 items-center justify-between border-b bg-white/70 backdrop-blur-md px-4 sticky top-0 z-20">
           <div className="flex items-center gap-2">
-            <SidebarTrigger className="-ml-1" />
+            <SidebarTrigger className="-ml-1" data-sidebar="trigger" />
             <div className="h-4 w-px bg-slate-200 mx-2" />
             <h1 className="font-semibold text-slate-800 text-sm md:text-base">
               {navStructure.flatMap(g => g.items).find(i => i.page === currentPageName)?.name || 'J&C System'}

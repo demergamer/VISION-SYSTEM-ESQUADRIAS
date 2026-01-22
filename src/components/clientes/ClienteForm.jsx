@@ -14,6 +14,7 @@ import { Save, X, AlertCircle, Upload, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { base44 } from '@/api/base44Client';
+import { InputCpfCnpj } from "@/components/ui/input-mask";
 
 export default function ClienteForm({ cliente, representantes = [], todosClientes = [], onSave, onCancel, isLoading }) {
   const [form, setForm] = useState({
@@ -185,15 +186,14 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="cnpj" className={labelClass}>CNPJ</Label>
-            <Input
+            <Label htmlFor="cnpj" className={labelClass}>CPF/CNPJ</Label>
+            <InputCpfCnpj
               id="cnpj"
               value={form.cnpj}
               onChange={(e) => {
                 setForm({ ...form, cnpj: e.target.value });
                 if (errors.cnpj) setErrors({...errors, cnpj: null});
               }}
-              placeholder="00.000.000/0000-00"
               className={cn(inputClass, errors.cnpj && "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100")}
             />
             {errors.cnpj && <p className="text-xs text-red-500 mt-1 ml-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {errors.cnpj}</p>}
