@@ -179,6 +179,10 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
       }
 
       await onSave(dataToSave);
+      toast.success(`Borderô #${proximoNumeroBordero} criado com sucesso!`);
+    } catch (error) {
+      toast.error('Erro ao processar: ' + error.message);
+      throw error;
     } finally {
       setIsSaving(false);
     }

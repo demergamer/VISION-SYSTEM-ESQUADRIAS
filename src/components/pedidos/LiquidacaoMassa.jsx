@@ -309,11 +309,12 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         toast.success(`Crédito #${proximoNumero} de ${formatCurrency(sobraTotal)} gerado!`);
       }
 
+      await onSave();
       toast.success(`Borderô #${proximoNumeroBordero} criado! ${pedidosProcessados.filter(p => p.novoSaldo <= 0).length} pedidos quitados.`);
-      onSave();
     } catch (error) {
       toast.error('Erro ao processar liquidação: ' + error.message);
       console.error(error);
+      throw error;
     } finally {
       setIsSaving(false);
     }

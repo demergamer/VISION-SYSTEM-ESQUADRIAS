@@ -202,7 +202,18 @@ export default function Pedidos() {
   }, [pedidos]);
 
   const createMutation = useMutation({ mutationFn: (data) => base44.entities.Pedido.create(data), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['pedidos'] }); setShowAddModal(false); toast.success('Pedido cadastrado!'); } });
-  const updateMutation = useMutation({ mutationFn: ({ id, data }) => base44.entities.Pedido.update(id, data), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['pedidos'] }); setShowEditModal(false); setShowLiquidarModal(false); setSelectedPedido(null); toast.success('Pedido atualizado!'); } });
+  const updateMutation = useMutation({ 
+    mutationFn: ({ id, data }) => base44.entities.Pedido.update(id, data), 
+    onSuccess: async () => { 
+      await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+      await queryClient.invalidateQueries({ queryKey: ['creditos'] });
+      await queryClient.invalidateQueries({ queryKey: ['borderos'] });
+      setShowEditModal(false); 
+      setShowLiquidarModal(false); 
+      setSelectedPedido(null); 
+      toast.success('Pedido atualizado!');
+    } 
+  });
 
   const filteredPedidos = useMemo(() => {
     let filtered = pedidos;
@@ -253,107 +264,22 @@ export default function Pedidos() {
   const handleConfirmarAguardando = async (pedido) => { try { await base44.entities.Pedido.update(pedido.id, { confirmado_entrega: true, status: 'aberto' }); await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); toast.success('Pedido confirmado!'); } catch (error) { toast.error('Erro ao confirmar'); } };
   const handleReverterLiquidacao = async () => { if (!pedidoParaReverter) return; try { await base44.entities.Pedido.update(pedidoParaReverter.id, { status: 'aberto', saldo_restante: pedidoParaReverter.valor_pedido, total_pago: 0, data_pagamento: null, mes_pagamento: null, desconto_dado: 0, outras_informacoes: pedidoParaReverter.outras_informacoes + `\n[${new Date().toLocaleDateString()}] Liquidação Revertida.` }); await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); setShowReverterDialog(false); setPedidoParaReverter(null); toast.success('Revertido!'); } catch (e) { toast.error('Erro ao reverter'); } };
 
-  // --- LÓGICA DE LIQUIDAÇÃO EM MASSA (CORRIGIDA E BLINDADA) ---
   const handleLiquidacaoMassa = async (data) => {
-    setIsProcessing(true); // INICIA LOADING
+    setIsProcessing(true);
     try {
-        const mesAtual = new Date().toISOString().slice(0, 7);
-        const hoje = new Date().toISOString().split('T')[0];
-
-        // 1. Crédito Excedente (Garantir que seja > 0.01 centavo)
-        const valorCredito = parseFloat(data.credito || 0);
-        if (valorCredito > 0.01 && data.pedidos.length > 0) {
-             const primeiroPedido = data.pedidos[0];
-             const todosCreditos = await base44.entities.Credito.list();
-             const proximoNumero = todosCreditos.length > 0 ? Math.max(...todosCreditos.map(c => c.numero_credito || 0)) + 1 : 1;
-             await base44.entities.Credito.create({ numero_credito: proximoNumero, cliente_codigo: primeiroPedido.cliente_codigo, cliente_nome: primeiroPedido.cliente_nome, valor: valorCredito, origem: `Excedente Liquidação em Massa (${data.pedidos.length} pedidos)`, pedido_origem_id: primeiroPedido.id, status: 'disponivel', data_emissao: hoje });
-        }
-
-        // 2. Consumo de Crédito
-        if (data.creditoUsado > 0 && data.pedidos.length > 0) {
-            const primeiroPedido = data.pedidos[0];
-            const todosCreditos = await base44.entities.Credito.list();
-            const creditosDisponiveis = todosCreditos.filter(c => c.cliente_codigo === primeiroPedido.cliente_codigo && c.status === 'disponivel');
-            let valorParaAbater = parseFloat(data.creditoUsado);
-            for (const cred of creditosDisponiveis) {
-                if (valorParaAbater <= 0) break;
-                if (cred.valor <= valorParaAbater) { await base44.entities.Credito.update(cred.id, { status: 'usado', data_uso: hoje, pedido_uso_id: primeiroPedido.id }); valorParaAbater -= cred.valor; } 
-                else { const saldoRestanteCredito = cred.valor - valorParaAbater; await base44.entities.Credito.update(cred.id, { status: 'usado', data_uso: hoje, pedido_uso_id: primeiroPedido.id }); const proximoNumero = todosCreditos.length > 0 ? Math.max(...todosCreditos.map(c => c.numero_credito || 0)) + 1 : 1; await base44.entities.Credito.create({ numero_credito: proximoNumero + 1, cliente_codigo: cred.cliente_codigo, cliente_nome: cred.cliente_nome, valor: saldoRestanteCredito, origem: `Saldo restante do crédito #${cred.numero_credito}`, status: 'disponivel', data_emissao: hoje }); valorParaAbater = 0; }
-            }
-        }
-
-        // 3. Texto dos Cheques
-        let textoDetalheCheques = "";
-        if (data.cheques && data.cheques.length > 0) {
-            const detalhes = data.cheques.map(c => `Cheque Nº ${c.numero_cheque} (${c.banco || 'Bco N/A'}${c.agencia ? '/Ag '+c.agencia : ''}${c.conta ? '/CC '+c.conta : ''}) - R$ ${formatCurrency(c.valor)}`);
-            textoDetalheCheques = "\nDETALHE CHEQUES:\n" + detalhes.join("\n");
-        }
-        const listaNumerosPedidos = data.pedidos.map(p => `#${p.numero_pedido}`).join(", ");
-        const textoOrigemParaCheques = `ORIGEM: Liquidação Pedidos ${listaNumerosPedidos}`;
-
-        // 4. ATUALIZAR PEDIDOS (LÓGICA AGRESSIVA DE ARREDONDAMENTO)
-        const totalSaldoOriginal = data.totalDivida || data.pedidos.reduce((sum, p) => sum + (p.saldo_original || 0), 0);
-        let descontoRestante = parseFloat(data.desconto || 0);
-        
-        // CORREÇÃO: SOMAR CRÉDITO AO PAGAMENTO TOTAL
-        // Se o cliente pagou 100 em dinheiro + 50 de crédito, o poder de pagamento é 150.
-        let pagamentoRestante = parseFloat(data.totalPago || 0) + parseFloat(data.creditoUsado || 0);
-
-        for (let i = 0; i < data.pedidos.length; i++) {
-            const p = data.pedidos[i];
-            const pedidoOriginal = pedidos.find(item => item.id === p.id);
-            if (!pedidoOriginal) continue;
-
-            const proporcao = totalSaldoOriginal > 0 ? (p.saldo_original || 0) / totalSaldoOriginal : 0;
-            let descontoDestePedido = 0;
-            if (descontoRestante > 0) {
-                if (i === data.pedidos.length - 1) descontoDestePedido = descontoRestante;
-                else { descontoDestePedido = parseFloat((parseFloat(data.desconto || 0) * proporcao).toFixed(2)); descontoRestante -= descontoDestePedido; }
-            }
-
-            let pagamentoDestePedido = 0;
-            if (pagamentoRestante > 0) {
-                 if (i === data.pedidos.length - 1) pagamentoDestePedido = pagamentoRestante;
-                 else { pagamentoDestePedido = parseFloat((parseFloat(pagamentoRestante) * proporcao).toFixed(2)); pagamentoRestante -= pagamentoDestePedido; }
-            }
-
-            const currentInfo = pedidoOriginal.outras_informacoes || '';
-            const formaPagamentoTexto = data.formaPagamento || 'Liquidação em Massa';
-            const infoDesconto = descontoDestePedido > 0 ? ` (Desc. aplicado: R$ ${descontoDestePedido.toFixed(2)})` : '';
-            const infoParcial = pagamentoDestePedido < (p.saldo_original - descontoDestePedido) ? ` [PARCIAL: Pagou R$ ${pagamentoDestePedido.toFixed(2)}]` : '';
-            const newInfo = currentInfo ? `${currentInfo}\n[${new Date().toLocaleDateString('pt-BR')}] LIQUIDAÇÃO EM MASSA: ${formaPagamentoTexto}${infoDesconto}${infoParcial}${textoDetalheCheques}` : `[${new Date().toLocaleDateString('pt-BR')}] LIQUIDAÇÃO EM MASSA: ${formaPagamentoTexto}${infoDesconto}${infoParcial}${textoDetalheCheques}`;
-
-            const descontoAnterior = parseFloat(pedidoOriginal.desconto_dado || 0);
-            const novoDescontoDado = descontoAnterior + descontoDestePedido;
-            const totalPagoAnterior = parseFloat(pedidoOriginal.total_pago || 0);
-            const novoTotalPago = totalPagoAnterior + pagamentoDestePedido;
-            
-            // CORREÇÃO CRÍTICA AQUI:
-            let novoSaldo = parseFloat(pedidoOriginal.valor_pedido) - (novoTotalPago + novoDescontoDado);
-            
-            // BLINDAGEM: Se o saldo for menor que 5 centavos (seja positivo ou negativo por erro de float), zera na força bruta.
-            if (Math.abs(novoSaldo) < 0.05) {
-                novoSaldo = 0;
-            }
-
-            // O status é definido com base no saldo ZERADO
-            const novoStatus = novoSaldo <= 0 ? 'pago' : 'parcial';
-
-            await base44.entities.Pedido.update(p.id, {
-                status: novoStatus,
-                saldo_restante: novoSaldo,
-                total_pago: novoTotalPago,
-                desconto_dado: novoDescontoDado,
-                data_pagamento: hoje,
-                mes_pagamento: mesAtual,
-                outras_informacoes: newInfo
-            });
-        }
-
-        if (data.cheques && data.cheques.length > 0) { for (const cheque of data.cheques) { await base44.entities.Cheque.update(cheque.id, { observacao: textoOrigemParaCheques }); } }
-        await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); await queryClient.invalidateQueries({ queryKey: ['cheques'] }); await queryClient.invalidateQueries({ queryKey: ['creditos'] });
-        setShowLiquidacaoMassaModal(false); toast.success('Liquidação em massa realizada com sucesso!');
-    } catch (error) { console.error(error); toast.error('Erro ao realizar liquidação em massa.'); } finally { setIsProcessing(false); } // FINALIZA LOADING
+      await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+      await queryClient.invalidateQueries({ queryKey: ['cheques'] });
+      await queryClient.invalidateQueries({ queryKey: ['creditos'] });
+      await queryClient.invalidateQueries({ queryKey: ['borderos'] });
+      setShowLiquidacaoMassaModal(false);
+      toast.success('Liquidação concluída com sucesso!');
+      setActiveTab('pagos');
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao processar liquidação');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
