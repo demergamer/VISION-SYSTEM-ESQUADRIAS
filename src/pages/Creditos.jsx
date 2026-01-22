@@ -254,7 +254,8 @@ export default function Creditos() {
           open={showGerarManualModal}
           onClose={() => setShowGerarManualModal(false)}
           title="Gerar Crédito Manual"
-          description="Crie um crédito manualmente com justificativa"
+          description="Crie um crédito manualmente com justificativa obrigatória"
+          size="lg"
         >
           <GerarCreditoManual
             clientes={clientes}

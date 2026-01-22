@@ -16,7 +16,15 @@ const permissoesDefault = {
   Comissoes: false,
   Balanco: false,
   Relatorios: false,
-  Usuarios: { acesso: false, visualizar: false, adicionar: false, editar: false }
+  Usuarios: { acesso: false, visualizar: false, adicionar: false, editar: false },
+  ChequesPagar: false,
+  Logs: false,
+  CadastroFornecedor: false,
+  FormasPagamento: false,
+  SolicitacaoCadastro: false,
+  Orcamentos: false,
+  CadastroPecas: false,
+  AgruparOrcamentos: false
 };
 
 export default function UsuarioForm({ user, onSave, onCancel, isLoading }) {
@@ -57,7 +65,7 @@ export default function UsuarioForm({ user, onSave, onCancel, isLoading }) {
   };
 
   const setorComFuncoes = ['Representantes', 'Clientes', 'Pedidos', 'Creditos', 'Cheques', 'Usuarios'];
-  const setoresSemFuncoes = ['Dashboard', 'Comissoes', 'Balanco', 'Relatorios'];
+  const setoresSemFuncoes = ['Dashboard', 'Comissoes', 'Balanco', 'Relatorios', 'ChequesPagar', 'Logs', 'CadastroFornecedor', 'FormasPagamento', 'SolicitacaoCadastro', 'Orcamentos', 'CadastroPecas', 'AgruparOrcamentos'];
 
   return (
     <div className="space-y-6 max-h-[70vh] overflow-y-auto">

@@ -11,13 +11,17 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   Users, ShoppingCart, CreditCard, AlertCircle, 
   Search, Briefcase, LogOut, Loader2, 
-  ChevronDown, ChevronRight, MapPin, Truck, Eye, Wallet, CalendarClock, DollarSign
+  ChevronDown, ChevronRight, MapPin, Truck, Eye, Wallet, CalendarClock, DollarSign,
+  Lock, UserPlus, Edit, Send
 } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
+import ModalContainer from "@/components/modals/ModalContainer";
+import SolicitarNovoCliente from "@/components/portais/SolicitarNovoCliente";
+import LiquidacaoSelfService from "@/components/portais/LiquidacaoSelfService";
 
 // --- UTILITÁRIOS ---
 const realizarLogout = () => {
@@ -97,7 +101,7 @@ const DetailsModal = ({ item, type, open, onOpenChange }) => {
 };
 
 // --- COMPONENTE: LINHA DO CLIENTE EXPANSÍVEL ---
-const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails }) => {
+const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolicitarLiquidacao }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState('abertos');
 
@@ -147,9 +151,17 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails }) => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-slate-400">
-          <span className="text-sm font-medium">Ver detalhes</span>
-          {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+        <div className="flex items-center gap-3">
+          {pedidosAbertos.length > 0 && (
+            <Button size="sm" onClick={(e) => { e.stopPropagation(); onSolicitarLiquidacao(cliente); }} className="gap-2 bg-emerald-600 hover:bg-emerald-700 h-8">
+              <DollarSign className="w-4 h-4" />
+              Liquidar
+            </Button>
+          )}
+          <div className="flex items-center gap-2 text-slate-400">
+            <span className="text-sm font-medium">Detalhes</span>
+            {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+          </div>
         </div>
       </div>
 
@@ -388,6 +400,9 @@ export default function PainelRepresentante() {
   const [loading, setLoading] = useState(true);
   
   const [detailsModal, setDetailsModal] = useState({ open: false, item: null, type: null });
+  const [showSolicitarClienteModal, setShowSolicitarClienteModal] = useState(false);
+  const [showLiquidacaoModal, setShowLiquidacaoModal] = useState(false);
+  const [clienteParaLiquidacao, setClienteParaLiquidacao] = useState(null);
 
   // 1. Busca de Dados
   useEffect(() => {
@@ -466,6 +481,11 @@ export default function PainelRepresentante() {
     setDetailsModal({ open: true, item, type });
   };
 
+  const handleSolicitarLiquidacao = (cliente) => {
+    setClienteParaLiquidacao(cliente);
+    setShowLiquidacaoModal(true);
+  };
+
   // --- RENDERIZAÇÃO ---
 
   if (loading) {
@@ -520,6 +540,18 @@ export default function PainelRepresentante() {
 
       <div className="max-w-[1600px] mx-auto p-6 md:p-8 space-y-8">
         
+        {/* Botões de Ação Globais */}
+        <div className="flex gap-3">
+          <Button onClick={() => setShowSolicitarClienteModal(true)} className="gap-2 bg-blue-600 hover:bg-blue-700">
+            <UserPlus className="w-4 h-4" />
+            Solicitar Novo Cliente
+          </Button>
+          <Button variant="outline" className="gap-2" disabled>
+            <Lock className="w-4 h-4" />
+            Orçamentos (Em Breve)
+          </Button>
+        </div>
+        
         {/* KPI Widgets */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatWidget 
@@ -562,6 +594,7 @@ export default function PainelRepresentante() {
                 cheques={cliente.cheques}
                 creditos={cliente.creditos}
                 onViewDetails={handleViewDetails}
+                onSolicitarLiquidacao={handleSolicitarLiquidacao}
               />
             ))
           ) : (
@@ -581,6 +614,52 @@ export default function PainelRepresentante() {
         item={detailsModal.item}
         type={detailsModal.type}
       />
+
+      {/* Modal Solicitar Novo Cliente */}
+      <ModalContainer
+        open={showSolicitarClienteModal}
+        onClose={() => setShowSolicitarClienteModal(false)}
+        title="Solicitar Cadastro de Cliente"
+        description="Preencha os dados do novo cliente"
+        size="lg"
+      >
+        <SolicitarNovoCliente
+          representanteCodigo={representante?.codigo}
+          onSuccess={() => {
+            setShowSolicitarClienteModal(false);
+            toast.success('Solicitação enviada!');
+          }}
+          onCancel={() => setShowSolicitarClienteModal(false)}
+        />
+      </ModalContainer>
+
+      {/* Modal Solicitar Liquidação */}
+      <ModalContainer
+        open={showLiquidacaoModal}
+        onClose={() => {
+          setShowLiquidacaoModal(false);
+          setClienteParaLiquidacao(null);
+        }}
+        title="Solicitar Liquidação"
+        description={clienteParaLiquidacao ? `Cliente: ${clienteParaLiquidacao.nome}` : ''}
+        size="xl"
+      >
+        {clienteParaLiquidacao && (
+          <LiquidacaoSelfService
+            pedidos={clienteParaLiquidacao.pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial')}
+            clienteCodigo={clienteParaLiquidacao.codigo}
+            clienteNome={clienteParaLiquidacao.nome}
+            onSuccess={() => {
+              setShowLiquidacaoModal(false);
+              setClienteParaLiquidacao(null);
+            }}
+            onCancel={() => {
+              setShowLiquidacaoModal(false);
+              setClienteParaLiquidacao(null);
+            }}
+          />
+        )}
+      </ModalContainer>
 
     </div>
   );
