@@ -52,7 +52,7 @@ const navStructure = [
     category: "Vendas",
     items: [
       { name: 'Solicitações', icon: UserPlus, page: 'Cadastro' },
-      { name: 'Orçamentos', icon: FileText, page: 'Orcamentos', isDev: true },
+      { name: 'Orçamentos', icon: FileText, page: 'Orcamentos' },
       { name: 'Produtos', icon: Package, page: 'Produtos' },
       { name: 'Agrupar Orçamentos', icon: Layers, page: 'AgruparOrcamentos', isDev: true },
     ]
