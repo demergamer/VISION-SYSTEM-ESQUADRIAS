@@ -9,6 +9,17 @@ import Representantes from './pages/Representantes';
 import Representation from './pages/Representation';
 import Usuarios from './pages/Usuarios';
 import Welcome from './pages/Welcome';
+import Relatorios from './pages/Relatorios';
+import Comissoes from './pages/Comissoes';
+import Balanco from './pages/Balanco';
+import ChequesPagar from './pages/ChequesPagar';
+import Logs from './pages/Logs';
+import CadastroFornecedor from './pages/CadastroFornecedor';
+import FormasPagamento from './pages/FormasPagamento';
+import SolicitacaoCadastro from './pages/SolicitacaoCadastro';
+import Orcamentos from './pages/Orcamentos';
+import CadastroPecas from './pages/CadastroPecas';
+import AgruparOrcamentos from './pages/AgruparOrcamentos';
 import __Layout from './Layout.jsx';
 
 
@@ -24,6 +35,17 @@ export const PAGES = {
     "Representation": Representation,
     "Usuarios": Usuarios,
     "Welcome": Welcome,
+    "Relatorios": Relatorios,
+    "Comissoes": Comissoes,
+    "Balanco": Balanco,
+    "ChequesPagar": ChequesPagar,
+    "Logs": Logs,
+    "CadastroFornecedor": CadastroFornecedor,
+    "FormasPagamento": FormasPagamento,
+    "SolicitacaoCadastro": SolicitacaoCadastro,
+    "Orcamentos": Orcamentos,
+    "CadastroPecas": CadastroPecas,
+    "AgruparOrcamentos": AgruparOrcamentos,
 }
 
 export const pagesConfig = {
