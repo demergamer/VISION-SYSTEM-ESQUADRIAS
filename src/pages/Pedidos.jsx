@@ -763,28 +763,129 @@ export default function Pedidos() {
                 </div>
 
                 <div className="flex gap-3">
-                  <Button variant="outline" className="flex-1" onClick={() => { setShowAutorizacaoModal(false); setSelectedAutorizacao(null); }}>Cancelar</Button>
-                  <Button variant="destructive" className="flex-1" onClick={async () => {
-                    try {
-                      await base44.entities.LiquidacaoPendente.update(selectedAutorizacao.id, { status: 'rejeitado', motivo_rejeicao: 'Rejeitado pelo administrador' });
-                      await queryClient.invalidateQueries({ queryKey: ['liquidacoesPendentes'] });
-                      setShowAutorizacaoModal(false);
-                      setSelectedAutorizacao(null);
-                      toast.success('Solicitação rejeitada');
-                    } catch (e) { toast.error('Erro ao rejeitar'); }
-                  }}>Rejeitar</Button>
-                  <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={async () => {
-                    setIsProcessing(true);
-                    try {
-                      await base44.entities.LiquidacaoPendente.update(selectedAutorizacao.id, { status: 'aprovado', aprovado_por: user?.email, data_aprovacao: new Date().toISOString() });
-                      await queryClient.invalidateQueries({ queryKey: ['liquidacoesPendentes'] });
-                      await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
-                      await queryClient.invalidateQueries({ queryKey: ['borderos'] });
-                      setShowAutorizacaoModal(false);
-                      setSelectedAutorizacao(null);
-                      toast.success('Liquidação aprovada!');
-                    } catch (e) { toast.error('Erro ao aprovar'); } finally { setIsProcessing(false); }
-                  }}>Aprovar & Liquidar</Button>
+                  <Button 
+                    variant="outline" 
+                    className="flex-1" 
+                    disabled={isProcessing}
+                    onClick={() => { setShowAutorizacaoModal(false); setSelectedAutorizacao(null); }}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    className="flex-1" 
+                    disabled={isProcessing}
+                    onClick={async () => {
+                      try {
+                        await base44.entities.LiquidacaoPendente.update(selectedAutorizacao.id, { status: 'rejeitado', motivo_rejeicao: 'Rejeitado pelo administrador' });
+                        await queryClient.invalidateQueries({ queryKey: ['liquidacoesPendentes'] });
+                        setShowAutorizacaoModal(false);
+                        setSelectedAutorizacao(null);
+                        toast.success('Solicitação rejeitada');
+                      } catch (e) { toast.error('Erro ao rejeitar'); }
+                    }}
+                  >
+                    Rejeitar
+                  </Button>
+                  <Button 
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700" 
+                    disabled={isProcessing}
+                    onClick={async () => {
+                      setIsProcessing(true);
+                      try {
+                        const user = await base44.auth.me();
+
+                        // **EXECUTAR LIQUIDAÇÃO REAL DOS PEDIDOS**
+                        const pedidosParaLiquidar = selectedAutorizacao.pedidos_ids.map(pid => pedidos.find(p => p.id === pid)).filter(Boolean);
+                        
+                        // Calcular valores
+                        const totalOriginal = selectedAutorizacao.valor_total_original;
+                        const valorInformado = selectedAutorizacao.valor_final_proposto;
+                        const diferencaTotal = totalOriginal - valorInformado;
+
+                        // Distribuir a diferença proporcionalmente entre os pedidos
+                        const pedidosProcessados = [];
+                        let descontoRestante = diferencaTotal;
+
+                        for (const pedido of pedidosParaLiquidar) {
+                          const saldoOriginal = pedido.saldo_restante || (pedido.valor_pedido - (pedido.total_pago || 0));
+                          const proporcao = saldoOriginal / totalOriginal;
+                          const descontoParaEste = Math.min(descontoRestante, saldoOriginal * (diferencaTotal / totalOriginal));
+                          
+                          const valorAPagar = Math.max(0, saldoOriginal - descontoParaEste);
+                          const novoTotalPago = (pedido.total_pago || 0) + valorAPagar;
+                          const novoDescontoTotal = (pedido.desconto_dado || 0) + descontoParaEste;
+                          const novoSaldo = Math.max(0, pedido.valor_pedido - novoTotalPago - novoDescontoTotal);
+
+                          pedidosProcessados.push({
+                            pedido,
+                            novoTotalPago,
+                            novoDescontoTotal,
+                            novoSaldo,
+                            descontoAplicado: descontoParaEste,
+                            valorPago: valorAPagar
+                          });
+
+                          descontoRestante -= descontoParaEste;
+                        }
+
+                        // Criar Borderô
+                        const todosBorderos = await base44.entities.Bordero.list();
+                        const proximoNumeroBordero = todosBorderos.length > 0 ? Math.max(...todosBorderos.map(b => b.numero_bordero || 0)) + 1 : 1;
+
+                        await base44.entities.Bordero.create({
+                          numero_bordero: proximoNumeroBordero,
+                          tipo_liquidacao: 'pendente_aprovada',
+                          cliente_codigo: selectedAutorizacao.cliente_codigo,
+                          cliente_nome: selectedAutorizacao.cliente_nome,
+                          pedidos_ids: selectedAutorizacao.pedidos_ids,
+                          valor_total: valorInformado,
+                          forma_pagamento: 'Pagamento Informado pelo ' + (selectedAutorizacao.solicitante_tipo === 'cliente' ? 'Cliente' : 'Representante'),
+                          comprovantes_urls: selectedAutorizacao.comprovante_url ? [selectedAutorizacao.comprovante_url] : [],
+                          cheques_anexos: [],
+                          observacao: `Solicitação #${selectedAutorizacao.numero_solicitacao} aprovada. Desconto total: ${formatCurrency(diferencaTotal)}`,
+                          liquidado_por: user.email
+                        });
+
+                        // Atualizar cada pedido
+                        for (const proc of pedidosProcessados) {
+                          await base44.entities.Pedido.update(proc.pedido.id, {
+                            total_pago: proc.novoTotalPago,
+                            desconto_dado: proc.novoDescontoTotal,
+                            saldo_restante: proc.novoSaldo,
+                            status: proc.novoSaldo <= 0.01 ? 'pago' : 'parcial',
+                            data_pagamento: proc.novoSaldo <= 0.01 ? new Date().toISOString().split('T')[0] : proc.pedido.data_pagamento,
+                            mes_pagamento: proc.novoSaldo <= 0.01 ? new Date().toISOString().slice(0, 7) : proc.pedido.mes_pagamento,
+                            bordero_numero: proximoNumeroBordero,
+                            outras_informacoes: (proc.pedido.outras_informacoes || '') + `\n[${new Date().toLocaleDateString('pt-BR')}] Borderô #${proximoNumeroBordero}: Aprovação Sol. #${selectedAutorizacao.numero_solicitacao} | Desc=${formatCurrency(proc.descontoAplicado)} | Pago=${formatCurrency(proc.valorPago)}`
+                          });
+                        }
+
+                        // Atualizar status da solicitação
+                        await base44.entities.LiquidacaoPendente.update(selectedAutorizacao.id, { 
+                          status: 'aprovado', 
+                          aprovado_por: user.email, 
+                          data_aprovacao: new Date().toISOString() 
+                        });
+
+                        // Invalidar queries
+                        await queryClient.invalidateQueries({ queryKey: ['liquidacoesPendentes'] });
+                        await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+                        await queryClient.invalidateQueries({ queryKey: ['borderos'] });
+                        
+                        setShowAutorizacaoModal(false);
+                        setSelectedAutorizacao(null);
+                        toast.success(`Borderô #${proximoNumeroBordero} criado! ${pedidosProcessados.filter(p => p.novoSaldo <= 0.01).length} pedido(s) quitado(s).`);
+                      } catch (e) { 
+                        console.error(e);
+                        toast.error('Erro ao aprovar: ' + e.message); 
+                      } finally { 
+                        setIsProcessing(false); 
+                      }
+                    }}
+                  >
+                    {isProcessing ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processando...</> : 'Aprovar & Liquidar'}
+                  </Button>
                 </div>
               </div>
             )}
