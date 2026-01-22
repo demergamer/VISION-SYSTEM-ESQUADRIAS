@@ -130,27 +130,84 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     }
 
     const totais = calcularTotais();
-    if (totais.totalPago <= 0) {
-      toast.error('Informe o valor pago');
+    const valorPagoReal = totais.totalPago - creditoAUsar;
+
+    if (valorPagoReal <= 0 && creditoAUsar <= 0) {
+      toast.error('Informe o valor pago ou crédito a usar');
       return;
-    }
-
-    if (totais.totalPago > totais.totalComDesconto) {
-      const excedente = totais.totalPago - totais.totalComDesconto;
-      const confirmar = window.confirm(`⚠️ ATENÇÃO! Crédito será gerado: ${formatCurrency(excedente)}\n\nDeseja continuar?`);
-      if (!confirmar) return;
-    }
-
-    if (totais.totalPago < totais.totalComDesconto) {
-      const restante = totais.totalComDesconto - totais.totalPago;
-      const confirmar = window.confirm(`⚠️ ATENÇÃO! Pagamento PARCIAL.\n\nTotal: ${formatCurrency(totais.totalComDesconto)}\nPago: ${formatCurrency(totais.totalPago)}\nRestante: ${formatCurrency(restante)}\n\nDeseja continuar?`);
-      if (!confirmar) return;
     }
 
     setIsSaving(true);
 
     try {
       const user = await base44.auth.me();
+      
+      // **ALGORITMO DE CASCATA (WATERFALL)**
+      // Preparar estrutura de controle
+      let descontoRestante = totais.desconto;
+      let creditoRestante = creditoAUsar;
+      let pagamentoRestante = valorPagoReal;
+      
+      const pedidosProcessados = [];
+
+      // Iterar sobre cada pedido aplicando: 1) Desconto, 2) Crédito, 3) Pagamento
+      for (const pedido of selectedPedidos) {
+        let saldoAtual = pedido.saldo_restante || (pedido.valor_pedido - (pedido.total_pago || 0));
+        let descontoAplicadoNestePedido = 0;
+        let creditoAplicadoNestePedido = 0;
+        let pagamentoAplicadoNestePedido = 0;
+
+        // **PASSO 1: DESCONTO**
+        if (descontoRestante > 0 && saldoAtual > 0) {
+          const descontoParaEste = Math.min(saldoAtual, descontoRestante);
+          descontoAplicadoNestePedido = descontoParaEste;
+          saldoAtual -= descontoParaEste;
+          descontoRestante -= descontoParaEste;
+        }
+
+        // **PASSO 2: CRÉDITO**
+        if (creditoRestante > 0 && saldoAtual > 0) {
+          const creditoParaEste = Math.min(saldoAtual, creditoRestante);
+          creditoAplicadoNestePedido = creditoParaEste;
+          saldoAtual -= creditoParaEste;
+          creditoRestante -= creditoParaEste;
+        }
+
+        // **PASSO 3: PAGAMENTO**
+        if (pagamentoRestante > 0 && saldoAtual > 0) {
+          const pagamentoParaEste = Math.min(saldoAtual, pagamentoRestante);
+          pagamentoAplicadoNestePedido = pagamentoParaEste;
+          saldoAtual -= pagamentoParaEste;
+          pagamentoRestante -= pagamentoParaEste;
+        }
+
+        // Calcular novos totais do pedido
+        const novoTotalPago = (pedido.total_pago || 0) + pagamentoAplicadoNestePedido + creditoAplicadoNestePedido;
+        const novoDescontoTotal = (pedido.desconto_dado || 0) + descontoAplicadoNestePedido;
+        const novoSaldo = Math.max(0, saldoAtual); // Garantir que nunca seja negativo
+
+        pedidosProcessados.push({
+          pedido,
+          novoTotalPago,
+          novoDescontoTotal,
+          novoSaldo,
+          descontoAplicado: descontoAplicadoNestePedido,
+          creditoAplicado: creditoAplicadoNestePedido,
+          pagamentoAplicado: pagamentoAplicadoNestePedido
+        });
+      }
+
+      // Verificar se sobrou dinheiro (gerar crédito)
+      const sobraCaixa = pagamentoRestante + creditoRestante;
+      if (sobraCaixa > 0) {
+        const confirmar = window.confirm(`⚠️ ATENÇÃO! Todos os pedidos foram quitados.\n\nSobrou ${formatCurrency(sobraCaixa)} que será convertido em CRÉDITO.\n\nDeseja continuar?`);
+        if (!confirmar) {
+          setIsSaving(false);
+          return;
+        }
+      }
+
+      // Criar Borderô
       const todosBorderos = await base44.entities.Bordero.list();
       const proximoNumeroBordero = todosBorderos.length > 0 ? Math.max(...todosBorderos.map(b => b.numero_bordero || 0)) + 1 : 1;
 
@@ -166,7 +223,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         return str;
       }).join(' | ');
 
-      const formasFinal = formasPagamentoStr + (creditoAUsar > 0 ? ` | CRÉDITO: ${formatCurrency(creditoAUsar)}` : '');
+      const formasFinal = formasPagamentoStr + (creditoAUsar > 0 ? ` | CRÉDITO USADO: ${formatCurrency(creditoAUsar - creditoRestante)}` : '');
 
       const chequesAnexos = todosChequesUsados.map(ch => ({
         numero: ch.numero_cheque,
@@ -187,44 +244,41 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         forma_pagamento: formasFinal,
         comprovantes_urls: [],
         cheques_anexos: chequesAnexos,
-        observacao: totais.desconto > 0 ? `Desconto: ${formatCurrency(totais.desconto)}` : '',
+        observacao: totais.desconto > 0 ? `Desconto Total: ${formatCurrency(totais.desconto)}` : '',
         liquidado_por: user.email
       });
 
-      const valorPagoSemCredito = totais.totalPago - creditoAUsar;
-      const valorPorPedido = valorPagoSemCredito / selectedPedidos.length;
-
-      for (const pedido of selectedPedidos) {
-        const saldoOriginal = pedido.saldo_restante || (pedido.valor_pedido - (pedido.total_pago || 0));
-        const novoTotalPago = (pedido.total_pago || 0) + valorPorPedido;
-        const novoSaldo = pedido.valor_pedido - novoTotalPago - (pedido.desconto_dado || 0);
-
-        await base44.entities.Pedido.update(pedido.id, {
-          total_pago: novoTotalPago,
-          saldo_restante: Math.max(0, novoSaldo),
-          status: novoSaldo <= 0 ? 'pago' : 'parcial',
-          data_pagamento: novoSaldo <= 0 ? new Date().toISOString().split('T')[0] : pedido.data_pagamento,
-          mes_pagamento: novoSaldo <= 0 ? new Date().toISOString().slice(0, 7) : pedido.mes_pagamento,
+      // Atualizar cada pedido
+      for (const proc of pedidosProcessados) {
+        await base44.entities.Pedido.update(proc.pedido.id, {
+          total_pago: proc.novoTotalPago,
+          desconto_dado: proc.novoDescontoTotal,
+          saldo_restante: proc.novoSaldo,
+          status: proc.novoSaldo <= 0 ? 'pago' : 'parcial',
+          data_pagamento: proc.novoSaldo <= 0 ? new Date().toISOString().split('T')[0] : proc.pedido.data_pagamento,
+          mes_pagamento: proc.novoSaldo <= 0 ? new Date().toISOString().slice(0, 7) : proc.pedido.mes_pagamento,
           bordero_numero: proximoNumeroBordero,
-          outras_informacoes: (pedido.outras_informacoes || '') + `\n[${new Date().toLocaleDateString('pt-BR')}] LIQUIDAÇÃO MASSA - Borderô #${proximoNumeroBordero}`
+          outras_informacoes: (proc.pedido.outras_informacoes || '') + `\n[${new Date().toLocaleDateString('pt-BR')}] LIQUIDAÇÃO MASSA - Borderô #${proximoNumeroBordero} | Desconto: ${formatCurrency(proc.descontoAplicado)} | Crédito: ${formatCurrency(proc.creditoAplicado)} | Pago: ${formatCurrency(proc.pagamentoAplicado)}`
         });
       }
 
-      if (creditoAUsar > 0) {
-        let valorRestante = creditoAUsar;
+      // Marcar créditos como usados
+      if (creditoAUsar > creditoRestante) {
+        let valorAMarcar = creditoAUsar - creditoRestante;
         for (const credito of creditos) {
-          if (valorRestante <= 0) break;
+          if (valorAMarcar <= 0) break;
+          const valorUsar = Math.min(credito.valor, valorAMarcar);
           await base44.entities.Credito.update(credito.id, {
             status: 'usado',
             pedido_uso_id: selectedPedidos[0].id,
             data_uso: new Date().toISOString().split('T')[0]
           });
-          valorRestante -= credito.valor;
+          valorAMarcar -= valorUsar;
         }
       }
 
-      if (totais.totalPago > totais.totalComDesconto) {
-        const valorCredito = totais.totalPago - totais.totalComDesconto;
+      // Gerar crédito se sobrou
+      if (sobraCaixa > 0) {
         const todosCreditos = await base44.entities.Credito.list();
         const proximoNumero = todosCreditos.length > 0 ? Math.max(...todosCreditos.map(c => c.numero_credito || 0)) + 1 : 1;
         
@@ -232,13 +286,14 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
           numero_credito: proximoNumero,
           cliente_codigo: selectedPedidos[0].cliente_codigo,
           cliente_nome: selectedPedidos[0].cliente_nome,
-          valor: valorCredito,
+          valor: sobraCaixa,
           origem: `Excedente Liquidação Massa - Borderô #${proximoNumeroBordero}`,
           status: 'disponivel'
         });
-        toast.success(`Crédito #${proximoNumero} de ${formatCurrency(valorCredito)} gerado!`);
+        toast.success(`Crédito #${proximoNumero} de ${formatCurrency(sobraCaixa)} gerado!`);
       }
 
+      toast.success(`Borderô #${proximoNumeroBordero} criado com sucesso!`);
       onSave();
     } catch (error) {
       toast.error('Erro ao processar liquidação');
