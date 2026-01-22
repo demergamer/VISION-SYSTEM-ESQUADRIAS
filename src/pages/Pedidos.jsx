@@ -170,7 +170,9 @@ export default function Pedidos() {
   const [showCancelarPedidoModal, setShowCancelarPedidoModal] = useState(false);
   const [showLiquidacaoMassaModal, setShowLiquidacaoMassaModal] = useState(false);
   const [showRotaCobrancaModal, setShowRotaCobrancaModal] = useState(false);
+  const [showAutorizacaoModal, setShowAutorizacaoModal] = useState(false);
   const [selectedPedido, setSelectedPedido] = useState(null);
+  const [selectedAutorizacao, setSelectedAutorizacao] = useState(null);
   const [selectedRota, setSelectedRota] = useState(null);
   const [pedidoParaCadastro, setPedidoParaCadastro] = useState(null);
   const [pedidoParaCancelar, setPedidoParaCancelar] = useState(null);
@@ -189,6 +191,7 @@ export default function Pedidos() {
   const { data: representantes = [] } = useQuery({ queryKey: ['representantes'], queryFn: () => base44.entities.Representante.list() });
   const { data: cheques = [] } = useQuery({ queryKey: ['cheques'], queryFn: () => base44.entities.Cheque.list() });
   const { data: borderos = [], isLoading: loadingBorderos, refetch: refetchBorderos } = useQuery({ queryKey: ['borderos'], queryFn: () => base44.entities.Bordero.list('-created_date') });
+  const { data: liquidacoesPendentes = [], isLoading: loadingAutorizacoes, refetch: refetchAutorizacoes } = useQuery({ queryKey: ['liquidacoesPendentes'], queryFn: () => base44.entities.LiquidacaoPendente.list('-created_date') });
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -200,8 +203,9 @@ export default function Pedidos() {
     const atrasados = abertos.filter(p => new Date(p.data_entrega) < twentyDaysAgo);
     const totalAReceber = abertos.reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
     const totalAtrasado = atrasados.reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
-    return { aguardando: aguardando.length, abertos: abertos.length, pagos: pagos.length, liquidacoes: borderos.length, cancelados: cancelados.length, atrasados: atrasados.length, totalAReceber, totalAtrasado };
-  }, [pedidos, borderos]);
+    const autorizacoesPendentes = liquidacoesPendentes.filter(lp => lp.status === 'pendente').length;
+    return { aguardando: aguardando.length, abertos: abertos.length, pagos: pagos.length, liquidacoes: borderos.length, autorizacoes: autorizacoesPendentes, cancelados: cancelados.length, atrasados: atrasados.length, totalAReceber, totalAtrasado };
+  }, [pedidos, borderos, liquidacoesPendentes]);
 
   const createMutation = useMutation({ mutationFn: (data) => base44.entities.Pedido.create(data), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['pedidos'] }); setShowAddModal(false); toast.success('Pedido cadastrado!'); } });
   const updateMutation = useMutation({ 
@@ -266,7 +270,7 @@ export default function Pedidos() {
   const handleView = (pedido) => { setSelectedPedido(pedido); pedido.status === 'pago' ? setShowDetailsModal(true) : setShowEditModal(true); };
   const handleLiquidar = (pedido) => { setSelectedPedido(pedido); setShowLiquidarModal(true); };
   const handleCancelar = (pedido) => { setPedidoParaCancelar(pedido); setShowCancelarPedidoModal(true); };
-  const handleRefresh = () => { refetchPedidos(); refetchRotas(); refetchBorderos(); toast.success('Atualizado!'); };
+  const handleRefresh = () => { refetchPedidos(); refetchRotas(); refetchBorderos(); refetchAutorizacoes(); toast.success('Atualizado!'); };
   const handleImportComplete = () => { queryClient.invalidateQueries({ queryKey: ['pedidos'] }); queryClient.invalidateQueries({ queryKey: ['rotas'] }); setShowImportModal(false); toast.success('Importação concluída!'); };
   const handleSelectRota = async (rota) => { setSelectedRota(rota); setShowRotaModal(true); try { const pedidosDaRotaAtual = pedidos.filter(p => p.rota_importada_id === rota.id); const pedidosPendentes = pedidosDaRotaAtual.filter(p => p.cliente_pendente); if (pedidosPendentes.length > 0) { let atualizados = 0; for (const pedido of pedidosPendentes) { const nomeClientePedido = pedido.cliente_nome?.toLowerCase().trim() || ''; const clienteEncontrado = clientes.find(c => { const nomeCliente = c.nome?.toLowerCase().trim() || ''; return nomeCliente === nomeClientePedido || nomeCliente.includes(nomeClientePedido) || nomeClientePedido.includes(nomeCliente); }); if (clienteEncontrado) { await base44.entities.Pedido.update(pedido.id, { cliente_codigo: clienteEncontrado.codigo, cliente_regiao: clienteEncontrado.regiao, representante_codigo: clienteEncontrado.representante_codigo, representante_nome: clienteEncontrado.representante_nome, porcentagem_comissao: clienteEncontrado.porcentagem_comissao, cliente_pendente: false }); atualizados++; } } if (atualizados > 0) { await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); toast.success(`${atualizados} pedido(s) vinculado(s) automaticamente!`); } } } catch (error) { console.error('Erro na verificação silenciosa de pedidos:', error); } };
   const handleSaveRotaChecklist = async (data) => { try { await base44.entities.RotaImportada.update(data.rota.id, data.rota); const promises = data.pedidos.map(pedido => base44.entities.Pedido.update(pedido.id, { confirmado_entrega: pedido.confirmado_entrega, status: pedido.status })); await Promise.all(promises); await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); await queryClient.invalidateQueries({ queryKey: ['rotas'] }); setShowRotaModal(false); toast.success('Rota e pedidos atualizados!'); } catch (error) { toast.error("Erro ao salvar rota."); } };
@@ -371,6 +375,7 @@ export default function Pedidos() {
               <TabsList className="bg-slate-100 p-1 rounded-full border border-slate-200 h-auto flex-wrap justify-start">
                 <TabsTrigger value="aguardando" className="rounded-full px-4 py-2 text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all gap-2"><Package className="w-4 h-4 text-amber-500" /> Aguardando <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-[10px] ml-1">{stats.aguardando}</span></TabsTrigger>
                 <TabsTrigger value="abertos" className="rounded-full px-4 py-2 text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all gap-2"><FileText className="w-4 h-4 text-blue-500" /> Abertos <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] ml-1">{stats.abertos}</span></TabsTrigger>
+                <TabsTrigger value="autorizacoes" className="rounded-full px-4 py-2 text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all gap-2"><Clock className="w-4 h-4 text-orange-500" /> Autorizações {stats.autorizacoes > 0 && <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-[10px] ml-1">{stats.autorizacoes}</span>}</TabsTrigger>
                 <TabsTrigger value="liquidacoes" className="rounded-full px-4 py-2 text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all gap-2"><CheckCircle className="w-4 h-4 text-emerald-500" /> Liquidações <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-[10px] ml-1">{stats.liquidacoes}</span></TabsTrigger>
                 <TabsTrigger value="cancelados" className="rounded-full px-4 py-2 text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all gap-2"><XCircle className="w-4 h-4 text-slate-400" /> Cancelados</TabsTrigger>
                 <div className="w-px h-6 bg-slate-300 mx-1 hidden sm:block" />
@@ -402,6 +407,80 @@ export default function Pedidos() {
                 </div>
               ) : (
                 <Card className="flex flex-col items-center justify-center py-16 text-center border-dashed border-2 border-slate-200 bg-slate-50/50"><div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm border border-slate-100"><Package className="w-8 h-8 text-slate-300" /></div><h3 className="text-lg font-medium text-slate-900">Tudo limpo!</h3><p className="text-slate-500 max-w-sm mt-1">Nenhum pedido aguardando confirmação no momento.</p></Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="autorizacoes" className="mt-0 focus-visible:outline-none">
+              {loadingAutorizacoes ? (
+                <p className="text-center text-slate-500 py-10">Carregando autorizações...</p>
+              ) : liquidacoesPendentes.filter(lp => lp.status === 'pendente').length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {liquidacoesPendentes.filter(lp => lp.status === 'pendente').map(autorizacao => (
+                    <Card key={autorizacao.id} className="border border-orange-100 hover:shadow-lg transition-all p-5 bg-gradient-to-br from-white to-orange-50">
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <span className="text-xs font-bold text-orange-600 uppercase tracking-wider">Solicitação</span>
+                          <h3 className="text-2xl font-bold text-slate-800">#{autorizacao.numero_solicitacao}</h3>
+                        </div>
+                        <Badge className="bg-orange-100 text-orange-700 border-orange-200">
+                          {autorizacao.solicitante_tipo === 'cliente' ? 'Cliente' : 'Representante'}
+                        </Badge>
+                      </div>
+                      
+                      <div className="space-y-2 mb-4 pb-4 border-b border-orange-100">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-500">Data:</span>
+                          <span className="font-medium text-slate-800">{format(new Date(autorizacao.created_date), 'dd/MM/yyyy HH:mm')}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-500">Cliente:</span>
+                          <span className="font-medium text-slate-800 truncate ml-2" title={autorizacao.cliente_nome}>{autorizacao.cliente_nome}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-500">Pedidos:</span>
+                          <span className="font-semibold text-blue-600">{autorizacao.pedidos_ids?.length || 0}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-500">Total Original:</span>
+                          <span className="font-medium text-slate-700">{formatCurrency(autorizacao.valor_total_original)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-500">Valor Informado:</span>
+                          <span className="font-bold text-emerald-600">{formatCurrency(autorizacao.valor_final_proposto)}</span>
+                        </div>
+                      </div>
+
+                      {autorizacao.comprovante_url && (
+                        <div className="mb-3">
+                          <a href={autorizacao.comprovante_url} target="_blank" rel="noopener noreferrer" className="block border border-orange-200 rounded-lg overflow-hidden hover:border-orange-400 transition-colors">
+                            <img src={autorizacao.comprovante_url} alt="Comprovante" className="w-full h-32 object-cover" />
+                          </a>
+                        </div>
+                      )}
+
+                      <div className="flex gap-2">
+                        <Button 
+                          size="sm" 
+                          className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white"
+                          onClick={() => {
+                            setSelectedAutorizacao(autorizacao);
+                            setShowAutorizacaoModal(true);
+                          }}
+                        >
+                          <CheckCircle className="w-4 h-4 mr-1" /> Revisar
+                        </Button>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <Card className="flex flex-col items-center justify-center py-16 text-center border-dashed border-2 border-slate-200 bg-slate-50/50">
+                  <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm border border-slate-100">
+                    <Clock className="w-8 h-8 text-slate-300" />
+                  </div>
+                  <h3 className="text-lg font-medium text-slate-900">Nenhuma autorização pendente</h3>
+                  <p className="text-slate-500 max-w-sm mt-1">Todas as solicitações foram processadas.</p>
+                </Card>
               )}
             </TabsContent>
 
@@ -649,6 +728,67 @@ export default function Pedidos() {
           <ModalContainer open={showCancelarPedidoModal} onClose={() => { setShowCancelarPedidoModal(false); setPedidoParaCancelar(null); }} title="Cancelar Pedido" description="Informe o motivo do cancelamento">{pedidoParaCancelar && <CancelarPedidoModal pedido={pedidoParaCancelar} onSave={handleSaveCancelarPedido} onCancel={() => { setShowCancelarPedidoModal(false); setPedidoParaCancelar(null); }} />}</ModalContainer>
           <ModalContainer open={showLiquidacaoMassaModal} onClose={() => setShowLiquidacaoMassaModal(false)} title="Liquidação em Massa" description="Selecione e liquide múltiplos pedidos de uma vez" size="xl"><LiquidacaoMassa pedidos={pedidos} onSave={handleLiquidacaoMassa} onCancel={() => setShowLiquidacaoMassaModal(false)} /></ModalContainer>
           {showRotaCobrancaModal && <RotaCobrancaModal pedidos={pedidos} cheques={cheques} onClose={() => setShowRotaCobrancaModal(false)} />}
+          <ModalContainer open={showAutorizacaoModal} onClose={() => { setShowAutorizacaoModal(false); setSelectedAutorizacao(null); }} title="Revisar Autorização" description="Aprove ou rejeite a solicitação de liquidação" size="xl">
+            {selectedAutorizacao && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-xl">
+                  <div><p className="text-xs text-slate-500 mb-1">Cliente</p><p className="font-semibold text-slate-800">{selectedAutorizacao.cliente_nome}</p></div>
+                  <div><p className="text-xs text-slate-500 mb-1">Solicitante</p><p className="font-medium text-slate-700">{selectedAutorizacao.solicitante_tipo === 'cliente' ? 'Cliente' : 'Representante'}</p></div>
+                  <div><p className="text-xs text-slate-500 mb-1">Total Original</p><p className="font-bold text-slate-700">{formatCurrency(selectedAutorizacao.valor_total_original)}</p></div>
+                  <div><p className="text-xs text-slate-500 mb-1">Valor Informado</p><p className="font-bold text-emerald-600 text-lg">{formatCurrency(selectedAutorizacao.valor_final_proposto)}</p></div>
+                </div>
+
+                {selectedAutorizacao.comprovante_url && (
+                  <div>
+                    <h3 className="font-bold text-slate-800 mb-3">Comprovante</h3>
+                    <a href={selectedAutorizacao.comprovante_url} target="_blank" rel="noopener noreferrer" className="block border rounded-lg overflow-hidden">
+                      <img src={selectedAutorizacao.comprovante_url} alt="Comprovante" className="w-full max-h-64 object-contain" />
+                    </a>
+                  </div>
+                )}
+
+                <div>
+                  <h3 className="font-bold text-slate-800 mb-3">Pedidos ({selectedAutorizacao.pedidos_ids?.length || 0})</h3>
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {selectedAutorizacao.pedidos_ids?.map(pedidoId => {
+                      const pedido = pedidos.find(p => p.id === pedidoId);
+                      return pedido ? (
+                        <div key={pedidoId} className="flex justify-between items-center p-3 bg-white border rounded-lg">
+                          <div><p className="font-medium">#{pedido.numero_pedido}</p><p className="text-xs text-slate-500">{pedido.cliente_nome}</p></div>
+                          <p className="font-semibold text-blue-600">{formatCurrency(pedido.saldo_restante || pedido.valor_pedido)}</p>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <Button variant="outline" className="flex-1" onClick={() => { setShowAutorizacaoModal(false); setSelectedAutorizacao(null); }}>Cancelar</Button>
+                  <Button variant="destructive" className="flex-1" onClick={async () => {
+                    try {
+                      await base44.entities.LiquidacaoPendente.update(selectedAutorizacao.id, { status: 'rejeitado', motivo_rejeicao: 'Rejeitado pelo administrador' });
+                      await queryClient.invalidateQueries({ queryKey: ['liquidacoesPendentes'] });
+                      setShowAutorizacaoModal(false);
+                      setSelectedAutorizacao(null);
+                      toast.success('Solicitação rejeitada');
+                    } catch (e) { toast.error('Erro ao rejeitar'); }
+                  }}>Rejeitar</Button>
+                  <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={async () => {
+                    setIsProcessing(true);
+                    try {
+                      await base44.entities.LiquidacaoPendente.update(selectedAutorizacao.id, { status: 'aprovado', aprovado_por: user?.email, data_aprovacao: new Date().toISOString() });
+                      await queryClient.invalidateQueries({ queryKey: ['liquidacoesPendentes'] });
+                      await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+                      await queryClient.invalidateQueries({ queryKey: ['borderos'] });
+                      setShowAutorizacaoModal(false);
+                      setSelectedAutorizacao(null);
+                      toast.success('Liquidação aprovada!');
+                    } catch (e) { toast.error('Erro ao aprovar'); } finally { setIsProcessing(false); }
+                  }}>Aprovar & Liquidar</Button>
+                </div>
+              </div>
+            )}
+          </ModalContainer>
           <AlertDialog open={showReverterDialog} onOpenChange={setShowReverterDialog}>
             <AlertDialogContent>
               <AlertDialogHeader><AlertDialogTitle>Reverter Liquidação</AlertDialogTitle><AlertDialogDescription>Tem certeza que deseja reverter essa liquidação? {pedidoParaReverter && (<div className="mt-4 p-3 bg-slate-50 rounded-lg"><p className="font-medium">Pedido: {pedidoParaReverter.numero_pedido}</p><p className="text-sm">Cliente: {pedidoParaReverter.cliente_nome}</p><p className="text-sm mt-2 text-amber-600">Esta ação irá reverter o pedido para status "aberto", zerar o valor pago e o desconto.</p></div>)}</AlertDialogDescription></AlertDialogHeader>
