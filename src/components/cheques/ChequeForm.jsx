@@ -4,8 +4,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Save, X } from "lucide-react";
+import { toast } from "sonner";
+import { base44 } from '@/api/base44Client';
+import { useQuery } from '@tanstack/react-query';
 
-export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
+export default function ChequeForm({ cheque, clientes = [], onSave, onCancel }) {
+  const { data: todosCheques = [] } = useQuery({
+    queryKey: ['cheques'],
+    queryFn: () => base44.entities.Cheque.list()
+  });
+
   const [formData, setFormData] = useState(cheque || {
     numero_cheque: '',
     banco: '',
@@ -31,6 +40,27 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
       emitente: formData.emitente || cliente?.nome || '',
       emitente_cpf_cnpj: formData.emitente_cpf_cnpj || cliente?.cnpj || ''
     });
+  };
+
+  const handleSave = () => {
+    // Validação de duplicidade (Banco + Agência + Conta + Número)
+    if (!cheque) {
+      const duplicado = todosCheques.find(c => 
+        c.banco === formData.banco && 
+        c.agencia === formData.agencia && 
+        c.conta === formData.conta && 
+        c.numero_cheque === formData.numero_cheque
+      );
+
+      if (duplicado) {
+        toast.error('Cheque já cadastrado com estes dados!', {
+          description: `Cheque #${duplicado.numero_cheque} do cliente ${duplicado.cliente_nome}`
+        });
+        return;
+      }
+    }
+    
+    onSave(formData);
   };
 
   return (
@@ -174,25 +204,11 @@ export default function ChequeForm({ cheque, clientes, onSave, onCancel }) {
 
       <div className="flex justify-end gap-3 pt-4 border-t">
         <Button type="button" variant="outline" onClick={onCancel}>
+          <X className="w-4 h-4 mr-2" />
           Cancelar
         </Button>
-        <Button type="button" onClick={() => {
-          // Validação de duplicidade
-          if (!cheque) {
-            const duplicado = todosCheques.find(c => 
-              c.banco === formData.banco && 
-              c.agencia === formData.agencia && 
-              c.conta === formData.conta && 
-              c.numero_cheque === formData.numero_cheque
-            );
-
-            if (duplicado) {
-              toast.error('Cheque já cadastrado com estes dados!');
-              return;
-            }
-          }
-          onSave(formData);
-        }}>
+        <Button type="button" onClick={handleSave}>
+          <Save className="w-4 h-4 mr-2" />
           {cheque ? 'Atualizar' : 'Cadastrar'} Cheque
         </Button>
       </div>
