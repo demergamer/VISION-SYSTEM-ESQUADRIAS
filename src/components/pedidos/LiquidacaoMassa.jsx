@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, DollarSign, Percent, Wallet, Loader2, Plus, X } from "lucide-react";
+import { Search, DollarSign, Percent, Wallet, Loader2, Plus, X, Upload, FileText, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ModalContainer from "@/components/modals/ModalContainer";
 import AdicionarChequeModal from "@/components/pedidos/AdicionarChequeModal";
@@ -26,6 +26,8 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
   const [creditoDisponivelTotal, setCreditoDisponivelTotal] = useState(0);
   const [creditoAUsar, setCreditoAUsar] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
+  const [comprovantes, setComprovantes] = useState([]);
+  const [uploadingFile, setUploadingFile] = useState(false);
 
   const { data: creditos = [] } = useQuery({
     queryKey: ['creditos', selectedPedidos[0]?.cliente_codigo],
@@ -121,6 +123,29 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       novasFormas[index][campo] = valor;
     }
     setFormasPagamento(novasFormas);
+  };
+
+  const handleFileUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    setUploadingFile(true);
+    try {
+      const uploadPromises = files.map(file => base44.integrations.Core.UploadFile({ file }));
+      const results = await Promise.all(uploadPromises);
+      const urls = results.map(r => r.file_url);
+      setComprovantes(prev => [...prev, ...urls]);
+      toast.success(`${files.length} arquivo(s) anexado(s)!`);
+    } catch (error) {
+      toast.error('Erro ao enviar arquivo(s)');
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  const removerComprovante = (index) => {
+    setComprovantes(prev => prev.filter((_, i) => i !== index));
+    toast.success('Arquivo removido');
   };
 
   const handleLiquidar = async () => {
@@ -258,7 +283,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         pedidos_ids: selectedPedidos.map(p => p.id),
         valor_total: valorPagoReal + creditoEfetivamenteUsado,
         forma_pagamento: formasFinal,
-        comprovantes_urls: [],
+        comprovantes_urls: comprovantes,
         cheques_anexos: chequesAnexos,
         observacao: `Desconto: ${formatCurrency(totais.desconto)} | Devolução: ${formatCurrency(totais.devolucaoValor)} | ${selectedPedidos.length} pedidos`,
         liquidado_por: user.email
@@ -462,6 +487,78 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
             </div>
           </Card>
         </>
+      )}
+
+      {/* SEÇÃO DE ANEXOS DO BORDERÔ */}
+      {selectedPedidos.length > 0 && (
+        <Card className="p-6 space-y-4 bg-gradient-to-br from-slate-50 to-white border-slate-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-emerald-600" />
+                Comprovantes do Borderô
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">Anexe comprovantes de pagamento desta liquidação em massa</p>
+            </div>
+            <label className="cursor-pointer">
+              <input 
+                type="file" 
+                multiple 
+                accept="image/*,.pdf" 
+                onChange={handleFileUpload}
+                disabled={uploadingFile}
+                className="hidden" 
+              />
+              <Button 
+                type="button" 
+                size="sm" 
+                variant="outline" 
+                disabled={uploadingFile}
+                className="gap-2"
+                onClick={(e) => e.preventDefault()}
+              >
+                {uploadingFile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                {uploadingFile ? 'Enviando...' : 'Anexar Arquivos'}
+              </Button>
+            </label>
+          </div>
+
+          {comprovantes.length > 0 && (
+            <div className="space-y-2">
+              {comprovantes.map((url, index) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg hover:border-emerald-300 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center">
+                      <FileText className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">Comprovante {index + 1}</p>
+                      <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-600 hover:underline">
+                        Ver arquivo
+                      </a>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => removerComprovante(index)}
+                    className="text-red-600 hover:bg-red-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {comprovantes.length === 0 && !uploadingFile && (
+            <div className="text-center py-6 border-2 border-dashed border-slate-200 rounded-lg">
+              <Upload className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+              <p className="text-sm text-slate-400">Nenhum arquivo anexado</p>
+            </div>
+          )}
+        </Card>
       )}
 
       <div className="flex justify-end gap-3 pt-4 border-t">

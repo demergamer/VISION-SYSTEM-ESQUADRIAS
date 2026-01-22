@@ -63,6 +63,29 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
     toast.success('Cheque cadastrado!');
   };
 
+  const handleFileUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    setUploadingFile(true);
+    try {
+      const uploadPromises = files.map(file => base44.integrations.Core.UploadFile({ file }));
+      const results = await Promise.all(uploadPromises);
+      const urls = results.map(r => r.file_url);
+      setComprovantes(prev => [...prev, ...urls]);
+      toast.success(`${files.length} arquivo(s) anexado(s)!`);
+    } catch (error) {
+      toast.error('Erro ao enviar arquivo(s)');
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  const removerComprovante = (index) => {
+    setComprovantes(prev => prev.filter((_, i) => i !== index));
+    toast.success('Arquivo removido');
+  };
+
   const handleSaveChequeAndAddAnother = async (chequeData) => {
     await base44.entities.Cheque.create(chequeData);
     const novosCheques = [...chequesSalvos, chequeData];
