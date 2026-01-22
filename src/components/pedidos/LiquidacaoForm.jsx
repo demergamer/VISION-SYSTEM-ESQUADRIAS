@@ -8,10 +8,11 @@ import { Card } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { DollarSign, CheckCircle, X, Wallet } from "lucide-react";
+import { DollarSign, CheckCircle, X, Wallet, Percent, Loader2 } from "lucide-react";
 import ModalContainer from "@/components/modals/ModalContainer";
 import AdicionarChequeModal from "@/components/pedidos/AdicionarChequeModal";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) {
   const saldoAtual = pedido.saldo_restante || (pedido.valor_pedido - (pedido.total_pago || 0));
@@ -28,6 +29,10 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
   const [chequesSalvos, setChequesSalvos] = useState([]);
   const [creditoDisponivelTotal, setCreditoDisponivelTotal] = useState(0);
   const [creditoAUsar, setCreditoAUsar] = useState(0);
+  const [descontoTipo, setDescontoTipo] = useState('reais');
+  const [descontoValor, setDescontoValor] = useState('');
+  const [devolucao, setDevolucao] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   // Buscar créditos disponíveis do cliente
   const { data: creditos = [] } = useQuery({
@@ -91,23 +96,37 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
     }).format(value || 0);
   };
 
+  const calcularDesconto = () => {
+    if (!descontoValor) return 0;
+    if (descontoTipo === 'porcentagem') {
+      return (saldoAtual * parseFloat(descontoValor)) / 100;
+    }
+    return parseFloat(descontoValor) || 0;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsSaving(true);
     
-    // Aplicar crédito se houver
-    const valorComCredito = valorPagamento + creditoAUsar;
-    const novoTotalPago = (pedido.total_pago || 0) + valorComCredito;
-    const novoSaldo = pedido.valor_pedido - novoTotalPago;
+    try {
+      const desconto = calcularDesconto();
+      const devolucaoValor = parseFloat(devolucao) || 0;
+      const saldoComAjustes = saldoAtual - desconto - devolucaoValor;
+      
+      const valorComCredito = valorPagamento + creditoAUsar;
+      const novoTotalPago = (pedido.total_pago || 0) + valorPagamento;
+      const novoDescontoTotal = (pedido.desconto_dado || 0) + desconto;
+      const novoSaldo = pedido.valor_pedido - novoTotalPago - novoDescontoTotal - devolucaoValor;
     
-    // Confirmar se valor pago é maior que o saldo
-    if (valorComCredito > saldoAtual) {
-      const excedente = valorComCredito - saldoAtual;
+    // Confirmar se valor pago é maior que o saldo (considerando ajustes)
+    if (valorComCredito > saldoComAjustes) {
+      const excedente = valorComCredito - saldoComAjustes;
       const confirmar = window.confirm(
         `⚠️ ATENÇÃO!\n\n` +
         `Valor a pagar: ${formatCurrency(valorComCredito)}\n` +
-        `Saldo em aberto: ${formatCurrency(saldoAtual)}\n` +
+        `Saldo em aberto (com ajustes): ${formatCurrency(saldoComAjustes)}\n` +
         `Excedente: ${formatCurrency(excedente)}\n\n` +
-        `Um crédito de ${formatCurrency(excedente)} será gerado para o cliente.\n\n` +
+        `Um crédito será gerado para o cliente.\n\n` +
         `Deseja continuar?`
       );
       
@@ -149,7 +168,8 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
     
     const dataToSave = {
       total_pago: novoTotalPago,
-      saldo_restante: novoSaldo,
+      saldo_restante: Math.max(0, novoSaldo),
+      desconto_dado: novoDescontoTotal,
       status: novoSaldo <= 0 ? 'pago' : 'parcial',
       data_pagamento: novoSaldo <= 0 ? new Date().toISOString().split('T')[0] : pedido.data_pagamento,
       mes_pagamento: novoSaldo <= 0 ? mesAtual : pedido.mes_pagamento,
@@ -200,7 +220,10 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
       toast.success(`Crédito #${proximoNumero} de ${formatCurrency(valorCredito)} gerado!`);
     }
     
-    onSave(dataToSave);
+      await onSave(dataToSave);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -228,6 +251,57 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
         <div className="mt-4 pt-4 border-t">
           <p className="text-sm text-slate-500">Saldo Restante</p>
           <p className="font-bold text-2xl text-amber-600">{formatCurrency(saldoAtual)}</p>
+        </div>
+      </Card>
+
+      {/* Desconto e Devolução */}
+      <Card className="p-4 bg-slate-50 space-y-4">
+        <h3 className="font-semibold text-slate-800">Ajustes de Pagamento</h3>
+        
+        <div className="space-y-2">
+          <Label>Desconto</Label>
+          <RadioGroup value={descontoTipo} onValueChange={setDescontoTipo} className="flex gap-4">
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="reais" id="desc-reais" />
+              <Label htmlFor="desc-reais" className="cursor-pointer">Em Reais (R$)</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="porcentagem" id="desc-porc" />
+              <Label htmlFor="desc-porc" className="cursor-pointer">Em Porcentagem (%)</Label>
+            </div>
+          </RadioGroup>
+          <div className="relative">
+            {descontoTipo === 'reais' ? (
+              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            ) : (
+              <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            )}
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder={descontoTipo === 'reais' ? 'Valor em reais' : 'Porcentagem'}
+              value={descontoValor}
+              onChange={(e) => setDescontoValor(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Devolução (R$)</Label>
+          <div className="relative">
+            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="Valor de devolução"
+              value={devolucao}
+              onChange={(e) => setDevolucao(e.target.value)}
+              className="pl-10"
+            />
+          </div>
         </div>
       </Card>
 
@@ -324,7 +398,7 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
         </Select>
       </div>
 
-      {/* Parcelas (se for crédito) */}
+      {/* Parcelas (se for crédito) - Até 18x */}
       {formaPagamento === 'credito' && (
         <div className="space-y-2">
           <Label>Parcelamento</Label>
@@ -333,7 +407,7 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+              {Array.from({length: 18}, (_, i) => i + 1).map(n => (
                 <SelectItem key={n} value={String(n)}>{n}x</SelectItem>
               ))}
             </SelectContent>
@@ -420,15 +494,37 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
       </Card>
 
       <div className="flex justify-end gap-3 pt-4 border-t">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading || isSaving}>
           <X className="w-4 h-4 mr-2" />
           Cancelar
         </Button>
-        <Button type="submit" disabled={isLoading || (valorPagamento + creditoAUsar) <= 0} className="bg-emerald-600 hover:bg-emerald-700">
-          <DollarSign className="w-4 h-4 mr-2" />
-          Confirmar Pagamento
+        <Button type="submit" disabled={isLoading || isSaving || (valorPagamento + creditoAUsar) <= 0} className="bg-emerald-600 hover:bg-emerald-700">
+          {isSaving ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Processando...
+            </>
+          ) : (
+            <>
+              <DollarSign className="w-4 h-4 mr-2" />
+              Confirmar Pagamento
+            </>
+          )}
         </Button>
       </div>
+
+      {/* Overlay de Loading */}
+      {isSaving && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4">
+            <Loader2 className="w-12 h-12 text-emerald-600 animate-spin" />
+            <div className="text-center">
+              <h3 className="text-lg font-bold text-slate-800">Processando Pagamento</h3>
+              <p className="text-sm text-slate-500">Atualizando registros...</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Adicionar Cheque */}
       <ModalContainer
