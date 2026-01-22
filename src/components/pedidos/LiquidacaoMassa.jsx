@@ -28,6 +28,8 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
   const [isSaving, setIsSaving] = useState(false);
   const [comprovantes, setComprovantes] = useState([]);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = React.useRef(null);
 
   const { data: creditos = [] } = useQuery({
     queryKey: ['creditos', selectedPedidos[0]?.cliente_codigo],
@@ -146,6 +148,40 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
   const removerComprovante = (index) => {
     setComprovantes(prev => prev.filter((_, i) => i !== index));
     toast.success('Arquivo removido');
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+
+    setUploadingFile(true);
+    try {
+      const uploadPromises = files.map(file => base44.integrations.Core.UploadFile({ file }));
+      const results = await Promise.all(uploadPromises);
+      const urls = results.map(r => r.file_url);
+      setComprovantes(prev => [...prev, ...urls]);
+      toast.success(`${files.length} arquivo(s) anexado(s)!`);
+    } catch (error) {
+      toast.error('Erro ao enviar arquivo(s)');
+    } finally {
+      setUploadingFile(false);
+    }
   };
 
   const handleLiquidar = async () => {
@@ -500,8 +536,9 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
               </h3>
               <p className="text-xs text-slate-500 mt-1">Anexe comprovantes de pagamento desta liquidação em massa</p>
             </div>
-            <label className="cursor-pointer">
+            <div>
               <input 
+                ref={fileInputRef}
                 type="file" 
                 multiple 
                 accept="image/*,.pdf" 
@@ -515,12 +552,12 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
                 variant="outline" 
                 disabled={uploadingFile}
                 className="gap-2"
-                onClick={(e) => e.preventDefault()}
+                onClick={() => fileInputRef.current?.click()}
               >
                 {uploadingFile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                 {uploadingFile ? 'Enviando...' : 'Anexar Arquivos'}
               </Button>
-            </label>
+            </div>
           </div>
 
           {comprovantes.length > 0 && (
@@ -552,10 +589,38 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
             </div>
           )}
 
-          {comprovantes.length === 0 && !uploadingFile && (
-            <div className="text-center py-6 border-2 border-dashed border-slate-200 rounded-lg">
-              <Upload className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-              <p className="text-sm text-slate-400">Nenhum arquivo anexado</p>
+          {comprovantes.length === 0 && (
+            <div 
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={cn(
+                "text-center py-8 border-2 border-dashed rounded-lg transition-all cursor-pointer",
+                isDragging 
+                  ? "border-emerald-400 bg-emerald-50/50 scale-[1.02]" 
+                  : uploadingFile 
+                    ? "border-slate-300 bg-slate-50" 
+                    : "border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/30"
+              )}
+              onClick={() => !uploadingFile && fileInputRef.current?.click()}
+            >
+              {uploadingFile ? (
+                <>
+                  <Loader2 className="w-10 h-10 text-emerald-500 mx-auto mb-3 animate-spin" />
+                  <p className="text-sm font-medium text-slate-600">Enviando arquivos...</p>
+                </>
+              ) : isDragging ? (
+                <>
+                  <Upload className="w-10 h-10 text-emerald-500 mx-auto mb-3" />
+                  <p className="text-sm font-medium text-emerald-700">Solte os arquivos aqui</p>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                  <p className="text-sm font-medium text-slate-600 mb-1">Arraste arquivos aqui ou clique para selecionar</p>
+                  <p className="text-xs text-slate-400">Suporta PDF, JPG, PNG</p>
+                </>
+              )}
             </div>
           )}
         </Card>
