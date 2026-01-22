@@ -13,7 +13,8 @@ import {
   Wallet,
   TrendingUp,
   CheckCircle,
-  XCircle
+  XCircle,
+  Plus
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -22,17 +23,26 @@ import { toast } from "sonner";
 import StatCard from "@/components/dashboard/StatCard";
 import ModalContainer from "@/components/modals/ModalContainer";
 import CreditoDetails from "@/components/creditos/CreditoDetails";
+import GerarCreditoManual from "@/components/creditos/GerarCreditoManual";
 import PermissionGuard from "@/components/PermissionGuard";
+import { usePermissions } from "@/components/UserNotRegisteredError";
 
 export default function Creditos() {
   const queryClient = useQueryClient();
+  const { canDo } = usePermissions();
   const [searchTerm, setSearchTerm] = useState('');
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedCredito, setSelectedCredito] = useState(null);
+  const [showGerarManualModal, setShowGerarManualModal] = useState(false);
 
   const { data: creditos = [], isLoading } = useQuery({
     queryKey: ['creditos'],
     queryFn: () => base44.entities.Credito.list('-created_date')
+  });
+
+  const { data: clientes = [] } = useQuery({
+    queryKey: ['clientes'],
+    queryFn: () => base44.entities.Cliente.list()
   });
 
   const formatCurrency = (value) => {
@@ -93,6 +103,12 @@ export default function Creditos() {
               <p className="text-slate-500">Gestão de créditos disponíveis, usados e devolvidos</p>
             </div>
           </div>
+          {canDo('Creditos', 'adicionar') && (
+            <Button onClick={() => setShowGerarManualModal(true)} className="gap-2">
+              <Plus className="w-4 h-4" />
+              Gerar Crédito Manual
+            </Button>
+          )}
         </div>
 
         {/* Stats */}
@@ -231,6 +247,23 @@ export default function Creditos() {
               }}
             />
           )}
+        </ModalContainer>
+
+        {/* Gerar Crédito Manual Modal */}
+        <ModalContainer
+          open={showGerarManualModal}
+          onClose={() => setShowGerarManualModal(false)}
+          title="Gerar Crédito Manual"
+          description="Crie um crédito manualmente com justificativa"
+        >
+          <GerarCreditoManual
+            clientes={clientes}
+            onSave={() => {
+              queryClient.invalidateQueries({ queryKey: ['creditos'] });
+              setShowGerarManualModal(false);
+            }}
+            onCancel={() => setShowGerarManualModal(false)}
+          />
         </ModalContainer>
       </div>
     </div>

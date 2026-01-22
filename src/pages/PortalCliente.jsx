@@ -13,6 +13,9 @@ import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import ModalContainer from "@/components/modals/ModalContainer";
 import ChequeDetails from "@/components/cheques/ChequeDetails";
+import LiquidacaoSelfService from "@/components/portais/LiquidacaoSelfService";
+import { Badge } from "@/components/ui/badge";
+import { Lock, Send } from "lucide-react";
 
 export default function PortalCliente() {
   // --- Estados de Controle Visual ---
@@ -35,6 +38,8 @@ export default function PortalCliente() {
   const [abaCheques, setAbaCheques] = useState('aVencer');
   const [chequeDetalhe, setChequeDetalhe] = useState(null);
   const [showChequeModal, setShowChequeModal] = useState(false);
+  const [showLiquidacaoModal, setShowLiquidacaoModal] = useState(false);
+  const [showSolicitarAcessoModal, setShowSolicitarAcessoModal] = useState(false);
 
   // --- Queries de Dados ---
   const { data: user } = useQuery({ queryKey: ['user'], queryFn: () => base44.auth.me() });
@@ -139,15 +144,34 @@ export default function PortalCliente() {
     </button>
   );
 
+  const handleSolicitarAcesso = () => {
+    const mensagem = encodeURIComponent(
+      `Olá! Gostaria de solicitar acesso ao Portal do Cliente.\n\n` +
+      `Nome: ${user?.full_name || ''}\n` +
+      `Email: ${user?.email || ''}\n` +
+      `Código do Cliente: (Preencher se souber)`
+    );
+    window.open(`https://wa.me/5511994931958?text=${mensagem}`, '_blank');
+  };
+
   if (!clienteData) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
         <Card className="border-yellow-200 bg-yellow-50 max-w-lg w-full">
-          <CardContent className="p-6 flex items-center gap-4">
-            <AlertCircle className="w-8 h-8 text-yellow-600" />
-            <div>
-              <h3 className="font-bold text-yellow-800">Acesso não vinculado</h3>
-              <p className="text-yellow-700 text-sm">Não encontramos um cadastro de cliente para o email: {user?.email}</p>
+          <CardContent className="p-8 space-y-4">
+            <div className="flex items-center gap-4">
+              <AlertCircle className="w-10 h-10 text-yellow-600" />
+              <div>
+                <h3 className="font-bold text-yellow-800 text-xl">Acesso não vinculado</h3>
+                <p className="text-yellow-700 text-sm">Email: {user?.email}</p>
+              </div>
+            </div>
+            <p className="text-slate-700">Não encontramos um cadastro ativo com este email.</p>
+            <div className="flex gap-3 pt-4">
+              <Button onClick={handleSolicitarAcesso} className="flex-1 gap-2 bg-green-600 hover:bg-green-700">
+                <Send className="w-4 h-4" />
+                Solicitar Acesso via WhatsApp
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -211,6 +235,20 @@ export default function PortalCliente() {
               <FileText className="w-5 h-5 text-blue-500" />
               Meus Pedidos
             </h2>
+          </div>
+
+          {/* Botões de Ação */}
+          <div className="flex gap-3">
+            {meusPedidos.aPagar.length > 0 && (
+              <Button onClick={() => setShowLiquidacaoModal(true)} className="gap-2 bg-blue-600 hover:bg-blue-700">
+                <DollarSign className="w-4 h-4" />
+                Solicitar Liquidação
+              </Button>
+            )}
+            <Button variant="outline" className="gap-2" disabled>
+              <Lock className="w-4 h-4" />
+              Orçamentos (Em Breve)
+            </Button>
           </div>
 
           {/* Abas de Navegação */}
@@ -477,6 +515,19 @@ export default function PortalCliente() {
 
       <ModalContainer open={showChequeModal} onClose={() => setShowChequeModal(false)} title="Detalhes do Cheque">
         {chequeDetalhe && <ChequeDetails cheque={chequeDetalhe} onEdit={() => {}} onClose={() => setShowChequeModal(false)} />}
+      </ModalContainer>
+
+      <ModalContainer open={showLiquidacaoModal} onClose={() => setShowLiquidacaoModal(false)} title="Solicitar Liquidação" size="xl">
+        <LiquidacaoSelfService
+          pedidos={meusPedidos.aPagar}
+          clienteCodigo={clienteData.codigo}
+          clienteNome={clienteData.nome}
+          onSuccess={() => {
+            setShowLiquidacaoModal(false);
+            toast.success('Solicitação enviada com sucesso!');
+          }}
+          onCancel={() => setShowLiquidacaoModal(false)}
+        />
       </ModalContainer>
     </div>
   );
