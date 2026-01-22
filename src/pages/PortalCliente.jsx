@@ -725,7 +725,7 @@ export default function PortalCliente() {
             </div>
           </div>
         )}
-      </div>
+        </div>
       </div>
       
       <ModalContainer open={showChequeModal} onClose={() => setShowChequeModal(false)} title="Detalhes do Cheque">
