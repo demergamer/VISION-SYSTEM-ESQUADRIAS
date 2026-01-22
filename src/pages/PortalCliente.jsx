@@ -193,8 +193,9 @@ export default function PortalCliente() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F7FA] p-4 md:p-8 font-sans text-slate-900">
-      <div className="max-w-6xl mx-auto space-y-10">
+    <>
+      <div className="min-h-screen bg-[#F5F7FA] p-4 md:p-8 font-sans text-slate-900">
+        <div className="max-w-6xl mx-auto space-y-10">
         
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -724,6 +725,7 @@ export default function PortalCliente() {
             </div>
           </div>
         )}
+        </div>
       </div>
       
       <ModalContainer open={showChequeModal} onClose={() => setShowChequeModal(false)} title="Detalhes do Cheque">
@@ -742,6 +744,6 @@ export default function PortalCliente() {
           onCancel={() => setShowLiquidacaoModal(false)}
         />
       </ModalContainer>
-    </div>
+    </>
   );
 }
