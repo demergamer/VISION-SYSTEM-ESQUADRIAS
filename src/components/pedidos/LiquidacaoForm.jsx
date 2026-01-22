@@ -444,51 +444,71 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
               />
             </div>
           </div>
-          <Button 
-            type="button" 
-            variant="outline" 
-            onClick={() => setShowChequeModal(true)}
-            className="w-full"
-          >
-            {chequesSalvos.length > 0 
-              ? `${chequesSalvos.length} Cheque(s) Cadastrado(s) - Adicionar Mais` 
-              : 'Cadastrar Cheque Completo'}
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => setShowChequeModal(true)}
+              className="flex-1"
+            >
+              {chequesSalvos.length > 0 
+                ? `${chequesSalvos.length} Cheque(s) Cadastrado(s)` 
+                : 'Cadastrar Cheque Completo'}
+            </Button>
+            {chequesSalvos.length > 0 && (
+              <Button 
+                type="button" 
+                variant="secondary"
+                onClick={() => setShowChequeModal(true)}
+                className="gap-2"
+              >
+                Consultar/Editar
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Preview */}
+      {/* Preview - Totalizadores Dinâmicos */}
       <Card className="p-4 bg-emerald-50 border-emerald-200">
         <div className="flex items-center gap-2 mb-3">
           <CheckCircle className="w-5 h-5 text-emerald-600" />
-          <span className="font-medium text-emerald-700">Após o pagamento:</span>
+          <span className="font-medium text-emerald-700">Totalizadores</span>
         </div>
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-emerald-600">Valor em {formaPagamento}</p>
-            <p className="font-semibold text-emerald-700">
-              {formatCurrency(valorPagamento)}
-            </p>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-slate-600">Saldo Original:</span>
+            <span className="font-medium">{formatCurrency(saldoAtual)}</span>
           </div>
-          {creditoAUsar > 0 && (
-            <div>
-              <p className="text-emerald-600">Crédito Usado</p>
-              <p className="font-semibold text-emerald-700">
-                {formatCurrency(creditoAUsar)}
-              </p>
+          {descontoValor && (
+            <div className="flex justify-between text-red-600">
+              <span>Desconto ({descontoTipo === 'porcentagem' ? `${descontoValor}%` : 'R$'}):</span>
+              <span className="font-medium">- {formatCurrency(calcularDesconto())}</span>
             </div>
           )}
-          <div>
-            <p className="text-emerald-600">Novo Total Pago</p>
-            <p className="font-semibold text-emerald-700">
-              {formatCurrency((pedido.total_pago || 0) + valorPagamento + creditoAUsar)}
-            </p>
+          {devolucao && (
+            <div className="flex justify-between text-orange-600">
+              <span>Devolução:</span>
+              <span className="font-medium">- {formatCurrency(parseFloat(devolucao) || 0)}</span>
+            </div>
+          )}
+          <div className="flex justify-between border-t pt-2">
+            <span className="text-slate-600">Saldo Ajustado:</span>
+            <span className="font-semibold">{formatCurrency(saldoAtual - calcularDesconto() - (parseFloat(devolucao) || 0))}</span>
           </div>
-          <div>
-            <p className="text-emerald-600">Novo Saldo</p>
-            <p className="font-semibold text-emerald-700">
-              {formatCurrency(Math.max(0, saldoAtual - valorPagamento - creditoAUsar))}
-            </p>
+          <div className="flex justify-between text-blue-600">
+            <span>Pagamento em {formaPagamento}:</span>
+            <span className="font-semibold">{formatCurrency(valorPagamento)}</span>
+          </div>
+          {creditoAUsar > 0 && (
+            <div className="flex justify-between text-green-600">
+              <span>Crédito Usado:</span>
+              <span className="font-semibold">{formatCurrency(creditoAUsar)}</span>
+            </div>
+          )}
+          <div className="flex justify-between border-t pt-2 text-lg">
+            <span className="font-bold text-slate-800">Novo Saldo:</span>
+            <span className="font-bold text-emerald-700">{formatCurrency(Math.max(0, saldoAtual - calcularDesconto() - (parseFloat(devolucao) || 0) - valorPagamento - creditoAUsar))}</span>
           </div>
         </div>
       </Card>
