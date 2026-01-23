@@ -41,6 +41,7 @@ import ClienteForm from "@/components/clientes/ClienteForm";
 import CancelarPedidoModal from "@/components/pedidos/CancelarPedidoModal";
 import LiquidacaoMassa from "@/components/pedidos/LiquidacaoMassa";
 import RotaCobrancaModal from "@/components/pedidos/RotaCobrancaModal";
+import BorderoDetails from "@/components/pedidos/BorderoDetails";
 import PermissionGuard from "@/components/PermissionGuard";
 import { usePermissions } from "@/components/UserNotRegisteredError";
 
@@ -611,145 +612,11 @@ export default function Pedidos() {
           <ModalContainer open={showDetailsModal} onClose={() => { setShowDetailsModal(false); setSelectedPedido(null); }} title={selectedPedido?.isBordero ? `Detalhes do Borderô #${selectedPedido.numero_bordero}` : "Detalhes do Pedido"} description={selectedPedido?.isBordero ? "Visualização completa do borderô e anexos" : "Visualização completa do pedido"} size="xl">
             {selectedPedido && (
               selectedPedido.isBordero ? (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-xl">
-                    <div>
-                      <p className="text-xs text-slate-500 mb-1">Tipo de Liquidação</p>
-                      <p className="font-semibold text-slate-800">{selectedPedido.tipo_liquidacao === 'massa' ? 'Em Massa' : selectedPedido.tipo_liquidacao === 'individual' ? 'Individual' : 'Pendente Aprovada'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-500 mb-1">Valor Total</p>
-                      <p className="font-bold text-emerald-600 text-lg">{formatCurrency(selectedPedido.valor_total || 0)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-500 mb-1">Forma de Pagamento</p>
-                      <p className="font-medium text-slate-700">{selectedPedido.forma_pagamento || 'Não especificada'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-500 mb-1">Liquidado em</p>
-                      <p className="font-medium text-slate-700">{selectedPedido.created_date ? format(new Date(selectedPedido.created_date), 'dd/MM/yyyy HH:mm') : '-'}</p>
-                    </div>
-                    {selectedPedido.cliente_nome && (
-                      <div className="col-span-2">
-                        <p className="text-xs text-slate-500 mb-1">Cliente</p>
-                        <p className="font-medium text-slate-800">{selectedPedido.cliente_nome} {selectedPedido.cliente_codigo ? `(${selectedPedido.cliente_codigo})` : ''}</p>
-                      </div>
-                    )}
-                    {selectedPedido.observacao && (
-                      <div className="col-span-2">
-                        <p className="text-xs text-slate-500 mb-1">Observações</p>
-                        <p className="text-sm text-slate-700">{selectedPedido.observacao}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
-                      <ShoppingCart className="w-5 h-5 text-blue-500" /> Pedidos Liquidados ({(selectedPedido.pedidos_ids && Array.isArray(selectedPedido.pedidos_ids)) ? selectedPedido.pedidos_ids.length : 0})
-                    </h3>
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {selectedPedido.pedidos_ids && Array.isArray(selectedPedido.pedidos_ids) && selectedPedido.pedidos_ids.length > 0 ? (
-                        selectedPedido.pedidos_ids.map((pedidoId) => {
-                          const pedido = pedidos.find(p => p.id === pedidoId);
-                          return pedido ? (
-                            <div key={pedidoId} className="flex justify-between items-center p-3 bg-white border border-slate-200 rounded-lg hover:border-blue-300 transition-colors">
-                              <div>
-                                <p className="font-medium text-slate-800">#{pedido.numero_pedido || '-'}</p>
-                                <p className="text-xs text-slate-500">{pedido.cliente_nome || '-'}</p>
-                              </div>
-                              <p className="font-semibold text-blue-600">{formatCurrency(pedido.valor_pedido || 0)}</p>
-                            </div>
-                          ) : (
-                            <div key={pedidoId} className="flex items-center p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                              <p className="text-sm text-slate-500">Pedido ID: {pedidoId} (não encontrado)</p>
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <p className="text-sm text-slate-500 p-3 bg-slate-50 rounded-lg text-center">Nenhum pedido vinculado</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {selectedPedido.comprovantes_urls && Array.isArray(selectedPedido.comprovantes_urls) && selectedPedido.comprovantes_urls.length > 0 && (
-                    <div>
-                      <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-emerald-500" /> Comprovantes de Pagamento ({selectedPedido.comprovantes_urls.length})
-                      </h3>
-                      <div className="space-y-2">
-                        {selectedPedido.comprovantes_urls.map((url, idx) => (
-                          <div key={idx} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg hover:border-emerald-300 transition-colors group">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center">
-                                <FileText className="w-5 h-5 text-emerald-600" />
-                              </div>
-                              <div>
-                                <p className="text-sm font-medium text-slate-700">Comprovante {idx + 1}</p>
-                                <p className="text-xs text-slate-400">Arquivo anexado</p>
-                              </div>
-                            </div>
-                            <a 
-                              href={url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              download
-                              className="px-4 py-2 bg-emerald-500 text-white text-sm rounded-lg hover:bg-emerald-600 transition-colors flex items-center gap-2"
-                            >
-                              <Download className="w-4 h-4" />
-                              Baixar
-                            </a>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedPedido.cheques_anexos && Array.isArray(selectedPedido.cheques_anexos) && selectedPedido.cheques_anexos.length > 0 && (
-                    <div>
-                      <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
-                        <CreditCard className="w-5 h-5 text-purple-500" /> Cheques Vinculados ({selectedPedido.cheques_anexos.length})
-                      </h3>
-                      <div className="space-y-3">
-                        {selectedPedido.cheques_anexos.map((cheque, idx) => (
-                          <div key={idx} className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl">
-                            <div className="grid grid-cols-3 gap-3">
-                              <div>
-                                <p className="text-xs text-slate-500">Nº Cheque</p>
-                                <p className="font-bold text-slate-800">{cheque.numero_cheque || '-'}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-slate-500">Banco</p>
-                                <p className="font-medium text-slate-700">{cheque.banco || '-'}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-slate-500">Valor</p>
-                                <p className="font-bold text-purple-600">{formatCurrency(cheque.valor || 0)}</p>
-                              </div>
-                            </div>
-                            {cheque.anexo_foto_url && (
-                              <div className="mt-3">
-                                <a 
-                                  href={cheque.anexo_foto_url} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
-                                  download
-                                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600 transition-colors"
-                                >
-                                  <Download className="w-4 h-4" />
-                                  Baixar Anexo do Cheque
-                                </a>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <Button variant="outline" className="w-full" onClick={() => { setShowDetailsModal(false); setSelectedPedido(null); }}>
-                    Fechar
-                  </Button>
-                </div>
+                <BorderoDetails 
+                  bordero={selectedPedido} 
+                  pedidos={pedidos}
+                  onClose={() => { setShowDetailsModal(false); setSelectedPedido(null); }}
+                />
               ) : (
                 <PedidoDetails pedido={selectedPedido} onClose={() => { setShowDetailsModal(false); setSelectedPedido(null); }} />
               )
