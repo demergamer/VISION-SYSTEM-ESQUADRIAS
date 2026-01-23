@@ -619,7 +619,7 @@ export default function Pedidos() {
                     </div>
                     <div>
                       <p className="text-xs text-slate-500 mb-1">Valor Total</p>
-                      <p className="font-bold text-emerald-600 text-lg">{formatCurrency(selectedPedido.valor_total)}</p>
+                      <p className="font-bold text-emerald-600 text-lg">{formatCurrency(selectedPedido.valor_total || 0)}</p>
                     </div>
                     <div>
                       <p className="text-xs text-slate-500 mb-1">Forma de Pagamento</p>
@@ -627,12 +627,12 @@ export default function Pedidos() {
                     </div>
                     <div>
                       <p className="text-xs text-slate-500 mb-1">Liquidado em</p>
-                      <p className="font-medium text-slate-700">{format(new Date(selectedPedido.created_date), 'dd/MM/yyyy HH:mm')}</p>
+                      <p className="font-medium text-slate-700">{selectedPedido.created_date ? format(new Date(selectedPedido.created_date), 'dd/MM/yyyy HH:mm') : '-'}</p>
                     </div>
                     {selectedPedido.cliente_nome && (
                       <div className="col-span-2">
                         <p className="text-xs text-slate-500 mb-1">Cliente</p>
-                        <p className="font-medium text-slate-800">{selectedPedido.cliente_nome} ({selectedPedido.cliente_codigo})</p>
+                        <p className="font-medium text-slate-800">{selectedPedido.cliente_nome} {selectedPedido.cliente_codigo ? `(${selectedPedido.cliente_codigo})` : ''}</p>
                       </div>
                     )}
                     {selectedPedido.observacao && (
@@ -645,21 +645,29 @@ export default function Pedidos() {
 
                   <div>
                     <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
-                      <ShoppingCart className="w-5 h-5 text-blue-500" /> Pedidos Liquidados ({selectedPedido.pedidos_ids?.length || 0})
+                      <ShoppingCart className="w-5 h-5 text-blue-500" /> Pedidos Liquidados ({(selectedPedido.pedidos_ids && Array.isArray(selectedPedido.pedidos_ids)) ? selectedPedido.pedidos_ids.length : 0})
                     </h3>
                     <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {selectedPedido.pedidos_ids?.map((pedidoId) => {
-                        const pedido = pedidos.find(p => p.id === pedidoId);
-                        return pedido ? (
-                          <div key={pedidoId} className="flex justify-between items-center p-3 bg-white border border-slate-200 rounded-lg hover:border-blue-300 transition-colors">
-                            <div>
-                              <p className="font-medium text-slate-800">#{pedido.numero_pedido}</p>
-                              <p className="text-xs text-slate-500">{pedido.cliente_nome}</p>
+                      {selectedPedido.pedidos_ids && Array.isArray(selectedPedido.pedidos_ids) && selectedPedido.pedidos_ids.length > 0 ? (
+                        selectedPedido.pedidos_ids.map((pedidoId) => {
+                          const pedido = pedidos.find(p => p.id === pedidoId);
+                          return pedido ? (
+                            <div key={pedidoId} className="flex justify-between items-center p-3 bg-white border border-slate-200 rounded-lg hover:border-blue-300 transition-colors">
+                              <div>
+                                <p className="font-medium text-slate-800">#{pedido.numero_pedido || '-'}</p>
+                                <p className="text-xs text-slate-500">{pedido.cliente_nome || '-'}</p>
+                              </div>
+                              <p className="font-semibold text-blue-600">{formatCurrency(pedido.valor_pedido || 0)}</p>
                             </div>
-                            <p className="font-semibold text-blue-600">{formatCurrency(pedido.valor_pedido)}</p>
-                          </div>
-                        ) : null;
-                      })}
+                          ) : (
+                            <div key={pedidoId} className="flex items-center p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                              <p className="text-sm text-slate-500">Pedido ID: {pedidoId} (não encontrado)</p>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <p className="text-sm text-slate-500 p-3 bg-slate-50 rounded-lg text-center">Nenhum pedido vinculado</p>
+                      )}
                     </div>
                   </div>
 
