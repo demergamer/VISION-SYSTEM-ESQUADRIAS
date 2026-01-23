@@ -24,12 +24,41 @@ import { format } from "date-fns";
 
 export default function ClienteDetails({ cliente, stats, creditos, onEdit, onClose, onViewPedidos }) {
   const [showPdfViewer, setShowPdfViewer] = React.useState(false);
+  const [pdfBlobUrl, setPdfBlobUrl] = React.useState(null);
+  const [loadingPdf, setLoadingPdf] = React.useState(false);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
     }).format(value || 0);
+  };
+
+  const handleOpenPdf = async (urlOriginal) => {
+    if (!urlOriginal) return;
+    
+    setLoadingPdf(true);
+    setShowPdfViewer(true);
+    
+    try {
+      const response = await fetch(urlOriginal);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      setPdfBlobUrl(blobUrl);
+    } catch (error) {
+      console.error('Erro ao carregar PDF:', error);
+      setShowPdfViewer(false);
+    } finally {
+      setLoadingPdf(false);
+    }
+  };
+
+  const handleClosePdf = () => {
+    if (pdfBlobUrl) {
+      URL.revokeObjectURL(pdfBlobUrl);
+      setPdfBlobUrl(null);
+    }
+    setShowPdfViewer(false);
   };
 
   const cliStats = stats || {
@@ -219,10 +248,11 @@ export default function ClienteDetails({ cliente, stats, creditos, onEdit, onClo
                   variant="outline" 
                   size="sm" 
                   className="w-full gap-2 mt-3 border-blue-200 text-blue-700 hover:bg-blue-50"
-                  onClick={() => setShowPdfViewer(true)}
+                  onClick={() => handleOpenPdf(cliente.serasa_file_url)}
+                  disabled={loadingPdf}
                 >
                   <Eye className="w-4 h-4" />
-                  Visualizar Relatório PDF
+                  {loadingPdf ? 'Carregando...' : 'Visualizar Relatório PDF'}
                 </Button>
               )}
               {!cliente.serasa_file_url && (
@@ -264,10 +294,10 @@ export default function ClienteDetails({ cliente, stats, creditos, onEdit, onClo
       </div>
 
       {/* PDF VIEWER MODAL */}
-      {showPdfViewer && cliente.serasa_file_url && (
+      {showPdfViewer && (
         <div 
           className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => setShowPdfViewer(false)}
+          onClick={handleClosePdf}
         >
           <div 
             className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
@@ -284,20 +314,30 @@ export default function ClienteDetails({ cliente, stats, creditos, onEdit, onClo
               <Button 
                 variant="ghost" 
                 size="icon" 
-                onClick={() => setShowPdfViewer(false)}
+                onClick={handleClosePdf}
                 className="rounded-full"
               >
                 <X className="w-5 h-5" />
               </Button>
             </div>
             <div className="flex-1 overflow-auto bg-slate-100 p-2">
-              <embed 
-                src={cliente.serasa_file_url} 
-                type="application/pdf" 
-                width="100%" 
-                height="600px"
-                className="rounded-lg shadow-md"
-              />
+              {loadingPdf ? (
+                <div className="flex items-center justify-center h-[600px]">
+                  <div className="text-center">
+                    <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-slate-600">Carregando PDF...</p>
+                  </div>
+                </div>
+              ) : pdfBlobUrl ? (
+                <iframe 
+                  src={pdfBlobUrl + "#toolbar=0&navpanes=0"} 
+                  type="application/pdf" 
+                  width="100%" 
+                  height="600px"
+                  className="rounded-lg shadow-md border-0"
+                  title="Relatório Serasa"
+                />
+              ) : null}
             </div>
             <div className="p-3 bg-slate-50 border-t flex justify-end gap-2">
               <Button 
@@ -305,12 +345,12 @@ export default function ClienteDetails({ cliente, stats, creditos, onEdit, onClo
                 size="sm"
                 onClick={() => window.open(cliente.serasa_file_url, '_blank')}
               >
-                Abrir em Nova Aba
+                Baixar PDF
               </Button>
               <Button 
                 variant="outline" 
                 size="sm"
-                onClick={() => setShowPdfViewer(false)}
+                onClick={handleClosePdf}
               >
                 Fechar
               </Button>
