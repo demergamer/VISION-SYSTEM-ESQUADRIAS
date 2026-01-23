@@ -16,15 +16,13 @@ import {
   Edit,
   X,
   FileText,
-  Eye,
+  Download,
   DollarSign
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
 export default function ClienteDetails({ cliente, stats, creditos, onEdit, onClose, onViewPedidos }) {
-  const [showPdfViewer, setShowPdfViewer] = React.useState(false);
-
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -219,10 +217,10 @@ export default function ClienteDetails({ cliente, stats, creditos, onEdit, onClo
                   variant="outline" 
                   size="sm" 
                   className="w-full gap-2 mt-3 border-blue-200 text-blue-700 hover:bg-blue-50"
-                  onClick={() => setShowPdfViewer(true)}
+                  onClick={() => window.open(cliente.serasa_file_url, '_blank')}
                 >
-                  <Eye className="w-4 h-4" />
-                  Visualizar Relatório PDF
+                  <Download className="w-4 h-4" />
+                  Baixar PDF do Serasa
                 </Button>
               )}
               {!cliente.serasa_file_url && (
@@ -263,61 +261,6 @@ export default function ClienteDetails({ cliente, stats, creditos, onEdit, onClo
         </Button>
       </div>
 
-      {/* PDF VIEWER MODAL */}
-      {showPdfViewer && cliente.serasa_file_url && (
-        <div 
-          className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => setShowPdfViewer(false)}
-        >
-          <div 
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-4 border-b bg-slate-50">
-              <div className="flex items-center gap-3">
-                <FileText className="w-5 h-5 text-blue-600" />
-                <div>
-                  <h3 className="font-bold text-slate-800">Relatório Serasa</h3>
-                  <p className="text-xs text-slate-500">{cliente.nome}</p>
-                </div>
-              </div>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={() => setShowPdfViewer(false)}
-                className="rounded-full"
-              >
-                <X className="w-5 h-5" />
-              </Button>
-            </div>
-            <div className="flex-1 overflow-auto bg-slate-100 p-2">
-              <embed 
-                src={cliente.serasa_file_url} 
-                type="application/pdf" 
-                width="100%" 
-                height="600px"
-                className="rounded-lg shadow-md"
-              />
-            </div>
-            <div className="p-3 bg-slate-50 border-t flex justify-end gap-2">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => window.open(cliente.serasa_file_url, '_blank')}
-              >
-                Abrir em Nova Aba
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setShowPdfViewer(false)}
-              >
-                Fechar
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
