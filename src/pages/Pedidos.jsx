@@ -11,7 +11,7 @@ import {
   FileText, ArrowLeft, Filter, Upload, Truck, Clock, CheckCircle, XCircle,
   MoreHorizontal, ChevronDown, Package, UserPlus,
   LayoutGrid, List, MapPin, Calendar, Edit, Eye, RotateCcw,
-  SlidersHorizontal, X as XIcon, Loader2 // Adicionado icone Loader2
+  SlidersHorizontal, X as XIcon, Loader2, Download
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -663,47 +663,74 @@ export default function Pedidos() {
                     </div>
                   </div>
 
-                  {selectedPedido.comprovantes_urls && selectedPedido.comprovantes_urls.length > 0 && (
+                  {selectedPedido.comprovantes_urls && Array.isArray(selectedPedido.comprovantes_urls) && selectedPedido.comprovantes_urls.length > 0 && (
                     <div>
                       <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-emerald-500" /> Comprovantes de Pagamento
+                        <FileText className="w-5 h-5 text-emerald-500" /> Comprovantes de Pagamento ({selectedPedido.comprovantes_urls.length})
                       </h3>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
                         {selectedPedido.comprovantes_urls.map((url, idx) => (
-                          <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="block border border-slate-200 rounded-lg overflow-hidden hover:border-emerald-400 transition-colors">
-                            <img src={url} alt={`Comprovante ${idx + 1}`} className="w-full h-32 object-cover" />
-                          </a>
+                          <div key={idx} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg hover:border-emerald-300 transition-colors group">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center">
+                                <FileText className="w-5 h-5 text-emerald-600" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-slate-700">Comprovante {idx + 1}</p>
+                                <p className="text-xs text-slate-400">Arquivo anexado</p>
+                              </div>
+                            </div>
+                            <a 
+                              href={url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              download
+                              className="px-4 py-2 bg-emerald-500 text-white text-sm rounded-lg hover:bg-emerald-600 transition-colors flex items-center gap-2"
+                            >
+                              <Download className="w-4 h-4" />
+                              Baixar
+                            </a>
+                          </div>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {selectedPedido.cheques_anexos && selectedPedido.cheques_anexos.length > 0 && (
+                  {selectedPedido.cheques_anexos && Array.isArray(selectedPedido.cheques_anexos) && selectedPedido.cheques_anexos.length > 0 && (
                     <div>
                       <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
-                        <CreditCard className="w-5 h-5 text-purple-500" /> Cheques Vinculados
+                        <CreditCard className="w-5 h-5 text-purple-500" /> Cheques Vinculados ({selectedPedido.cheques_anexos.length})
                       </h3>
                       <div className="space-y-3">
                         {selectedPedido.cheques_anexos.map((cheque, idx) => (
                           <div key={idx} className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl">
-                            <div className="grid grid-cols-3 gap-3 mb-2">
+                            <div className="grid grid-cols-3 gap-3">
                               <div>
                                 <p className="text-xs text-slate-500">Nº Cheque</p>
-                                <p className="font-bold text-slate-800">{cheque.numero_cheque}</p>
+                                <p className="font-bold text-slate-800">{cheque.numero_cheque || '-'}</p>
                               </div>
                               <div>
                                 <p className="text-xs text-slate-500">Banco</p>
-                                <p className="font-medium text-slate-700">{cheque.banco}</p>
+                                <p className="font-medium text-slate-700">{cheque.banco || '-'}</p>
                               </div>
                               <div>
                                 <p className="text-xs text-slate-500">Valor</p>
-                                <p className="font-bold text-purple-600">{formatCurrency(cheque.valor)}</p>
+                                <p className="font-bold text-purple-600">{formatCurrency(cheque.valor || 0)}</p>
                               </div>
                             </div>
                             {cheque.anexo_foto_url && (
-                              <a href={cheque.anexo_foto_url} target="_blank" rel="noopener noreferrer" className="block mt-2 border border-purple-300 rounded-lg overflow-hidden hover:border-purple-500 transition-colors">
-                                <img src={cheque.anexo_foto_url} alt={`Cheque ${cheque.numero_cheque}`} className="w-full h-32 object-cover" />
-                              </a>
+                              <div className="mt-3">
+                                <a 
+                                  href={cheque.anexo_foto_url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  download
+                                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600 transition-colors"
+                                >
+                                  <Download className="w-4 h-4" />
+                                  Baixar Anexo do Cheque
+                                </a>
+                              </div>
                             )}
                           </div>
                         ))}
