@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Wallet, Users, Eye, Calendar, TrendingUp, DollarSign, FileText } from "lucide-react";
 import PermissionGuard from "@/components/PermissionGuard";
-import ModalContainer from "@/components/modais/ModalContainer";
+import ModalContainer from "@/components/modals/ModalContainer";
 import ComissaoDetalhes from "@/components/comissoes/ComissaoDetalhes";
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
