@@ -278,37 +278,40 @@ export default function Pedidos() {
     setRefreshingData(true);
     
     const mensagens = [
-      'Sincronizando dados...',
-      'Verificando saldos em aberto...',
-      'Processando pedidos...',
-      'Aplicando regras de negócio...',
+      'Conectando ao banco de dados...',
+      'Analisando saldos devedores e credores...',
+      'Baixando resíduos menores que R$ 0,10...',
       'Finalizando...'
     ];
 
     let msgIndex = 0;
     const intervalId = setInterval(() => {
-      if (msgIndex < mensagens.length) {
-        setRefreshMessage(mensagens[msgIndex]);
+      if (msgIndex < mensagens.length - 1) {
         msgIndex++;
+        setRefreshMessage(mensagens[msgIndex]);
       }
-    }, 600);
+    }, 750);
 
     try {
-      // Chamar função de limpeza de resíduos
-      const resultado = await base44.functions.invoke('limparResiduos', {});
-      
-      // Aguardar refetch de todas as queries
-      await Promise.all([
-        refetchPedidos(),
-        refetchRotas(),
-        refetchBorderos(),
-        refetchAutorizacoes()
+      // Garantir delay mínimo de 3 segundos + executar operações
+      const [resultado] = await Promise.all([
+        (async () => {
+          const res = await base44.functions.invoke('limparResiduos', {});
+          await Promise.all([
+            refetchPedidos(),
+            refetchRotas(),
+            refetchBorderos(),
+            refetchAutorizacoes()
+          ]);
+          return res;
+        })(),
+        new Promise(resolve => setTimeout(resolve, 3000))
       ]);
 
       clearInterval(intervalId);
 
       if (resultado.data?.pedidos_limpos > 0) {
-        toast.success(`Atualização concluída! ${resultado.data.pedidos_limpos} pedido(s) com resíduos (centavos) foram baixados automaticamente.`, {
+        toast.success(`Processo finalizado. ${resultado.data.pedidos_limpos} pedido(s) foram regularizados.`, {
           duration: 5000
         });
       } else {
@@ -320,7 +323,7 @@ export default function Pedidos() {
       console.error(error);
     } finally {
       setRefreshingData(false);
-      setRefreshMessage('Sincronizando dados...');
+      setRefreshMessage('Conectando ao banco de dados...');
     }
   };
   const handleImportComplete = () => { queryClient.invalidateQueries({ queryKey: ['pedidos'] }); queryClient.invalidateQueries({ queryKey: ['rotas'] }); setShowImportModal(false); toast.success('Importação concluída!'); };

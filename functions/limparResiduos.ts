@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
 
     const pedidosResiduos = pedidos.filter(p => {
       const saldo = p.saldo_restante || (p.valor_pedido - (p.total_pago || 0));
-      return saldo > 0 && saldo <= 0.10;
+      return saldo <= 0.10;
     });
 
     const pedidosProcessados = [];
