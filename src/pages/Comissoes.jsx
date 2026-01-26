@@ -292,17 +292,61 @@ export default function Comissoes() {
                     </div>
                   </div>
 
-                  <Button 
-                    variant="outline" 
-                    className="w-full gap-2"
-                    onClick={() => {
-                      setRepresentanteSelecionado(rep);
-                      setShowDetalhes(true);
-                    }}
-                  >
-                    <Eye className="w-4 h-4" />
-                    {rep.status === 'fechado' ? 'Ver Detalhes' : 'Ver Detalhes e Fechar'}
-                  </Button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button 
+                      variant="outline" 
+                      className="gap-2"
+                      onClick={() => {
+                        setRepresentanteSelecionado(rep);
+                        setShowDetalhes(true);
+                      }}
+                    >
+                      <Eye className="w-4 h-4" />
+                      {rep.status === 'fechado' ? 'Ver Detalhes' : 'Detalhes'}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="gap-2 bg-blue-50 hover:bg-blue-100"
+                      onClick={async () => {
+                        try {
+                          toast.loading('Gerando PDF individual...');
+                          const response = await base44.functions.invoke('gerarRelatorioComissoes', {
+                            tipo: 'analitico',
+                            mes_ano: mesAnoSelecionado,
+                            representante: {
+                              ...rep,
+                              totalVendas: rep.totalVendas,
+                              totalComissoes: rep.totalComissoes,
+                              vales: rep.vales,
+                              outrosDescontos: rep.outrosDescontos,
+                              descricaoDescontos: rep.descricaoOutrosDescontos,
+                              observacoes: rep.observacoes,
+                              saldoAPagar: rep.saldoAPagar
+                            }
+                          });
+
+                          const blob = new Blob([response.data], { type: 'application/pdf' });
+                          const url = window.URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `Comissao-${rep.codigo}-${mesAnoSelecionado}.pdf`;
+                          document.body.appendChild(a);
+                          a.click();
+                          window.URL.revokeObjectURL(url);
+                          a.remove();
+                          
+                          toast.dismiss();
+                          toast.success('PDF individual gerado!');
+                        } catch (error) {
+                          toast.dismiss();
+                          toast.error('Erro ao gerar PDF');
+                        }
+                      }}
+                    >
+                      <Download className="w-4 h-4" />
+                      PDF
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>

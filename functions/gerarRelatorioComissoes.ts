@@ -22,21 +22,29 @@ Deno.serve(async (req) => {
       doc.text(`Referência: ${mes_ano}`, 20, 30);
       doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 20, 36);
 
+      // Marca d'água se for prévia
+      const algumAberto = representantes.some(r => r.status !== 'fechado');
+      if (algumAberto) {
+        doc.setFontSize(40);
+        doc.setTextColor(200, 200, 200);
+        doc.text('PRÉVIA', 105, 150, { align: 'center', angle: 45 });
+        doc.setTextColor(0, 0, 0);
+      }
+
       // Cabeçalho da tabela
       doc.setFontSize(10);
       doc.setFont(undefined, 'bold');
       let y = 50;
       doc.text('Representante', 20, y);
-      doc.text('Código', 90, y);
-      doc.text('Chave PIX', 120, y);
-      doc.text('Valor', 175, y, { align: 'right' });
+      doc.text('Chave PIX', 100, y);
+      doc.text('Valor a Pagar', 160, y);
 
       // Linha
       doc.setLineWidth(0.5);
       doc.line(20, y + 2, 190, y + 2);
 
       // Dados
-      doc.setFont(undefined, 'normal');
+      doc.setFont('courier', 'normal');
       y += 8;
 
       representantes.forEach(rep => {
@@ -45,24 +53,28 @@ Deno.serve(async (req) => {
           y = 20;
         }
 
-        doc.text(rep.nome.substring(0, 25), 20, y);
-        doc.text(rep.codigo, 90, y);
-        doc.text(rep.chave_pix || 'Não cadastrado', 120, y);
-        doc.text(`R$ ${rep.saldoAPagar.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 175, y, { align: 'right' });
+        doc.setFont('helvetica', 'normal');
+        doc.text(rep.nome.substring(0, 30), 20, y);
+        doc.text(rep.chave_pix || 'Não cadastrado', 100, y);
+        
+        // Valor alinhado à esquerda com fonte monospaced
+        doc.setFont('courier', 'normal');
+        doc.text(`R$ ${rep.saldoAPagar.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 160, y);
         
         y += 7;
       });
 
       // Total
       y += 5;
-      doc.setFont(undefined, 'bold');
+      doc.setFont('helvetica', 'bold');
       doc.setLineWidth(0.5);
       doc.line(20, y, 190, y);
       y += 7;
       const totalGeral = representantes.reduce((sum, r) => sum + r.saldoAPagar, 0);
-      doc.text('TOTAL A PAGAR:', 120, y);
+      doc.text('TOTAL A PAGAR:', 100, y);
+      doc.setFont('courier', 'bold');
       doc.setFontSize(12);
-      doc.text(`R$ ${totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 175, y, { align: 'right' });
+      doc.text(`R$ ${totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 160, y);
 
     } else if (tipo === 'analitico') {
       // RELATÓRIO ANALÍTICO (INDIVIDUAL) - Comprovante para representante
@@ -70,6 +82,14 @@ Deno.serve(async (req) => {
       doc.text('J&C Esquadrias', 20, 20);
       doc.setFontSize(10);
       doc.text('Controle de Comissões', 20, 27);
+
+      // Marca d'água se for prévia
+      if (representante.status !== 'fechado') {
+        doc.setFontSize(50);
+        doc.setTextColor(220, 220, 220);
+        doc.text('PRÉVIA DE FECHAMENTO', 105, 150, { align: 'center', angle: 45 });
+        doc.setTextColor(0, 0, 0);
+      }
 
       doc.setFontSize(12);
       doc.setFont(undefined, 'bold');

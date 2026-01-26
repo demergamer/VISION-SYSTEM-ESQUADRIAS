@@ -407,7 +407,53 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
         <Button variant="outline" className="flex-1" onClick={onClose}>
           {isFechado ? 'Fechar' : 'Cancelar'}
         </Button>
-        {!isFechado ? (
+        
+        <Button 
+          variant="outline"
+          className="flex-1 gap-2 bg-blue-50 hover:bg-blue-100"
+          onClick={async () => {
+            try {
+              toast.loading('Gerando PDF analítico...');
+              const response = await base44.functions.invoke('gerarRelatorioComissoes', {
+                tipo: 'analitico',
+                mes_ano: mesAno,
+                representante: {
+                  ...representante,
+                  pedidos: pedidosEditaveis,
+                  vales: totais.vales,
+                  outrosDescontos,
+                  descricaoDescontos,
+                  observacoes,
+                  totalVendas: totais.totalVendas,
+                  totalComissoes: totais.totalComissoes,
+                  saldoAPagar: totais.saldoFinal,
+                  status: isFechado ? 'fechado' : 'aberto'
+                }
+              });
+
+              const blob = new Blob([response.data], { type: 'application/pdf' });
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `Comissao-${representante.codigo}-${mesAno}.pdf`;
+              document.body.appendChild(a);
+              a.click();
+              window.URL.revokeObjectURL(url);
+              a.remove();
+              
+              toast.dismiss();
+              toast.success('PDF analítico gerado!');
+            } catch (error) {
+              toast.dismiss();
+              toast.error('Erro ao gerar PDF');
+            }
+          }}
+        >
+          <Download className="w-4 h-4" />
+          Gerar PDF Individual
+        </Button>
+
+        {!isFechado && (
           <Button 
             className="flex-1 gap-2 bg-emerald-600 hover:bg-emerald-700"
             onClick={handleFecharComissao}
@@ -415,22 +461,6 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
           >
             <Lock className="w-4 h-4" />
             {loading ? 'Processando...' : 'Finalizar Fechamento'}
-          </Button>
-        ) : (
-          <Button 
-            className="flex-1 gap-2 bg-blue-600 hover:bg-blue-700"
-            onClick={async () => {
-              const a = document.createElement('a');
-              a.href = representante.pdf_url;
-              a.download = `Comissao-${representante.codigo}-${mesAno}.pdf`;
-              a.target = '_blank';
-              document.body.appendChild(a);
-              a.click();
-              a.remove();
-            }}
-          >
-            <Download className="w-4 h-4" />
-            Baixar PDF Analítico
           </Button>
         )}
       </div>
