@@ -93,6 +93,13 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
       return;
     }
 
+    // VALIDAÇÃO DE SEGURANÇA: Verificar se algum pedido já teve comissão paga
+    const pedidosJaPagos = pedidosEditaveis.filter(p => p.comissao_paga === true);
+    if (pedidosJaPagos.length > 0) {
+      toast.error(`Erro: ${pedidosJaPagos.length} pedido(s) já tiveram comissão paga anteriormente`);
+      return;
+    }
+
     setLoading(true);
     
     try {
@@ -175,6 +182,15 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
         pagamento_id: pagamento.id
       });
 
+      // 5. MARCAR PEDIDOS COMO COMISSÃO PAGA (TRAVA DE SEGURANÇA)
+      for (const pedido of pedidosEditaveis) {
+        await base44.entities.Pedido.update(pedido.id, {
+          comissao_paga: true,
+          comissao_fechamento_id: fechamentoId,
+          comissao_mes_ano_pago: mesAno
+        });
+      }
+
       setIsFechado(true);
       toast.success('Comissão fechada e registrada em Pagamentos');
       
@@ -193,6 +209,8 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
     return pedidosTodos.filter(p => {
       // Mesmo representante
       if (p.representante_codigo !== representante.codigo) return false;
+      // TRAVA: Não mostrar pedidos com comissão já paga
+      if (p.comissao_paga === true) return false;
       // Pago
       if (p.status !== 'pago' || (p.saldo_restante && p.saldo_restante > 0)) return false;
       // Não incluído

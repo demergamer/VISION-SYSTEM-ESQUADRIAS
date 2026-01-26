@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Wallet, Users, Eye, Calendar, TrendingUp, DollarSign, FileText, Download } from "lucide-react";
+import { Wallet, Users, Eye, Calendar, TrendingUp, DollarSign, FileText, Download, Search } from "lucide-react";
 import PermissionGuard from "@/components/PermissionGuard";
 import ModalContainer from "@/components/modals/ModalContainer";
 import ComissaoDetalhes from "@/components/comissoes/ComissaoDetalhes";
@@ -18,6 +18,7 @@ export default function Comissoes() {
   const [mesAnoSelecionado, setMesAnoSelecionado] = useState(format(hoje, 'yyyy-MM'));
   const [representanteSelecionado, setRepresentanteSelecionado] = useState(null);
   const [showDetalhes, setShowDetalhes] = useState(false);
+  const [buscaRepresentante, setBuscaRepresentante] = useState('');
 
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
@@ -44,24 +45,56 @@ export default function Comissoes() {
     const [ano, mes] = mesAnoSelecionado.split('-').map(Number);
     const inicioMes = startOfMonth(new Date(ano, mes - 1));
     const fimMes = endOfMonth(new Date(ano, mes - 1));
+    const mesAtual = format(hoje, 'yyyy-MM');
+    const ehMesFuturo = mesAnoSelecionado > mesAtual;
 
     // Verificar se existe fechamento salvo para este mês
     const fechamentosSalvos = fechamentos.filter(f => f.mes_ano === mesAnoSelecionado);
 
-    // FILTRAR: Pedidos 100% quitados no período
-    const pedidosElegiveis = pedidos.filter(p => {
-      // REGRA: Só pedidos pagos (status === 'pago' E saldo_restante === 0)
-      if (p.status !== 'pago' || (p.saldo_restante && p.saldo_restante > 0)) {
+    let pedidosElegiveis;
+
+    if (ehMesFuturo) {
+      // MODO PREVISÃO: Pedidos que podem gerar comissão neste mês futuro
+      pedidosElegiveis = pedidos.filter(p => {
+        // Pedidos postergados para este mês
+        if (p.data_referencia_comissao) {
+          const dataRef = new Date(p.data_referencia_comissao);
+          if (dataRef >= inicioMes && dataRef <= fimMes) {
+            return true;
+          }
+        }
+        
+        // Pedidos em aberto com previsão de entrega neste mês
+        if ((p.status === 'aberto' || p.status === 'parcial') && p.data_entrega) {
+          const dataEntrega = new Date(p.data_entrega);
+          if (dataEntrega >= inicioMes && dataEntrega <= fimMes) {
+            return true;
+          }
+        }
+
         return false;
-      }
+      });
+    } else {
+      // MODO REAL: Pedidos 100% quitados no período
+      pedidosElegiveis = pedidos.filter(p => {
+        // TRAVA DE SEGURANÇA: Não incluir pedidos com comissão já paga
+        if (p.comissao_paga === true) {
+          return false;
+        }
 
-      // REGRA: Usar data_referencia_comissao se existir, senão data_pagamento
-      const dataReferencia = p.data_referencia_comissao || p.data_pagamento;
-      if (!dataReferencia) return false;
+        // REGRA: Só pedidos pagos (status === 'pago' E saldo_restante === 0)
+        if (p.status !== 'pago' || (p.saldo_restante && p.saldo_restante > 0)) {
+          return false;
+        }
 
-      const dataRef = new Date(dataReferencia);
-      return dataRef >= inicioMes && dataRef <= fimMes;
-    });
+        // REGRA: Usar data_referencia_comissao se existir, senão data_pagamento
+        const dataReferencia = p.data_referencia_comissao || p.data_pagamento;
+        if (!dataReferencia) return false;
+
+        const dataRef = new Date(dataReferencia);
+        return dataRef >= inicioMes && dataRef <= fimMes;
+      });
+    }
 
     // AGRUPAR por representante
     const agrupado = {};
@@ -110,20 +143,33 @@ export default function Comissoes() {
     // Calcular saldo a pagar
     Object.values(agrupado).forEach(rep => {
       rep.saldoAPagar = rep.totalComissoes - rep.vales - rep.outrosDescontos;
+      rep.ehPrevisao = ehMesFuturo;
     });
 
     return Object.values(agrupado);
-  }, [pedidos, mesAnoSelecionado, representantes, fechamentos]);
+  }, [pedidos, mesAnoSelecionado, representantes, fechamentos, hoje]);
 
-  // Gerar lista de meses (últimos 12 meses)
+  // Gerar lista de meses (últimos 12 meses + próximos 3 meses para previsão)
   const mesesDisponiveis = useMemo(() => {
     const meses = [];
+    // Próximos 3 meses (previsão)
+    for (let i = 3; i > 0; i--) {
+      const data = new Date();
+      data.setMonth(data.getMonth() + i);
+      meses.push({
+        value: format(data, 'yyyy-MM'),
+        label: '📊 ' + format(data, 'MMMM yyyy', { locale: ptBR }) + ' (Previsão)',
+        ehPrevisao: true
+      });
+    }
+    // Mês atual e passados
     for (let i = 0; i < 12; i++) {
       const data = new Date();
       data.setMonth(data.getMonth() - i);
       meses.push({
         value: format(data, 'yyyy-MM'),
-        label: format(data, 'MMMM yyyy', { locale: ptBR })
+        label: format(data, 'MMMM yyyy', { locale: ptBR }),
+        ehPrevisao: false
       });
     }
     return meses;
@@ -132,6 +178,20 @@ export default function Comissoes() {
   const totalGeralComissoes = comissoesPorRepresentante.reduce((sum, rep) => sum + rep.totalComissoes, 0);
   const totalGeralVendas = comissoesPorRepresentante.reduce((sum, rep) => sum + rep.totalVendas, 0);
   const totalGeralAPagar = comissoesPorRepresentante.reduce((sum, rep) => sum + rep.saldoAPagar, 0);
+  
+  const mesAtual = format(hoje, 'yyyy-MM');
+  const ehMesFuturo = mesAnoSelecionado > mesAtual;
+
+  // Filtrar por busca
+  const representantesFiltrados = useMemo(() => {
+    if (!buscaRepresentante.trim()) return comissoesPorRepresentante;
+    
+    const busca = buscaRepresentante.toLowerCase();
+    return comissoesPorRepresentante.filter(rep => 
+      rep.nome.toLowerCase().includes(busca) || 
+      rep.codigo.toLowerCase().includes(busca)
+    );
+  }, [comissoesPorRepresentante, buscaRepresentante]);
 
   const handleGerarRelatorioGeral = async () => {
     try {
@@ -179,11 +239,11 @@ export default function Comissoes() {
           </Button>
         </div>
 
-        {/* FILTRO DE PERÍODO */}
-        <Card className="p-6 bg-gradient-to-br from-blue-50 to-purple-50 border-blue-200">
+        {/* FILTRO DE PERÍODO E BUSCA */}
+        <Card className={`p-6 ${ehMesFuturo ? 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-300' : 'bg-gradient-to-br from-blue-50 to-purple-50 border-blue-200'}`}>
           <div className="flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-blue-600" />
+              <Calendar className={`w-5 h-5 ${ehMesFuturo ? 'text-amber-600' : 'text-blue-600'}`} />
               <span className="font-semibold text-slate-700">Período:</span>
             </div>
             <select 
@@ -197,6 +257,21 @@ export default function Comissoes() {
                 </option>
               ))}
             </select>
+
+            {ehMesFuturo && (
+              <Badge className="bg-amber-500 text-white border-amber-600">
+                Modo Previsão
+              </Badge>
+            )}
+
+            <div className="ml-auto flex items-center gap-2">
+              <Input 
+                placeholder="Buscar representante..."
+                value={buscaRepresentante}
+                onChange={(e) => setBuscaRepresentante(e.target.value)}
+                className="w-64"
+              />
+            </div>
           </div>
         </Card>
 
@@ -246,27 +321,41 @@ export default function Comissoes() {
             Comissões por Representante
           </h2>
 
-          {comissoesPorRepresentante.length === 0 ? (
+          {representantesFiltrados.length === 0 ? (
             <div className="text-center py-12">
               <FileText className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-              <p className="text-slate-500 font-medium">Nenhuma comissão no período selecionado</p>
-              <p className="text-sm text-slate-400 mt-1">Pedidos devem estar 100% quitados para gerar comissão</p>
+              <p className="text-slate-500 font-medium">
+                {buscaRepresentante ? 'Nenhum representante encontrado' : ehMesFuturo ? 'Nenhuma previsão no período' : 'Nenhuma comissão no período selecionado'}
+              </p>
+              <p className="text-sm text-slate-400 mt-1">
+                {ehMesFuturo ? 'Previsão baseada em pedidos em aberto e postergados' : 'Pedidos devem estar 100% quitados para gerar comissão'}
+              </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {comissoesPorRepresentante.map((rep) => (
+              {representantesFiltrados.map((rep) => (
                 <div 
                   key={rep.codigo}
-                  className="p-5 bg-gradient-to-r from-slate-50 to-blue-50 border border-slate-200 rounded-xl hover:shadow-md transition-all"
+                  className={`p-5 border rounded-xl hover:shadow-md transition-all ${
+                    ehMesFuturo 
+                      ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-300' 
+                      : 'bg-gradient-to-r from-slate-50 to-blue-50 border-slate-200'
+                  }`}
                 >
                   <div className="flex justify-between items-start mb-3">
                     <div>
                       <h3 className="font-bold text-lg text-slate-800">{rep.nome}</h3>
                       <p className="text-xs text-slate-500">Código: {rep.codigo} {rep.chave_pix && `• PIX: ${rep.chave_pix}`}</p>
                     </div>
-                    <Badge className={rep.status === 'fechado' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-amber-100 text-amber-700 border-amber-200'}>
-                      {rep.status === 'fechado' ? 'Fechado' : 'Aberto'}
-                    </Badge>
+                    {ehMesFuturo ? (
+                      <Badge className="bg-amber-500 text-white border-amber-600">
+                        Previsão
+                      </Badge>
+                    ) : (
+                      <Badge className={rep.status === 'fechado' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-amber-100 text-amber-700 border-amber-200'}>
+                        {rep.status === 'fechado' ? 'Fechado' : 'Aberto'}
+                      </Badge>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
@@ -300,9 +389,10 @@ export default function Comissoes() {
                         setRepresentanteSelecionado(rep);
                         setShowDetalhes(true);
                       }}
+                      disabled={ehMesFuturo}
                     >
                       <Eye className="w-4 h-4" />
-                      {rep.status === 'fechado' ? 'Ver Detalhes' : 'Detalhes'}
+                      {ehMesFuturo ? 'Visualizar' : rep.status === 'fechado' ? 'Ver Detalhes' : 'Detalhes'}
                     </Button>
                     <Button 
                       variant="outline" 
