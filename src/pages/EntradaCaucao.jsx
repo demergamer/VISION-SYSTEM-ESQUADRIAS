@@ -188,7 +188,7 @@ export default function EntradaCaucao() {
                                   <td className="p-4"><span className="font-bold">#{port.numero_port}</span></td>
                                   <td className="p-4">{port.cliente_nome}</td>
                                   <td className="p-4 text-sm text-slate-600">
-                                    {port.pedidos_numeros?.join(', ') || '-'}
+                                    {port.itens_port?.map(i => i.numero_pedido_manual).join(', ') || '-'}
                                   </td>
                                   <td className="p-4 font-bold text-emerald-600">
                                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(port.valor_total_sinal)}
