@@ -157,6 +157,8 @@ export default function Pedidos() {
   
   // NOVO: Estado de Processamento para Loading
   const [isProcessing, setIsProcessing] = useState(false);
+  const [refreshingData, setRefreshingData] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState('Sincronizando dados...');
 
   // Modais
   const [showAddModal, setShowAddModal] = useState(false);
@@ -271,7 +273,56 @@ export default function Pedidos() {
   const handleView = (pedido) => { setSelectedPedido(pedido); pedido.status === 'pago' ? setShowDetailsModal(true) : setShowEditModal(true); };
   const handleLiquidar = (pedido) => { setSelectedPedido(pedido); setShowLiquidarModal(true); };
   const handleCancelar = (pedido) => { setPedidoParaCancelar(pedido); setShowCancelarPedidoModal(true); };
-  const handleRefresh = () => { refetchPedidos(); refetchRotas(); refetchBorderos(); refetchAutorizacoes(); toast.success('Atualizado!'); };
+  
+  const handleRefresh = async () => {
+    setRefreshingData(true);
+    
+    const mensagens = [
+      'Sincronizando dados...',
+      'Verificando saldos em aberto...',
+      'Processando pedidos...',
+      'Aplicando regras de negócio...',
+      'Finalizando...'
+    ];
+
+    let msgIndex = 0;
+    const intervalId = setInterval(() => {
+      if (msgIndex < mensagens.length) {
+        setRefreshMessage(mensagens[msgIndex]);
+        msgIndex++;
+      }
+    }, 600);
+
+    try {
+      // Chamar função de limpeza de resíduos
+      const resultado = await base44.functions.invoke('limparResiduos', {});
+      
+      // Aguardar refetch de todas as queries
+      await Promise.all([
+        refetchPedidos(),
+        refetchRotas(),
+        refetchBorderos(),
+        refetchAutorizacoes()
+      ]);
+
+      clearInterval(intervalId);
+
+      if (resultado.data?.pedidos_limpos > 0) {
+        toast.success(`Atualização concluída! ${resultado.data.pedidos_limpos} pedido(s) com resíduos (centavos) foram baixados automaticamente.`, {
+          duration: 5000
+        });
+      } else {
+        toast.success('Dados atualizados com sucesso!');
+      }
+    } catch (error) {
+      clearInterval(intervalId);
+      toast.error('Erro ao atualizar dados');
+      console.error(error);
+    } finally {
+      setRefreshingData(false);
+      setRefreshMessage('Sincronizando dados...');
+    }
+  };
   const handleImportComplete = () => { queryClient.invalidateQueries({ queryKey: ['pedidos'] }); queryClient.invalidateQueries({ queryKey: ['rotas'] }); setShowImportModal(false); toast.success('Importação concluída!'); };
   const handleSelectRota = async (rota) => { setSelectedRota(rota); setShowRotaModal(true); try { const pedidosDaRotaAtual = pedidos.filter(p => p.rota_importada_id === rota.id); const pedidosPendentes = pedidosDaRotaAtual.filter(p => p.cliente_pendente); if (pedidosPendentes.length > 0) { let atualizados = 0; for (const pedido of pedidosPendentes) { const nomeClientePedido = pedido.cliente_nome?.toLowerCase().trim() || ''; const clienteEncontrado = clientes.find(c => { const nomeCliente = c.nome?.toLowerCase().trim() || ''; return nomeCliente === nomeClientePedido || nomeCliente.includes(nomeClientePedido) || nomeClientePedido.includes(nomeCliente); }); if (clienteEncontrado) { await base44.entities.Pedido.update(pedido.id, { cliente_codigo: clienteEncontrado.codigo, cliente_regiao: clienteEncontrado.regiao, representante_codigo: clienteEncontrado.representante_codigo, representante_nome: clienteEncontrado.representante_nome, porcentagem_comissao: clienteEncontrado.porcentagem_comissao, cliente_pendente: false }); atualizados++; } } if (atualizados > 0) { await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); toast.success(`${atualizados} pedido(s) vinculado(s) automaticamente!`); } } } catch (error) { console.error('Erro na verificação silenciosa de pedidos:', error); } };
   const handleSaveRotaChecklist = async (data) => { try { await base44.entities.RotaImportada.update(data.rota.id, data.rota); const promises = data.pedidos.map(pedido => base44.entities.Pedido.update(pedido.id, { confirmado_entrega: pedido.confirmado_entrega, status: pedido.status })); await Promise.all(promises); await queryClient.invalidateQueries({ queryKey: ['pedidos'] }); await queryClient.invalidateQueries({ queryKey: ['rotas'] }); setShowRotaModal(false); toast.success('Rota e pedidos atualizados!'); } catch (error) { toast.error("Erro ao salvar rota."); } };
@@ -305,7 +356,7 @@ export default function Pedidos() {
 
   return (
     <PermissionGuard setor="Pedidos">
-      {/* OVERLAY DE LOADING */}
+      {/* OVERLAY DE LOADING - LIQUIDAÇÃO */}
       {isProcessing && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm transition-all animate-in fade-in duration-300">
             <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4 border border-slate-100">
@@ -313,6 +364,24 @@ export default function Pedidos() {
                 <div className="text-center">
                     <h3 className="text-lg font-bold text-slate-800">Processando Liquidação</h3>
                     <p className="text-sm text-slate-500">Aguarde enquanto atualizamos os pedidos...</p>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* OVERLAY DE LOADING - ATUALIZAÇÃO INTELIGENTE */}
+      {refreshingData && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all animate-in fade-in duration-300">
+            <div className="bg-white p-10 rounded-3xl shadow-2xl flex flex-col items-center gap-5 border border-slate-100 min-w-[320px]">
+                <div className="relative">
+                  <Loader2 className="w-16 h-16 text-blue-600 animate-spin" />
+                  <div className="absolute inset-0 w-16 h-16 border-4 border-blue-200 rounded-full animate-pulse" />
+                </div>
+                <div className="text-center space-y-2">
+                    <h3 className="text-xl font-bold text-slate-800">Atualizando Sistema</h3>
+                    <p className="text-sm text-slate-600 font-medium animate-pulse min-h-[20px]">
+                      {refreshMessage}
+                    </p>
                 </div>
             </div>
         </div>
@@ -334,8 +403,14 @@ export default function Pedidos() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Button variant="outline" onClick={handleRefresh} className="bg-white border-slate-200 shadow-sm hover:bg-slate-50 text-slate-600 gap-2 rounded-xl h-10">
-                <RefreshCw className="w-4 h-4" /> <span className="hidden sm:inline">Atualizar</span>
+              <Button 
+                variant="outline" 
+                onClick={handleRefresh} 
+                disabled={refreshingData}
+                className="bg-white border-slate-200 shadow-sm hover:bg-slate-50 text-slate-600 gap-2 rounded-xl h-10"
+              >
+                <RefreshCw className={cn("w-4 h-4", refreshingData && "animate-spin")} /> 
+                <span className="hidden sm:inline">{refreshingData ? 'Atualizando...' : 'Atualizar'}</span>
               </Button>
               {canDo('Pedidos', 'adicionar') && (
                 <>
