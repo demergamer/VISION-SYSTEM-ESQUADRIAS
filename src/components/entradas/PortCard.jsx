@@ -2,11 +2,11 @@ import React from 'react';
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Hash, User, ShoppingCart, DollarSign, Eye, RefreshCcw } from "lucide-react";
+import { Hash, User, ShoppingCart, DollarSign, Eye, RefreshCcw, Link as LinkIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const statusConfig = {
-  aguardando_separacao: { label: 'Aguardando Separação', color: 'bg-yellow-100 text-yellow-700 border-yellow-300' },
+  aguardando_vinculo: { label: 'Aguardando Vínculo', color: 'bg-slate-100 text-slate-700 border-slate-300' },
   em_separacao: { label: 'Em Separação', color: 'bg-blue-100 text-blue-700 border-blue-300' },
   aguardando_liquidacao: { label: 'Aguardando Liquidação', color: 'bg-purple-100 text-purple-700 border-purple-300' },
   parcialmente_usado: { label: 'Parcialmente Usado', color: 'bg-orange-100 text-orange-700 border-orange-300' },
@@ -15,7 +15,9 @@ const statusConfig = {
 };
 
 export default function PortCard({ port, onDetalhes, onDevolver }) {
-  const config = statusConfig[port.status] || statusConfig.aguardando_separacao;
+  const config = statusConfig[port.status] || statusConfig.aguardando_vinculo;
+  const qtdVinculados = port.itens_port?.filter(i => i.vinculado).length || 0;
+  const qtdTotal = port.itens_port?.length || 0;
 
   return (
     <Card className="p-4 hover:shadow-lg transition-shadow">
@@ -39,9 +41,18 @@ export default function PortCard({ port, onDetalhes, onDevolver }) {
           <div className="flex items-center gap-2">
             <ShoppingCart className="w-4 h-4 text-slate-400" />
             <span className="text-slate-600">
-              {port.pedidos_numeros?.length || 0} pedido(s): {port.pedidos_numeros?.join(', ') || '-'}
+              {qtdTotal} pedido(s): {port.itens_port?.map(i => i.numero_pedido_manual).join(', ')}
             </span>
           </div>
+
+          {qtdVinculados > 0 && (
+            <div className="flex items-center gap-2">
+              <LinkIcon className="w-4 h-4 text-green-500" />
+              <span className="text-xs text-green-600 font-medium">
+                {qtdVinculados}/{qtdTotal} vinculado(s)
+              </span>
+            </div>
+          )}
 
           <div className="flex items-center gap-2">
             <DollarSign className="w-4 h-4 text-slate-400" />
@@ -57,7 +68,7 @@ export default function PortCard({ port, onDetalhes, onDevolver }) {
           )}
 
           <div className="text-xs text-slate-500">
-            Criado por: {port.created_by} em {new Date(port.created_date).toLocaleDateString('pt-BR')}
+            {port.forma_pagamento?.tipo || '-'} | {new Date(port.data_entrada || port.created_date).toLocaleDateString('pt-BR')}
           </div>
         </div>
 

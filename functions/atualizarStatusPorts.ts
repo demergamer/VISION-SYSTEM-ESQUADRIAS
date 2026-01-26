@@ -11,15 +11,21 @@ Deno.serve(async (req) => {
 
     // Buscar todos os PORTs ativos
     const ports = await base44.asServiceRole.entities.Port.filter({
-      status: { $in: ['aguardando_separacao', 'em_separacao', 'aguardando_liquidacao'] }
+      status: { $in: ['aguardando_vinculo', 'em_separacao', 'aguardando_liquidacao'] }
     });
 
     let atualizados = 0;
 
     for (const port of ports) {
-      // Buscar pedidos vinculados
+      // Buscar pedidos reais vinculados
+      const pedidosReaisIds = port.itens_port
+        ?.filter(i => i.vinculado && i.pedido_real_id)
+        .map(i => i.pedido_real_id) || [];
+
+      if (pedidosReaisIds.length === 0) continue;
+
       const pedidos = await base44.asServiceRole.entities.Pedido.filter({
-        id: { $in: port.pedidos_ids }
+        id: { $in: pedidosReaisIds }
       });
 
       if (pedidos.length === 0) continue;
@@ -30,7 +36,7 @@ Deno.serve(async (req) => {
       const temAguardando = pedidos.some(p => p.status === 'aguardando');
       const todosAbertosOuPagos = pedidos.every(p => ['aberto', 'parcial', 'pago'].includes(p.status));
 
-      if (port.status === 'aguardando_separacao' && temAguardando) {
+      if (port.status === 'aguardando_vinculo' && temAguardando) {
         novoStatus = 'em_separacao';
       } else if (port.status === 'em_separacao' && todosAbertosOuPagos) {
         novoStatus = 'aguardando_liquidacao';

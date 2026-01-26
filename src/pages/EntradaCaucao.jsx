@@ -86,11 +86,11 @@ export default function EntradaCaucao() {
   const filteredPorts = ports.filter(p =>
     p.cliente_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     String(p.numero_port).includes(searchTerm) ||
-    p.pedidos_numeros?.some(num => num.includes(searchTerm))
+    p.itens_port?.some(item => item.numero_pedido_manual?.includes(searchTerm))
   );
 
   const portsPorStatus = {
-    aguardando_separacao: filteredPorts.filter(p => p.status === 'aguardando_separacao'),
+    aguardando_vinculo: filteredPorts.filter(p => p.status === 'aguardando_vinculo'),
     em_separacao: filteredPorts.filter(p => p.status === 'em_separacao'),
     aguardando_liquidacao: filteredPorts.filter(p => p.status === 'aguardando_liquidacao'),
     outros: filteredPorts.filter(p => ['parcialmente_usado', 'finalizado', 'devolvido'].includes(p.status))
@@ -138,9 +138,9 @@ export default function EntradaCaucao() {
             />
           </div>
 
-          <Tabs defaultValue="aguardando_separacao" className="space-y-4">
+          <Tabs defaultValue="aguardando_vinculo" className="space-y-4">
             <TabsList>
-              <TabsTrigger value="aguardando_separacao">Aguardando Separação ({portsPorStatus.aguardando_separacao.length})</TabsTrigger>
+              <TabsTrigger value="aguardando_vinculo">Aguardando Vínculo ({portsPorStatus.aguardando_vinculo.length})</TabsTrigger>
               <TabsTrigger value="em_separacao">Em Separação ({portsPorStatus.em_separacao.length})</TabsTrigger>
               <TabsTrigger value="aguardando_liquidacao">Aguard. Liquidação ({portsPorStatus.aguardando_liquidacao.length})</TabsTrigger>
               <TabsTrigger value="outros">Outros ({portsPorStatus.outros.length})</TabsTrigger>
