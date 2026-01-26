@@ -3,16 +3,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Save, X, Loader2 } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Save, X, Loader2, CreditCard, Wallet } from "lucide-react";
 
 export default function RepresentanteForm({ representante, onSave, onCancel, isLoading }) {
   const [isSaving, setIsSaving] = React.useState(false);
   const [form, setForm] = useState({
     codigo: '',
     nome: '',
-    email: '', // Novo campo adicionado
+    email: '',
     regiao: '',
     telefone: '',
+    chave_pix: '',
+    banco_nome: '',
+    agencia: '',
+    conta_corrente: '',
+    cpf_parcial: '',
     bloqueado: false
   });
 
@@ -21,9 +27,14 @@ export default function RepresentanteForm({ representante, onSave, onCancel, isL
       setForm({
         codigo: representante.codigo || '',
         nome: representante.nome || '',
-        email: representante.email || '', // Carrega o email existente
+        email: representante.email || '',
         regiao: representante.regiao || '',
         telefone: representante.telefone || '',
+        chave_pix: representante.chave_pix || '',
+        banco_nome: representante.banco_nome || '',
+        agencia: representante.agencia || '',
+        conta_corrente: representante.conta_corrente || '',
+        cpf_parcial: representante.cpf_parcial || '',
         bloqueado: representante.bloqueado || false
       });
     }
@@ -85,6 +96,78 @@ export default function RepresentanteForm({ representante, onSave, onCancel, isL
           />
         </div>
       </div>
+
+      {/* SEÇÃO: DADOS BANCÁRIOS & PAGAMENTO */}
+      <Card className="p-6 bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
+        <div className="flex items-center gap-2 mb-4">
+          <Wallet className="w-5 h-5 text-emerald-600" />
+          <h3 className="font-bold text-slate-800">Dados Bancários & Pagamento</h3>
+        </div>
+
+        <div className="space-y-4">
+          {/* Chave PIX (Destaque) */}
+          <div className="space-y-2">
+            <Label htmlFor="chave_pix" className="flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-emerald-600" />
+              Chave PIX *
+            </Label>
+            <Input
+              id="chave_pix"
+              value={form.chave_pix}
+              onChange={(e) => setForm({ ...form, chave_pix: e.target.value })}
+              placeholder="email@exemplo.com, telefone ou chave aleatória"
+              className="border-emerald-300 focus:border-emerald-500"
+            />
+          </div>
+
+          {/* Dados Bancários Tradicionais */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="banco_nome">Banco</Label>
+              <Input
+                id="banco_nome"
+                value={form.banco_nome}
+                onChange={(e) => setForm({ ...form, banco_nome: e.target.value })}
+                placeholder="Ex: 001 - Banco do Brasil"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="agencia">Agência</Label>
+              <Input
+                id="agencia"
+                value={form.agencia}
+                onChange={(e) => setForm({ ...form, agencia: e.target.value })}
+                placeholder="Ex: 1234-5"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="conta_corrente">Conta Corrente</Label>
+              <Input
+                id="conta_corrente"
+                value={form.conta_corrente}
+                onChange={(e) => setForm({ ...form, conta_corrente: e.target.value })}
+                placeholder="Ex: 12345-6"
+              />
+            </div>
+          </div>
+
+          {/* Dica CPF (Segurança) */}
+          <div className="space-y-2">
+            <Label htmlFor="cpf_parcial">Dica de Segurança - CPF (6 dígitos centrais)</Label>
+            <Input
+              id="cpf_parcial"
+              value={form.cpf_parcial}
+              onChange={(e) => setForm({ ...form, cpf_parcial: e.target.value })}
+              placeholder="123.456"
+              maxLength={7}
+              className="w-40"
+            />
+            <p className="text-xs text-slate-500">Para conferência visual no momento do pagamento</p>
+          </div>
+        </div>
+      </Card>
 
       <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
         <div>

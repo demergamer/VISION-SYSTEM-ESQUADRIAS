@@ -36,7 +36,8 @@ Deno.serve(async (req) => {
       doc.setFont(undefined, 'bold');
       let y = 50;
       doc.text('Representante', 20, y);
-      doc.text('Chave PIX', 100, y);
+      doc.text('Chave PIX', 85, y);
+      doc.text('CPF', 135, y);
       doc.text('Valor a Pagar', 160, y);
 
       // Linha
@@ -54,8 +55,9 @@ Deno.serve(async (req) => {
         }
 
         doc.setFont('helvetica', 'normal');
-        doc.text(rep.nome.substring(0, 30), 20, y);
-        doc.text(rep.chave_pix || 'Não cadastrado', 100, y);
+        doc.text(rep.nome.substring(0, 22), 20, y);
+        doc.text(rep.chave_pix || 'Não cadastrado', 85, y);
+        doc.text(rep.cpf_parcial ? `***.${rep.cpf_parcial}-**` : '-', 135, y);
         
         // Valor alinhado à esquerda com fonte monospaced
         doc.setFont('courier', 'normal');

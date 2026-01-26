@@ -139,6 +139,14 @@ export default function Comissoes() {
       });
       agrupado[repCodigo].totalVendas += valorPedido;
       agrupado[repCodigo].totalComissoes += valorComissao;
+      
+      // Adicionar dados bancários do representante para relatórios
+      if (rep) {
+        agrupado[repCodigo].banco_nome = rep.banco_nome;
+        agrupado[repCodigo].agencia = rep.agencia;
+        agrupado[repCodigo].conta_corrente = rep.conta_corrente;
+        agrupado[repCodigo].cpf_parcial = rep.cpf_parcial;
+      }
     });
 
     // Calcular saldo a pagar
