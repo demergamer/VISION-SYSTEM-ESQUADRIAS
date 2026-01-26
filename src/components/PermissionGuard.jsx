@@ -18,13 +18,17 @@ export default function PermissionGuard({ setor, funcao, children, showBlocked =
     return <div className="p-8 text-center text-slate-500">Carregando...</div>;
   }
 
-  // Verificar permissões (tanto para admin quanto para user)
+  // Admin tem acesso total
+  if (user?.role === 'admin') {
+    return <>{children}</>;
+  }
+
+  // Verificar permissões granulares
   const permissoes = user?.permissoes || {};
   
-  // Setor sem funções (Dashboard, Comissoes, etc)
+  // Setor sem função específica (acesso à página)
   if (!funcao) {
-    const temAcesso = permissoes[setor] === true || 
-                      (permissoes[setor]?.acesso === true);
+    const temAcesso = permissoes[setor]?.visualizar === true;
     
     if (!temAcesso && showBlocked) {
       return (
@@ -33,7 +37,7 @@ export default function PermissionGuard({ setor, funcao, children, showBlocked =
             <ShieldAlert className="w-16 h-16 text-red-500 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-slate-800 mb-2">Acesso Bloqueado</h2>
             <p className="text-slate-600">
-              Você não tem permissão para acessar o setor <strong>{setor}</strong>.
+              Você não tem permissão para acessar <strong>{setor}</strong>.
             </p>
             <p className="text-sm text-slate-500 mt-4">
               Entre em contato com o administrador do sistema para solicitar acesso.
@@ -46,9 +50,8 @@ export default function PermissionGuard({ setor, funcao, children, showBlocked =
     return temAcesso ? <>{children}</> : null;
   }
 
-  // Setor com função específica
-  const setorPerms = permissoes[setor];
-  const temAcesso = setorPerms?.acesso && setorPerms?.[funcao];
+  // Função específica dentro do setor
+  const temAcesso = permissoes[setor]?.[funcao] === true;
 
   if (!temAcesso) {
     return null;

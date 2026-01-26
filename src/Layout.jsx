@@ -207,10 +207,34 @@ export default function Layout({ children, currentPageName }) {
 
   const hasAccess = (pageName) => {
     if (!user) return false;
-    if (['Pagamentos', 'Logs', 'Fornecedores', 'FormasPagamento', 'Cadastro', 'Orcamentos', 'Produtos', 'AgruparOrcamentos'].includes(pageName)) return true;
+    if (user.role === 'admin') return true;
+
     const permissoes = user.permissoes || {};
-    const perm = permissoes[pageName];
-    return perm === true || perm?.acesso === true;
+
+    // Mapear nomes de página para módulos de permissão
+    const pageToModule = {
+      'Dashboard': 'Dashboard',
+      'Pedidos': 'Pedidos',
+      'Orcamentos': 'Orcamentos',
+      'EntradaCaucao': 'EntradaCaucao',
+      'Clientes': 'Clientes',
+      'Representantes': 'Representantes',
+      'Comissoes': 'Comissoes',
+      'Pagamentos': 'Pagamentos',
+      'Produtos': 'Produtos',
+      'Cheques': 'Cheques',
+      'Creditos': 'Creditos',
+      'Fornecedores': 'Fornecedores',
+      'FormasPagamento': 'FormasPagamento',
+      'Relatorios': 'Relatorios',
+      'Balanco': 'Balanco',
+      'Usuarios': 'Usuarios',
+      'Cadastro': 'Orcamentos',
+      'Logs': 'Usuarios'
+    };
+
+    const moduleName = pageToModule[pageName] || pageName;
+    return permissoes[moduleName]?.visualizar === true;
   };
 
   const handleDevClick = (e, moduleName) => {
