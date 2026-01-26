@@ -41,10 +41,30 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     enabled: selectedPedidos.length > 0 && !!selectedPedidos[0]?.cliente_codigo
   });
 
+  const { data: todosPortsDisponiveis = [] } = useQuery({
+    queryKey: ['ports-massa'],
+    queryFn: async () => {
+      const allPorts = await base44.entities.Port.list();
+      return allPorts.filter(port => 
+        port.saldo_disponivel > 0 &&
+        !['devolvido', 'finalizado'].includes(port.status)
+      );
+    }
+  });
+
+  const [usarPortsAutomatico, setUsarPortsAutomatico] = useState(false);
+
   React.useEffect(() => {
     const total = creditos.reduce((sum, c) => sum + (c.valor || 0), 0);
     setCreditoDisponivelTotal(total);
   }, [creditos]);
+
+  const pedidosComPort = useMemo(() => {
+    const pedidosIds = selectedPedidos.map(p => p.id);
+    return todosPortsDisponiveis.filter(port => 
+      port.pedidos_ids?.some(pid => pedidosIds.includes(pid))
+    );
+  }, [selectedPedidos, todosPortsDisponiveis]);
 
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
@@ -203,12 +223,16 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     try {
       const user = await base44.auth.me();
       
-      // **ALGORITMO WATERFALL COMPLETO**
+      // **ALGORITMO WATERFALL COMPLETO COM PORTs**
       // Preparar pools de recursos
       let devolucaoRestante = totais.devolucaoValor;
       let descontoRestante = totais.desconto;
       let creditoRestante = creditoAUsar;
       let pagamentoRestante = valorPagoReal;
+      
+      // Preparar PORTs se usar automático
+      const portsUsados = [];
+      const portsParaUsar = usarPortsAutomatico ? [...pedidosComPort] : [];
       
       const pedidosProcessados = [];
 
@@ -218,8 +242,10 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         
         let devolucaoAplicada = 0;
         let descontoAplicado = 0;
+        let portAplicado = 0;
         let creditoAplicado = 0;
         let pagamentoAplicado = 0;
+        let portUsadoInfo = null;
 
         // **PASSO 1: DEVOLUÇÃO (Máxima Prioridade)**
         if (devolucaoRestante > 0 && saldoAtual > 0) {
@@ -235,6 +261,34 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
           descontoAplicado = descontoParaEste;
           saldoAtual -= descontoParaEste;
           descontoRestante -= descontoParaEste;
+        }
+
+        // **PASSO 2.5: SINAL/PORT (Se automático)**
+        if (usarPortsAutomatico && saldoAtual > 0) {
+          const portParaEstePedido = portsParaUsar.find(port => 
+            port.pedidos_ids?.includes(pedido.id) && port.saldo_disponivel > 0
+          );
+          
+          if (portParaEstePedido) {
+            const valorUsar = Math.min(saldoAtual, portParaEstePedido.saldo_disponivel);
+            portAplicado = valorUsar;
+            saldoAtual -= valorUsar;
+            portParaEstePedido.saldo_disponivel -= valorUsar;
+            portUsadoInfo = { id: portParaEstePedido.id, numero: portParaEstePedido.numero_port, valorUsado: valorUsar };
+            
+            const portJaUsado = portsUsados.find(p => p.id === portParaEstePedido.id);
+            if (portJaUsado) {
+              portJaUsado.valorTotal += valorUsar;
+            } else {
+              portsUsados.push({ 
+                id: portParaEstePedido.id, 
+                numero: portParaEstePedido.numero_port, 
+                valorTotal: valorUsar,
+                saldoRestante: portParaEstePedido.saldo_disponivel,
+                comprovantes_urls: portParaEstePedido.comprovantes_urls
+              });
+            }
+          }
         }
 
         // **PASSO 3: CRÉDITO**
@@ -254,7 +308,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         }
 
         // Calcular novos valores do pedido
-        const novoTotalPago = (pedido.total_pago || 0) + pagamentoAplicado + creditoAplicado + devolucaoAplicada;
+        const novoTotalPago = (pedido.total_pago || 0) + pagamentoAplicado + creditoAplicado + devolucaoAplicada + portAplicado;
         const novoDescontoTotal = (pedido.desconto_dado || 0) + descontoAplicado;
         const novoSaldo = Math.max(0, saldoAtual);
 
@@ -265,6 +319,8 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
           novoSaldo,
           devolucaoAplicada,
           descontoAplicado,
+          portAplicado,
+          portUsadoInfo,
           creditoAplicado,
           pagamentoAplicado
         });
@@ -297,7 +353,12 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       }).join(' | ');
 
       const creditoEfetivamenteUsado = creditoAUsar - creditoRestante;
+      const totalPortUsado = portsUsados.reduce((sum, p) => sum + p.valorTotal, 0);
+      
       let formasFinal = formasPagamentoStr;
+      if (totalPortUsado > 0) {
+        formasFinal += ` | SINAL (${portsUsados.map(p => `PORT #${p.numero}`).join(', ')}): ${formatCurrency(totalPortUsado)}`;
+      }
       if (creditoEfetivamenteUsado > 0) formasFinal += ` | CRÉDITO: ${formatCurrency(creditoEfetivamenteUsado)}`;
       if (totais.desconto > 0) formasFinal += ` | DESCONTO: ${formatCurrency(totais.desconto)}`;
       if (totais.devolucaoValor > 0) formasFinal += ` | DEVOLUÇÃO: ${formatCurrency(totais.devolucaoValor)}`;
@@ -311,22 +372,31 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         anexo_video_url: ch.anexo_video_url
       }));
 
+      // Copiar comprovantes dos PORTs usados
+      let comprovantesFinais = [...comprovantes];
+      portsUsados.forEach(port => {
+        if (port.comprovantes_urls) {
+          comprovantesFinais = [...comprovantesFinais, ...port.comprovantes_urls];
+        }
+      });
+
       await base44.entities.Bordero.create({
         numero_bordero: proximoNumeroBordero,
         tipo_liquidacao: 'massa',
         cliente_codigo: selectedPedidos[0].cliente_codigo,
         cliente_nome: selectedPedidos[0].cliente_nome,
         pedidos_ids: selectedPedidos.map(p => p.id),
-        valor_total: valorPagoReal + creditoEfetivamenteUsado,
+        valor_total: valorPagoReal + creditoEfetivamenteUsado + totalPortUsado,
         forma_pagamento: formasFinal,
-        comprovantes_urls: comprovantes,
+        comprovantes_urls: comprovantesFinais,
         cheques_anexos: chequesAnexos,
-        observacao: `Desconto: ${formatCurrency(totais.desconto)} | Devolução: ${formatCurrency(totais.devolucaoValor)} | ${selectedPedidos.length} pedidos`,
+        observacao: `Desconto: ${formatCurrency(totais.desconto)} | Devolução: ${formatCurrency(totais.devolucaoValor)} | ${selectedPedidos.length} pedidos${totalPortUsado > 0 ? ` | PORTs usados: ${portsUsados.map(p => `#${p.numero}`).join(', ')}` : ''}`,
         liquidado_por: user.email
       });
 
       // Atualizar cada pedido
       for (const proc of pedidosProcessados) {
+        const historicoPort = proc.portAplicado > 0 ? ` | PORT=${formatCurrency(proc.portAplicado)}` : '';
         await base44.entities.Pedido.update(proc.pedido.id, {
           total_pago: proc.novoTotalPago,
           desconto_dado: proc.novoDescontoTotal,
@@ -335,7 +405,19 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
           data_pagamento: proc.novoSaldo <= 0 ? new Date().toISOString().split('T')[0] : proc.pedido.data_pagamento,
           mes_pagamento: proc.novoSaldo <= 0 ? new Date().toISOString().slice(0, 7) : proc.pedido.mes_pagamento,
           bordero_numero: proximoNumeroBordero,
-          outras_informacoes: (proc.pedido.outras_informacoes || '') + `\n[${new Date().toLocaleDateString('pt-BR')}] Borderô #${proximoNumeroBordero}: Dev=${formatCurrency(proc.devolucaoAplicada)} | Desc=${formatCurrency(proc.descontoAplicado)} | Créd=${formatCurrency(proc.creditoAplicado)} | Pago=${formatCurrency(proc.pagamentoAplicado)}`
+          outras_informacoes: (proc.pedido.outras_informacoes || '') + `\n[${new Date().toLocaleDateString('pt-BR')}] Borderô #${proximoNumeroBordero}: Dev=${formatCurrency(proc.devolucaoAplicada)} | Desc=${formatCurrency(proc.descontoAplicado)}${historicoPort} | Créd=${formatCurrency(proc.creditoAplicado)} | Pago=${formatCurrency(proc.pagamentoAplicado)}`
+        });
+      }
+
+      // Atualizar PORTs usados
+      for (const portUsado of portsUsados) {
+        const novoStatusPort = portUsado.saldoRestante <= 0 ? 'finalizado' : 'parcialmente_usado';
+        const portOriginal = await base44.entities.Port.get(portUsado.id);
+        
+        await base44.entities.Port.update(portUsado.id, {
+          saldo_disponivel: portUsado.saldoRestante,
+          status: novoStatusPort,
+          observacao: `${portOriginal.observacao || ''}\n[${new Date().toLocaleDateString('pt-BR')}] Usado ${formatCurrency(portUsado.valorTotal)} no Borderô #${proximoNumeroBordero}`.trim()
         });
       }
 
@@ -399,9 +481,15 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         {filteredPedidos.map((pedido) => {
           const saldo = pedido.saldo_restante || (pedido.valor_pedido - (pedido.total_pago || 0));
           const isSelected = selectedPedidos.find(p => p.id === pedido.id);
+          const temPort = todosPortsDisponiveis.some(port => port.pedidos_ids?.includes(pedido.id));
           
           return (
-            <Card key={pedido.id} className={cn("p-4 cursor-pointer transition-all", isSelected ? "bg-blue-50 border-blue-300" : "hover:bg-slate-50")} onClick={() => togglePedido(pedido)}>
+            <Card key={pedido.id} className={cn("p-4 cursor-pointer transition-all relative", isSelected ? "bg-blue-50 border-blue-300" : "hover:bg-slate-50")} onClick={() => togglePedido(pedido)}>
+              {temPort && (
+                <div className="absolute top-2 right-2">
+                  <Badge className="bg-amber-100 text-amber-700 text-xs">💰 PORT</Badge>
+                </div>
+              )}
               <div className="flex items-center gap-4">
                 <Checkbox checked={!!isSelected} />
                 <div className="flex-1 grid grid-cols-5 gap-4">
@@ -419,6 +507,42 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
 
       {selectedPedidos.length > 0 && (
         <>
+          {pedidosComPort.length > 0 && (
+            <Card className="p-4 bg-amber-50 border-amber-300">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Wallet className="w-5 h-5 text-amber-600" />
+                  <div>
+                    <p className="font-bold text-amber-700">💰 Sinais Disponíveis Detectados</p>
+                    <p className="text-xs text-slate-600">
+                      {pedidosComPort.length} PORT(s) vinculado(s) aos pedidos selecionados
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="usarPorts"
+                    checked={usarPortsAutomatico}
+                    onCheckedChange={setUsarPortsAutomatico}
+                  />
+                  <Label htmlFor="usarPorts" className="cursor-pointer font-medium">
+                    Abater automaticamente
+                  </Label>
+                </div>
+              </div>
+              {usarPortsAutomatico && (
+                <div className="mt-3 pt-3 border-t border-amber-300 space-y-1">
+                  {pedidosComPort.map(port => (
+                    <div key={port.id} className="flex justify-between text-xs">
+                      <span>PORT #{port.numero_port}</span>
+                      <span className="font-bold">{formatCurrency(port.saldo_disponivel)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
+
           <Card className="p-4 bg-slate-50 space-y-4">
             <h3 className="font-semibold">Ajustes de Pagamento</h3>
             <div className="space-y-2">

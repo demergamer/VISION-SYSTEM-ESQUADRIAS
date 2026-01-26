@@ -40,10 +40,33 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
     enabled: !!pedido.cliente_codigo
   });
 
+  const { data: portsDisponiveis = [] } = useQuery({
+    queryKey: ['ports-disponiveis', pedido.id],
+    queryFn: async () => {
+      const allPorts = await base44.entities.Port.list();
+      return allPorts.filter(port => 
+        port.pedidos_ids?.includes(pedido.id) && 
+        port.saldo_disponivel > 0 &&
+        !['devolvido', 'finalizado'].includes(port.status)
+      );
+    },
+    enabled: !!pedido.id
+  });
+
+  const [portSelecionado, setPortSelecionado] = useState(null);
+  const [valorPortAUsar, setValorPortAUsar] = useState(0);
+
   useEffect(() => {
     const total = creditos.reduce((sum, c) => sum + (c.valor || 0), 0);
     setCreditoDisponivelTotal(total);
   }, [creditos]);
+
+  useEffect(() => {
+    if (portsDisponiveis.length > 0 && !portSelecionado) {
+      setPortSelecionado(portsDisponiveis[0]);
+      setValorPortAUsar(Math.min(portsDisponiveis[0].saldo_disponivel, saldoAtual));
+    }
+  }, [portsDisponiveis]);
 
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
@@ -108,8 +131,8 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
       const desconto = calcularDesconto();
       const devolucaoValor = parseFloat(devolucao) || 0;
       const saldoComAjustes = saldoAtual - desconto - devolucaoValor;
-      const valorComCredito = valorPagamento + creditoAUsar;
-      const novoTotalPago = (pedido.total_pago || 0) + valorPagamento;
+      const valorComCredito = valorPagamento + creditoAUsar + valorPortAUsar;
+      const novoTotalPago = (pedido.total_pago || 0) + valorPagamento + valorPortAUsar;
       const novoDescontoTotal = (pedido.desconto_dado || 0) + desconto;
       const novoSaldo = pedido.valor_pedido - novoTotalPago - novoDescontoTotal - devolucaoValor;
 
@@ -131,6 +154,7 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
       if (formaPagamento === 'cheque' && dadosCheque.numero) formaPagamentoStr += ` | Cheque: ${dadosCheque.numero}`;
       if (chequesSalvos.length > 0) formaPagamentoStr += ` | ${chequesSalvos.length} cheque(s)`;
       if (creditoAUsar > 0) formaPagamentoStr += ` | CRÉDITO: ${formatCurrency(creditoAUsar)}`;
+      if (valorPortAUsar > 0) formaPagamentoStr += ` | SINAL (PORT #${portSelecionado.numero_port}): ${formatCurrency(valorPortAUsar)}`;
 
       const chequesAnexos = chequesSalvos.map(ch => ({
         numero: ch.numero_cheque,
@@ -141,15 +165,21 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
         anexo_video_url: ch.anexo_video_url
       }));
 
+      // Copiar comprovantes do PORT se estiver usando sinal
+      let comprovantesFinais = [...comprovantes];
+      if (valorPortAUsar > 0 && portSelecionado?.comprovantes_urls) {
+        comprovantesFinais = [...comprovantesFinais, ...portSelecionado.comprovantes_urls];
+      }
+
       await base44.entities.Bordero.create({
         numero_bordero: proximoNumeroBordero,
         tipo_liquidacao: 'individual',
         cliente_codigo: pedido.cliente_codigo,
         cliente_nome: pedido.cliente_nome,
         pedidos_ids: [pedido.id],
-        valor_total: valorPagamento + creditoAUsar,
+        valor_total: valorPagamento + creditoAUsar + valorPortAUsar,
         forma_pagamento: formaPagamentoStr,
-        comprovantes_urls: comprovantes,
+        comprovantes_urls: comprovantesFinais,
         cheques_anexos: chequesAnexos,
         observacao: desconto > 0 ? `Desconto: ${formatCurrency(desconto)}` : '',
         liquidado_por: user.email
@@ -170,6 +200,18 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
         outras_informacoes: novasOutrasInfo,
         bordero_numero: proximoNumeroBordero
       };
+
+      // Atualizar PORT se foi usado
+      if (valorPortAUsar > 0 && portSelecionado) {
+        const novoSaldoPort = portSelecionado.saldo_disponivel - valorPortAUsar;
+        const novoStatusPort = novoSaldoPort <= 0 ? 'finalizado' : 'parcialmente_usado';
+        
+        await base44.entities.Port.update(portSelecionado.id, {
+          saldo_disponivel: novoSaldoPort,
+          status: novoStatusPort,
+          observacao: `${portSelecionado.observacao || ''}\n[${new Date().toLocaleDateString('pt-BR')}] Usado ${formatCurrency(valorPortAUsar)} no Borderô #${proximoNumeroBordero}`.trim()
+        });
+      }
 
       if (creditoAUsar > 0) {
         let valorRestante = creditoAUsar;
@@ -271,6 +313,45 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
         </div>
       )}
 
+      {portsDisponiveis.length > 0 && (
+        <Card className="p-4 bg-amber-50 border-amber-200">
+          <div className="flex items-center gap-2 mb-3">
+            <Wallet className="w-5 h-5 text-amber-600" />
+            <span className="font-bold text-amber-700">💰 Sinal Disponível (PORT)</span>
+          </div>
+          <div className="space-y-3">
+            {portsDisponiveis.map(port => (
+              <div key={port.id} className="p-3 bg-white border border-amber-300 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold text-slate-700">PORT #{port.numero_port}</span>
+                  <Badge className="bg-amber-100 text-amber-700">
+                    Saldo: {formatCurrency(port.saldo_disponivel)}
+                  </Badge>
+                </div>
+                {portSelecionado?.id === port.id && (
+                  <div className="space-y-2">
+                    <Label htmlFor="valorPortAUsar">Quanto usar do sinal? (R$)</Label>
+                    <Input
+                      id="valorPortAUsar"
+                      type="number"
+                      min="0"
+                      max={Math.min(port.saldo_disponivel, saldoAtual)}
+                      step="0.01"
+                      value={valorPortAUsar}
+                      onChange={(e) => setValorPortAUsar(parseFloat(e.target.value) || 0)}
+                      className="border-amber-300 focus:ring-amber-500"
+                    />
+                    <p className="text-xs text-amber-600">
+                      Após usar, restará: {formatCurrency(port.saldo_disponivel - valorPortAUsar)}
+                    </p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {creditoDisponivelTotal > 0 && (
         <Card className="p-4 bg-green-50 border-green-200">
           <div className="flex items-center gap-2 mb-3"><Wallet className="w-5 h-5 text-green-600" /><span className="font-medium text-green-700">Crédito Disponível</span></div>
@@ -327,13 +408,14 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
       <Card className="p-4 bg-emerald-50 border-emerald-200">
         <div className="flex items-center gap-2 mb-3"><CheckCircle className="w-5 h-5 text-emerald-600" /><span className="font-medium text-emerald-700">Totalizadores</span></div>
         <div className="space-y-2 text-sm">
-          <div className="flex justify-between"><span className="text-slate-600">Saldo Original:</span><span className="font-medium">{formatCurrency(saldoAtual)}</span></div>
-          {descontoValor && <div className="flex justify-between text-red-600"><span>Desconto ({descontoTipo === 'porcentagem' ? `${descontoValor}%` : 'R$'}):</span><span className="font-medium">- {formatCurrency(calcularDesconto())}</span></div>}
-          {devolucao && <div className="flex justify-between text-orange-600"><span>Devolução:</span><span className="font-medium">- {formatCurrency(parseFloat(devolucao) || 0)}</span></div>}
-          <div className="flex justify-between border-t pt-2"><span className="text-slate-600">Saldo Ajustado:</span><span className="font-semibold">{formatCurrency(saldoAtual - calcularDesconto() - (parseFloat(devolucao) || 0))}</span></div>
-          <div className="flex justify-between text-blue-600"><span>Pagamento em {formaPagamento}:</span><span className="font-semibold">{formatCurrency(valorPagamento)}</span></div>
-          {creditoAUsar > 0 && <div className="flex justify-between text-green-600"><span>Crédito Usado:</span><span className="font-semibold">{formatCurrency(creditoAUsar)}</span></div>}
-          <div className="flex justify-between border-t pt-2 text-lg"><span className="font-bold text-slate-800">Novo Saldo:</span><span className="font-bold text-emerald-700">{formatCurrency(Math.max(0, saldoAtual - calcularDesconto() - (parseFloat(devolucao) || 0) - valorPagamento - creditoAUsar))}</span></div>
+        <div className="flex justify-between"><span className="text-slate-600">Saldo Original:</span><span className="font-medium">{formatCurrency(saldoAtual)}</span></div>
+        {descontoValor && <div className="flex justify-between text-red-600"><span>Desconto ({descontoTipo === 'porcentagem' ? `${descontoValor}%` : 'R$'}):</span><span className="font-medium">- {formatCurrency(calcularDesconto())}</span></div>}
+        {devolucao && <div className="flex justify-between text-orange-600"><span>Devolução:</span><span className="font-medium">- {formatCurrency(parseFloat(devolucao) || 0)}</span></div>}
+        <div className="flex justify-between border-t pt-2"><span className="text-slate-600">Saldo Ajustado:</span><span className="font-semibold">{formatCurrency(saldoAtual - calcularDesconto() - (parseFloat(devolucao) || 0))}</span></div>
+        {valorPortAUsar > 0 && <div className="flex justify-between text-amber-600"><span>Sinal PORT #{portSelecionado?.numero_port}:</span><span className="font-semibold">{formatCurrency(valorPortAUsar)}</span></div>}
+        <div className="flex justify-between text-blue-600"><span>Pagamento em {formaPagamento}:</span><span className="font-semibold">{formatCurrency(valorPagamento)}</span></div>
+        {creditoAUsar > 0 && <div className="flex justify-between text-green-600"><span>Crédito Usado:</span><span className="font-semibold">{formatCurrency(creditoAUsar)}</span></div>}
+        <div className="flex justify-between border-t pt-2 text-lg"><span className="font-bold text-slate-800">Novo Saldo:</span><span className="font-bold text-emerald-700">{formatCurrency(Math.max(0, saldoAtual - calcularDesconto() - (parseFloat(devolucao) || 0) - valorPagamento - creditoAUsar - valorPortAUsar))}</span></div>
         </div>
       </Card>
 
