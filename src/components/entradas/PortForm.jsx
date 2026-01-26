@@ -30,6 +30,8 @@ export default function PortForm({ onSave, onCancel }) {
 
   const [comprovantes, setComprovantes] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragCounter, setDragCounter] = useState(0);
 
   const { data: clientes = [] } = useQuery({
     queryKey: ['clientes'],
@@ -67,6 +69,70 @@ export default function PortForm({ onSave, onCancel }) {
       );
       setComprovantes(prev => [...prev, ...uploads.map(u => u.file_url)]);
       toast.success(`${files.length} arquivo(s) enviado(s)`);
+    } catch (error) {
+      toast.error('Erro ao fazer upload');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragCounter(prev => prev + 1);
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragCounter(prev => {
+      const newCounter = prev - 1;
+      if (newCounter === 0) {
+        setIsDragging(false);
+      }
+      return newCounter;
+    });
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    setDragCounter(0);
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+
+    // Validar tipos de arquivo
+    const arquivosValidos = files.filter(file => {
+      const tipo = file.type;
+      return tipo.startsWith('image/') || tipo === 'application/pdf';
+    });
+
+    if (arquivosValidos.length === 0) {
+      toast.error('Apenas imagens e PDFs são permitidos');
+      return;
+    }
+
+    if (arquivosValidos.length !== files.length) {
+      toast.warning(`${files.length - arquivosValidos.length} arquivo(s) ignorado(s) - formato inválido`);
+    }
+
+    setUploading(true);
+    try {
+      const uploads = await Promise.all(
+        arquivosValidos.map(file => base44.integrations.Core.UploadFile({ file }))
+      );
+      setComprovantes(prev => [...prev, ...uploads.map(u => u.file_url)]);
+      toast.success(`${arquivosValidos.length} arquivo(s) enviado(s)!`);
     } catch (error) {
       toast.error('Erro ao fazer upload');
     } finally {
@@ -123,7 +189,27 @@ export default function PortForm({ onSave, onCancel }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div 
+      className="space-y-6 relative"
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Overlay de Drag & Drop Full Screen */}
+      {isDragging && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="text-center space-y-4">
+            <div className="w-32 h-32 mx-auto bg-white/10 rounded-full flex items-center justify-center animate-pulse">
+              <Upload className="w-16 h-16 text-white" />
+            </div>
+            <h2 className="text-4xl font-bold text-white drop-shadow-lg">
+              SOLTE O COMPROVANTE AQUI
+            </h2>
+            <p className="text-lg text-white/80">Imagens e PDFs são aceitos</p>
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Cliente *</Label>
