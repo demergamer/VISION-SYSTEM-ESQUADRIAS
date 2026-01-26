@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Search, Plus, Grid3x3, List, Upload, CheckCircle, X, ArrowLeft, Loader2, Hash } from "lucide-react";
+import { FileText, Search, Plus, Grid3x3, List, Upload, CheckCircle, X, ArrowLeft, Loader2, Hash, GitMerge } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { toast } from "sonner";
@@ -16,14 +17,17 @@ import ModalContainer from "@/components/modals/ModalContainer";
 import PermissionGuard from "@/components/PermissionGuard";
 import { cn } from "@/lib/utils";
 
-function OrcamentoCard({ orcamento, onAprovar, onCancelar }) {
+function OrcamentoCard({ orcamento, onAprovar, onCancelar, onSelect, isSelected }) {
   const corFundo = orcamento.tipo_origem === 'cliente' ? 'bg-yellow-50 border-yellow-200' : 'bg-blue-50 border-blue-200';
   const corBadge = orcamento.tipo_origem === 'cliente' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700';
 
   return (
-    <Card className={cn("p-4 border-2", corFundo)}>
+    <Card className={cn("p-4 border-2 relative", corFundo, isSelected && "ring-2 ring-blue-500")}>
+      <div className="absolute top-3 right-3">
+        <Checkbox checked={isSelected} onCheckedChange={onSelect} />
+      </div>
       <div className="space-y-3">
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between pr-8">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Hash className="w-4 h-4 text-slate-500" />
@@ -91,6 +95,7 @@ export default function Orcamentos() {
   const [viewMode, setViewMode] = useState('cards');
   const [showAprovarModal, setShowAprovarModal] = useState(false);
   const [orcamentoSelecionado, setOrcamentoSelecionado] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
 
   const { data: orcamentos = [], isLoading } = useQuery({
     queryKey: ['orcamentos'],
@@ -123,6 +128,73 @@ export default function Orcamentos() {
     }
   });
 
+  const juntarMutation = useMutation({
+    mutationFn: async (orcamentosIds) => {
+      const orcsSelecionados = orcamentos.filter(o => orcamentosIds.includes(o.id));
+      
+      // Validar mesmo cliente
+      const clientes = [...new Set(orcsSelecionados.map(o => o.cliente_nome))];
+      if (clientes.length > 1) {
+        throw new Error('Todos os orçamentos devem ser do mesmo cliente');
+      }
+
+      // Calcular valores totais
+      const valorTotal = orcsSelecionados.reduce((sum, o) => sum + (o.valor_estimado || 0), 0);
+      const descricaoCombinada = orcsSelecionados.map((o, idx) => 
+        `[#${o.numero_sequencial}] ${o.descricao || 'Sem descrição'}`
+      ).join('\n\n');
+
+      const primeiroOrc = orcsSelecionados[0];
+
+      // Criar novo orçamento unificado
+      const novoOrcamento = await base44.entities.Orcamento.create({
+        cliente_nome: primeiroOrc.cliente_nome,
+        cliente_email: primeiroOrc.cliente_email,
+        tipo_origem: primeiroOrc.tipo_origem,
+        representante_codigo: primeiroOrc.representante_codigo,
+        representante_nome: primeiroOrc.representante_nome,
+        descricao: `ORÇAMENTO UNIFICADO:\n\n${descricaoCombinada}`,
+        valor_estimado: valorTotal,
+        status: 'enviado',
+        observacao: `Fusão de ${orcsSelecionados.length} orçamentos: ${orcsSelecionados.map(o => `#${o.numero_sequencial}`).join(', ')}`
+      });
+
+      // Marcar orçamentos originais como fundidos
+      await Promise.all(
+        orcsSelecionados.map(o => 
+          base44.entities.Orcamento.update(o.id, { 
+            status: 'cancelado',
+            observacao: `${o.observacao || ''}\n[FUNDIDO no orçamento #${novoOrcamento.numero_sequencial}]`.trim()
+          })
+        )
+      );
+
+      return novoOrcamento;
+    },
+    onSuccess: (novoOrcamento) => {
+      queryClient.invalidateQueries({ queryKey: ['orcamentos'] });
+      setSelectedIds([]);
+      toast.success(`Orçamentos unidos! Novo orçamento #${novoOrcamento.numero_sequencial} criado.`);
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Erro ao unir orçamentos');
+    }
+  });
+
+  const handleToggleSelect = (id) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleJuntar = () => {
+    if (selectedIds.length < 2) {
+      toast.error('Selecione pelo menos 2 orçamentos');
+      return;
+    }
+    juntarMutation.mutate(selectedIds);
+  };
+
   const filteredOrcamentos = orcamentos.filter(o =>
     o.cliente_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     o.cliente_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -153,6 +225,20 @@ export default function Orcamentos() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {selectedIds.length > 0 && (
+                <Button 
+                  onClick={handleJuntar} 
+                  disabled={selectedIds.length < 2 || juntarMutation.isPending}
+                  className="bg-indigo-600 hover:bg-indigo-700 gap-2"
+                >
+                  {juntarMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <GitMerge className="w-4 h-4" />
+                  )}
+                  Juntar {selectedIds.length} Orçamentos
+                </Button>
+              )}
               <Button variant="outline" size="icon" onClick={() => setViewMode('cards')} className={viewMode === 'cards' ? 'bg-slate-100' : ''}>
                 <Grid3x3 className="w-4 h-4" />
               </Button>
@@ -193,6 +279,8 @@ export default function Orcamentos() {
                           orcamento={orc}
                           onAprovar={(o) => { setOrcamentoSelecionado(o); setShowAprovarModal(true); }}
                           onCancelar={(o) => cancelarMutation.mutate(o.id)}
+                          onSelect={() => handleToggleSelect(orc.id)}
+                          isSelected={selectedIds.includes(orc.id)}
                         />
                       ))
                     )}

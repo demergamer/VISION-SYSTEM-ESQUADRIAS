@@ -54,7 +54,7 @@ const navStructure = [
       { name: 'Solicitações', icon: UserPlus, page: 'Cadastro' },
       { name: 'Orçamentos', icon: FileText, page: 'Orcamentos' },
       { name: 'Produtos', icon: Package, page: 'Produtos' },
-      { name: 'Agrupar Orçamentos', icon: Layers, page: 'AgruparOrcamentos' },
+      { name: 'Entrada/Caução', icon: Wallet, page: 'EntradaCaucao' },
     ]
   },
   {
