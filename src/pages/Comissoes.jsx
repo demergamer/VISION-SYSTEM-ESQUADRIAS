@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Wallet, Users, Eye, Calendar, TrendingUp, DollarSign, FileText, Download, Search } from "lucide-react";
 import PermissionGuard from "@/components/PermissionGuard";
 import ModalContainer from "@/components/modals/ModalContainer";
