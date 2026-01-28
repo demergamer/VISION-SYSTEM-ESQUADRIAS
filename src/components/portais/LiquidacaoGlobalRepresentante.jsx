@@ -29,8 +29,12 @@ export default function LiquidacaoGlobalRepresentante({ pedidos, onSuccess, onCa
   const [isDragging, setIsDragging] = useState(false);
   const [dragCounter, setDragCounter] = useState(0);
 
-  const [formaPagamento, setFormaPagamento] = useState('pix');
-  const [valorPago, setValorPago] = useState('');
+  const [descontoGeral, setDescontoGeral] = useState({ tipo: 'reais', valor: '' });
+  const [devolucaoValor, setDevolucaoValor] = useState('');
+  const [devolucaoObs, setDevolucaoObs] = useState('');
+  const [formasPagamento, setFormasPagamento] = useState([
+    { tipo: 'pix', valor: '' }
+  ]);
   const [observacao, setObservacao] = useState('');
 
   const totalSelecionado = useMemo(() => {
@@ -39,6 +43,37 @@ export default function LiquidacaoGlobalRepresentante({ pedidos, onSuccess, onCa
       return sum + (pedido?.saldo_restante || 0);
     }, 0);
   }, [pedidosSelecionados, pedidos]);
+
+  const calculos = useMemo(() => {
+    const totalOriginal = totalSelecionado;
+    
+    // Calcular desconto
+    let valorDesconto = 0;
+    if (descontoGeral.tipo === 'reais') {
+      valorDesconto = parseFloat(descontoGeral.valor) || 0;
+    } else {
+      valorDesconto = (totalOriginal * (parseFloat(descontoGeral.valor) || 0)) / 100;
+    }
+    
+    const valorDevolucao = parseFloat(devolucaoValor) || 0;
+    const totalDescontos = valorDesconto + valorDevolucao;
+    
+    const totalAPagar = totalOriginal - totalDescontos;
+    
+    const totalPago = formasPagamento.reduce((sum, f) => sum + (parseFloat(f.valor) || 0), 0);
+    
+    const faltaPagar = totalAPagar - totalPago;
+    
+    return {
+      totalOriginal,
+      valorDesconto,
+      valorDevolucao,
+      totalDescontos,
+      totalAPagar,
+      totalPago,
+      faltaPagar
+    };
+  }, [totalSelecionado, descontoGeral, devolucaoValor, formasPagamento]);
 
   const handleTogglePedido = (pedidoId) => {
     setPedidosSelecionados(prev => 
@@ -138,8 +173,8 @@ export default function LiquidacaoGlobalRepresentante({ pedidos, onSuccess, onCa
   };
 
   const handleSubmit = async () => {
-    if (!valorPago || parseFloat(valorPago) <= 0) {
-      toast.error('Informe o valor pago');
+    if (calculos.faltaPagar > 0.01) {
+      toast.error('O valor pago está incompleto');
       return;
     }
 
@@ -155,8 +190,6 @@ export default function LiquidacaoGlobalRepresentante({ pedidos, onSuccess, onCa
       const representante = (await base44.entities.Representante.list()).find(r => r.email === user.email);
 
       const pedidosSelecionadosData = pedidos.filter(p => pedidosSelecionados.includes(p.id));
-      const totalOriginal = totalSelecionado;
-      const valorInformado = parseFloat(valorPago);
 
       // Obter próximo número de solicitação
       const todasSolicitacoes = await base44.entities.LiquidacaoPendente.list();
@@ -164,23 +197,34 @@ export default function LiquidacaoGlobalRepresentante({ pedidos, onSuccess, onCa
         ? Math.max(...todasSolicitacoes.map(s => s.numero_solicitacao || 0)) + 1 
         : 1;
 
-      // Criar solicitação
+      // Construir array de descontos
+      const descontosCascata = [];
+      if (descontoGeral.valor && parseFloat(descontoGeral.valor) > 0) {
+        descontosCascata.push({
+          tipo: descontoGeral.tipo,
+          valor: parseFloat(descontoGeral.valor)
+        });
+      }
+
+      // Criar solicitação com TODOS os anexos
       await base44.entities.LiquidacaoPendente.create({
         numero_solicitacao: proximoNumero,
         cliente_codigo: pedidosSelecionadosData[0].cliente_codigo,
         cliente_nome: pedidosSelecionadosData[0].cliente_nome,
         pedidos_ids: pedidosSelecionados,
-        valor_total_original: totalOriginal,
-        descontos_cascata: [],
-        devolucao_valor: 0,
-        comprovante_url: comprovantes[0],
-        valor_final_proposto: valorInformado,
+        valor_total_original: calculos.totalOriginal,
+        descontos_cascata: descontosCascata,
+        devolucao_valor: parseFloat(devolucaoValor) || 0,
+        devolucao_observacao: devolucaoObs || null,
+        comprovante_url: comprovantes[0], // Primeiro comprovante (compatibilidade)
+        comprovantes_urls: comprovantes, // TODOS os comprovantes
+        valor_final_proposto: calculos.totalPago,
         status: 'pendente',
         solicitante_tipo: 'representante',
-        observacao: `Forma: ${formaPagamento.toUpperCase()}. ${observacao}`
+        observacao: `Formas: ${formasPagamento.map(f => `${f.tipo.toUpperCase()}: ${formatCurrency(f.valor)}`).join(', ')}. ${observacao || ''}`
       });
 
-      toast.success('Solicitação de liquidação enviada!');
+      toast.success('Solicitação de liquidação enviada com todos os anexos!');
       onSuccess();
     } catch (error) {
       console.error(error);
@@ -297,53 +341,132 @@ export default function LiquidacaoGlobalRepresentante({ pedidos, onSuccess, onCa
       </div>
 
       {/* Resumo dos Pedidos */}
-      <Card className="p-4 bg-slate-50 border-slate-200">
+      <Card className="p-5 bg-gradient-to-br from-blue-50 to-slate-50 border-blue-200">
         <div className="flex justify-between items-center">
           <div>
-            <p className="text-sm text-slate-500">Pedidos Selecionados</p>
-            <p className="font-bold text-lg text-slate-800">{pedidosSelecionados.length} pedidos</p>
+            <p className="text-xs text-slate-500 font-medium uppercase">Pedidos Selecionados</p>
+            <p className="font-bold text-2xl text-slate-800">{pedidosSelecionados.length}</p>
           </div>
           <div className="text-right">
-            <p className="text-sm text-slate-500">Total a Prestar Contas</p>
-            <p className="text-2xl font-bold text-emerald-600">{formatCurrency(totalSelecionado)}</p>
+            <p className="text-xs text-slate-500 font-medium uppercase">Total Original</p>
+            <p className="text-3xl font-bold text-blue-600">{formatCurrency(calculos.totalOriginal)}</p>
           </div>
         </div>
       </Card>
 
-      {/* Forma de Pagamento */}
-      <div className="space-y-2">
-        <Label className="text-sm font-medium text-slate-700">Forma de Pagamento</Label>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {['pix', 'dinheiro', 'transferencia', 'cheque'].map(forma => (
-            <Button
-              key={forma}
-              type="button"
-              variant={formaPagamento === forma ? 'default' : 'outline'}
-              onClick={() => setFormaPagamento(forma)}
-              className={cn(
-                "h-12 capitalize",
-                formaPagamento === forma && "bg-blue-600 hover:bg-blue-700"
-              )}
+      {/* Descontos e Devoluções */}
+      <div className="space-y-4 border border-amber-200 rounded-xl p-4 bg-amber-50/30">
+        <h3 className="font-bold text-slate-800 flex items-center gap-2">
+          <DollarSign className="w-5 h-5 text-amber-600" />
+          Descontos & Devoluções
+        </h3>
+        
+        {/* Desconto Geral */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium text-slate-700">Desconto Geral</Label>
+          <div className="grid grid-cols-3 gap-2">
+            <select
+              value={descontoGeral.tipo}
+              onChange={(e) => setDescontoGeral({ ...descontoGeral, tipo: e.target.value })}
+              className="h-10 rounded-lg border border-slate-300 px-3 bg-white"
             >
-              {forma}
-            </Button>
-          ))}
+              <option value="reais">R$</option>
+              <option value="porcentagem">%</option>
+            </select>
+            <Input
+              type="number"
+              step="0.01"
+              value={descontoGeral.valor}
+              onChange={(e) => setDescontoGeral({ ...descontoGeral, valor: e.target.value })}
+              placeholder="0,00"
+              className="col-span-2 h-10"
+            />
+          </div>
         </div>
-      </div>
 
-      {/* Valor Pago */}
-      <div className="space-y-2">
-        <Label className="text-sm font-medium text-slate-700">Valor Total Pago *</Label>
-        <div className="relative">
-          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">R$</span>
+        {/* Devolução */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium text-slate-700">Devolução (R$)</Label>
           <Input
             type="number"
             step="0.01"
-            value={valorPago}
-            onChange={(e) => setValorPago(e.target.value)}
+            value={devolucaoValor}
+            onChange={(e) => setDevolucaoValor(e.target.value)}
             placeholder="0,00"
-            className="pl-12 h-12 text-lg font-semibold"
+            className="h-10"
           />
+          <Textarea
+            value={devolucaoObs}
+            onChange={(e) => setDevolucaoObs(e.target.value)}
+            placeholder="Observação da devolução (obrigatória se houver devolução)..."
+            className="text-sm resize-none h-16"
+          />
+        </div>
+      </div>
+
+      {/* Formas de Pagamento */}
+      <div className="space-y-3 border border-emerald-200 rounded-xl p-4 bg-emerald-50/30">
+        <div className="flex justify-between items-center">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-emerald-600" />
+            Formas de Pagamento
+          </h3>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setFormasPagamento([...formasPagamento, { tipo: 'pix', valor: '' }])}
+            className="h-8 gap-1 text-xs bg-white hover:bg-emerald-50"
+          >
+            <DollarSign className="w-3 h-3" />
+            Adicionar
+          </Button>
+        </div>
+
+        <div className="space-y-2">
+          {formasPagamento.map((forma, index) => (
+            <div key={index} className="grid grid-cols-12 gap-2">
+              <select
+                value={forma.tipo}
+                onChange={(e) => {
+                  const novas = [...formasPagamento];
+                  novas[index].tipo = e.target.value;
+                  setFormasPagamento(novas);
+                }}
+                className="col-span-4 h-10 rounded-lg border border-slate-300 px-3 bg-white text-sm"
+              >
+                <option value="pix">PIX</option>
+                <option value="dinheiro">Dinheiro</option>
+                <option value="transferencia">Transferência</option>
+                <option value="cheque">Cheque</option>
+                <option value="cartao">Cartão</option>
+                <option value="credito">Crédito</option>
+              </select>
+              <Input
+                type="number"
+                step="0.01"
+                value={forma.valor}
+                onChange={(e) => {
+                  const novas = [...formasPagamento];
+                  novas[index].valor = e.target.value;
+                  setFormasPagamento(novas);
+                }}
+                placeholder="Valor"
+                className="col-span-6 h-10"
+              />
+              {formasPagamento.length > 1 && (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setFormasPagamento(formasPagamento.filter((_, i) => i !== index))}
+                  className="col-span-2 h-10 text-red-600 hover:bg-red-50"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 
@@ -419,8 +542,51 @@ export default function LiquidacaoGlobalRepresentante({ pedidos, onSuccess, onCa
         />
       </div>
 
+      {/* TOTALIZADORES (Destaque Visual) */}
+      <div className="border-t-2 border-slate-200 pt-6 space-y-3">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <p className="text-xs text-blue-600 font-bold uppercase mb-1">Total Original</p>
+            <p className="text-2xl font-bold text-blue-700">{formatCurrency(calculos.totalOriginal)}</p>
+          </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <p className="text-xs text-amber-600 font-bold uppercase mb-1">Descontos/Devoluções</p>
+            <p className="text-2xl font-bold text-amber-700">- {formatCurrency(calculos.totalDescontos)}</p>
+          </div>
+        </div>
+        
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+          <p className="text-xs text-slate-500 font-bold uppercase mb-1">Total a Pagar</p>
+          <p className="text-3xl font-bold text-slate-800">{formatCurrency(calculos.totalAPagar)}</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+            <p className="text-xs text-emerald-600 font-bold uppercase mb-1">Total Pago</p>
+            <p className="text-2xl font-bold text-emerald-700">{formatCurrency(calculos.totalPago)}</p>
+          </div>
+          <div className={cn(
+            "border rounded-xl p-4",
+            calculos.faltaPagar > 0.01 ? "bg-red-50 border-red-200" : "bg-green-50 border-green-200"
+          )}>
+            <p className={cn(
+              "text-xs font-bold uppercase mb-1",
+              calculos.faltaPagar > 0.01 ? "text-red-600" : "text-green-600"
+            )}>
+              {calculos.faltaPagar > 0.01 ? "Falta Pagar" : "Saldo"}
+            </p>
+            <p className={cn(
+              "text-2xl font-bold",
+              calculos.faltaPagar > 0.01 ? "text-red-700" : "text-green-700"
+            )}>
+              {formatCurrency(Math.abs(calculos.faltaPagar))}
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Botões de Ação */}
-      <div className="flex justify-between gap-3">
+      <div className="flex justify-between gap-3 pt-4 border-t border-slate-200">
         <Button variant="outline" onClick={handleVoltar} className="gap-2">
           <ArrowLeft className="w-4 h-4" /> Voltar
         </Button>
@@ -430,7 +596,7 @@ export default function LiquidacaoGlobalRepresentante({ pedidos, onSuccess, onCa
           </Button>
           <Button 
             onClick={handleSubmit}
-            disabled={processing || uploading || comprovantes.length === 0 || !valorPago}
+            disabled={processing || uploading || comprovantes.length === 0 || calculos.faltaPagar > 0.01}
             className="gap-2 bg-emerald-600 hover:bg-emerald-700"
           >
             {processing ? (
@@ -441,7 +607,7 @@ export default function LiquidacaoGlobalRepresentante({ pedidos, onSuccess, onCa
             ) : (
               <>
                 <CheckCircle className="w-4 h-4" />
-                Enviar Prestação
+                Enviar Prestação ({comprovantes.length} anexos)
               </>
             )}
           </Button>
