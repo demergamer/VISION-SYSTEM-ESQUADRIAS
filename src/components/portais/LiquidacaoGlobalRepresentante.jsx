@@ -224,6 +224,13 @@ export default function LiquidacaoGlobalRepresentante({ pedidos, onSuccess, onCa
         observacao: `Formas: ${formasPagamento.map(f => `${f.tipo.toUpperCase()}: ${formatCurrency(f.valor)}`).join(', ')}. ${observacao || ''}`
       });
 
+      // Notificar admins
+      try {
+        await base44.functions.invoke('notificarLiquidacaoPendente', { liquidacao_id: proximoNumero });
+      } catch (e) {
+        console.log('Erro ao notificar:', e);
+      }
+
       toast.success('Solicitação de liquidação enviada com todos os anexos!');
       onSuccess();
     } catch (error) {

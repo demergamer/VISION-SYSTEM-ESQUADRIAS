@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { base44 } from '@/api/base44Client';
 import { toast } from "sonner";
+import NotificationCenter from "@/components/notificacoes/NotificationCenter";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -154,6 +155,7 @@ export default function Layout({ children, currentPageName }) {
   const navigate = useNavigate();
   const [user, setUser] = React.useState(null);
   const [searchOpen, setSearchOpen] = React.useState(false);
+  const [notificationCount, setNotificationCount] = React.useState(0);
 
   // Atalho de Teclado CTRL+K ou CMD+K
   useEffect(() => {
@@ -170,6 +172,27 @@ export default function Layout({ children, currentPageName }) {
   React.useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
+
+  // Real-time notification count
+  React.useEffect(() => {
+    if (!user?.email) return;
+
+    const fetchCount = async () => {
+      const notifs = await base44.entities.Notificacao.list();
+      const naoLidas = notifs.filter(n => n.destinatario_email === user.email && !n.lida).length;
+      setNotificationCount(naoLidas);
+    };
+
+    fetchCount();
+
+    const unsubscribe = base44.entities.Notificacao.subscribe((event) => {
+      if (event.data?.destinatario_email === user.email) {
+        fetchCount();
+      }
+    });
+
+    return unsubscribe;
+  }, [user?.email]);
 
   // Auto-collapse sidebar: fecha após 15s de mouse fora do sidebar
   const [collapseTimer, setCollapseTimer] = React.useState(null);
@@ -378,31 +401,15 @@ export default function Layout({ children, currentPageName }) {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative">
                   <Bell className="w-5 h-5 text-slate-500" />
-                  <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+                  {notificationCount > 0 && (
+                    <span className="absolute top-1 right-1 flex items-center justify-center min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full border-2 border-white px-1">
+                      {notificationCount > 9 ? '9+' : notificationCount}
+                    </span>
+                  )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80">
-                <DropdownMenuLabel>Notificações</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <div className="max-h-[300px] overflow-y-auto">
-                   <DropdownMenuItem className="flex flex-col items-start gap-1 p-3 cursor-pointer">
-                      <div className="flex justify-between w-full">
-                         <span className="font-medium text-sm">Cheque a Vencer</span>
-                         <span className="text-[10px] text-slate-400">Hoje</span>
-                      </div>
-                      <p className="text-xs text-slate-500">O cheque #123 de R$ 500,00 vence hoje.</p>
-                   </DropdownMenuItem>
-                   <DropdownMenuSeparator />
-                   <DropdownMenuItem className="flex flex-col items-start gap-1 p-3 cursor-pointer">
-                      <div className="flex justify-between w-full">
-                         <span className="font-medium text-sm">Pedido Atrasado</span>
-                         <span className="text-[10px] text-slate-400">2h atrás</span>
-                      </div>
-                      <p className="text-xs text-slate-500">Pedido #60285 está atrasado há 5 dias.</p>
-                   </DropdownMenuItem>
-                </div>
-                <DropdownMenuSeparator />
-                <Button variant="ghost" className="w-full text-xs h-8">Marcar todas como lidas</Button>
+              <DropdownMenuContent align="end" className="w-fit p-0">
+                <NotificationCenter />
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
