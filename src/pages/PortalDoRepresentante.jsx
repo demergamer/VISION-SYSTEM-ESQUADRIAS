@@ -943,87 +943,7 @@ export default function PainelRepresentante() {
         ) : viewMode === 'pedidos' ? (
           /* Visão Por Pedidos */
           <PedidosView pedidos={meusPedidos} onViewDetails={handleViewDetails} />
-        ) : (
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-slate-700">Todos os Pedidos</h2>
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2">
-                <p className="text-xs text-emerald-600 font-medium">Total a Receber na Carteira</p>
-                <p className="text-xl font-bold text-emerald-700">{formatCurrency(stats.vendasAbertas)}</p>
-              </div>
-            </div>
-
-            {meusPedidos.length > 0 ? (
-              <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-                <Table>
-                  <TableHeader className="bg-slate-50">
-                    <TableRow>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Nº Pedido</TableHead>
-                      <TableHead>Cliente</TableHead>
-                      <TableHead className="text-right">Valor Original</TableHead>
-                      <TableHead className="text-right">Saldo Devedor</TableHead>
-                      <TableHead className="text-center">Status</TableHead>
-                      <TableHead className="w-12"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {meusPedidos.map(pedido => (
-                      <TableRow key={pedido.id} className="hover:bg-slate-50">
-                        <TableCell className="font-medium">
-                          {pedido.data_entrega ? format(new Date(pedido.data_entrega), 'dd/MM/yyyy') : '-'}
-                        </TableCell>
-                        <TableCell className="font-mono font-bold">#{pedido.numero_pedido}</TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium text-slate-800">{pedido.cliente_nome}</p>
-                            <p className="text-xs text-slate-500 font-mono">{pedido.cliente_codigo}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right text-slate-600">
-                          {formatCurrency(pedido.valor_pedido)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <span className={cn(
-                            "font-bold",
-                            (pedido.saldo_restante || 0) > 0 ? "text-red-600" : "text-emerald-600"
-                          )}>
-                            {formatCurrency(pedido.saldo_restante || 0)}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant="outline" className={cn(
-                            "font-medium",
-                            pedido.status === 'pago' && "bg-emerald-50 text-emerald-700 border-emerald-200",
-                            pedido.status === 'aberto' && "bg-blue-50 text-blue-700 border-blue-200",
-                            pedido.status === 'parcial' && "bg-purple-50 text-purple-700 border-purple-200",
-                            pedido.status === 'cancelado' && "bg-slate-50 text-slate-600 border-slate-200"
-                          )}>
-                            {pedido.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 text-blue-600 hover:bg-blue-50"
-                            onClick={() => handleViewDetails(pedido, 'pedido')}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            ) : (
-              <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200">
-                <ShoppingCart className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                <p className="text-slate-500 font-medium">Nenhum pedido encontrado.</p>
-              </div>
-            )}
-          </div>
-        ) : (
+        ) : viewMode === 'borderos' ? (
           /* Visão Por Borderôs */
           <div className="space-y-4">
             <h2 className="text-lg font-bold text-slate-700 ml-2">Borderôs de Liquidação</h2>
@@ -1084,7 +1004,7 @@ export default function PainelRepresentante() {
             )}
           </div>
         ) : null}
-
+        
       </div>
 
       {/* Modal Global de Detalhes */}
