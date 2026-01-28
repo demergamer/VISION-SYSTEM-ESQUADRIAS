@@ -495,7 +495,11 @@ export default function PainelRepresentante() {
   const { data: todosPedidos = [], refetch: refetchPedidos } = useQuery({ queryKey: ['pedidos', representante?.id], queryFn: () => base44.entities.Pedido.list(), enabled: !!representante });
   const { data: todosCheques = [] } = useQuery({ queryKey: ['cheques', representante?.id], queryFn: () => base44.entities.Cheque.list(), enabled: !!representante });
   const { data: todosCreditos = [] } = useQuery({ queryKey: ['creditos', representante?.id], queryFn: () => base44.entities.Credito.list(), enabled: !!representante });
-  const { data: todosBorderos = [] } = useQuery({ queryKey: ['borderos', representante?.id], queryFn: () => base44.entities.Bordero.list(), enabled: !!representante });
+  const { data: todosBorderos = [] } = useQuery({ 
+    queryKey: ['borderos', representante?.id], 
+    queryFn: () => base44.entities.Bordero.list(), 
+    enabled: !!representante 
+  });
 
   // 2. Meus Pedidos (Todos)
   const meusPedidos = useMemo(() => {
@@ -506,6 +510,20 @@ export default function PainelRepresentante() {
   const meusPedidosAbertos = useMemo(() => {
     return meusPedidos.filter(p => p.status === 'aberto' || p.status === 'parcial');
   }, [meusPedidos]);
+
+  // 2.1. Borderôs Filtrados (SEGURANÇA: Apenas da carteira do representante)
+  const meusBorderos = useMemo(() => {
+    if (!representante) return [];
+    
+    // IDs dos pedidos do representante
+    const meusPedidosIds = meusPedidos.map(p => p.id);
+    
+    // Filtrar borderôs que contenham pelo menos um pedido do representante
+    return todosBorderos.filter(bordero => {
+      const pedidosDoBordero = bordero.pedidos_ids || [];
+      return pedidosDoBordero.some(pedidoId => meusPedidosIds.includes(pedidoId));
+    });
+  }, [representante, todosBorderos, meusPedidos]);
 
   // 3. Filtros e Agrupamento por Cliente
   const meusClientes = useMemo(() => {
@@ -836,9 +854,9 @@ export default function PainelRepresentante() {
           <div className="space-y-4">
             <h2 className="text-lg font-bold text-slate-700 ml-2">Borderôs de Liquidação</h2>
             
-            {todosBorderos.length > 0 ? (
+            {meusBorderos.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {todosBorderos.map(bordero => (
+                {meusBorderos.map(bordero => (
                   <div 
                     key={bordero.id}
                     onClick={() => handleViewBordero(bordero)}
