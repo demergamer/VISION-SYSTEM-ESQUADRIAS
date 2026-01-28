@@ -12,7 +12,7 @@ import {
   Users, ShoppingCart, CreditCard, AlertCircle, 
   Search, Briefcase, LogOut, Loader2, 
   ChevronDown, ChevronRight, MapPin, Truck, Eye, Wallet, CalendarClock, DollarSign,
-  Lock, UserPlus, Edit, Send
+  Lock, UserPlus, Edit, Send, List, LayoutGrid
 } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import ModalContainer from "@/components/modals/ModalContainer";
 import SolicitarNovoCliente from "@/components/portais/SolicitarNovoCliente";
 import LiquidacaoSelfService from "@/components/portais/LiquidacaoSelfService";
+import LiquidacaoGlobalRepresentante from "@/components/portais/LiquidacaoGlobalRepresentante";
 
 // --- UTILITÁRIOS ---
 const realizarLogout = () => {
@@ -152,12 +153,6 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
         </div>
 
         <div className="flex items-center gap-3">
-          {pedidosAbertos.length > 0 && (
-            <Button size="sm" onClick={(e) => { e.stopPropagation(); onSolicitarLiquidacao(cliente); }} className="gap-2 bg-emerald-600 hover:bg-emerald-700 h-8">
-              <DollarSign className="w-4 h-4" />
-              Liquidar
-            </Button>
-          )}
           <div className="flex items-center gap-2 text-slate-400">
             <span className="text-sm font-medium">Detalhes</span>
             {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
@@ -399,9 +394,11 @@ export default function PainelRepresentante() {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   
+  const [viewMode, setViewMode] = useState('clientes'); // 'clientes' ou 'pedidos'
   const [detailsModal, setDetailsModal] = useState({ open: false, item: null, type: null });
   const [showSolicitarClienteModal, setShowSolicitarClienteModal] = useState(false);
   const [showLiquidacaoModal, setShowLiquidacaoModal] = useState(false);
+  const [showLiquidacaoGlobalModal, setShowLiquidacaoGlobalModal] = useState(false);
   const [clienteParaLiquidacao, setClienteParaLiquidacao] = useState(null);
 
   // 1. Busca de Dados
@@ -428,7 +425,17 @@ export default function PainelRepresentante() {
   const { data: todosCheques = [] } = useQuery({ queryKey: ['cheques', representante?.id], queryFn: () => base44.entities.Cheque.list(), enabled: !!representante });
   const { data: todosCreditos = [] } = useQuery({ queryKey: ['creditos', representante?.id], queryFn: () => base44.entities.Credito.list(), enabled: !!representante });
 
-  // 2. Filtros e Agrupamento
+  // 2. Meus Pedidos (Todos)
+  const meusPedidos = useMemo(() => {
+    if (!representante) return [];
+    return todosPedidos.filter(p => p.representante_codigo === representante.codigo);
+  }, [representante, todosPedidos]);
+
+  const meusPedidosAbertos = useMemo(() => {
+    return meusPedidos.filter(p => p.status === 'aberto' || p.status === 'parcial');
+  }, [meusPedidos]);
+
+  // 3. Filtros e Agrupamento por Cliente
   const meusClientes = useMemo(() => {
     if (!representante) return [];
     
@@ -450,9 +457,8 @@ export default function PainelRepresentante() {
     }));
   }, [representante, todosClientes, todosPedidos, todosCheques, todosCreditos, searchTerm]);
 
-  // 3. Estatísticas Globais (KPIs)
+  // 4. Estatísticas Globais (KPIs)
   const stats = useMemo(() => {
-    const meusPedidos = todosPedidos.filter(p => p.representante_codigo === representante?.codigo);
     
     const clientesComVendas30k = meusClientes.filter(c => {
       const totalVendas = c.pedidos
@@ -540,16 +546,50 @@ export default function PainelRepresentante() {
 
       <div className="max-w-[1600px] mx-auto p-6 md:p-8 space-y-8">
         
-        {/* Botões de Ação Globais */}
-        <div className="flex gap-3">
-          <Button onClick={() => setShowSolicitarClienteModal(true)} className="gap-2 bg-blue-600 hover:bg-blue-700">
-            <UserPlus className="w-4 h-4" />
-            Solicitar Novo Cliente
-          </Button>
-          <Button variant="outline" className="gap-2" disabled>
-            <Lock className="w-4 h-4" />
-            Orçamentos (Em Breve)
-          </Button>
+        {/* Barra de Ferramentas */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex gap-3">
+            <Button onClick={() => setShowSolicitarClienteModal(true)} className="gap-2 bg-blue-600 hover:bg-blue-700">
+              <UserPlus className="w-4 h-4" />
+              Solicitar Cliente
+            </Button>
+            <Button 
+              onClick={() => setShowLiquidacaoGlobalModal(true)} 
+              className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+              disabled={meusPedidosAbertos.length === 0}
+            >
+              <DollarSign className="w-4 h-4" />
+              💰 Nova Liquidação
+            </Button>
+          </div>
+
+          {/* Toggle de Visualização */}
+          <div className="bg-white border border-slate-200 rounded-xl p-1 flex gap-1">
+            <Button 
+              variant={viewMode === 'clientes' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('clientes')}
+              className={cn(
+                "rounded-lg h-9 gap-2",
+                viewMode === 'clientes' && "bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+              )}
+            >
+              <LayoutGrid className="w-4 h-4" />
+              Por Clientes
+            </Button>
+            <Button 
+              variant={viewMode === 'pedidos' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('pedidos')}
+              className={cn(
+                "rounded-lg h-9 gap-2",
+                viewMode === 'pedidos' && "bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+              )}
+            >
+              <List className="w-4 h-4" />
+              Por Pedidos
+            </Button>
+          </div>
         </div>
         
         {/* KPI Widgets */}
@@ -581,29 +621,114 @@ export default function PainelRepresentante() {
           />
         </div>
 
-        {/* Lista de Clientes (Main Content) */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-bold text-slate-700 ml-2">Carteira de Clientes</h2>
-          
-          {meusClientes.length > 0 ? (
-            meusClientes.map(cliente => (
-              <ClientRow 
-                key={cliente.id} 
-                cliente={cliente} 
-                pedidos={cliente.pedidos} 
-                cheques={cliente.cheques}
-                creditos={cliente.creditos}
-                onViewDetails={handleViewDetails}
-                onSolicitarLiquidacao={handleSolicitarLiquidacao}
-              />
-            ))
-          ) : (
-            <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200">
-              <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <p className="text-slate-500 font-medium">Nenhum cliente encontrado.</p>
+        {/* Conteúdo Principal */}
+        {viewMode === 'clientes' ? (
+          /* Lista de Clientes */
+          <div className="space-y-4">
+            <h2 className="text-lg font-bold text-slate-700 ml-2">Carteira de Clientes</h2>
+            
+            {meusClientes.length > 0 ? (
+              meusClientes.map(cliente => (
+                <ClientRow 
+                  key={cliente.id} 
+                  cliente={cliente} 
+                  pedidos={cliente.pedidos} 
+                  cheques={cliente.cheques}
+                  creditos={cliente.creditos}
+                  onViewDetails={handleViewDetails}
+                  onSolicitarLiquidacao={handleSolicitarLiquidacao}
+                />
+              ))
+            ) : (
+              <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200">
+                <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <p className="text-slate-500 font-medium">Nenhum cliente encontrado.</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Visão Por Pedidos */
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-700">Todos os Pedidos</h2>
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2">
+                <p className="text-xs text-emerald-600 font-medium">Total a Receber na Carteira</p>
+                <p className="text-xl font-bold text-emerald-700">{formatCurrency(stats.vendasAbertas)}</p>
+              </div>
             </div>
-          )}
-        </div>
+
+            {meusPedidos.length > 0 ? (
+              <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+                <Table>
+                  <TableHeader className="bg-slate-50">
+                    <TableRow>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Nº Pedido</TableHead>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead className="text-right">Valor Original</TableHead>
+                      <TableHead className="text-right">Saldo Devedor</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                      <TableHead className="w-12"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {meusPedidos.map(pedido => (
+                      <TableRow key={pedido.id} className="hover:bg-slate-50">
+                        <TableCell className="font-medium">
+                          {pedido.data_entrega ? format(new Date(pedido.data_entrega), 'dd/MM/yyyy') : '-'}
+                        </TableCell>
+                        <TableCell className="font-mono font-bold">#{pedido.numero_pedido}</TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium text-slate-800">{pedido.cliente_nome}</p>
+                            <p className="text-xs text-slate-500 font-mono">{pedido.cliente_codigo}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right text-slate-600">
+                          {formatCurrency(pedido.valor_pedido)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <span className={cn(
+                            "font-bold",
+                            (pedido.saldo_restante || 0) > 0 ? "text-red-600" : "text-emerald-600"
+                          )}>
+                            {formatCurrency(pedido.saldo_restante || 0)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="outline" className={cn(
+                            "font-medium",
+                            pedido.status === 'pago' && "bg-emerald-50 text-emerald-700 border-emerald-200",
+                            pedido.status === 'aberto' && "bg-blue-50 text-blue-700 border-blue-200",
+                            pedido.status === 'parcial' && "bg-purple-50 text-purple-700 border-purple-200",
+                            pedido.status === 'cancelado' && "bg-slate-50 text-slate-600 border-slate-200"
+                          )}>
+                            {pedido.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-blue-600 hover:bg-blue-50"
+                            onClick={() => handleViewDetails(pedido, 'pedido')}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200">
+                <ShoppingCart className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <p className="text-slate-500 font-medium">Nenhum pedido encontrado.</p>
+              </div>
+            )}
+          </div>
+        )}
 
       </div>
 
@@ -633,7 +758,7 @@ export default function PainelRepresentante() {
         />
       </ModalContainer>
 
-      {/* Modal Solicitar Liquidação */}
+      {/* Modal Solicitar Liquidação (Cliente Específico) */}
       <ModalContainer
         open={showLiquidacaoModal}
         onClose={() => {
@@ -659,6 +784,24 @@ export default function PainelRepresentante() {
             }}
           />
         )}
+      </ModalContainer>
+
+      {/* Modal Liquidação Global (Multi-Cliente) */}
+      <ModalContainer
+        open={showLiquidacaoGlobalModal}
+        onClose={() => setShowLiquidacaoGlobalModal(false)}
+        title="Nova Liquidação Global"
+        description="Selecione os pedidos e preste contas"
+        size="xl"
+      >
+        <LiquidacaoGlobalRepresentante
+          pedidos={meusPedidosAbertos}
+          onSuccess={() => {
+            setShowLiquidacaoGlobalModal(false);
+            toast.success('Prestação de contas enviada para aprovação!');
+          }}
+          onCancel={() => setShowLiquidacaoGlobalModal(false)}
+        />
       </ModalContainer>
 
     </div>
