@@ -142,7 +142,7 @@ export default function NovaLiquidacaoRepresentante({ open, onClose, pedidos, on
     setFormasPagamento(novas);
   };
 
-  // VALIDAÇÃO E ENVIO (CHECK-ON-CLICK)
+  // VALIDAÇÃO E ENVIO (CHECK-ON-CLICK COM CONFIRMAÇÃO)
   const validarEEnviar = async () => {
     const erros = [];
 
@@ -162,12 +162,7 @@ export default function NovaLiquidacaoRepresentante({ open, onClose, pedidos, on
       erros.push("⚠️ O valor total pago deve ser maior que zero.");
     }
 
-    // Validação 4: Cobertura
-    if (calculos.restante > 0.01) {
-      erros.push(`⚠️ Falta pagar ${formatCurrency(calculos.restante)} para cobrir o total.`);
-    }
-
-    // Validação 5: Devolução requer observação
+    // Validação 4: Devolução requer observação
     if (parseFloat(devolucaoValor) > 0 && !devolucaoObs.trim()) {
       erros.push("⚠️ A devolução requer uma observação explicando o motivo.");
     }
@@ -178,8 +173,48 @@ export default function NovaLiquidacaoRepresentante({ open, onClose, pedidos, on
       return;
     }
 
-    // SE TUDO OK: Enviar
-    enviarDadosParaBackend();
+    // LÓGICA MATEMÁTICA: Calcular diferença
+    const totalAPagar = calculos.totalAPagar;
+    const totalInformado = calculos.totalPago;
+    const diferenca = totalInformado - totalAPagar;
+
+    // CENÁRIO A: Valor Exato (diferença = 0)
+    if (Math.abs(diferenca) < 0.01) {
+      enviarDadosParaBackend();
+      return;
+    }
+
+    // CENÁRIO B: Pagamento Parcial (diferença < 0)
+    if (diferenca < -0.01) {
+      const faltaPagar = Math.abs(diferenca);
+      const confirmacao = window.confirm(
+        `⚠️ LIQUIDAÇÃO PARCIAL?\n\n` +
+        `O valor informado é MENOR que o total da dívida.\n\n` +
+        `Faltam: ${formatCurrency(faltaPagar)}\n\n` +
+        `O saldo restante continuará em aberto no sistema.\n\n` +
+        `Deseja prosseguir?`
+      );
+      
+      if (!confirmacao) return;
+      enviarDadosParaBackend();
+      return;
+    }
+
+    // CENÁRIO C: Pagamento a Maior / Gerar Crédito (diferença > 0)
+    if (diferenca > 0.01) {
+      const sobra = diferenca;
+      const confirmacao = window.confirm(
+        `💰 GERAR CRÉDITO?\n\n` +
+        `O valor informado é MAIOR que o total da dívida.\n\n` +
+        `Sobra: ${formatCurrency(sobra)}\n\n` +
+        `Esse valor será gerado como CRÉDITO para o cliente.\n\n` +
+        `Deseja prosseguir?`
+      );
+      
+      if (!confirmacao) return;
+      enviarDadosParaBackend();
+      return;
+    }
   };
 
   const enviarDadosParaBackend = async () => {
