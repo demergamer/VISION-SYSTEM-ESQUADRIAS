@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { 
   DollarSign, Upload, X, FileText, Loader2, 
-  CheckCircle, ArrowRight, ArrowLeft, Image as ImageIcon
+  CheckCircle, ArrowRight, ArrowLeft, Image as ImageIcon, CreditCard
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
