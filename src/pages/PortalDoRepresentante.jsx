@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 import ModalContainer from "@/components/modals/ModalContainer";
 import SolicitarNovoCliente from "@/components/portais/SolicitarNovoCliente";
 import LiquidacaoSelfService from "@/components/portais/LiquidacaoSelfService";
-import LiquidacaoGlobalRepresentante from "@/components/portais/LiquidacaoGlobalRepresentante";
+import NovaLiquidacaoRepresentante from "@/components/portais/NovaLiquidacaoRepresentante";
 
 // --- UTILITÁRIOS ---
 const realizarLogout = () => {
