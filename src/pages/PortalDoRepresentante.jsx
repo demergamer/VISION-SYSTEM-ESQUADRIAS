@@ -105,10 +105,164 @@ const DetailsModal = ({ item, type, open, onOpenChange }) => {
   );
 };
 
+// --- COMPONENTE: VISÃO POR PEDIDOS COM SUB-ABAS ---
+const PedidosView = ({ pedidos, onViewDetails }) => {
+  const [activeTab, setActiveTab] = useState('abertos');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Filtros
+  const filtrarPorBusca = (lista) => {
+    if (!searchTerm) return lista;
+    return lista.filter(p => 
+      p.numero_pedido?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.cliente_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.valor_pedido?.toString().includes(searchTerm)
+    );
+  };
+
+  const pedidosEmProducao = filtrarPorBusca(pedidos.filter(p => p.status === 'em_producao'));
+  const pedidosEmTransito = filtrarPorBusca(pedidos.filter(p => p.status === 'em_transito' || p.status === 'aguardando'));
+  const pedidosAbertos = filtrarPorBusca(pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial'));
+  const pedidosLiquidados = filtrarPorBusca(pedidos.filter(p => p.status === 'pago'));
+
+  const getPedidosAtuais = () => {
+    switch(activeTab) {
+      case 'producao': return pedidosEmProducao;
+      case 'transito': return pedidosEmTransito;
+      case 'abertos': return pedidosAbertos;
+      case 'liquidados': return pedidosLiquidados;
+      default: return [];
+    }
+  };
+
+  const pedidosExibidos = getPedidosAtuais();
+
+  return (
+    <div className="space-y-4">
+      {/* Barra de Ferramentas */}
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between bg-white rounded-2xl p-4 border border-slate-200">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full md:w-auto">
+          <TabsList className="bg-slate-100 p-1 rounded-xl h-auto flex-wrap justify-start gap-2">
+            <TabsTrigger value="producao" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm">
+              🏗️ Em Produção <Badge className="ml-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-100 border-0">{pedidosEmProducao.length}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="transito" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-amber-600 data-[state=active]:shadow-sm">
+              🚚 Em Trânsito <Badge className="ml-2 bg-amber-100 text-amber-700 hover:bg-amber-100 border-0">{pedidosEmTransito.length}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="abertos" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm">
+              📂 Em Aberto <Badge className="ml-2 bg-blue-100 text-blue-700 hover:bg-blue-100 border-0">{pedidosAbertos.length}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="liquidados" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-emerald-600 data-[state=active]:shadow-sm">
+              💲 Liquidados <Badge className="ml-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-0">{pedidosLiquidados.length}</Badge>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {/* Busca */}
+        <div className="relative w-full md:w-80">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Input
+            placeholder="Buscar por cliente, pedido ou valor..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 bg-slate-50 border-slate-200"
+          />
+        </div>
+      </div>
+
+      {/* Conteúdo das Abas */}
+      {activeTab === 'producao' ? (
+        <div className="text-center py-20 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-3xl border-2 border-dashed border-indigo-200">
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-indigo-100 mb-4">
+            <Lock className="w-10 h-10 text-indigo-500" />
+          </div>
+          <h3 className="text-lg font-bold text-slate-800 mb-2">🏗️ Setor em Desenvolvimento</h3>
+          <p className="text-sm text-slate-600 max-w-md mx-auto">
+            Integração com o sistema de produção (PCP) em breve.
+            <br />
+            Acompanhe o status dos pedidos em fabricação diretamente aqui.
+          </p>
+        </div>
+      ) : pedidosExibidos.length > 0 ? (
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <Table>
+            <TableHeader className="bg-slate-50">
+              <TableRow>
+                <TableHead>Data</TableHead>
+                <TableHead>Nº Pedido</TableHead>
+                <TableHead>Cliente</TableHead>
+                <TableHead className="text-right">Valor</TableHead>
+                {activeTab === 'abertos' && <TableHead className="text-right">Saldo</TableHead>}
+                {activeTab === 'liquidados' && <TableHead>Borderô</TableHead>}
+                <TableHead className="text-center">Status</TableHead>
+                <TableHead className="text-center">Ação</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pedidosExibidos.map(p => (
+                <TableRow key={p.id} className="hover:bg-slate-50">
+                  <TableCell className="text-sm text-slate-600">
+                    {p.data_entrega ? format(new Date(p.data_entrega), 'dd/MM/yyyy') : '-'}
+                  </TableCell>
+                  <TableCell className="font-mono font-medium">#{p.numero_pedido}</TableCell>
+                  <TableCell>{p.cliente_nome}</TableCell>
+                  <TableCell className="text-right font-medium">{formatCurrency(p.valor_pedido)}</TableCell>
+                  {activeTab === 'abertos' && (
+                    <TableCell className="text-right">
+                      <span className="text-red-600 font-bold">{formatCurrency(p.saldo_restante || 0)}</span>
+                    </TableCell>
+                  )}
+                  {activeTab === 'liquidados' && (
+                    <TableCell>
+                      {p.bordero_numero ? (
+                        <Badge variant="outline" className="font-mono">#{p.bordero_numero}</Badge>
+                      ) : '-'}
+                    </TableCell>
+                  )}
+                  <TableCell className="text-center">
+                    <Badge className={cn(
+                      "text-xs",
+                      p.status === 'pago' && "bg-emerald-100 text-emerald-700 hover:bg-emerald-100",
+                      p.status === 'aberto' && "bg-blue-100 text-blue-700 hover:bg-blue-100",
+                      p.status === 'parcial' && "bg-amber-100 text-amber-700 hover:bg-amber-100",
+                      (p.status === 'em_transito' || p.status === 'aguardando') && "bg-orange-100 text-orange-700 hover:bg-orange-100"
+                    )}>
+                      {p.status === 'pago' ? '✅ Pago' : 
+                       p.status === 'parcial' ? '⏳ Parcial' :
+                       p.status === 'em_transito' || p.status === 'aguardando' ? '🚚 Em Trânsito' :
+                       '📂 Aberto'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Button 
+                      size="sm" 
+                      variant="ghost"
+                      onClick={() => onViewDetails(p, 'pedido')}
+                      className="gap-1"
+                    >
+                      <Eye className="w-4 h-4" />
+                      Ver
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      ) : (
+        <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200">
+          <ShoppingCart className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+          <p className="text-slate-500 font-medium">Nenhum pedido encontrado nesta categoria.</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- COMPONENTE: LINHA DO CLIENTE EXPANSÍVEL ---
 const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolicitarLiquidacao, onViewClientDetails, onEditClient, onInviteClient }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState('transito');
+  const [activeTab, setActiveTab] = useState('producao');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Cálculos do Cliente
@@ -131,6 +285,7 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
     );
   };
 
+  const pedidosEmProducao = filtrarPorBusca(pedidos.filter(p => p.status === 'em_producao'));
   const pedidosAbertos = filtrarPorBusca(pedidos.filter(p => (p.status === 'aberto' || p.status === 'parcial') && !pedidosAtrasados.includes(p)));
   const pedidosEmTransito = filtrarPorBusca(pedidos.filter(p => p.status === 'em_transito' || p.status === 'aguardando'));
   const pedidosPagos = filtrarPorBusca(pedidos.filter(p => p.status === 'pago'));
@@ -277,9 +432,12 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
             </div>
           </div>
 
-          {/* ABAS DE DADOS (REORDENADAS) */}
+          {/* ABAS DE DADOS (REORDENADAS COM PRODUÇÃO) */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="bg-slate-100 p-1 rounded-xl h-auto flex-wrap justify-start gap-2 mb-4 w-full sm:w-auto">
+              <TabsTrigger value="producao" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm">
+                🏗️ Em Produção <Badge className="ml-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-100 border-0">{pedidosEmProducao.length}</Badge>
+              </TabsTrigger>
               <TabsTrigger value="transito" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-amber-600 data-[state=active]:shadow-sm">
                 🚛 Em Trânsito <Badge className="ml-2 bg-amber-100 text-amber-700 hover:bg-amber-100 border-0">{pedidosEmTransito.length}</Badge>
               </TabsTrigger>
@@ -299,6 +457,21 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
                 💵 Cheques <Badge className="ml-2 bg-purple-100 text-purple-700 hover:bg-purple-100 border-0">{chequesDisponiveis.length}</Badge>
               </TabsTrigger>
             </TabsList>
+
+            {/* TAB: EM PRODUÇÃO (PLACEHOLDER) */}
+            <TabsContent value="producao" className="mt-0">
+              <div className="text-center py-20 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-3xl border-2 border-dashed border-indigo-200">
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-indigo-100 mb-4">
+                  <Lock className="w-10 h-10 text-indigo-500" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-800 mb-2">🏗️ Setor em Desenvolvimento</h3>
+                <p className="text-sm text-slate-600 max-w-md mx-auto">
+                  Integração com o sistema de produção (PCP) em breve.
+                  <br />
+                  Acompanhe o status dos pedidos em fabricação diretamente aqui.
+                </p>
+              </div>
+            </TabsContent>
 
             {/* TABELA DE PEDIDOS (Reutilizável - Reordenado) */}
             {['transito', 'abertos', 'atrasados', 'pagos', 'cancelados'].map(statusTab => {
@@ -769,7 +942,8 @@ export default function PainelRepresentante() {
           </div>
         ) : viewMode === 'pedidos' ? (
           /* Visão Por Pedidos */
-          <div className="space-y-4">
+          <PedidosView pedidos={meusPedidos} onViewDetails={handleViewDetails} />
+        ) : (
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-700">Todos os Pedidos</h2>
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2">
@@ -909,7 +1083,7 @@ export default function PainelRepresentante() {
               </div>
             )}
           </div>
-        )}
+        ) : null}
 
       </div>
 
