@@ -12,7 +12,7 @@ import {
   Users, ShoppingCart, CreditCard, AlertCircle, 
   Search, Briefcase, LogOut, Loader2, 
   ChevronDown, ChevronRight, MapPin, Truck, Eye, Wallet, CalendarClock, DollarSign,
-  Lock, UserPlus, Edit, Send, List, LayoutGrid
+  Lock, UserPlus, Edit, Send, List, LayoutGrid, FileText, Building2, Mail, Package
 } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -23,6 +23,10 @@ import ModalContainer from "@/components/modals/ModalContainer";
 import SolicitarNovoCliente from "@/components/portais/SolicitarNovoCliente";
 import LiquidacaoSelfService from "@/components/portais/LiquidacaoSelfService";
 import NovaLiquidacaoRepresentante from "@/components/portais/NovaLiquidacaoRepresentante";
+import ClienteDetailsModal from "@/components/portais/ClienteDetailsModal";
+import EditClienteModal from "@/components/portais/EditClienteModal";
+import ConviteClienteModal from "@/components/portais/ConviteClienteModal";
+import BorderoDetailsModal from "@/components/portais/BorderoDetailsModal";
 
 // --- UTILITÁRIOS ---
 const realizarLogout = () => {
@@ -102,9 +106,10 @@ const DetailsModal = ({ item, type, open, onOpenChange }) => {
 };
 
 // --- COMPONENTE: LINHA DO CLIENTE EXPANSÍVEL ---
-const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolicitarLiquidacao }) => {
+const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolicitarLiquidacao, onViewClientDetails, onEditClient, onInviteClient }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState('abertos');
+  const [activeTab, setActiveTab] = useState('transito');
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Cálculos do Cliente
   const totalDevendo = pedidos.reduce((acc, p) => acc + (p.saldo_restante || 0), 0);
@@ -116,27 +121,38 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
   });
   const temAtraso = pedidosAtrasados.length > 0;
 
-  // Filtros dos Pedidos
-  const pedidosAbertos = pedidos.filter(p => (p.status === 'aberto' || p.status === 'parcial') && !pedidosAtrasados.includes(p));
-  const pedidosEmTransito = pedidos.filter(p => p.status === 'em_transito'); // Pedidos "Não Ticados"
-  const pedidosPagos = pedidos.filter(p => p.status === 'pago');
-  const pedidosCancelados = pedidos.filter(p => p.status === 'cancelado');
+  // Filtros dos Pedidos com Busca
+  const filtrarPorBusca = (lista) => {
+    if (!searchTerm) return lista;
+    return lista.filter(item => 
+      item.numero_pedido?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.cliente_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.valor_pedido?.toString().includes(searchTerm)
+    );
+  };
 
-  // Filtros de Cheques e Créditos
+  const pedidosAbertos = filtrarPorBusca(pedidos.filter(p => (p.status === 'aberto' || p.status === 'parcial') && !pedidosAtrasados.includes(p)));
+  const pedidosEmTransito = filtrarPorBusca(pedidos.filter(p => p.status === 'em_transito' || p.status === 'aguardando'));
+  const pedidosPagos = filtrarPorBusca(pedidos.filter(p => p.status === 'pago'));
+  const pedidosCancelados = filtrarPorBusca(pedidos.filter(p => p.status === 'cancelado'));
+
+  // Filtros de Cheques e Créditos com Busca
   const chequesAVencer = cheques.filter(c => c.status === 'normal' && new Date(c.data_vencimento) >= new Date());
   const valorChequesAVencer = chequesAVencer.reduce((acc, c) => acc + (c.valor || 0), 0);
   
-  const totalCreditos = creditos.reduce((acc, c) => acc + (c.valor || 0), 0);
+  const chequesDisponiveis = filtrarPorBusca(cheques.filter(c => c.status === 'normal'));
+  const creditosDisponiveis = filtrarPorBusca(creditos.filter(c => c.status === 'disponivel'));
+  const totalCreditos = creditos.filter(c => c.status === 'disponivel').reduce((acc, c) => acc + (c.valor || 0), 0);
 
   return (
     <div className={`mb-4 bg-white rounded-2xl border transition-all duration-300 ${isExpanded ? 'shadow-md border-blue-200 ring-1 ring-blue-100' : 'shadow-sm border-slate-100'}`}>
       
       {/* CABEÇALHO DO CLIENTE (Clicável) */}
-      <div 
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="p-5 flex flex-col md:flex-row items-start md:items-center justify-between cursor-pointer hover:bg-slate-50/50 rounded-2xl gap-4"
-      >
-        <div className="flex items-center gap-4">
+      <div className="p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div 
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="flex items-center gap-4 cursor-pointer flex-1 hover:opacity-80 transition-opacity"
+        >
           <div className={cn(
             "w-12 h-12 rounded-full flex items-center justify-center transition-colors shrink-0",
             temAtraso ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-600"
@@ -152,11 +168,47 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 text-slate-400">
-            <span className="text-sm font-medium">Detalhes</span>
+        <div className="flex items-center gap-2">
+          {/* Alerta de Email Ausente */}
+          {!cliente.email && (
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={(e) => { e.stopPropagation(); onInviteClient(cliente); }}
+              className="gap-2 bg-red-600 hover:bg-red-700 animate-pulse"
+            >
+              <Mail className="w-4 h-4" />
+              🚫 CONVIDE AGORA
+            </Button>
+          )}
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={(e) => { e.stopPropagation(); onViewClientDetails(cliente); }}
+            className="gap-1"
+          >
+            <Eye className="w-4 h-4" />
+            Ver
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={(e) => { e.stopPropagation(); onEditClient(cliente); }}
+            className="gap-1"
+          >
+            <Edit className="w-4 h-4" />
+            Editar
+          </Button>
+
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setIsExpanded(!isExpanded)}
+          >
             {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
-          </div>
+          </Button>
         </div>
       </div>
 
@@ -212,31 +264,44 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
             </div>
           </div>
 
-          {/* ABAS DE DADOS */}
+          {/* BUSCA INTERNA */}
+          <div className="mb-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                placeholder="Buscar neste cliente..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 bg-slate-50 border-slate-200"
+              />
+            </div>
+          </div>
+
+          {/* ABAS DE DADOS (REORDENADAS) */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="bg-slate-100 p-1 rounded-xl h-auto flex-wrap justify-start gap-2 mb-4 w-full sm:w-auto">
-              <TabsTrigger value="abertos" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm">
-                Abertos <Badge className="ml-2 bg-blue-100 text-blue-700 hover:bg-blue-100 border-0">{pedidosAbertos.length}</Badge>
-              </TabsTrigger>
               <TabsTrigger value="transito" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-amber-600 data-[state=active]:shadow-sm">
-                Em Trânsito <Badge className="ml-2 bg-amber-100 text-amber-700 hover:bg-amber-100 border-0">{pedidosEmTransito.length}</Badge>
+                🚛 Em Trânsito <Badge className="ml-2 bg-amber-100 text-amber-700 hover:bg-amber-100 border-0">{pedidosEmTransito.length}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="abertos" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm">
+                📂 Abertos <Badge className="ml-2 bg-blue-100 text-blue-700 hover:bg-blue-100 border-0">{pedidosAbertos.length}</Badge>
               </TabsTrigger>
               <TabsTrigger value="atrasados" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-red-600 data-[state=active]:shadow-sm">
-                Em Atraso <Badge className="ml-2 bg-red-100 text-red-700 hover:bg-red-100 border-0">{pedidosAtrasados.length}</Badge>
+                ⚠️ Em Atraso <Badge className="ml-2 bg-red-100 text-red-700 hover:bg-red-100 border-0">{pedidosAtrasados.length}</Badge>
               </TabsTrigger>
               <TabsTrigger value="pagos" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-emerald-600 data-[state=active]:shadow-sm">
-                Finalizados
-              </TabsTrigger>
-              <TabsTrigger value="cheques" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-purple-600 data-[state=active]:shadow-sm">
-                Cheques
+                ✅ Finalizados
               </TabsTrigger>
               <TabsTrigger value="creditos" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-emerald-600 data-[state=active]:shadow-sm">
-                Créditos <Badge className="ml-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-0">{creditos.length}</Badge>
+                💳 Créditos <Badge className="ml-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-0">{creditosDisponiveis.length}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="cheques" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-purple-600 data-[state=active]:shadow-sm">
+                💵 Cheques <Badge className="ml-2 bg-purple-100 text-purple-700 hover:bg-purple-100 border-0">{chequesDisponiveis.length}</Badge>
               </TabsTrigger>
             </TabsList>
 
-            {/* TABELA DE PEDIDOS (Reutilizável) */}
-            {['abertos', 'transito', 'atrasados', 'pagos', 'cancelados'].map(statusTab => {
+            {/* TABELA DE PEDIDOS (Reutilizável - Reordenado) */}
+            {['transito', 'abertos', 'atrasados', 'pagos', 'cancelados'].map(statusTab => {
               let currentList = [];
               if(statusTab === 'abertos') currentList = pedidosAbertos;
               if(statusTab === 'transito') currentList = pedidosEmTransito;
@@ -293,7 +358,7 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
 
             {/* TABELA DE CHEQUES */}
             <TabsContent value="cheques" className="mt-0">
-              {cheques.length > 0 ? (
+              {chequesDisponiveis.length > 0 ? (
                 <div className="rounded-xl border border-slate-100 overflow-hidden">
                   <Table>
                     <TableHeader className="bg-slate-50/50">
@@ -307,7 +372,7 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {cheques.map(c => (
+                      {chequesDisponiveis.map(c => (
                         <TableRow key={c.id} className="hover:bg-slate-50/50">
                           <TableCell className="font-mono">{c.numero_cheque}</TableCell>
                           <TableCell>{c.data_vencimento ? format(new Date(c.data_vencimento), 'dd/MM/yyyy') : '-'}</TableCell>
@@ -340,7 +405,7 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
 
             {/* TABELA DE CRÉDITOS */}
             <TabsContent value="creditos" className="mt-0">
-              {creditos.length > 0 ? (
+              {creditosDisponiveis.length > 0 ? (
                 <div className="rounded-xl border border-slate-100 overflow-hidden">
                   <Table>
                     <TableHeader className="bg-slate-50/50">
@@ -355,7 +420,7 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {creditos.map(c => (
+                      {creditosDisponiveis.map(c => (
                         <TableRow key={c.id} className="hover:bg-slate-50/50">
                           <TableCell className="font-mono">{c.referencia || '-'}</TableCell>
                           <TableCell>{c.data_emissao ? format(new Date(c.data_emissao), 'dd/MM/yyyy') : '-'}</TableCell>
@@ -394,12 +459,18 @@ export default function PainelRepresentante() {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   
-  const [viewMode, setViewMode] = useState('clientes'); // 'clientes' ou 'pedidos'
+  const [viewMode, setViewMode] = useState('clientes'); // 'clientes', 'pedidos', 'borderos'
   const [detailsModal, setDetailsModal] = useState({ open: false, item: null, type: null });
   const [showSolicitarClienteModal, setShowSolicitarClienteModal] = useState(false);
   const [showLiquidacaoModal, setShowLiquidacaoModal] = useState(false);
   const [showLiquidacaoGlobalModal, setShowLiquidacaoGlobalModal] = useState(false);
   const [clienteParaLiquidacao, setClienteParaLiquidacao] = useState(null);
+  
+  // Novos modais
+  const [clienteDetailsModal, setClienteDetailsModal] = useState({ open: false, cliente: null });
+  const [editClienteModal, setEditClienteModal] = useState({ open: false, cliente: null });
+  const [inviteClienteModal, setInviteClienteModal] = useState({ open: false, cliente: null });
+  const [borderoModal, setBorderoModal] = useState({ open: false, bordero: null });
 
   // 1. Busca de Dados
   useEffect(() => {
@@ -420,10 +491,11 @@ export default function PainelRepresentante() {
     return () => { mounted = false };
   }, []);
 
-  const { data: todosClientes = [] } = useQuery({ queryKey: ['clientes', representante?.id], queryFn: () => base44.entities.Cliente.list(), enabled: !!representante });
-  const { data: todosPedidos = [] } = useQuery({ queryKey: ['pedidos', representante?.id], queryFn: () => base44.entities.Pedido.list(), enabled: !!representante });
+  const { data: todosClientes = [], refetch: refetchClientes } = useQuery({ queryKey: ['clientes', representante?.id], queryFn: () => base44.entities.Cliente.list(), enabled: !!representante });
+  const { data: todosPedidos = [], refetch: refetchPedidos } = useQuery({ queryKey: ['pedidos', representante?.id], queryFn: () => base44.entities.Pedido.list(), enabled: !!representante });
   const { data: todosCheques = [] } = useQuery({ queryKey: ['cheques', representante?.id], queryFn: () => base44.entities.Cheque.list(), enabled: !!representante });
   const { data: todosCreditos = [] } = useQuery({ queryKey: ['creditos', representante?.id], queryFn: () => base44.entities.Credito.list(), enabled: !!representante });
+  const { data: todosBorderos = [] } = useQuery({ queryKey: ['borderos', representante?.id], queryFn: () => base44.entities.Bordero.list(), enabled: !!representante });
 
   // 2. Meus Pedidos (Todos)
   const meusPedidos = useMemo(() => {
@@ -490,6 +562,22 @@ export default function PainelRepresentante() {
   const handleSolicitarLiquidacao = (cliente) => {
     setClienteParaLiquidacao(cliente);
     setShowLiquidacaoModal(true);
+  };
+
+  const handleViewClientDetails = (cliente) => {
+    setClienteDetailsModal({ open: true, cliente });
+  };
+
+  const handleEditClient = (cliente) => {
+    setEditClienteModal({ open: true, cliente });
+  };
+
+  const handleInviteClient = (cliente) => {
+    setInviteClienteModal({ open: true, cliente });
+  };
+
+  const handleViewBordero = (bordero) => {
+    setBorderoModal({ open: true, bordero });
   };
 
   // --- RENDERIZAÇÃO ---
@@ -574,8 +662,8 @@ export default function PainelRepresentante() {
                 viewMode === 'clientes' && "bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
               )}
             >
-              <LayoutGrid className="w-4 h-4" />
-              Por Clientes
+              <Building2 className="w-4 h-4" />
+              Clientes
             </Button>
             <Button 
               variant={viewMode === 'pedidos' ? 'default' : 'ghost'}
@@ -586,8 +674,20 @@ export default function PainelRepresentante() {
                 viewMode === 'pedidos' && "bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
               )}
             >
-              <List className="w-4 h-4" />
-              Por Pedidos
+              <Package className="w-4 h-4" />
+              Pedidos
+            </Button>
+            <Button 
+              variant={viewMode === 'borderos' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('borderos')}
+              className={cn(
+                "rounded-lg h-9 gap-2",
+                viewMode === 'borderos' && "bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+              )}
+            >
+              <FileText className="w-4 h-4" />
+              Borderôs
             </Button>
           </div>
         </div>
@@ -637,6 +737,9 @@ export default function PainelRepresentante() {
                   creditos={cliente.creditos}
                   onViewDetails={handleViewDetails}
                   onSolicitarLiquidacao={handleSolicitarLiquidacao}
+                  onViewClientDetails={handleViewClientDetails}
+                  onEditClient={handleEditClient}
+                  onInviteClient={handleInviteClient}
                 />
               ))
             ) : (
@@ -646,7 +749,7 @@ export default function PainelRepresentante() {
               </div>
             )}
           </div>
-        ) : (
+        ) : viewMode === 'pedidos' ? (
           /* Visão Por Pedidos */
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -728,6 +831,66 @@ export default function PainelRepresentante() {
               </div>
             )}
           </div>
+        ) : (
+          /* Visão Por Borderôs */
+          <div className="space-y-4">
+            <h2 className="text-lg font-bold text-slate-700 ml-2">Borderôs de Liquidação</h2>
+            
+            {todosBorderos.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {todosBorderos.map(bordero => (
+                  <div 
+                    key={bordero.id}
+                    onClick={() => handleViewBordero(bordero)}
+                    className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-lg transition-all cursor-pointer group"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-lg bg-blue-100 text-blue-600">
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 font-bold uppercase">Borderô</p>
+                          <p className="text-xl font-bold text-slate-800">#{bordero.numero_bordero}</p>
+                        </div>
+                      </div>
+                      <Badge variant="outline">{bordero.tipo_liquidacao}</Badge>
+                    </div>
+                    
+                    {bordero.cliente_nome && (
+                      <p className="text-sm font-medium text-slate-700 mb-2">{bordero.cliente_nome}</p>
+                    )}
+                    
+                    <div className="pt-3 border-t border-slate-100">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-slate-500">Valor Total</span>
+                        <span className="text-lg font-bold text-emerald-600">{formatCurrency(bordero.valor_total)}</span>
+                      </div>
+                      <div className="flex justify-between items-center mt-1">
+                        <span className="text-xs text-slate-500">Pedidos</span>
+                        <span className="text-sm font-medium text-slate-700">{bordero.pedidos_ids?.length || 0}</span>
+                      </div>
+                      {bordero.created_date && (
+                        <div className="flex justify-between items-center mt-1">
+                          <span className="text-xs text-slate-500">Data</span>
+                          <span className="text-xs text-slate-600">{format(new Date(bordero.created_date), 'dd/MM/yyyy')}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-3 pt-3 border-t border-slate-100 flex justify-end">
+                      <Eye className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200">
+                <FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <p className="text-slate-500 font-medium">Nenhum borderô encontrado.</p>
+              </div>
+            )}
+          </div>
         )}
 
       </div>
@@ -793,7 +956,45 @@ export default function PainelRepresentante() {
         pedidos={meusPedidosAbertos}
         onSuccess={() => {
           setShowLiquidacaoGlobalModal(false);
+          refetchPedidos();
         }}
+      />
+
+      {/* Modal Detalhes do Cliente */}
+      <ClienteDetailsModal
+        cliente={clienteDetailsModal.cliente}
+        open={clienteDetailsModal.open}
+        onClose={() => setClienteDetailsModal({ open: false, cliente: null })}
+      />
+
+      {/* Modal Editar Cliente */}
+      <EditClienteModal
+        cliente={editClienteModal.cliente}
+        open={editClienteModal.open}
+        onClose={() => setEditClienteModal({ open: false, cliente: null })}
+        onSuccess={() => {
+          refetchClientes();
+          setEditClienteModal({ open: false, cliente: null });
+        }}
+      />
+
+      {/* Modal Convite Cliente */}
+      <ConviteClienteModal
+        cliente={inviteClienteModal.cliente}
+        open={inviteClienteModal.open}
+        onClose={() => setInviteClienteModal({ open: false, cliente: null })}
+        onSuccess={() => {
+          refetchClientes();
+          setInviteClienteModal({ open: false, cliente: null });
+        }}
+      />
+
+      {/* Modal Detalhes do Borderô */}
+      <BorderoDetailsModal
+        bordero={borderoModal.bordero}
+        pedidos={todosPedidos}
+        open={borderoModal.open}
+        onClose={() => setBorderoModal({ open: false, bordero: null })}
       />
 
     </div>
