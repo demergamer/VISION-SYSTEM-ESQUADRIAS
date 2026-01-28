@@ -786,23 +786,15 @@ export default function PainelRepresentante() {
         )}
       </ModalContainer>
 
-      {/* Modal Liquidação Global (Multi-Cliente) */}
-      <ModalContainer
+      {/* Modal Nova Liquidação */}
+      <NovaLiquidacaoRepresentante
         open={showLiquidacaoGlobalModal}
         onClose={() => setShowLiquidacaoGlobalModal(false)}
-        title="Nova Liquidação Global"
-        description="Selecione os pedidos e preste contas"
-        size="xl"
-      >
-        <LiquidacaoGlobalRepresentante
-          pedidos={meusPedidosAbertos}
-          onSuccess={() => {
-            setShowLiquidacaoGlobalModal(false);
-            toast.success('Prestação de contas enviada para aprovação!');
-          }}
-          onCancel={() => setShowLiquidacaoGlobalModal(false)}
-        />
-      </ModalContainer>
+        pedidos={meusPedidosAbertos}
+        onSuccess={() => {
+          setShowLiquidacaoGlobalModal(false);
+        }}
+      />
 
     </div>
   );
