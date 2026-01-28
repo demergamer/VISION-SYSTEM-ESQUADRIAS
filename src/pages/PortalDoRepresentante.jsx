@@ -943,7 +943,7 @@ export default function PainelRepresentante() {
         ) : viewMode === 'pedidos' ? (
           /* Visão Por Pedidos */
           <PedidosView pedidos={meusPedidos} onViewDetails={handleViewDetails} />
-        ) : viewMode === 'borderos' ? (
+        ) : (
           /* Visão Por Borderôs */
           <div className="space-y-4">
             <h2 className="text-lg font-bold text-slate-700 ml-2">Borderôs de Liquidação</h2>
