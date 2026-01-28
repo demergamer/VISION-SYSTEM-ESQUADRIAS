@@ -172,17 +172,52 @@ export default function LiquidacaoGlobalRepresentante({ pedidos, onSuccess, onCa
     }
   };
 
-  const handleSubmit = async () => {
+  const handleValidateAndSubmit = async () => {
+    const erros = [];
+    
+    // 1. Validação de Anexos (Obrigatório pelo menos 1)
+    if (!comprovantes || comprovantes.length === 0) {
+      erros.push("- É obrigatório anexar pelo menos 1 comprovante (Foto/PDF).");
+    }
+
+    // 2. Validação de Formas de Pagamento (Pelo menos 1 com valor)
+    const formasComValor = formasPagamento.filter(f => parseFloat(f.valor) > 0);
+    if (formasComValor.length === 0) {
+      erros.push("- Adicione pelo menos uma Forma de Pagamento com valor maior que zero.");
+    }
+
+    // 3. Validação de Valores (Total Pago deve cobrir o Total a Pagar)
+    if (calculos.totalPago <= 0) {
+      erros.push("- O valor total pago deve ser maior que zero.");
+    }
+
     if (calculos.faltaPagar > 0.01) {
-      toast.error('O valor pago está incompleto');
+      erros.push(`- O valor pago está incompleto. Falta pagar: ${formatCurrency(calculos.faltaPagar)}`);
+    }
+
+    // 4. Validação de Devolução (se houver, precisa de observação)
+    const valorDevolucao = parseFloat(devolucaoValor) || 0;
+    if (valorDevolucao > 0 && !devolucaoObs.trim()) {
+      erros.push("- A devolução requer uma observação explicando o motivo.");
+    }
+
+    // SE HOUVER ERROS: Exibir e parar
+    if (erros.length > 0) {
+      toast.error(
+        <div className="space-y-2">
+          <p className="font-bold">Não foi possível enviar:</p>
+          <ul className="text-sm space-y-1">
+            {erros.map((erro, idx) => (
+              <li key={idx}>{erro}</li>
+            ))}
+          </ul>
+        </div>,
+        { duration: 8000 }
+      );
       return;
     }
 
-    if (comprovantes.length === 0) {
-      toast.error('Anexe pelo menos um comprovante');
-      return;
-    }
-
+    // SE ESTIVER TUDO OK: Prosseguir com envio
     setProcessing(true);
 
     try {
@@ -602,8 +637,8 @@ export default function LiquidacaoGlobalRepresentante({ pedidos, onSuccess, onCa
             Cancelar
           </Button>
           <Button 
-            onClick={handleSubmit}
-            disabled={processing || uploading || comprovantes.length === 0 || calculos.faltaPagar > 0.01}
+            onClick={handleValidateAndSubmit}
+            disabled={processing || uploading}
             className="gap-2 bg-emerald-600 hover:bg-emerald-700"
           >
             {processing ? (
