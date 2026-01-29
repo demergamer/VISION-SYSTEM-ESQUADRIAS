@@ -29,6 +29,9 @@ import { ptBR } from "date-fns/locale";
 function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
   const [isRecorrente, setIsRecorrente] = useState(conta?.tipo_lancamento === 'recorrente' || false);
   const [isValorVariavel, setIsValorVariavel] = useState(false);
+  const [showAddFornecedor, setShowAddFornecedor] = useState(false);
+  const [novoFornecedor, setNovoFornecedor] = useState({ nome: '', codigo: '' });
+  const [savingFornecedor, setSavingFornecedor] = useState(false);
   const [form, setForm] = useState({
     fornecedor_codigo: conta?.fornecedor_codigo || '',
     fornecedor_nome: conta?.fornecedor_nome || '',
@@ -37,7 +40,7 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
     data_vencimento: conta?.data_vencimento || '',
     status: conta?.status || 'pendente',
     observacao: conta?.observacao || '',
-    categoria_financeira: conta?.categoria_financeira || 'fixo',
+    categoria_financeira: conta?.categoria_financeira || 'aluminio',
     tipo_lancamento: conta?.tipo_lancamento || 'unica',
     total_parcelas: conta?.total_parcelas || 1
   });
@@ -63,6 +66,33 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
       toast.error('Erro ao enviar arquivo');
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleAddFornecedor = async () => {
+    if (!novoFornecedor.nome || !novoFornecedor.codigo) {
+      toast.error('Preencha nome e código do fornecedor');
+      return;
+    }
+
+    setSavingFornecedor(true);
+    try {
+      await base44.entities.Fornecedor.create({
+        nome: novoFornecedor.nome,
+        codigo: novoFornecedor.codigo
+      });
+      
+      setForm({ ...form, fornecedor_codigo: novoFornecedor.codigo, fornecedor_nome: novoFornecedor.nome });
+      setShowAddFornecedor(false);
+      setNovoFornecedor({ nome: '', codigo: '' });
+      toast.success('Fornecedor cadastrado!');
+      
+      // Recarregar lista de fornecedores
+      window.location.reload();
+    } catch (error) {
+      toast.error('Erro ao cadastrar fornecedor');
+    } finally {
+      setSavingFornecedor(false);
     }
   };
 
@@ -117,8 +147,67 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+    <>
+      {showAddFornecedor && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-lg">Cadastro Rápido de Fornecedor</h3>
+              <Button 
+                type="button" 
+                size="icon" 
+                variant="ghost" 
+                onClick={() => setShowAddFornecedor(false)}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label>Nome Fantasia / Razão Social *</Label>
+                <Input
+                  value={novoFornecedor.nome}
+                  onChange={(e) => setNovoFornecedor({ ...novoFornecedor, nome: e.target.value })}
+                  placeholder="Ex: Fornecedor de Alumínio LTDA"
+                  autoFocus
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Código / CNPJ *</Label>
+                <Input
+                  value={novoFornecedor.codigo}
+                  onChange={(e) => setNovoFornecedor({ ...novoFornecedor, codigo: e.target.value })}
+                  placeholder="Ex: FORN001 ou CNPJ"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setShowAddFornecedor(false)}
+                disabled={savingFornecedor}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                type="button" 
+                onClick={handleAddFornecedor}
+                disabled={savingFornecedor}
+              >
+                {savingFornecedor ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                Salvar
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
         <div className="flex items-center gap-3">
           <Switch
             checked={isRecorrente}
@@ -139,14 +228,25 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Fornecedor *</Label>
-          <Select value={form.fornecedor_codigo} onValueChange={handleFornecedorChange}>
-            <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-            <SelectContent>
-              {fornecedores.map(f => (
-                <SelectItem key={f.codigo} value={f.codigo}>{f.codigo} - {f.nome}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex gap-2">
+            <Select value={form.fornecedor_codigo} onValueChange={handleFornecedorChange}>
+              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>
+                {fornecedores.map(f => (
+                  <SelectItem key={f.codigo} value={f.codigo}>{f.codigo} - {f.nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button 
+              type="button" 
+              size="icon" 
+              variant="outline" 
+              onClick={() => setShowAddFornecedor(true)}
+              className="shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -154,9 +254,15 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
           <Select value={form.categoria_financeira} onValueChange={(v) => setForm({ ...form, categoria_financeira: v })}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="fixo">💼 Fixo</SelectItem>
-              <SelectItem value="variavel">⚡ Variável</SelectItem>
-              <SelectItem value="investimento">📈 Investimento</SelectItem>
+              <SelectItem value="aluminio">🏗️ Matéria-Prima: Alumínio</SelectItem>
+              <SelectItem value="vidros">💎 Matéria-Prima: Vidros</SelectItem>
+              <SelectItem value="acessorios">🔩 Acessórios & Ferragens</SelectItem>
+              <SelectItem value="servicos_terceiros">🎨 Serviços de Terceiros</SelectItem>
+              <SelectItem value="manutencao">🛠️ Manutenção de Maquinário</SelectItem>
+              <SelectItem value="logistica">🚛 Logística e Frete</SelectItem>
+              <SelectItem value="administrativas">🏢 Despesas Administrativas</SelectItem>
+              <SelectItem value="impostos">⚖️ Impostos e Taxas</SelectItem>
+              <SelectItem value="folha">👷 Folha de Pagamento</SelectItem>
               <SelectItem value="vale">🎟️ Vale</SelectItem>
             </SelectContent>
           </Select>
@@ -263,7 +369,8 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
           {isRecorrente ? 'Criar Recorrência' : 'Salvar'}
         </Button>
       </div>
-    </form>
+      </form>
+    </>
   );
 }
 
@@ -337,9 +444,9 @@ function ContaCard({ conta, onEdit, onDelete, onQuickPay }) {
 
       <div className="flex gap-2">
         {conta?.status === 'pendente' && (
-          <Button size="sm" className="flex-1" onClick={() => onQuickPay(conta)}>
-            <CheckCircle className="w-4 h-4 mr-2" />
-            Pagar
+          <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => onQuickPay(conta)}>
+            <DollarSign className="w-4 h-4 mr-2" />
+            Liquidar
           </Button>
         )}
         <Button size="sm" variant="outline" onClick={() => onEdit(conta)}>
