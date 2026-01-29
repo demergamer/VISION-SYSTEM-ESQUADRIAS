@@ -366,6 +366,9 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       const chequesAnexos = todosChequesUsados.map(ch => ({
         numero: ch.numero_cheque,
         banco: ch.banco,
+        agencia: ch.agencia,
+        conta: ch.conta,
+        emitente: ch.emitente,
         valor: ch.valor,
         data_vencimento: ch.data_vencimento,
         anexo_foto_url: ch.anexo_foto_url,

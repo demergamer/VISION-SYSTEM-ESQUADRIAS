@@ -169,7 +169,7 @@ export default function BorderoDetailsModal({ bordero, pedidos, open, onClose })
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
                             <CreditCard className="w-5 h-5 text-amber-600" />
-                            <p className="font-bold text-lg text-slate-800">Cheque #{cheque.numero_cheque}</p>
+                            <p className="font-bold text-lg text-slate-800">Cheque #{cheque.numero}</p>
                           </div>
                           <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
                             <div>
@@ -180,11 +180,11 @@ export default function BorderoDetailsModal({ bordero, pedidos, open, onClose })
                               <span className="text-slate-500">Valor:</span>
                               <span className="ml-2 font-bold text-emerald-600">{formatCurrency(cheque.valor)}</span>
                             </div>
-                            {cheque.data_bom_para && (
+                            {cheque.data_vencimento && (
                               <div>
-                                <span className="text-slate-500">Bom Para:</span>
+                                <span className="text-slate-500">Vencimento:</span>
                                 <span className="ml-2 font-medium text-slate-800">
-                                  {format(new Date(cheque.data_bom_para), 'dd/MM/yyyy')}
+                                  {format(new Date(cheque.data_vencimento), 'dd/MM/yyyy')}
                                 </span>
                               </div>
                             )}

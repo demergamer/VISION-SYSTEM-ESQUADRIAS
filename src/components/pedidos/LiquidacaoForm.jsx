@@ -159,6 +159,9 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
       const chequesAnexos = chequesSalvos.map(ch => ({
         numero: ch.numero_cheque,
         banco: ch.banco,
+        agencia: ch.agencia,
+        conta: ch.conta,
+        emitente: ch.emitente,
         valor: ch.valor,
         data_vencimento: ch.data_vencimento,
         anexo_foto_url: ch.anexo_foto_url,
