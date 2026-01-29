@@ -135,15 +135,27 @@ const modulosConfig = [
 ];
 
 const permissoesLabels = {
-  visualizar: '👁️ Ver',
-  adicionar: '➕ Criar',
-  editar: '✏️ Editar',
-  excluir: '🗑️ Excluir',
-  liquidar: '💰 Liquidar',
-  fechar: '🔒 Fechar',
-  aprovar: '✅ Aprovar',
-  juntar: '🔗 Juntar',
-  exportar: '📄 Export'
+  visualizar: '👁️',
+  adicionar: '➕',
+  editar: '✏️',
+  excluir: '🗑️',
+  liquidar: '💰',
+  fechar: '🔒',
+  aprovar: '✅',
+  juntar: '🔗',
+  exportar: '📄'
+};
+
+const permissoesDescricoes = {
+  visualizar: 'Ver',
+  adicionar: 'Criar',
+  editar: 'Editar',
+  excluir: 'Excluir',
+  liquidar: 'Liquidar',
+  fechar: 'Fechar',
+  aprovar: 'Aprovar',
+  juntar: 'Juntar',
+  exportar: 'Exportar'
 };
 
 function criarPermissoesDefault() {
@@ -307,7 +319,10 @@ export default function UsuarioForm({ user, onSave, onCancel, isLoading }) {
                           <th className="text-left p-3 text-xs font-semibold text-slate-700 sticky left-0 bg-slate-50 min-w-[200px]">Módulo</th>
                           {Object.keys(permissoesLabels).map(key => (
                             <th key={key} className="text-center p-2 text-[10px] font-medium text-slate-500 min-w-[60px]">
-                              <span>{permissoesLabels[key]}</span>
+                              <div className="flex flex-col items-center gap-0.5">
+                                <span className="text-base">{permissoesLabels[key]}</span>
+                                <span className="text-[9px] text-slate-400">{permissoesDescricoes[key]}</span>
+                              </div>
                             </th>
                           ))}
                         </tr>

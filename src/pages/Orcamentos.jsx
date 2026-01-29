@@ -50,10 +50,12 @@ function OrcamentoCard({ orcamento, onAprovar, onCancelar, onSelect, isSelected 
           <Badge variant="outline" className="text-green-600 border-green-300">Sinal Anexado</Badge>
         )}
         <div className="flex gap-2 pt-2 border-t">
-          <Button size="sm" className="flex-1" onClick={() => onAprovar(orcamento)}>
-            <CheckCircle className="w-4 h-4 mr-2" />
-            Aprovar
-          </Button>
+          <PermissionGuard setor="Orcamentos" funcao="aprovar" showBlocked={false}>
+            <Button size="sm" className="flex-1" onClick={() => onAprovar(orcamento)}>
+              <CheckCircle className="w-4 h-4 mr-2" />
+              Aprovar
+            </Button>
+          </PermissionGuard>
           <Button size="sm" variant="outline" onClick={() => onCancelar(orcamento)} className="text-red-600">
             <X className="w-4 h-4" />
           </Button>
@@ -226,18 +228,20 @@ export default function Orcamentos() {
             </div>
             <div className="flex items-center gap-2">
               {selectedIds.length > 0 && (
-                <Button 
-                  onClick={handleJuntar} 
-                  disabled={selectedIds.length < 2 || juntarMutation.isPending}
-                  className="bg-indigo-600 hover:bg-indigo-700 gap-2"
-                >
-                  {juntarMutation.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <GitMerge className="w-4 h-4" />
-                  )}
-                  Juntar {selectedIds.length} Orçamentos
-                </Button>
+                <PermissionGuard setor="Orcamentos" funcao="juntar" showBlocked={false}>
+                  <Button 
+                    onClick={handleJuntar} 
+                    disabled={selectedIds.length < 2 || juntarMutation.isPending}
+                    className="bg-indigo-600 hover:bg-indigo-700 gap-2"
+                  >
+                    {juntarMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <GitMerge className="w-4 h-4" />
+                    )}
+                    Juntar {selectedIds.length} Orçamentos
+                  </Button>
+                </PermissionGuard>
               )}
               <Button variant="outline" size="icon" onClick={() => setViewMode('cards')} className={viewMode === 'cards' ? 'bg-slate-100' : ''}>
                 <Grid3x3 className="w-4 h-4" />

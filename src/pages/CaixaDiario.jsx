@@ -673,17 +673,19 @@ export default function CaixaDiario() {
                         </div>
                       </div>
 
-                      <Button 
-                        size="sm" 
-                        className="w-full"
-                        onClick={() => {
-                          setTicketSelecionado(ticket);
-                          setShowBaixarModal(true);
-                        }}
-                      >
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                        Baixar Vale
-                      </Button>
+                      <PermissionGuard setor="CaixaDiario" funcao="editar" showBlocked={false}>
+                        <Button 
+                          size="sm" 
+                          className="w-full"
+                          onClick={() => {
+                            setTicketSelecionado(ticket);
+                            setShowBaixarModal(true);
+                          }}
+                        >
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Baixar Vale
+                        </Button>
+                      </PermissionGuard>
                     </Card>
                   ))}
                 </div>

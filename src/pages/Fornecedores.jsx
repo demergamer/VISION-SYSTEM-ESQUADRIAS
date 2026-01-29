@@ -187,7 +187,7 @@ export default function Fornecedores() {
   };
 
   return (
-    <PermissionGuard setor="CadastroFornecedor">
+    <PermissionGuard setor="Fornecedores">
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -202,10 +202,12 @@ export default function Fornecedores() {
                 <p className="text-slate-500 mt-1">Gestão de fornecedores e parceiros</p>
               </div>
             </div>
-            <Button onClick={() => setShowAddModal(true)} className="gap-2">
-              <Plus className="w-4 h-4" />
-              Novo Fornecedor
-            </Button>
+            <PermissionGuard setor="Fornecedores" funcao="adicionar" showBlocked={false}>
+              <Button onClick={() => setShowAddModal(true)} className="gap-2">
+                <Plus className="w-4 h-4" />
+                Novo Fornecedor
+              </Button>
+            </PermissionGuard>
           </div>
 
           <Card className="overflow-hidden">
@@ -252,12 +254,16 @@ export default function Fornecedores() {
                         <td className="p-4"><p className="text-sm text-slate-600">{fornecedor.telefone || fornecedor.email || '-'}</p></td>
                         <td className="p-4">
                           <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="sm" onClick={() => { setSelectedFornecedor(fornecedor); setShowEditModal(true); }}>
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(fornecedor)} className="text-red-600 hover:text-red-700">
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            <PermissionGuard setor="Fornecedores" funcao="editar" showBlocked={false}>
+                              <Button variant="ghost" size="sm" onClick={() => { setSelectedFornecedor(fornecedor); setShowEditModal(true); }}>
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                            </PermissionGuard>
+                            <PermissionGuard setor="Fornecedores" funcao="excluir" showBlocked={false}>
+                              <Button variant="ghost" size="sm" onClick={() => handleDelete(fornecedor)} className="text-red-600 hover:text-red-700">
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </PermissionGuard>
                           </div>
                         </td>
                       </tr>

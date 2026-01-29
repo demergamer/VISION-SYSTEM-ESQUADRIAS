@@ -549,17 +549,23 @@ function ContaCard({ conta, onEdit, onDelete, onQuickPay, showAnexo = true }) {
 
       <div className="flex gap-2">
         {conta?.status === 'pendente' && (
-          <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => onQuickPay(conta)}>
-            <DollarSign className="w-4 h-4 mr-2" />
-            Liquidar
-          </Button>
+          <PermissionGuard setor="Pagamentos" funcao="liquidar" showBlocked={false}>
+            <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => onQuickPay(conta)}>
+              <DollarSign className="w-4 h-4 mr-2" />
+              Liquidar
+            </Button>
+          </PermissionGuard>
         )}
-        <Button size="sm" variant="outline" onClick={() => onEdit(conta)}>
-          <Edit className="w-4 h-4" />
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => onDelete(conta)} className="text-red-600">
-          <Trash2 className="w-4 h-4" />
-        </Button>
+        <PermissionGuard setor="Pagamentos" funcao="editar" showBlocked={false}>
+          <Button size="sm" variant="outline" onClick={() => onEdit(conta)}>
+            <Edit className="w-4 h-4" />
+          </Button>
+        </PermissionGuard>
+        <PermissionGuard setor="Pagamentos" funcao="excluir" showBlocked={false}>
+          <Button size="sm" variant="ghost" onClick={() => onDelete(conta)} className="text-red-600">
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </PermissionGuard>
       </div>
     </Card>
   );
