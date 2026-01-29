@@ -112,9 +112,18 @@ function FornecedorForm({ fornecedor, onSave, onCancel, isLoading }) {
           <X className="w-4 h-4 mr-2" />
           Cancelar
         </Button>
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-          Salvar
+        <Button type="submit" disabled={isLoading} className={isLoading ? 'cursor-not-allowed opacity-70' : ''}>
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Salvando...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4 mr-2" />
+              Salvar
+            </>
+          )}
         </Button>
       </div>
     </form>
