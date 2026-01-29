@@ -27,6 +27,8 @@ import ClienteDetailsModal from "@/components/portais/ClienteDetailsModal";
 import EditClienteModal from "@/components/portais/EditClienteModal";
 import ConviteClienteModal from "@/components/portais/ConviteClienteModal";
 import BorderoDetailsModal from "@/components/portais/BorderoDetailsModal";
+import SolicitarOrcamentoModal from "@/components/portais/SolicitarOrcamentoModal";
+import ComissaoModal from "@/components/portais/ComissaoModal";
 
 // --- UTILITÁRIOS ---
 const realizarLogout = () => {
@@ -644,6 +646,8 @@ export default function PainelRepresentante() {
   const [editClienteModal, setEditClienteModal] = useState({ open: false, cliente: null });
   const [inviteClienteModal, setInviteClienteModal] = useState({ open: false, cliente: null });
   const [borderoModal, setBorderoModal] = useState({ open: false, bordero: null });
+  const [showOrcamentoModal, setShowOrcamentoModal] = useState(false);
+  const [showComissaoModal, setShowComissaoModal] = useState(false);
 
   // 1. Busca de Dados
   useEffect(() => {
@@ -827,10 +831,14 @@ export default function PainelRepresentante() {
         
         {/* Barra de Ferramentas */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex gap-3">
-            <Button onClick={() => setShowSolicitarClienteModal(true)} className="gap-2 bg-blue-600 hover:bg-blue-700">
+          <div className="flex flex-wrap gap-3">
+            <Button onClick={() => setShowOrcamentoModal(true)} className="gap-2 bg-blue-600 hover:bg-blue-700">
+              <FileText className="w-4 h-4" />
+              📄 Orçamento
+            </Button>
+            <Button onClick={() => setShowSolicitarClienteModal(true)} className="gap-2 bg-slate-600 hover:bg-slate-700">
               <UserPlus className="w-4 h-4" />
-              Solicitar Cliente
+              👤 Solicitar Cliente
             </Button>
             <Button 
               onClick={() => setShowLiquidacaoGlobalModal(true)} 
@@ -838,7 +846,11 @@ export default function PainelRepresentante() {
               disabled={meusPedidosAbertos.length === 0}
             >
               <DollarSign className="w-4 h-4" />
-              💰 Nova Liquidação
+              💰 Liquidação
+            </Button>
+            <Button onClick={() => setShowComissaoModal(true)} className="gap-2 bg-purple-600 hover:bg-purple-700">
+              <Wallet className="w-4 h-4" />
+              📊 Comissão
             </Button>
           </div>
 
@@ -1075,6 +1087,9 @@ export default function PainelRepresentante() {
       {/* Modal Detalhes do Cliente */}
       <ClienteDetailsModal
         cliente={clienteDetailsModal.cliente}
+        pedidos={clienteDetailsModal.cliente ? todosPedidos.filter(p => p.cliente_codigo === clienteDetailsModal.cliente.codigo) : []}
+        cheques={clienteDetailsModal.cliente ? todosCheques.filter(c => c.cliente_codigo === clienteDetailsModal.cliente.codigo) : []}
+        creditos={clienteDetailsModal.cliente ? todosCreditos.filter(c => c.cliente_codigo === clienteDetailsModal.cliente.codigo) : []}
         open={clienteDetailsModal.open}
         onClose={() => setClienteDetailsModal({ open: false, cliente: null })}
       />
@@ -1107,6 +1122,23 @@ export default function PainelRepresentante() {
         pedidos={todosPedidos}
         open={borderoModal.open}
         onClose={() => setBorderoModal({ open: false, bordero: null })}
+      />
+
+      {/* Modal Solicitar Orçamento */}
+      <SolicitarOrcamentoModal
+        open={showOrcamentoModal}
+        onClose={() => setShowOrcamentoModal(false)}
+        clientes={meusClientes}
+        representanteCodigo={representante?.codigo}
+        representanteNome={representante?.nome}
+      />
+
+      {/* Modal Comissão */}
+      <ComissaoModal
+        open={showComissaoModal}
+        onClose={() => setShowComissaoModal(false)}
+        pedidos={meusPedidos}
+        representante={representante}
       />
 
     </div>

@@ -23,7 +23,7 @@ export default function BorderoDetailsModal({ bordero, pedidos, open, onClose })
           </DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1" style={{ maxHeight: '80vh' }}>
           <div className="space-y-6 p-4">
             {/* Cabeçalho */}
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
