@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Card } from "@/components/ui/card";
 import { ShieldAlert } from "lucide-react";
@@ -6,13 +6,17 @@ import { ShieldAlert } from "lucide-react";
 export default function PermissionGuard({ setor, funcao, children, showBlocked = true }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    if (mounted) return;
+    
+    setMounted(true);
     base44.auth.me()
       .then(setUser)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [mounted]);
 
   if (loading) {
     return <div className="p-8 text-center text-slate-500">Carregando...</div>;
