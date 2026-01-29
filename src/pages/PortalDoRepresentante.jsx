@@ -29,6 +29,7 @@ import ConviteClienteModal from "@/components/portais/ConviteClienteModal";
 import BorderoDetailsModal from "@/components/portais/BorderoDetailsModal";
 import SolicitarOrcamentoModal from "@/components/portais/SolicitarOrcamentoModal";
 import ComissaoModal from "@/components/portais/ComissaoModal";
+import MinhasAutorizacoesModal from "@/components/portais/MinhasAutorizacoesModal";
 
 // --- UTILITÁRIOS ---
 const realizarLogout = () => {
@@ -648,6 +649,7 @@ export default function PainelRepresentante() {
   const [borderoModal, setBorderoModal] = useState({ open: false, bordero: null });
   const [showOrcamentoModal, setShowOrcamentoModal] = useState(false);
   const [showComissaoModal, setShowComissaoModal] = useState(false);
+  const [showAutorizacoesModal, setShowAutorizacoesModal] = useState(false);
 
   // 1. Busca de Dados
   useEffect(() => {
@@ -850,6 +852,13 @@ export default function PainelRepresentante() {
             >
               <DollarSign className="w-4 h-4" />
               💰 Liquidação
+            </Button>
+            <Button 
+              onClick={() => setShowAutorizacoesModal(true)} 
+              className="gap-2 bg-blue-600 hover:bg-blue-700"
+            >
+              <FileText className="w-4 h-4" />
+              📋 Minhas Autorizações
             </Button>
             <Button onClick={() => setShowComissaoModal(true)} className="gap-2 bg-purple-600 hover:bg-purple-700">
               <Wallet className="w-4 h-4" />
@@ -1142,6 +1151,14 @@ export default function PainelRepresentante() {
         onClose={() => setShowComissaoModal(false)}
         pedidos={meusPedidos}
         representante={representante}
+      />
+
+      {/* Modal Minhas Autorizações */}
+      <MinhasAutorizacoesModal
+        open={showAutorizacoesModal}
+        onClose={() => setShowAutorizacoesModal(false)}
+        representanteLogado={representante}
+        pedidosAbertos={meusPedidosAbertos}
       />
 
     </div>
