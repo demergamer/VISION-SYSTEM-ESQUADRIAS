@@ -561,7 +561,7 @@ export default function CaixaDiario() {
   };
 
   return (
-    <PermissionGuard setor="ChequesPagar">
+    <PermissionGuard setor="CaixaDiario">
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -577,14 +577,18 @@ export default function CaixaDiario() {
               </div>
             </div>
             <div className="flex gap-2">
-              <Button onClick={() => setShowTicketModal(true)} variant="outline" className="gap-2">
-                <Ticket className="w-4 h-4" />
-                Criar Vale
-              </Button>
-              <Button onClick={() => setShowOperacaoModal(true)} className="gap-2">
-                <Plus className="w-4 h-4" />
-                Nova Operação
-              </Button>
+              <PermissionGuard setor="CaixaDiario" funcao="adicionar" showBlocked={false}>
+                <Button onClick={() => setShowTicketModal(true)} variant="outline" className="gap-2">
+                  <Ticket className="w-4 h-4" />
+                  Criar Vale
+                </Button>
+              </PermissionGuard>
+              <PermissionGuard setor="CaixaDiario" funcao="adicionar" showBlocked={false}>
+                <Button onClick={() => setShowOperacaoModal(true)} className="gap-2">
+                  <Plus className="w-4 h-4" />
+                  Nova Operação
+                </Button>
+              </PermissionGuard>
             </div>
           </div>
 

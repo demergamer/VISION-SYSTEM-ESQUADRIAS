@@ -9,98 +9,141 @@ import { Save, X, ShieldCheck, CheckSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const modulosConfig = [
+  // PRINCIPAL
   {
     nome: 'Dashboard',
-    label: 'Dashboard',
+    label: '📊 Dashboard',
+    grupo: 'Principal',
     permissoes: ['visualizar']
   },
+  
+  // VENDAS & OPERAÇÕES
   {
     nome: 'Pedidos',
-    label: 'Pedidos',
+    label: '🛒 Pedidos',
+    grupo: 'Vendas',
     permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'liquidar', 'exportar']
   },
   {
     nome: 'Orcamentos',
-    label: 'Orçamentos',
-    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'aprovar', 'juntar', 'exportar']
+    label: '📝 Orçamentos',
+    grupo: 'Vendas',
+    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'aprovar', 'exportar']
   },
   {
     nome: 'EntradaCaucao',
-    label: 'Entrada/Caução',
+    label: '💰 Entrada/Caução (PORT)',
+    grupo: 'Vendas',
     permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'exportar']
   },
+  
+  // CADASTROS
   {
     nome: 'Clientes',
-    label: 'Clientes',
+    label: '🏢 Clientes',
+    grupo: 'Cadastros',
     permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'exportar']
   },
   {
     nome: 'Representantes',
-    label: 'Representantes',
-    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'exportar']
-  },
-  {
-    nome: 'Comissoes',
-    label: 'Comissões',
-    permissoes: ['visualizar', 'editar', 'fechar', 'exportar']
-  },
-  {
-    nome: 'Pagamentos',
-    label: 'Pagamentos (Contas a Pagar)',
-    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'aprovar', 'exportar']
-  },
-  {
-    nome: 'Produtos',
-    label: 'Produtos/Estoque',
-    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'exportar']
-  },
-  {
-    nome: 'Cheques',
-    label: 'Cheques',
-    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'exportar']
-  },
-  {
-    nome: 'Creditos',
-    label: 'Créditos',
+    label: '👤 Representantes',
+    grupo: 'Cadastros',
     permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'exportar']
   },
   {
     nome: 'Fornecedores',
-    label: 'Fornecedores',
+    label: '🚛 Fornecedores',
+    grupo: 'Cadastros',
     permissoes: ['visualizar', 'adicionar', 'editar', 'excluir']
+  },
+  {
+    nome: 'Produtos',
+    label: '📦 Produtos/Estoque',
+    grupo: 'Cadastros',
+    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'exportar']
   },
   {
     nome: 'FormasPagamento',
-    label: 'Formas de Pagamento',
+    label: '💳 Formas de Pagamento',
+    grupo: 'Cadastros',
     permissoes: ['visualizar', 'adicionar', 'editar', 'excluir']
   },
+  
+  // FINANCEIRO - A RECEBER
+  {
+    nome: 'Cheques',
+    label: '🎫 Cheques Recebidos',
+    grupo: 'Financeiro - Receber',
+    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'exportar']
+  },
+  {
+    nome: 'Creditos',
+    label: '💵 Créditos de Clientes',
+    grupo: 'Financeiro - Receber',
+    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'exportar']
+  },
+  
+  // FINANCEIRO - A PAGAR
+  {
+    nome: 'Pagamentos',
+    label: '💸 Contas a Pagar',
+    grupo: 'Financeiro - Pagar',
+    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'liquidar', 'exportar']
+  },
+  {
+    nome: 'CaixaDiario',
+    label: '💰 Caixa Diário',
+    grupo: 'Financeiro - Pagar',
+    permissoes: ['visualizar', 'adicionar', 'editar', 'exportar']
+  },
+  {
+    nome: 'Comissoes',
+    label: '💼 Comissões',
+    grupo: 'Financeiro - Pagar',
+    permissoes: ['visualizar', 'editar', 'fechar', 'exportar']
+  },
+  
+  // APROVAÇÕES & AUTORIZAÇÕES
+  {
+    nome: 'Autorizacoes',
+    label: '✅ Autorizações/Aprovações',
+    grupo: 'Fluxo',
+    permissoes: ['visualizar', 'aprovar']
+  },
+  
+  // RELATÓRIOS
   {
     nome: 'Relatorios',
-    label: 'Relatórios',
+    label: '📈 Relatórios',
+    grupo: 'Analytics',
     permissoes: ['visualizar', 'exportar']
   },
   {
     nome: 'Balanco',
-    label: 'Balanço',
+    label: '⚖️ Balanço',
+    grupo: 'Analytics',
     permissoes: ['visualizar', 'exportar']
   },
+  
+  // ADMIN
   {
     nome: 'Usuarios',
-    label: 'Usuários/Configurações',
+    label: '👥 Usuários/Configurações',
+    grupo: 'Admin',
     permissoes: ['visualizar', 'adicionar', 'editar', 'excluir']
   }
 ];
 
 const permissoesLabels = {
-  visualizar: 'Visualizar',
-  adicionar: 'Adicionar',
-  editar: 'Editar',
-  excluir: 'Excluir',
-  liquidar: 'Liquidar/Financeiro',
-  fechar: 'Fechar Mês',
-  aprovar: 'Aprovar',
-  juntar: 'Juntar/Mesclar',
-  exportar: 'Exportar/Imprimir'
+  visualizar: '👁️ Ver',
+  adicionar: '➕ Criar',
+  editar: '✏️ Editar',
+  excluir: '🗑️ Excluir',
+  liquidar: '💰 Liquidar',
+  fechar: '🔒 Fechar',
+  aprovar: '✅ Aprovar',
+  juntar: '🔗 Juntar',
+  exportar: '📄 Export'
 };
 
 function criarPermissoesDefault() {
@@ -245,65 +288,73 @@ export default function UsuarioForm({ user, onSave, onCancel, isLoading }) {
             </p>
           </Card>
 
-          {/* Tabela de Permissões */}
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-slate-100 border-b-2 border-slate-300">
-                  <th className="text-left p-3 text-sm font-bold text-slate-700 sticky left-0 bg-slate-100">Módulo</th>
-                  {Object.keys(permissoesLabels).map(key => (
-                    <th key={key} className="text-center p-2 text-xs font-medium text-slate-600">
-                      <button
-                        type="button"
-                        onClick={() => togglePermissaoGlobal(key)}
-                        className="hover:text-blue-600 transition-colors flex flex-col items-center gap-1"
-                      >
-                        <CheckSquare className="w-4 h-4" />
-                        <span>{permissoesLabels[key]}</span>
-                      </button>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {modulosConfig.map(modulo => {
-                  const permsModulo = form.permissoes[modulo.nome] || {};
-                  const todasMarcadas = modulo.permissoes.every(p => permsModulo[p]);
+          {/* Tabela de Permissões - Agrupada */}
+          <div className="space-y-6">
+            {['Principal', 'Vendas', 'Cadastros', 'Financeiro - Receber', 'Financeiro - Pagar', 'Fluxo', 'Analytics', 'Admin'].map(grupo => {
+              const modulosDoGrupo = modulosConfig.filter(m => m.grupo === grupo);
+              if (modulosDoGrupo.length === 0) return null;
+
+              return (
+                <div key={grupo} className="border rounded-xl overflow-hidden">
+                  <div className="bg-gradient-to-r from-slate-100 to-slate-50 p-3 border-b">
+                    <h3 className="font-bold text-sm text-slate-700">{grupo}</h3>
+                  </div>
                   
-                  return (
-                    <tr key={modulo.nome} className="hover:bg-slate-50">
-                      <td className="p-3 sticky left-0 bg-white hover:bg-slate-50">
-                        <button
-                          type="button"
-                          onClick={() => toggleModuloCompleto(modulo.nome)}
-                          className="flex items-center gap-2 hover:text-blue-600 transition-colors font-medium text-sm"
-                        >
-                          <CheckSquare className={cn("w-4 h-4", todasMarcadas && "text-blue-600")} />
-                          {modulo.label}
-                        </button>
-                      </td>
-                      {Object.keys(permissoesLabels).map(permKey => {
-                        const temEssaPermissao = modulo.permissoes.includes(permKey);
-                        
-                        return (
-                          <td key={permKey} className="text-center p-2">
-                            {temEssaPermissao ? (
-                              <Checkbox
-                                checked={permsModulo[permKey] || false}
-                                onCheckedChange={(checked) => updatePermissao(modulo.nome, permKey, checked)}
-                                className="mx-auto"
-                              />
-                            ) : (
-                              <span className="text-slate-300">-</span>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b">
+                          <th className="text-left p-3 text-xs font-semibold text-slate-700 sticky left-0 bg-slate-50 min-w-[200px]">Módulo</th>
+                          {Object.keys(permissoesLabels).map(key => (
+                            <th key={key} className="text-center p-2 text-[10px] font-medium text-slate-500 min-w-[60px]">
+                              <span>{permissoesLabels[key]}</span>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {modulosDoGrupo.map(modulo => {
+                          const permsModulo = form.permissoes[modulo.nome] || {};
+                          const todasMarcadas = modulo.permissoes.every(p => permsModulo[p]);
+                          
+                          return (
+                            <tr key={modulo.nome} className="hover:bg-slate-50">
+                              <td className="p-3 sticky left-0 bg-white hover:bg-slate-50">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleModuloCompleto(modulo.nome)}
+                                  className="flex items-center gap-2 hover:text-blue-600 transition-colors font-medium text-sm w-full text-left"
+                                >
+                                  <CheckSquare className={cn("w-4 h-4 shrink-0", todasMarcadas && "text-blue-600")} />
+                                  <span className="truncate">{modulo.label}</span>
+                                </button>
+                              </td>
+                              {Object.keys(permissoesLabels).map(permKey => {
+                                const temEssaPermissao = modulo.permissoes.includes(permKey);
+                                
+                                return (
+                                  <td key={permKey} className="text-center p-2">
+                                    {temEssaPermissao ? (
+                                      <Checkbox
+                                        checked={permsModulo[permKey] || false}
+                                        onCheckedChange={(checked) => updatePermissao(modulo.nome, permKey, checked)}
+                                        className="mx-auto"
+                                      />
+                                    ) : (
+                                      <span className="text-slate-200 text-xs">-</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </TabsContent>

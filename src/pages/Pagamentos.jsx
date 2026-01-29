@@ -825,7 +825,7 @@ export default function Pagamentos() {
   );
 
   return (
-    <PermissionGuard setor="ChequesPagar">
+    <PermissionGuard setor="Pagamentos">
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -840,10 +840,12 @@ export default function Pagamentos() {
                 <p className="text-slate-500 mt-1">Dashboard com recorrência e vales</p>
               </div>
             </div>
-            <Button onClick={() => setShowAddModal(true)} className="gap-2">
-              <Plus className="w-4 h-4" />
-              Nova Conta
-            </Button>
+            <PermissionGuard setor="Pagamentos" funcao="adicionar" showBlocked={false}>
+              <Button onClick={() => setShowAddModal(true)} className="gap-2">
+                <Plus className="w-4 h-4" />
+                Nova Conta
+              </Button>
+            </PermissionGuard>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
