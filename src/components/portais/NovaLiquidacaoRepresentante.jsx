@@ -16,17 +16,41 @@ import { cn } from "@/lib/utils";
 
 const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
-export default function NovaLiquidacaoRepresentante({ open, onClose, pedidos, onSuccess }) {
-  const [passo, setPasso] = useState(1);
-  const [selecionados, setSelecionados] = useState([]);
+export default function NovaLiquidacaoRepresentante({ 
+  open, 
+  onClose, 
+  pedidos, 
+  onSuccess,
+  modoCorrecao = false,
+  autorizacaoOriginal = null
+}) {
+  const [passo, setPasso] = useState(modoCorrecao ? 2 : 1);
+  const [selecionados, setSelecionados] = useState(
+    modoCorrecao && autorizacaoOriginal?.pedidos_ids ? autorizacaoOriginal.pedidos_ids : []
+  );
   
   // Campos do Passo 2
-  const [descontoValor, setDescontoValor] = useState('');
-  const [devolucaoValor, setDevolucaoValor] = useState('');
-  const [devolucaoObs, setDevolucaoObs] = useState('');
+  const [descontoValor, setDescontoValor] = useState(
+    modoCorrecao && autorizacaoOriginal?.descontos_cascata?.[0]?.valor ? 
+      String(autorizacaoOriginal.descontos_cascata[0].valor) : ''
+  );
+  const [devolucaoValor, setDevolucaoValor] = useState(
+    modoCorrecao && autorizacaoOriginal?.devolucao_valor ? 
+      String(autorizacaoOriginal.devolucao_valor) : ''
+  );
+  const [devolucaoObs, setDevolucaoObs] = useState(
+    modoCorrecao && autorizacaoOriginal?.devolucao_observacao ? 
+      autorizacaoOriginal.devolucao_observacao : ''
+  );
   const [formasPagamento, setFormasPagamento] = useState([{ tipo: 'pix', valor: '' }]);
   const [observacao, setObservacao] = useState('');
-  const [arquivos, setArquivos] = useState([]);
+  const [arquivos, setArquivos] = useState(
+    modoCorrecao && autorizacaoOriginal?.comprovantes_urls ? 
+      autorizacaoOriginal.comprovantes_urls : 
+      (modoCorrecao && autorizacaoOriginal?.comprovante_url ? 
+        [autorizacaoOriginal.comprovante_url] : []
+      )
+  );
   const [uploading, setUploading] = useState(false);
   const [enviando, setEnviando] = useState(false);
 
@@ -224,19 +248,42 @@ export default function NovaLiquidacaoRepresentante({ open, onClose, pedidos, on
       const user = await base44.auth.me();
       const pedidosSelecionados = pedidos.filter(p => selecionados.includes(p.id));
 
-      // Obter próximo número
-      const todasSolicitacoes = await base44.entities.LiquidacaoPendente.list();
-      const proximoNumero = todasSolicitacoes.length > 0 
-        ? Math.max(...todasSolicitacoes.map(s => s.numero_solicitacao || 0)) + 1 
-        : 1;
-
       // Construir descontos
       const descontosCascata = [];
       if (parseFloat(descontoValor) > 0) {
         descontosCascata.push({ tipo: 'reais', valor: parseFloat(descontoValor) });
       }
 
-      // Criar solicitação
+      // SE FOR MODO CORREÇÃO: Atualizar
+      if (modoCorrecao && autorizacaoOriginal) {
+        await base44.entities.LiquidacaoPendente.update(autorizacaoOriginal.id, {
+          pedidos_ids: selecionados,
+          valor_total_original: calculos.totalOriginal,
+          descontos_cascata: descontosCascata,
+          devolucao_valor: parseFloat(devolucaoValor) || 0,
+          devolucao_observacao: devolucaoObs || null,
+          comprovante_url: arquivos[0],
+          comprovantes_urls: arquivos,
+          valor_final_proposto: calculos.totalPago,
+          status: 'pendente',
+          motivo_rejeicao: null,
+          observacao: `Formas: ${formasPagamento.map(f => `${f.tipo.toUpperCase()}: ${formatCurrency(f.valor)}`).join(', ')}. ${observacao}`
+        });
+
+        toast.success('Solicitação corrigida e reenviada!');
+        onSuccess();
+        resetarFormulario();
+        onClose();
+        return;
+      }
+
+      // Obter próximo número (NOVO)
+      const todasSolicitacoes = await base44.entities.LiquidacaoPendente.list();
+      const proximoNumero = todasSolicitacoes.length > 0 
+        ? Math.max(...todasSolicitacoes.map(s => s.numero_solicitacao || 0)) + 1 
+        : 1;
+
+      // Criar solicitação (NOVO)
       await base44.entities.LiquidacaoPendente.create({
         numero_solicitacao: proximoNumero,
         cliente_codigo: pedidosSelecionados[0].cliente_codigo,
@@ -294,7 +341,10 @@ export default function NovaLiquidacaoRepresentante({ open, onClose, pedidos, on
       <DialogContent className="max-w-4xl p-0" style={{ scrollbarWidth: 'auto', scrollbarColor: '#888 #f1f1f1' }}>
         <DialogHeader>
           <DialogTitle className="text-xl font-bold">
-            💰 Nova Liquidação - {passo === 1 ? 'Selecionar Pedidos' : 'Informar Pagamento'}
+            {modoCorrecao ? 
+              `✏️ Corrigir Liquidação #${autorizacaoOriginal?.numero_solicitacao}` : 
+              `💰 Nova Liquidação - ${passo === 1 ? 'Selecionar Pedidos' : 'Informar Pagamento'}`
+            }
           </DialogTitle>
         </DialogHeader>
 
