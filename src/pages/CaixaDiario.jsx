@@ -163,12 +163,21 @@ function OperacaoCaixaForm({ movimentacoes, onSave, onCancel, isLoading }) {
       )}
 
       <div className="flex justify-end gap-3 pt-4 border-t">
-        <Button type="button" variant="outline" onClick={onCancel}>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-          Registrar
+        <Button type="submit" disabled={isLoading} className={isLoading ? 'cursor-not-allowed opacity-70' : ''}>
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Salvando...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4 mr-2" />
+              Registrar
+            </>
+          )}
         </Button>
       </div>
     </form>
@@ -288,12 +297,21 @@ function CriarTicketForm({ movimentacoes, onSave, onCancel, isLoading }) {
       )}
 
       <div className="flex justify-end gap-3 pt-4 border-t">
-        <Button type="button" variant="outline" onClick={onCancel}>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Ticket className="w-4 h-4 mr-2" />}
-          Criar Vale
+        <Button type="submit" disabled={isLoading} className={isLoading ? 'cursor-not-allowed opacity-70' : ''}>
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Criando...
+            </>
+          ) : (
+            <>
+              <Ticket className="w-4 h-4 mr-2" />
+              Criar Vale
+            </>
+          )}
         </Button>
       </div>
     </form>
@@ -462,12 +480,21 @@ function BaixarTicketForm({ ticket, movimentacoes, onSave, onCancel, isLoading }
       </div>
 
       <div className="flex justify-end gap-3 pt-4 border-t">
-        <Button type="button" variant="outline" onClick={onCancel}>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading || uploading}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={isLoading || uploading}>
-          {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
-          Baixar Vale
+        <Button type="submit" disabled={isLoading || uploading} className={(isLoading || uploading) ? 'cursor-not-allowed opacity-70' : ''}>
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Processando...
+            </>
+          ) : (
+            <>
+              <CheckCircle className="w-4 h-4 mr-2" />
+              Baixar Vale
+            </>
+          )}
         </Button>
       </div>
     </form>

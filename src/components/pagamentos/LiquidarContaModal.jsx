@@ -523,7 +523,7 @@ export default function LiquidarContaModal({ conta, saldoCaixa, cheques, onConfi
           type="button" 
           onClick={handleConfirmar} 
           disabled={isLoading || gerando}
-          className="gap-2"
+          className={cn("gap-2", (isLoading || gerando) && "cursor-not-allowed opacity-70")}
         >
           {gerando ? (
             <>

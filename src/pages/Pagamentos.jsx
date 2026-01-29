@@ -197,9 +197,19 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
                 type="button" 
                 onClick={handleAddFornecedor}
                 disabled={savingFornecedor}
+                className={savingFornecedor ? 'cursor-not-allowed opacity-70' : ''}
               >
-                {savingFornecedor ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                Salvar
+                {savingFornecedor ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    Salvar
+                  </>
+                )}
               </Button>
             </div>
           </Card>
@@ -364,9 +374,18 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
           <X className="w-4 h-4 mr-2" />
           Cancelar
         </Button>
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-          {isRecorrente ? 'Criar Recorrência' : 'Salvar'}
+        <Button type="submit" disabled={isLoading} className={isLoading ? 'cursor-not-allowed opacity-70' : ''}>
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Salvando...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4 mr-2" />
+              {isRecorrente ? 'Criar Recorrência' : 'Salvar'}
+            </>
+          )}
         </Button>
       </div>
       </form>
