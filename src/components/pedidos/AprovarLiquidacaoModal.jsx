@@ -47,8 +47,12 @@ export default function AprovarLiquidacaoModal({
   // Carregar anexos quando autorizacao mudar
   useEffect(() => {
     if (autorizacao) {
-      const anexosExistentes = autorizacao?.comprovantes_urls || 
-                               (autorizacao?.comprovante_url ? [autorizacao.comprovante_url] : []);
+      let anexosExistentes = autorizacao?.comprovantes_urls || 
+                             (autorizacao?.comprovante_url ? [autorizacao.comprovante_url] : []);
+      
+      // Filtrar valores vazios/null
+      anexosExistentes = anexosExistentes.filter(url => url && url.trim());
+      
       setComprovantes(anexosExistentes);
     }
   }, [autorizacao]);
