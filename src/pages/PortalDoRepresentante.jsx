@@ -288,8 +288,8 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
   };
 
   const pedidosEmProducao = filtrarPorBusca(pedidos.filter(p => p.status === 'em_producao'));
-  const pedidosAbertos = filtrarPorBusca(pedidos.filter(p => (p.status === 'aberto' || p.status === 'parcial') && !pedidosAtrasados.includes(p)));
-  const pedidosEmTransito = filtrarPorBusca(pedidos.filter(p => p.status === 'em_transito' || p.status === 'aguardando'));
+  const pedidosAbertos = filtrarPorBusca(pedidos.filter(p => (['aberto', 'parcial'].includes(p.status)) && !pedidosAtrasados.includes(p)));
+  const pedidosEmTransito = filtrarPorBusca(pedidos.filter(p => ['em_transito', 'aguardando'].includes(p.status)));
   const pedidosPagos = filtrarPorBusca(pedidos.filter(p => p.status === 'pago'));
   const pedidosCancelados = filtrarPorBusca(pedidos.filter(p => p.status === 'cancelado'));
 
@@ -685,7 +685,7 @@ export default function PainelRepresentante() {
   }, [representante, todosPedidos]);
 
   const meusPedidosAbertos = useMemo(() => {
-    return meusPedidos.filter(p => p.status === 'aberto' || p.status === 'parcial');
+    return meusPedidos.filter(p => ['aberto', 'parcial', 'aguardando'].includes(p.status));
   }, [meusPedidos]);
 
   // 2.1. Borderôs Filtrados (SEGURANÇA: Apenas da carteira do representante)
@@ -1061,7 +1061,7 @@ export default function PainelRepresentante() {
       >
         {clienteParaLiquidacao && (
           <LiquidacaoSelfService
-            pedidos={clienteParaLiquidacao.pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial')}
+            pedidos={clienteParaLiquidacao.pedidos.filter(p => ['aberto', 'parcial', 'aguardando'].includes(p.status))}
             clienteCodigo={clienteParaLiquidacao.codigo}
             clienteNome={clienteParaLiquidacao.nome}
             onSuccess={() => {
