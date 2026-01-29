@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
   DollarSign, Upload, X, Loader2, CheckCircle, 
-  Plus, Trash2, FileText, Image as ImageIcon
+  Plus, Trash2, FileText, Image as ImageIcon, Search
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -56,6 +56,21 @@ export default function NovaLiquidacaoRepresentante({
 
   // Drag & Drop
   const [isDragging, setIsDragging] = useState(false);
+
+  // Busca de Pedidos (Passo 1)
+  const [buscaPedido, setBuscaPedido] = useState('');
+
+  // Filtrar Pedidos por Busca
+  const pedidosFiltrados = useMemo(() => {
+    if (!buscaPedido.trim()) return pedidos;
+    
+    const termo = buscaPedido.toLowerCase();
+    return pedidos.filter(p => 
+      p.cliente_nome?.toLowerCase().includes(termo) ||
+      p.numero_pedido?.toLowerCase().includes(termo) ||
+      p.cliente_codigo?.toLowerCase().includes(termo)
+    );
+  }, [pedidos, buscaPedido]);
 
   // Cálculos
   const calculos = useMemo(() => {
@@ -353,17 +368,33 @@ export default function NovaLiquidacaoRepresentante({
         {/* PASSO 1: SELEÇÃO */}
         {passo === 1 && (
           <div className="space-y-4">
+            {/* BARRA DE BUSCA */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <Input
+                placeholder="🔍 Buscar por Cliente ou Nº Pedido..."
+                value={buscaPedido}
+                onChange={(e) => setBuscaPedido(e.target.value)}
+                className="pl-11 pr-4 h-12 text-base border-2 focus:border-blue-400"
+              />
+            </div>
+
             <div className="flex items-center justify-between">
               <Button size="sm" variant="outline" onClick={toggleTodos}>
                 {selecionados.length === pedidos.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
               </Button>
               <span className="text-sm text-slate-600">
                 {selecionados.length} de {pedidos.length} selecionados
+                {buscaPedido && pedidosFiltrados.length !== pedidos.length && (
+                  <span className="ml-2 text-blue-600">
+                    ({pedidosFiltrados.length} exibidos)
+                  </span>
+                )}
               </span>
             </div>
 
             <div className="border border-slate-200 rounded-lg divide-y max-h-96 overflow-y-auto">
-              {pedidos.map(pedido => (
+              {pedidosFiltrados.length > 0 ? pedidosFiltrados.map(pedido => (
                 <div
                   key={pedido.id}
                   onClick={() => togglePedido(pedido.id)}
@@ -379,7 +410,13 @@ export default function NovaLiquidacaoRepresentante({
                   </div>
                   <p className="font-bold text-emerald-600">{formatCurrency(pedido.saldo_restante)}</p>
                 </div>
-              ))}
+              )) : (
+                <div className="p-8 text-center">
+                  <Search className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                  <p className="text-slate-500 font-medium">Nenhum pedido encontrado</p>
+                  <p className="text-xs text-slate-400 mt-1">Tente buscar por outro termo</p>
+                </div>
+              )}
             </div>
 
             <Card className="p-4 bg-blue-50 border-blue-200">
