@@ -723,6 +723,25 @@ export default function Pagamentos() {
             )}
           </ModalContainer>
 
+          <ModalContainer 
+            open={showLiquidarModal} 
+            onClose={() => { setShowLiquidarModal(false); setContaLiquidar(null); }} 
+            title="Liquidar Conta a Pagar" 
+            description="Múltiplas formas de pagamento e geração de recibo"
+            size="lg"
+          >
+            {contaLiquidar && (
+              <LiquidarContaModal
+                conta={contaLiquidar}
+                saldoCaixa={movimentacoesCaixa[0]?.saldo_atual || 0}
+                cheques={cheques}
+                onConfirm={(dadosPagamento) => liquidarMutation.mutate({ conta: contaLiquidar, dadosPagamento })}
+                onCancel={() => { setShowLiquidarModal(false); setContaLiquidar(null); }}
+                isLoading={liquidarMutation.isPending}
+              />
+            )}
+          </ModalContainer>
+
           <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
             <AlertDialogContent>
               <AlertDialogHeader>
