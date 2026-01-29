@@ -715,6 +715,13 @@ export default function Pagamentos() {
   }, [contas]);
 
   const [historicoView, setHistoricoView] = useState('contas'); // 'contas' ou 'borderos'
+  const [selectedBorderoId, setSelectedBorderoId] = useState(null);
+  const [showBorderoModal, setShowBorderoModal] = useState(false);
+
+  const { data: borderosPagamento = [] } = useQuery({
+    queryKey: ['borderosPagamento'],
+    queryFn: () => base44.entities.BorderoPagamento.list('-created_date')
+  });
 
   const borderos = useMemo(() => {
     const pagas = contas.filter(c => c?.status === 'pago' && c?.data_pagamento);
@@ -957,21 +964,38 @@ export default function Pagamentos() {
                   </div>
                 )
               ) : (
-                borderos.length === 0 ? (
+                borderosPagamento.length === 0 ? (
                   <Card className="p-8 text-center text-slate-500">
                     <Archive className="w-12 h-12 text-slate-300 mx-auto mb-2" />
-                    Nenhum borderô encontrado
+                    Nenhum borderô de pagamento encontrado
                   </Card>
                 ) : (
                   <div className="space-y-3">
-                    {borderos.map((bordero, idx) => (
-                      <Card key={idx} className="p-4">
+                    {borderosPagamento.map((bordero) => (
+                      <Card 
+                        key={bordero.id} 
+                        className="p-4 hover:shadow-lg transition-shadow cursor-pointer"
+                        onClick={() => {
+                          setSelectedBorderoId(bordero.id);
+                          setShowBorderoModal(true);
+                        }}
+                      >
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge className="bg-blue-600 text-white">
+                                Borderô #{bordero.numero_bordero}
+                              </Badge>
+                            </div>
                             <h3 className="font-bold text-slate-800">{bordero.fornecedor_nome}</h3>
                             <p className="text-sm text-slate-500">
                               Pago em: {bordero.data_pagamento ? format(parseISO(bordero.data_pagamento), "dd/MM/yyyy", { locale: ptBR }) : '-'}
                             </p>
+                            {bordero.liquidado_por && (
+                              <p className="text-xs text-slate-400 mt-1">
+                                Por: {bordero.liquidado_por.split('@')[0]}
+                              </p>
+                            )}
                           </div>
                           <div className="text-right">
                             <p className="text-xs text-slate-500">Total Pago</p>
@@ -981,15 +1005,33 @@ export default function Pagamentos() {
                         
                         <div className="space-y-2 pt-3 border-t">
                           <p className="text-xs font-semibold text-slate-600">
-                            {bordero.contas.length} {bordero.contas.length === 1 ? 'conta liquidada' : 'contas liquidadas'}:
+                            {bordero.contas_detalhes?.length || 0} {bordero.contas_detalhes?.length === 1 ? 'conta liquidada' : 'contas liquidadas'}
                           </p>
-                          {bordero.contas.map((conta, cIdx) => (
+                          {bordero.contas_detalhes?.slice(0, 3).map((conta, cIdx) => (
                             <div key={cIdx} className="flex items-center justify-between text-sm bg-slate-50 p-2 rounded">
-                              <span className="text-slate-700">{conta.descricao}</span>
-                              <span className="font-medium">{formatCurrency(conta.valor_pago || conta.valor)}</span>
+                              <span className="text-slate-700 truncate">{conta.descricao}</span>
+                              <span className="font-medium ml-2">{formatCurrency(conta.valor_pago)}</span>
                             </div>
                           ))}
+                          {bordero.contas_detalhes?.length > 3 && (
+                            <p className="text-xs text-slate-500 text-center pt-1">
+                              +{bordero.contas_detalhes.length - 3} mais
+                            </p>
+                          )}
                         </div>
+                        
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="w-full mt-3"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedBorderoId(bordero.id);
+                            setShowBorderoModal(true);
+                          }}
+                        >
+                          Ver Detalhes Completos
+                        </Button>
                       </Card>
                     ))}
                   </div>
