@@ -15,15 +15,15 @@ export default function BorderoDetailsModal({ bordero, pedidos, open, onClose })
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
-        <DialogHeader className="p-6 pb-0 shrink-0">
+      <DialogContent className="max-w-4xl p-0" style={{ scrollbarWidth: 'auto', scrollbarColor: '#888 #f1f1f1' }}>
+        <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <FileText className="w-5 h-5 text-blue-600" />
             Borderô #{bordero.numero_bordero}
           </DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 p-6 pt-4">
+        <div className="overflow-y-auto flex-1 px-6 pb-6" style={{ scrollbarWidth: 'auto', scrollbarColor: '#888 #f1f1f1' }}>
           <div className="space-y-6">
             {/* Cabeçalho */}
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
@@ -190,7 +190,7 @@ export default function BorderoDetailsModal({ bordero, pedidos, open, onClose })
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );

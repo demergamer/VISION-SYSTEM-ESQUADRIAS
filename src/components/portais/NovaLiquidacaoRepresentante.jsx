@@ -291,14 +291,14 @@ export default function NovaLiquidacaoRepresentante({ open, onClose, pedidos, on
 
   return (
     <Dialog open={open} onOpenChange={fechar}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
-        <DialogHeader className="p-6 pb-0 shrink-0">
+      <DialogContent className="max-w-4xl p-0" style={{ scrollbarWidth: 'auto', scrollbarColor: '#888 #f1f1f1' }}>
+        <DialogHeader>
           <DialogTitle className="text-xl font-bold">
             💰 Nova Liquidação - {passo === 1 ? 'Selecionar Pedidos' : 'Informar Pagamento'}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="overflow-y-auto flex-1 p-6 pt-4">
+        <div className="overflow-y-auto flex-1 px-6 pb-6" style={{ scrollbarWidth: 'auto', scrollbarColor: '#888 #f1f1f1' }}>
 
         {/* PASSO 1: SELEÇÃO */}
         {passo === 1 && (

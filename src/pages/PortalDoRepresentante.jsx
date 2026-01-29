@@ -67,7 +67,7 @@ const DetailsModal = ({ item, type, open, onOpenChange }) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-2xl p-0" style={{ scrollbarWidth: 'auto', scrollbarColor: '#888 #f1f1f1' }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             {type === 'pedido' ? <ShoppingCart className="w-5 h-5" /> : type === 'cheque' ? <CreditCard className="w-5 h-5" /> : <Wallet className="w-5 h-5" />}
@@ -76,8 +76,8 @@ const DetailsModal = ({ item, type, open, onOpenChange }) => {
           <DialogDescription>{getTitle()}</DialogDescription>
         </DialogHeader>
         
-        <ScrollArea className="flex-1 p-4 bg-slate-50 rounded-xl border mt-2">
-          <div className="space-y-4">
+        <div className="overflow-y-auto flex-1 px-6 pb-6 bg-slate-50 rounded-xl border mx-6" style={{ scrollbarWidth: 'auto', scrollbarColor: '#888 #f1f1f1' }}>
+          <div className="space-y-4 pt-4">
             {Object.entries(item).map(([key, value]) => {
               if (key === 'id' || key === 'representante_codigo' || typeof value === 'object') return null;
               return (
@@ -101,7 +101,7 @@ const DetailsModal = ({ item, type, open, onOpenChange }) => {
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );

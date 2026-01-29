@@ -27,10 +27,10 @@ export default function ModalContainer({
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className={cn(
-        "max-h-[90vh] flex flex-col p-0",
+        "p-0",
         sizeClasses[size]
-      )}>
-        <DialogHeader className="p-6 pb-0 shrink-0">
+      )} style={{ scrollbarWidth: 'auto', scrollbarColor: '#888 #f1f1f1' }}>
+        <DialogHeader>
           <DialogTitle className="text-xl font-bold text-slate-800">{title}</DialogTitle>
           {description && (
             <DialogDescription className="text-slate-500">
@@ -38,7 +38,7 @@ export default function ModalContainer({
             </DialogDescription>
           )}
         </DialogHeader>
-        <div className="overflow-y-auto flex-1 p-6 pt-4">
+        <div className="overflow-y-auto flex-1 px-6 pb-6" style={{ scrollbarWidth: 'auto', scrollbarColor: '#888 #f1f1f1' }}>
           {children}
         </div>
       </DialogContent>

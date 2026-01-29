@@ -28,7 +28,7 @@ export default function ClienteDetailsModal({ cliente, pedidos = [], cheques = [
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-4xl p-0" style={{ scrollbarWidth: 'auto', scrollbarColor: '#888 #f1f1f1' }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Building2 className="w-5 h-5 text-blue-600" />
@@ -36,8 +36,8 @@ export default function ClienteDetailsModal({ cliente, pedidos = [], cheques = [
           </DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="flex-1">
-          <div className="space-y-6 p-4">
+        <div className="overflow-y-auto flex-1 px-6 pb-6" style={{ scrollbarWidth: 'auto', scrollbarColor: '#888 #f1f1f1' }}>
+          <div className="space-y-6">
             {/* Info Principal */}
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
               <h3 className="font-bold text-lg text-slate-800 mb-1">{cliente.nome}</h3>
@@ -201,7 +201,7 @@ export default function ClienteDetailsModal({ cliente, pedidos = [], cheques = [
               )}
             </div>
           </div>
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );
