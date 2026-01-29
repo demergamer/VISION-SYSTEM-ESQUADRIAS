@@ -36,7 +36,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     queryFn: async () => {
       if (!selectedPedidos[0]?.cliente_codigo) return [];
       const todosCreditos = await base44.entities.Credito.list();
-      return todosCreditos.filter(c => c.cliente_codigo === selectedPedidos[0].cliente_codigo && c.status === 'disponivel');
+      return todosCreditos.filter(c => c?.cliente_codigo === selectedPedidos[0]?.cliente_codigo && c?.status === 'disponivel');
     },
     enabled: selectedPedidos.length > 0 && !!selectedPedidos[0]?.cliente_codigo
   });
@@ -46,8 +46,9 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     queryFn: async () => {
       const allPorts = await base44.entities.Port.list();
       return allPorts.filter(port => 
-        port.saldo_disponivel > 0 &&
-        !['devolvido', 'finalizado'].includes(port.status)
+        port && 
+        (port?.saldo_disponivel || 0) > 0 &&
+        !['devolvido', 'finalizado'].includes(port?.status)
       );
     }
   });
@@ -55,14 +56,14 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
   const [usarPortsAutomatico, setUsarPortsAutomatico] = useState(false);
 
   React.useEffect(() => {
-    const total = creditos.reduce((sum, c) => sum + (c.valor || 0), 0);
+    const total = creditos.reduce((sum, c) => sum + (c?.valor || 0), 0);
     setCreditoDisponivelTotal(total);
   }, [creditos]);
 
   const pedidosComPort = useMemo(() => {
-    const pedidosIds = selectedPedidos.map(p => p.id);
+    const pedidosIds = selectedPedidos.map(p => p?.id).filter(Boolean);
     return todosPortsDisponiveis.filter(port => 
-      port.pedidos_ids?.some(pid => pedidosIds.includes(pid))
+      port?.pedidos_ids?.some(pid => pedidosIds.includes(pid))
     );
   }, [selectedPedidos, todosPortsDisponiveis]);
 
@@ -70,8 +71,11 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
 
   const filteredPedidos = useMemo(() => {
     return pedidos.filter(p => 
-      (['aberto', 'parcial', 'aguardando'].includes(p.status)) &&
-      (p.cliente_nome?.toLowerCase().includes(searchTerm.toLowerCase()) || p.cliente_codigo?.toLowerCase().includes(searchTerm.toLowerCase()) || p.numero_pedido?.toLowerCase().includes(searchTerm.toLowerCase()))
+      p && 
+      (['aberto', 'parcial', 'aguardando'].includes(p?.status)) &&
+      (p?.cliente_nome?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+       p?.cliente_codigo?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+       p?.numero_pedido?.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   }, [pedidos, searchTerm]);
 
@@ -92,7 +96,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
   };
 
   const calcularTotais = () => {
-    const totalOriginal = selectedPedidos.reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
+    const totalOriginal = selectedPedidos.reduce((sum, p) => sum + (p?.saldo_restante || ((p?.valor_pedido || 0) - (p?.total_pago || 0))), 0);
     let desconto = 0;
     if (descontoValor) {
       if (descontoTipo === 'reais') {
@@ -103,7 +107,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     }
     const devolucaoValor = parseFloat(devolucao) || 0;
     const totalComDesconto = totalOriginal - desconto - devolucaoValor;
-    const totalPago = formasPagamento.reduce((sum, fp) => sum + (parseFloat(fp.valor) || 0), 0) + creditoAUsar;
+    const totalPago = formasPagamento.reduce((sum, fp) => sum + (parseFloat(fp?.valor) || 0), 0) + (creditoAUsar || 0);
     return { totalOriginal, desconto, devolucaoValor, totalComDesconto, totalPago };
   };
 
@@ -238,7 +242,8 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
 
       // Processar cada pedido em sequência
       for (const pedido of selectedPedidos) {
-        let saldoAtual = pedido.saldo_restante || (pedido.valor_pedido - (pedido.total_pago || 0));
+        if (!pedido?.id) continue;
+        let saldoAtual = pedido?.saldo_restante || ((pedido?.valor_pedido || 0) - (pedido?.total_pago || 0));
         
         let devolucaoAplicada = 0;
         let descontoAplicado = 0;
@@ -266,26 +271,26 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         // **PASSO 2.5: SINAL/PORT (Se automático)**
         if (usarPortsAutomatico && saldoAtual > 0) {
           const portParaEstePedido = portsParaUsar.find(port => 
-            port.pedidos_ids?.includes(pedido.id) && port.saldo_disponivel > 0
+            port?.pedidos_ids?.includes(pedido?.id) && (port?.saldo_disponivel || 0) > 0
           );
           
           if (portParaEstePedido) {
-            const valorUsar = Math.min(saldoAtual, portParaEstePedido.saldo_disponivel);
+            const valorUsar = Math.min(saldoAtual, portParaEstePedido?.saldo_disponivel || 0);
             portAplicado = valorUsar;
             saldoAtual -= valorUsar;
             portParaEstePedido.saldo_disponivel -= valorUsar;
-            portUsadoInfo = { id: portParaEstePedido.id, numero: portParaEstePedido.numero_port, valorUsado: valorUsar };
+            portUsadoInfo = { id: portParaEstePedido?.id, numero: portParaEstePedido?.numero_port, valorUsado: valorUsar };
             
-            const portJaUsado = portsUsados.find(p => p.id === portParaEstePedido.id);
+            const portJaUsado = portsUsados.find(p => p?.id === portParaEstePedido?.id);
             if (portJaUsado) {
               portJaUsado.valorTotal += valorUsar;
             } else {
               portsUsados.push({ 
-                id: portParaEstePedido.id, 
-                numero: portParaEstePedido.numero_port, 
+                id: portParaEstePedido?.id, 
+                numero: portParaEstePedido?.numero_port, 
                 valorTotal: valorUsar,
-                saldoRestante: portParaEstePedido.saldo_disponivel,
-                comprovantes_urls: portParaEstePedido.comprovantes_urls
+                saldoRestante: portParaEstePedido?.saldo_disponivel || 0,
+                comprovantes_urls: portParaEstePedido?.comprovantes_urls || []
               });
             }
           }
@@ -308,8 +313,8 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         }
 
         // Calcular novos valores do pedido
-        const novoTotalPago = (pedido.total_pago || 0) + pagamentoAplicado + creditoAplicado + devolucaoAplicada + portAplicado;
-        const novoDescontoTotal = (pedido.desconto_dado || 0) + descontoAplicado;
+        const novoTotalPago = (pedido?.total_pago || 0) + pagamentoAplicado + creditoAplicado + devolucaoAplicada + portAplicado;
+        const novoDescontoTotal = (pedido?.desconto_dado || 0) + descontoAplicado;
         const novoSaldo = Math.max(0, saldoAtual);
 
         pedidosProcessados.push({
@@ -386,41 +391,43 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       await base44.entities.Bordero.create({
         numero_bordero: proximoNumeroBordero,
         tipo_liquidacao: 'massa',
-        cliente_codigo: selectedPedidos[0].cliente_codigo,
-        cliente_nome: selectedPedidos[0].cliente_nome,
-        pedidos_ids: selectedPedidos.map(p => p.id),
+        cliente_codigo: selectedPedidos[0]?.cliente_codigo || '',
+        cliente_nome: selectedPedidos[0]?.cliente_nome || '',
+        pedidos_ids: selectedPedidos.map(p => p?.id).filter(Boolean),
         valor_total: valorPagoReal + creditoEfetivamenteUsado + totalPortUsado,
         forma_pagamento: formasFinal,
         comprovantes_urls: comprovantesFinais,
         cheques_anexos: chequesAnexos,
-        observacao: `Desconto: ${formatCurrency(totais.desconto)} | Devolução: ${formatCurrency(totais.devolucaoValor)} | ${selectedPedidos.length} pedidos${totalPortUsado > 0 ? ` | PORTs usados: ${portsUsados.map(p => `#${p.numero}`).join(', ')}` : ''}`,
-        liquidado_por: user.email
+        observacao: `Desconto: ${formatCurrency(totais.desconto)} | Devolução: ${formatCurrency(totais.devolucaoValor)} | ${selectedPedidos.length} pedidos${totalPortUsado > 0 ? ` | PORTs usados: ${portsUsados.map(p => `#${p?.numero || 'N/A'}`).join(', ')}` : ''}`,
+        liquidado_por: user?.email || ''
       });
 
       // Atualizar cada pedido
       for (const proc of pedidosProcessados) {
-        const historicoPort = proc.portAplicado > 0 ? ` | PORT=${formatCurrency(proc.portAplicado)}` : '';
+        if (!proc?.pedido?.id) continue;
+        const historicoPort = (proc?.portAplicado || 0) > 0 ? ` | PORT=${formatCurrency(proc.portAplicado)}` : '';
         await base44.entities.Pedido.update(proc.pedido.id, {
-          total_pago: proc.novoTotalPago,
-          desconto_dado: proc.novoDescontoTotal,
-          saldo_restante: proc.novoSaldo,
-          status: proc.novoSaldo <= 0 ? 'pago' : 'parcial',
-          data_pagamento: proc.novoSaldo <= 0 ? new Date().toISOString().split('T')[0] : proc.pedido.data_pagamento,
-          mes_pagamento: proc.novoSaldo <= 0 ? new Date().toISOString().slice(0, 7) : proc.pedido.mes_pagamento,
+          total_pago: proc?.novoTotalPago || 0,
+          desconto_dado: proc?.novoDescontoTotal || 0,
+          saldo_restante: proc?.novoSaldo || 0,
+          status: (proc?.novoSaldo || 0) <= 0 ? 'pago' : 'parcial',
+          data_pagamento: (proc?.novoSaldo || 0) <= 0 ? new Date().toISOString().split('T')[0] : proc?.pedido?.data_pagamento,
+          mes_pagamento: (proc?.novoSaldo || 0) <= 0 ? new Date().toISOString().slice(0, 7) : proc?.pedido?.mes_pagamento,
           bordero_numero: proximoNumeroBordero,
-          outras_informacoes: (proc.pedido.outras_informacoes || '') + `\n[${new Date().toLocaleDateString('pt-BR')}] Borderô #${proximoNumeroBordero}: Dev=${formatCurrency(proc.devolucaoAplicada)} | Desc=${formatCurrency(proc.descontoAplicado)}${historicoPort} | Créd=${formatCurrency(proc.creditoAplicado)} | Pago=${formatCurrency(proc.pagamentoAplicado)}`
+          outras_informacoes: (proc?.pedido?.outras_informacoes || '') + `\n[${new Date().toLocaleDateString('pt-BR')}] Borderô #${proximoNumeroBordero}: Dev=${formatCurrency(proc?.devolucaoAplicada || 0)} | Desc=${formatCurrency(proc?.descontoAplicado || 0)}${historicoPort} | Créd=${formatCurrency(proc?.creditoAplicado || 0)} | Pago=${formatCurrency(proc?.pagamentoAplicado || 0)}`
         });
       }
 
       // Atualizar PORTs usados
       for (const portUsado of portsUsados) {
-        const novoStatusPort = portUsado.saldoRestante <= 0 ? 'finalizado' : 'parcialmente_usado';
+        if (!portUsado?.id) continue;
+        const novoStatusPort = (portUsado?.saldoRestante || 0) <= 0 ? 'finalizado' : 'parcialmente_usado';
         const portOriginal = await base44.entities.Port.get(portUsado.id);
         
         await base44.entities.Port.update(portUsado.id, {
-          saldo_disponivel: portUsado.saldoRestante,
+          saldo_disponivel: portUsado?.saldoRestante || 0,
           status: novoStatusPort,
-          observacao: `${portOriginal.observacao || ''}\n[${new Date().toLocaleDateString('pt-BR')}] Usado ${formatCurrency(portUsado.valorTotal)} no Borderô #${proximoNumeroBordero}`.trim()
+          observacao: `${portOriginal?.observacao || ''}\n[${new Date().toLocaleDateString('pt-BR')}] Usado ${formatCurrency(portUsado?.valorTotal || 0)} no Borderô #${proximoNumeroBordero}`.trim()
         });
       }
 
@@ -428,11 +435,11 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       if (creditoEfetivamenteUsado > 0) {
         let valorAMarcar = creditoEfetivamenteUsado;
         for (const credito of creditos) {
-          if (valorAMarcar <= 0) break;
-          const valorUsar = Math.min(credito.valor, valorAMarcar);
+          if (!credito?.id || valorAMarcar <= 0) break;
+          const valorUsar = Math.min(credito?.valor || 0, valorAMarcar);
           await base44.entities.Credito.update(credito.id, {
             status: 'usado',
-            pedido_uso_id: selectedPedidos[0].id,
+            pedido_uso_id: selectedPedidos[0]?.id || '',
             data_uso: new Date().toISOString().split('T')[0]
           });
           valorAMarcar -= valorUsar;
@@ -442,12 +449,12 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       // Gerar crédito se sobrou
       if (sobraTotal > 0.01) {
         const todosCreditos = await base44.entities.Credito.list();
-        const proximoNumero = todosCreditos.length > 0 ? Math.max(...todosCreditos.map(c => c.numero_credito || 0)) + 1 : 1;
+        const proximoNumero = todosCreditos.length > 0 ? Math.max(...todosCreditos.map(c => c?.numero_credito || 0)) + 1 : 1;
         
         await base44.entities.Credito.create({
           numero_credito: proximoNumero,
-          cliente_codigo: selectedPedidos[0].cliente_codigo,
-          cliente_nome: selectedPedidos[0].cliente_nome,
+          cliente_codigo: selectedPedidos[0]?.cliente_codigo || '',
+          cliente_nome: selectedPedidos[0]?.cliente_nome || '',
           valor: sobraTotal,
           origem: `Excedente Liquidação Massa - Borderô #${proximoNumeroBordero}`,
           status: 'disponivel'
@@ -482,14 +489,14 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
 
       <div className="max-h-96 overflow-y-auto space-y-2">
         {filteredPedidos.map((pedido) => {
-          const saldo = pedido.saldo_restante || (pedido.valor_pedido - (pedido.total_pago || 0));
-          const isSelected = selectedPedidos.find(p => p.id === pedido.id);
-          const temPort = todosPortsDisponiveis.some(port => port.pedidos_ids?.includes(pedido.id));
+          const saldo = pedido?.saldo_restante || ((pedido?.valor_pedido || 0) - (pedido?.total_pago || 0));
+          const isSelected = selectedPedidos.find(p => p?.id === pedido?.id);
+          const temPort = todosPortsDisponiveis.some(port => port?.pedidos_ids?.includes(pedido?.id));
           
           return (
-            <Card key={pedido.id} className={cn("p-4 cursor-pointer transition-all relative", isSelected ? "bg-blue-50 border-blue-300" : "hover:bg-slate-50")} onClick={() => togglePedido(pedido)}>
+            <Card key={pedido?.id} className={cn("p-4 cursor-pointer transition-all relative", isSelected ? "bg-blue-50 border-blue-300" : "hover:bg-slate-50")} onClick={() => togglePedido(pedido)}>
               <div className="absolute top-2 right-2 flex gap-1">
-                {pedido.status === 'aguardando' && (
+                {pedido?.status === 'aguardando' && (
                   <Badge className="bg-blue-100 text-blue-700 text-xs">🚚 Em Trânsito</Badge>
                 )}
                 {temPort && (
@@ -499,10 +506,10 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
               <div className="flex items-center gap-4">
                 <Checkbox checked={!!isSelected} />
                 <div className="flex-1 grid grid-cols-5 gap-4">
-                  <div><p className="text-xs text-slate-500">Nº Pedido</p><p className="font-mono text-sm font-medium">{pedido.numero_pedido}</p></div>
-                  <div><p className="text-xs text-slate-500">Cliente</p><p className="font-medium text-sm truncate">{pedido.cliente_nome}</p></div>
-                  <div><p className="text-xs text-slate-500">Código</p><p className="text-sm">{pedido.cliente_codigo}</p></div>
-                  <div><p className="text-xs text-slate-500">Data Entrega</p><p className="text-sm">{pedido.data_entrega ? new Date(pedido.data_entrega).toLocaleDateString('pt-BR') : '-'}</p></div>
+                  <div><p className="text-xs text-slate-500">Nº Pedido</p><p className="font-mono text-sm font-medium">{pedido?.numero_pedido || '-'}</p></div>
+                  <div><p className="text-xs text-slate-500">Cliente</p><p className="font-medium text-sm truncate">{pedido?.cliente_nome || 'Sem nome'}</p></div>
+                  <div><p className="text-xs text-slate-500">Código</p><p className="text-sm">{pedido?.cliente_codigo || '-'}</p></div>
+                  <div><p className="text-xs text-slate-500">Data Entrega</p><p className="text-sm">{pedido?.data_entrega ? new Date(pedido.data_entrega).toLocaleDateString('pt-BR') : '-'}</p></div>
                   <div className="text-right"><p className="text-xs text-slate-500">Saldo</p><p className="font-bold text-sm">{formatCurrency(saldo)}</p></div>
                 </div>
               </div>
