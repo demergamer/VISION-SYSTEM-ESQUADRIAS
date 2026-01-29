@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import LiquidarContaModal from '@/components/pagamentos/LiquidarContaModal';
+import BorderoPagamentoModal from "@/components/pagamentos/BorderoPagamentoModal";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -634,10 +635,65 @@ export default function Pagamentos() {
 
   const liquidarMutation = useMutation({
     mutationFn: async ({ conta, dadosPagamento }) => {
-      // 1. Atualizar a conta
+      const user = await base44.auth.me();
+      
+      // 1. Gerar número do borderô
+      const borderos = await base44.entities.BorderoPagamento.list();
+      const ultimoNumero = borderos.length > 0 
+        ? Math.max(...borderos.map(b => b.numero_bordero || 0))
+        : 0;
+      const numeroBordero = ultimoNumero + 1;
+
+      // 2. Preparar detalhes dos cheques repassados
+      const chequesRepassados = [];
+      for (const fp of dadosPagamento.formas_pagamento) {
+        if (fp.tipo === 'cheque_terceiro' && fp.cheques_ids && fp.cheques_ids.length > 0) {
+          const chequesList = await base44.entities.Cheque.list();
+          const chequesData = chequesList.filter(c => fp.cheques_ids.includes(c.id));
+          
+          for (const cheque of chequesData) {
+            chequesRepassados.push({
+              cheque_id: cheque.id,
+              numero_cheque: cheque.numero_cheque,
+              banco: cheque.banco,
+              valor: cheque.valor,
+              emitente: cheque.emitente,
+              cliente_nome: cheque.cliente_nome
+            });
+          }
+        }
+      }
+
+      // 3. Criar Borderô de Pagamento
+      const borderoData = {
+        numero_bordero: numeroBordero,
+        fornecedor_codigo: conta.fornecedor_codigo,
+        fornecedor_nome: conta.fornecedor_nome,
+        contas_ids: [conta.id],
+        contas_detalhes: [{
+          conta_id: conta.id,
+          descricao: conta.descricao,
+          valor_original: conta.valor,
+          juros_multa: dadosPagamento.juros_multa || 0,
+          desconto: dadosPagamento.desconto || 0,
+          valor_pago: dadosPagamento.valor_pago,
+          data_vencimento: conta.data_vencimento
+        }],
+        valor_total: dadosPagamento.valor_pago,
+        formas_pagamento: dadosPagamento.formas_pagamento,
+        cheques_repassados: chequesRepassados,
+        recibo_url: dadosPagamento.recibo_url,
+        data_pagamento: dadosPagamento.data_pagamento,
+        observacao: dadosPagamento.observacao,
+        liquidado_por: user.email
+      };
+
+      await base44.entities.BorderoPagamento.create(borderoData);
+
+      // 4. Atualizar a conta
       await base44.entities.ContaPagar.update(conta.id, dadosPagamento);
 
-      // 2. Registrar movimentações no caixa (dinheiro)
+      // 5. Registrar movimentações no caixa (dinheiro)
       const saldoAtual = movimentacoesCaixa[0]?.saldo_atual || 0;
       let novoSaldo = saldoAtual;
 
@@ -654,7 +710,7 @@ export default function Pagamentos() {
           });
         }
 
-        // 3. Atualizar status dos cheques (repasse) - múltiplos cheques
+        // 6. Atualizar status dos cheques (repasse) - múltiplos cheques
         if (fp.tipo === 'cheque_terceiro' && fp.cheques_ids && fp.cheques_ids.length > 0) {
           for (const chequeId of fp.cheques_ids) {
             await base44.entities.Cheque.update(chequeId, {
@@ -669,11 +725,12 @@ export default function Pagamentos() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contasPagar'] });
+      queryClient.invalidateQueries({ queryKey: ['borderosPagamento'] });
       queryClient.invalidateQueries({ queryKey: ['caixaDiario'] });
       queryClient.invalidateQueries({ queryKey: ['cheques'] });
       setShowLiquidarModal(false);
       setContaLiquidar(null);
-      toast.success('Pagamento realizado e recibo gerado!');
+      toast.success('✅ Conta liquidada e Borderô gerado!');
     },
     onError: () => toast.error('Erro ao processar pagamento')
   });
@@ -1079,6 +1136,17 @@ export default function Pagamentos() {
               />
             )}
           </ModalContainer>
+
+          {/* Modal Detalhes do Borderô */}
+          {showBorderoModal && selectedBorderoId && (
+            <BorderoPagamentoModal
+              borderoId={selectedBorderoId}
+              onClose={() => {
+                setShowBorderoModal(false);
+                setSelectedBorderoId(null);
+              }}
+            />
+          )}
 
           <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
             <AlertDialogContent>

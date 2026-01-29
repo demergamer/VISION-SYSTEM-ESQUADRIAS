@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { 
   DollarSign, Plus, Trash2, Loader2, CheckCircle, AlertTriangle, 
-  Wallet, CreditCard, FileText, Search, X
+  Wallet, CreditCard, FileText, Search, X, Upload
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
