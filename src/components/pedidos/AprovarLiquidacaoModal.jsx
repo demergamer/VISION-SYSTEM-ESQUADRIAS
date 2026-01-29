@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +43,15 @@ export default function AprovarLiquidacaoModal({
   const [uploadingFile, setUploadingFile] = useState(false);
   const [showRejeicaoForm, setShowRejeicaoForm] = useState(false);
   const [motivoRejeicao, setMotivoRejeicao] = useState('');
+
+  // Carregar anexos quando autorizacao mudar
+  useEffect(() => {
+    if (autorizacao) {
+      const anexosExistentes = autorizacao?.comprovantes_urls || 
+                               (autorizacao?.comprovante_url ? [autorizacao.comprovante_url] : []);
+      setComprovantes(anexosExistentes);
+    }
+  }, [autorizacao]);
 
   // Pedidos disponíveis para adicionar (abertos/parciais/em trânsito do mesmo cliente)
   const pedidosDisponiveis = useMemo(() => {
