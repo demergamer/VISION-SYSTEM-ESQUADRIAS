@@ -495,31 +495,52 @@ export default function AprovarLiquidacaoModal({
             </div>
 
             {comprovantes.length > 0 ? (
-              <div className="space-y-2">
-                {comprovantes.map((url, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-2 bg-slate-50 border rounded-lg"
-                  >
-                    <a
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-blue-600 hover:underline truncate flex-1"
-                    >
-                      Comprovante {index + 1}
-                    </a>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => removerComprovante(index)}
-                      className="h-6 w-6 text-red-600"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
-                ))}
+              <div className="grid grid-cols-2 gap-3">
+                {comprovantes.map((url, index) => {
+                  const isPdf = url.toLowerCase().endsWith('.pdf');
+                  return (
+                    <div key={index} className="relative group">
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block aspect-square rounded-lg border-2 border-slate-200 overflow-hidden hover:border-blue-400 transition-all"
+                      >
+                        {isPdf ? (
+                          <div className="w-full h-full flex flex-col items-center justify-center bg-red-50">
+                            <FileText className="w-12 h-12 text-red-600 mb-2" />
+                            <span className="text-xs text-slate-600 font-medium">PDF {index + 1}</span>
+                          </div>
+                        ) : (
+                          <img
+                            src={url}
+                            alt={`Comprovante ${index + 1}`}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.target.parentElement.innerHTML = `
+                                <div class="w-full h-full flex flex-col items-center justify-center bg-slate-100">
+                                  <svg class="w-12 h-12 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                  </svg>
+                                  <span class="text-xs text-slate-500 mt-2">Arquivo ${index + 1}</span>
+                                </div>
+                              `;
+                            }}
+                          />
+                        )}
+                      </a>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => removerComprovante(index)}
+                        className="absolute top-1 right-1 h-6 w-6 bg-red-600 text-white hover:bg-red-700 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-4 border-2 border-dashed border-slate-200 rounded-lg">
