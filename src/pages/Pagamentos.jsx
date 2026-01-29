@@ -47,6 +47,8 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
 
   const [comprovante, setComprovante] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [anexo, setAnexo] = useState(conta?.comprovante_url || null);
+  const [uploadingAnexo, setUploadingAnexo] = useState(false);
 
   const handleFornecedorChange = (codigo) => {
     const forn = fornecedores.find(f => f.codigo === codigo);
@@ -66,6 +68,22 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
       toast.error('Erro ao enviar arquivo');
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleUploadAnexo = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploadingAnexo(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setAnexo(file_url);
+      toast.success('Documento anexado!');
+    } catch (error) {
+      toast.error('Erro ao enviar arquivo');
+    } finally {
+      setUploadingAnexo(false);
     }
   };
 
@@ -108,7 +126,7 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
     if (!isRecorrente) {
       onSave({ 
         ...form, 
-        comprovante_url: comprovante || conta?.comprovante_url,
+        comprovante_url: anexo || comprovante || conta?.comprovante_url,
         tipo_lancamento: 'unica'
       });
       return;
@@ -133,7 +151,7 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
         valor: (i === 1 || !isValorVariavel) ? valorParcela : 0,
         status: (i === 1 || !isValorVariavel) ? 'pendente' : 'pendente_preenchimento',
         data_vencimento: dataVencimento,
-        comprovante_url: comprovante || conta?.comprovante_url
+        comprovante_url: anexo || comprovante || conta?.comprovante_url
       });
     }
 
@@ -353,6 +371,59 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
             rows={2}
           />
         </div>
+
+        <div className="space-y-2 md:col-span-2">
+          <Label>📎 Anexar Boleto/Fatura {isRecorrente ? '(Opcional)' : ''}</Label>
+          <label className={cn(
+            "flex items-center justify-center gap-2 h-12 px-4 rounded-xl border-2 border-dashed cursor-pointer transition-all",
+            anexo ? "border-green-300 bg-green-50 text-green-700" : "border-slate-300 bg-white hover:border-blue-400"
+          )}>
+            {uploadingAnexo ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="font-medium">Enviando...</span>
+              </>
+            ) : anexo ? (
+              <>
+                <CheckCircle className="w-4 h-4" />
+                <span className="font-medium">Documento Anexado</span>
+                <a 
+                  href={anexo} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="ml-2 text-blue-600 underline text-sm"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Ver
+                </a>
+              </>
+            ) : (
+              <>
+                <Upload className="w-4 h-4" />
+                <span className="font-medium">Clique para Anexar PDF/Imagem</span>
+              </>
+            )}
+            <input 
+              type="file" 
+              accept="image/*,.pdf" 
+              onChange={handleUploadAnexo} 
+              className="hidden" 
+              disabled={uploadingAnexo} 
+            />
+          </label>
+          {anexo && (
+            <Button 
+              type="button" 
+              size="sm" 
+              variant="ghost" 
+              onClick={() => setAnexo(null)}
+              className="text-red-600 hover:text-red-700"
+            >
+              <Trash2 className="w-3 h-3 mr-2" />
+              Remover Anexo
+            </Button>
+          )}
+        </div>
       </div>
 
       {!isRecorrente && form.status !== 'pendente' && (
@@ -393,7 +464,7 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
   );
 }
 
-function ContaCard({ conta, onEdit, onDelete, onQuickPay }) {
+function ContaCard({ conta, onEdit, onDelete, onQuickPay, showAnexo = true }) {
   const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
   
   const getStatusBadge = (status) => {
@@ -448,6 +519,20 @@ function ContaCard({ conta, onEdit, onDelete, onQuickPay }) {
           <p className="font-bold text-lg text-slate-800">{formatCurrency(conta?.valor)}</p>
         </div>
       </div>
+
+      {showAnexo && conta?.comprovante_url && (
+        <div className="mb-3">
+          <a 
+            href={conta.comprovante_url} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 text-xs text-blue-600 hover:text-blue-700 hover:underline"
+          >
+            <FileText className="w-3 h-3" />
+            Ver Documento Anexo
+          </a>
+        </div>
+      )}
 
       {isAtrasada && (
         <div className="mb-3 p-2 bg-red-100 border border-red-300 rounded-lg">
@@ -625,6 +710,32 @@ export default function Pagamentos() {
 
   const historico = useMemo(() => {
     return contas.filter(c => c?.status === 'pago');
+  }, [contas]);
+
+  const [historicoView, setHistoricoView] = useState('contas'); // 'contas' ou 'borderos'
+
+  const borderos = useMemo(() => {
+    const pagas = contas.filter(c => c?.status === 'pago' && c?.data_pagamento);
+    const grouped = {};
+    
+    pagas.forEach(conta => {
+      const key = `${conta.fornecedor_codigo}_${conta.data_pagamento}`;
+      if (!grouped[key]) {
+        grouped[key] = {
+          fornecedor_codigo: conta.fornecedor_codigo,
+          fornecedor_nome: conta.fornecedor_nome,
+          data_pagamento: conta.data_pagamento,
+          contas: [],
+          valor_total: 0
+        };
+      }
+      grouped[key].contas.push(conta);
+      grouped[key].valor_total += conta.valor_pago || conta.valor || 0;
+    });
+    
+    return Object.values(grouped).sort((a, b) => 
+      new Date(b.data_pagamento) - new Date(a.data_pagamento)
+    );
   }, [contas]);
 
   const stats = useMemo(() => {
@@ -807,23 +918,80 @@ export default function Pagamentos() {
             </TabsContent>
 
             <TabsContent value="historico" className="mt-6">
-              {filteredContas(historico).length === 0 ? (
-                <Card className="p-8 text-center text-slate-500">
-                  <Archive className="w-12 h-12 text-slate-300 mx-auto mb-2" />
-                  Nenhuma conta paga
-                </Card>
+              <div className="mb-4 flex items-center gap-2 p-2 bg-white rounded-xl border">
+                <Button 
+                  size="sm" 
+                  variant={historicoView === 'contas' ? 'default' : 'ghost'}
+                  onClick={() => setHistoricoView('contas')}
+                >
+                  Por Contas
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant={historicoView === 'borderos' ? 'default' : 'ghost'}
+                  onClick={() => setHistoricoView('borderos')}
+                >
+                  Por Borderôs
+                </Button>
+              </div>
+
+              {historicoView === 'contas' ? (
+                filteredContas(historico).length === 0 ? (
+                  <Card className="p-8 text-center text-slate-500">
+                    <Archive className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+                    Nenhuma conta paga
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredContas(historico).map((conta) => (
+                      <ContaCard
+                        key={conta?.id}
+                        conta={conta}
+                        onEdit={(c) => { setSelectedConta(c); setShowEditModal(true); }}
+                        onDelete={(c) => { setContaToDelete(c); setShowDeleteDialog(true); }}
+                        onQuickPay={handleQuickPay}
+                      />
+                    ))}
+                  </div>
+                )
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredContas(historico).map((conta) => (
-                    <ContaCard
-                      key={conta?.id}
-                      conta={conta}
-                      onEdit={(c) => { setSelectedConta(c); setShowEditModal(true); }}
-                      onDelete={(c) => { setContaToDelete(c); setShowDeleteDialog(true); }}
-                      onQuickPay={handleQuickPay}
-                    />
-                  ))}
-                </div>
+                borderos.length === 0 ? (
+                  <Card className="p-8 text-center text-slate-500">
+                    <Archive className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+                    Nenhum borderô encontrado
+                  </Card>
+                ) : (
+                  <div className="space-y-3">
+                    {borderos.map((bordero, idx) => (
+                      <Card key={idx} className="p-4">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <h3 className="font-bold text-slate-800">{bordero.fornecedor_nome}</h3>
+                            <p className="text-sm text-slate-500">
+                              Pago em: {bordero.data_pagamento ? format(parseISO(bordero.data_pagamento), "dd/MM/yyyy", { locale: ptBR }) : '-'}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-slate-500">Total Pago</p>
+                            <p className="text-xl font-bold text-green-600">{formatCurrency(bordero.valor_total)}</p>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2 pt-3 border-t">
+                          <p className="text-xs font-semibold text-slate-600">
+                            {bordero.contas.length} {bordero.contas.length === 1 ? 'conta liquidada' : 'contas liquidadas'}:
+                          </p>
+                          {bordero.contas.map((conta, cIdx) => (
+                            <div key={cIdx} className="flex items-center justify-between text-sm bg-slate-50 p-2 rounded">
+                              <span className="text-slate-700">{conta.descricao}</span>
+                              <span className="font-medium">{formatCurrency(conta.valor_pago || conta.valor)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )
               )}
             </TabsContent>
           </Tabs>
