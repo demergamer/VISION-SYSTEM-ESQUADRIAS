@@ -206,19 +206,19 @@ export default function Pagamentos() {
   });
 
   const filteredContas = contas.filter(c =>
-    c.fornecedor_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.descricao?.toLowerCase().includes(searchTerm.toLowerCase())
+    c?.fornecedor_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c?.descricao?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const stats = useMemo(() => {
-    const pendentes = contas.filter(c => c.status === 'pendente');
-    const pagas = contas.filter(c => c.status === 'pago');
-    const futuras = contas.filter(c => c.status === 'futuro');
+    const pendentes = contas.filter(c => c?.status === 'pendente');
+    const pagas = contas.filter(c => c?.status === 'pago');
+    const futuras = contas.filter(c => c?.status === 'futuro');
 
     return {
-      totalPendente: pendentes.reduce((sum, c) => sum + c.valor, 0),
-      totalPago: pagas.reduce((sum, c) => sum + c.valor, 0),
-      totalFuturo: futuras.reduce((sum, c) => sum + c.valor, 0),
+      totalPendente: pendentes.reduce((sum, c) => sum + (c?.valor || 0), 0),
+      totalPago: pagas.reduce((sum, c) => sum + (c?.valor || 0), 0),
+      totalFuturo: futuras.reduce((sum, c) => sum + (c?.valor || 0), 0),
       qtdPendente: pendentes.length
     };
   }, [contas]);
@@ -329,15 +329,15 @@ export default function Pagamentos() {
                     </tr>
                   ) : (
                     filteredContas.map((conta) => {
-                      const statusConfig = getStatusBadge(conta.status);
+                      const statusConfig = getStatusBadge(conta?.status);
                       return (
-                        <tr key={conta.id} className="hover:bg-slate-50">
-                          <td className="p-4"><p className="font-semibold">{conta.fornecedor_nome}</p></td>
-                          <td className="p-4"><p className="text-sm text-slate-600 max-w-xs truncate">{conta.descricao}</p></td>
-                          <td className="p-4"><p className="text-sm">{new Date(conta.data_vencimento).toLocaleDateString('pt-BR')}</p></td>
-                          <td className="p-4"><p className="font-bold text-slate-700">{formatCurrency(conta.valor)}</p></td>
+                        <tr key={conta?.id} className="hover:bg-slate-50">
+                          <td className="p-4"><p className="font-semibold">{conta?.fornecedor_nome || 'Sem nome'}</p></td>
+                          <td className="p-4"><p className="text-sm text-slate-600 max-w-xs truncate">{conta?.descricao || '-'}</p></td>
+                          <td className="p-4"><p className="text-sm">{conta?.data_vencimento ? new Date(conta.data_vencimento).toLocaleDateString('pt-BR') : '-'}</p></td>
+                          <td className="p-4"><p className="font-bold text-slate-700">{formatCurrency(conta?.valor)}</p></td>
                           <td className="p-4">
-                            <Badge className={statusConfig.class}>{statusConfig.label}</Badge>
+                            <Badge className={statusConfig?.class || 'bg-slate-100 text-slate-700'}>{statusConfig?.label || 'N/A'}</Badge>
                           </td>
                           <td className="p-4">
                             <div className="flex justify-end gap-2">
