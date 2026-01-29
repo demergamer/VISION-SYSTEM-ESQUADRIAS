@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import LiquidarContaModal from '@/components/pagamentos/LiquidarContaModal';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -360,6 +361,8 @@ export default function Pagamentos() {
   const [selectedConta, setSelectedConta] = useState(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [contaToDelete, setContaToDelete] = useState(null);
+  const [showLiquidarModal, setShowLiquidarModal] = useState(false);
+  const [contaLiquidar, setContaLiquidar] = useState(null);
 
   const { data: contas = [], isLoading } = useQuery({
     queryKey: ['contasPagar'],
@@ -369,6 +372,16 @@ export default function Pagamentos() {
   const { data: fornecedores = [] } = useQuery({
     queryKey: ['fornecedores'],
     queryFn: () => base44.entities.Fornecedor.list()
+  });
+
+  const { data: cheques = [] } = useQuery({
+    queryKey: ['cheques'],
+    queryFn: () => base44.entities.Cheque.list()
+  });
+
+  const { data: movimentacoesCaixa = [] } = useQuery({
+    queryKey: ['caixaDiario'],
+    queryFn: () => base44.entities.CaixaDiario.list('-created_date')
   });
 
   const createMutation = useMutation({
@@ -404,9 +417,53 @@ export default function Pagamentos() {
   });
 
   const handleQuickPay = (conta) => {
-    setSelectedConta({ ...conta, status: 'pago', data_pagamento: format(new Date(), 'yyyy-MM-dd') });
-    setShowEditModal(true);
+    setContaLiquidar(conta);
+    setShowLiquidarModal(true);
   };
+
+  const liquidarMutation = useMutation({
+    mutationFn: async ({ conta, dadosPagamento }) => {
+      // 1. Atualizar a conta
+      await base44.entities.ContaPagar.update(conta.id, dadosPagamento);
+
+      // 2. Registrar movimentações no caixa (dinheiro)
+      const saldoAtual = movimentacoesCaixa[0]?.saldo_atual || 0;
+      let novoSaldo = saldoAtual;
+
+      for (const fp of dadosPagamento.formas_pagamento) {
+        if (fp.tipo === 'dinheiro' && parseFloat(fp.valor) > 0) {
+          novoSaldo -= parseFloat(fp.valor);
+          await base44.entities.CaixaDiario.create({
+            tipo_operacao: 'saida',
+            valor: parseFloat(fp.valor),
+            saldo_anterior: saldoAtual,
+            saldo_atual: novoSaldo,
+            descricao: `Pagamento a ${conta.fornecedor_nome} - ${conta.descricao}`,
+            data_operacao: new Date().toISOString()
+          });
+        }
+
+        // 3. Atualizar status dos cheques (repasse)
+        if (fp.tipo === 'cheque_terceiro' && fp.cheque_id) {
+          await base44.entities.Cheque.update(fp.cheque_id, {
+            status: 'repassado',
+            fornecedor_repassado_codigo: conta.fornecedor_codigo,
+            fornecedor_repassado_nome: conta.fornecedor_nome,
+            data_repasse: new Date().toISOString()
+          });
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contasPagar'] });
+      queryClient.invalidateQueries({ queryKey: ['caixaDiario'] });
+      queryClient.invalidateQueries({ queryKey: ['cheques'] });
+      setShowLiquidarModal(false);
+      setContaLiquidar(null);
+      toast.success('Pagamento realizado e recibo gerado!');
+    },
+    onError: () => toast.error('Erro ao processar pagamento')
+  });
 
   // Filtros para as abas
   const essaSemana = useMemo(() => {
