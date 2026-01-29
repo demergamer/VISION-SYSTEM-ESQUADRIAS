@@ -27,10 +27,10 @@ export default function ModalContainer({
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className={cn(
-        "max-h-[90vh] overflow-y-auto",
+        "max-h-[90vh] flex flex-col p-0",
         sizeClasses[size]
       )}>
-        <DialogHeader>
+        <DialogHeader className="p-6 pb-0 shrink-0">
           <DialogTitle className="text-xl font-bold text-slate-800">{title}</DialogTitle>
           {description && (
             <DialogDescription className="text-slate-500">
@@ -38,7 +38,7 @@ export default function ModalContainer({
             </DialogDescription>
           )}
         </DialogHeader>
-        <div className="mt-4">
+        <div className="overflow-y-auto flex-1 p-6 pt-4">
           {children}
         </div>
       </DialogContent>

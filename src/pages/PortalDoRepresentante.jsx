@@ -832,9 +832,9 @@ export default function PainelRepresentante() {
         {/* Barra de Ferramentas */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex flex-wrap gap-3">
-            <Button onClick={() => setShowOrcamentoModal(true)} className="gap-2 bg-blue-600 hover:bg-blue-700">
+            <Button onClick={() => setShowOrcamentoModal(true)} className="gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-lg shadow-indigo-200 hover:shadow-xl transition-all duration-300 border-0">
               <FileText className="w-4 h-4" />
-              📄 Orçamento
+              📋 Orçamento
             </Button>
             <Button onClick={() => setShowSolicitarClienteModal(true)} className="gap-2 bg-slate-600 hover:bg-slate-700">
               <UserPlus className="w-4 h-4" />
