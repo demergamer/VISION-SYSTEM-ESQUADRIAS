@@ -70,6 +70,7 @@ import Representation from './pages/Representation';
 import Usuarios from './pages/Usuarios';
 import Welcome from './pages/Welcome';
 import CaixaDiario from './pages/CaixaDiario';
+import AcessoNegado from './pages/AcessoNegado';
 import __Layout from './Layout.jsx';
 
 
@@ -97,6 +98,7 @@ export const PAGES = {
     "Usuarios": Usuarios,
     "Welcome": Welcome,
     "CaixaDiario": CaixaDiario,
+    "AcessoNegado": AcessoNegado,
 }
 
 export const pagesConfig = {
