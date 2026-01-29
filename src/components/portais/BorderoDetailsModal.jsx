@@ -97,7 +97,32 @@ export default function BorderoDetailsModal({ bordero, pedidos, open, onClose })
             {bordero.forma_pagamento && (
               <div className="border border-slate-200 rounded-lg p-4">
                 <p className="text-xs text-slate-600 font-bold uppercase mb-2">Forma de Pagamento</p>
-                <p className="text-sm font-medium text-slate-800">{bordero.forma_pagamento}</p>
+                <p className="text-sm font-medium text-slate-800 whitespace-pre-line">{bordero.forma_pagamento}</p>
+                
+                {/* DETALHES INLINE DOS CHEQUES */}
+                {bordero.forma_pagamento.toLowerCase().includes('cheque') && bordero.cheques_anexos && bordero.cheques_anexos.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-slate-200 space-y-3">
+                    <p className="text-xs text-slate-500 font-bold uppercase">Dados dos Cheques:</p>
+                    {bordero.cheques_anexos.map((cheque, idx) => (
+                      <div key={idx} className="bg-slate-50 rounded-lg p-3 text-sm">
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                          <div>
+                            <span className="text-slate-500">Nº Cheque:</span>
+                            <span className="ml-2 font-semibold text-slate-800">{cheque.numero || '-'}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Banco:</span>
+                            <span className="ml-2 font-medium text-slate-700">{cheque.banco || '-'}</span>
+                          </div>
+                          <div className="col-span-2">
+                            <span className="text-slate-500">Valor:</span>
+                            <span className="ml-2 font-bold text-emerald-600">{formatCurrency(cheque.valor)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
