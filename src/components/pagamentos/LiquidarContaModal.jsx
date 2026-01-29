@@ -24,11 +24,14 @@ export default function LiquidarContaModal({ conta, saldoCaixa, cheques, onConfi
   const [jurosMulta, setJurosMulta] = useState('');
   const [desconto, setDesconto] = useState('');
   const [formasPagamento, setFormasPagamento] = useState([
-    { tipo: 'dinheiro', valor: '', detalhes: '', cheque_id: null }
+    { tipo: 'dinheiro', valor: '', detalhes: '', cheque_id: null, cheques_ids: [] }
   ]);
   const [searchCheque, setSearchCheque] = useState('');
   const [observacao, setObservacao] = useState('');
   const [gerando, setGerando] = useState(false);
+  const [showSeletorCheques, setShowSeletorCheques] = useState(false);
+  const [formaPagamentoIndex, setFormaPagamentoIndex] = useState(null);
+  const [chequesSelecionados, setChequesSelecionados] = useState([]);
 
   const valorOriginal = conta?.valor || 0;
   const jurosMultaNum = parseFloat(jurosMulta) || 0;
@@ -47,7 +50,7 @@ export default function LiquidarContaModal({ conta, saldoCaixa, cheques, onConfi
   }, [cheques, searchCheque]);
 
   const adicionarFormaPagamento = () => {
-    setFormasPagamento([...formasPagamento, { tipo: 'dinheiro', valor: '', detalhes: '', cheque_id: null }]);
+    setFormasPagamento([...formasPagamento, { tipo: 'dinheiro', valor: '', detalhes: '', cheque_id: null, cheques_ids: [] }]);
   };
 
   const removerFormaPagamento = (index) => {
@@ -64,9 +67,44 @@ export default function LiquidarContaModal({ conta, saldoCaixa, cheques, onConfi
     if (campo === 'tipo') {
       novasFormas[index].detalhes = '';
       novasFormas[index].cheque_id = null;
+      novasFormas[index].cheques_ids = [];
     }
     
     setFormasPagamento(novasFormas);
+  };
+
+  const abrirSeletorCheques = (index) => {
+    setFormaPagamentoIndex(index);
+    setChequesSelecionados([]);
+    setShowSeletorCheques(true);
+  };
+
+  const toggleCheque = (chequeId) => {
+    setChequesSelecionados(prev => 
+      prev.includes(chequeId) 
+        ? prev.filter(id => id !== chequeId)
+        : [...prev, chequeId]
+    );
+  };
+
+  const confirmarSelecaoCheques = () => {
+    if (formaPagamentoIndex === null) return;
+
+    const chequesSelecionadosData = cheques.filter(c => chequesSelecionados.includes(c.id));
+    const valorTotal = chequesSelecionadosData.reduce((sum, c) => sum + (c.valor || 0), 0);
+    const detalhes = chequesSelecionadosData.map(c => 
+      `Cheque ${c.banco} Nº ${c.numero_cheque} (${c.emitente})`
+    ).join(', ');
+
+    const novasFormas = [...formasPagamento];
+    novasFormas[formaPagamentoIndex].cheques_ids = chequesSelecionados;
+    novasFormas[formaPagamentoIndex].valor = valorTotal;
+    novasFormas[formaPagamentoIndex].detalhes = detalhes;
+    
+    setFormasPagamento(novasFormas);
+    setShowSeletorCheques(false);
+    setFormaPagamentoIndex(null);
+    setChequesSelecionados([]);
   };
 
   const selecionarCheque = (index, cheque) => {
@@ -262,8 +300,165 @@ export default function LiquidarContaModal({ conta, saldoCaixa, cheques, onConfi
     }
   };
 
+  const chequesDisponiveisParaSeletor = useMemo(() => {
+    return cheques.filter(c => c?.status === 'normal');
+  }, [cheques]);
+
+  const totalChequesSelecionados = useMemo(() => {
+    return chequesDisponiveisParaSeletor
+      .filter(c => chequesSelecionados.includes(c.id))
+      .reduce((sum, c) => sum + (c.valor || 0), 0);
+  }, [chequesDisponiveisParaSeletor, chequesSelecionados]);
+
   return (
-    <div className="space-y-4 max-h-[80vh] overflow-y-auto">
+    <>
+      {/* Modal Seletor de Cheques */}
+      {showSeletorCheques && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="p-4 border-b bg-white sticky top-0 z-10">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-lg">🔍 Selecionar Cheques em Carteira</h3>
+                <Button 
+                  type="button" 
+                  size="icon" 
+                  variant="ghost" 
+                  onClick={() => {
+                    setShowSeletorCheques(false);
+                    setChequesSelecionados([]);
+                  }}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Lista de Cheques */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {chequesDisponiveisParaSeletor.length === 0 ? (
+                <div className="py-12 text-center text-slate-500">
+                  <FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                  <p>Nenhum cheque disponível em carteira</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {chequesDisponiveisParaSeletor.map((cheque) => (
+                    <div
+                      key={cheque.id}
+                      onClick={() => toggleCheque(cheque.id)}
+                      className={cn(
+                        "p-3 rounded-lg border-2 cursor-pointer transition-all hover:shadow-md",
+                        chequesSelecionados.includes(cheque.id)
+                          ? "bg-blue-50 border-blue-400"
+                          : "bg-white border-slate-200 hover:border-blue-300"
+                      )}
+                    >
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          checked={chequesSelecionados.includes(cheque.id)}
+                          onCheckedChange={() => toggleCheque(cheque.id)}
+                          className="mt-1"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="font-mono text-sm font-bold text-slate-800">
+                                {cheque.banco} Nº {cheque.numero_cheque}
+                              </p>
+                              <p className="text-xs text-slate-600 mt-1">
+                                Emitente: {cheque.emitente}
+                              </p>
+                              {cheque.cliente_nome && (
+                                <p className="text-xs text-slate-500">
+                                  Cliente: {cheque.cliente_nome}
+                                </p>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className="text-lg font-bold text-blue-700">
+                                {formatCurrency(cheque.valor)}
+                              </p>
+                              {cheque.data_vencimento && (
+                                <p className="text-xs text-slate-500">
+                                  Venc: {format(new Date(cheque.data_vencimento), 'dd/MM/yy')}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer Sticky com Totais */}
+            <div className="p-4 border-t bg-white sticky bottom-0 z-10">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                  <div>
+                    <p className="text-sm text-slate-600">Selecionados</p>
+                    <p className="text-lg font-bold text-slate-800">
+                      {chequesSelecionados.length} {chequesSelecionados.length === 1 ? 'cheque' : 'cheques'}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-slate-600">Total</p>
+                    <p className="text-2xl font-bold text-blue-700">
+                      {formatCurrency(totalChequesSelecionados)}
+                    </p>
+                  </div>
+                </div>
+
+                {valorFinal > 0 && (
+                  <div className={cn(
+                    "flex items-center justify-between p-2 rounded-lg text-sm",
+                    totalChequesSelecionados >= valorFinal 
+                      ? "bg-green-50 text-green-700" 
+                      : "bg-amber-50 text-amber-700"
+                  )}>
+                    <span className="font-semibold">
+                      {totalChequesSelecionados >= valorFinal ? '✓ Valor suficiente' : 'Falta para quitar:'}
+                    </span>
+                    <span className="font-bold">
+                      {totalChequesSelecionados >= valorFinal 
+                        ? formatCurrency(totalChequesSelecionados - valorFinal)
+                        : formatCurrency(valorFinal - totalChequesSelecionados)}
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => {
+                      setShowSeletorCheques(false);
+                      setChequesSelecionados([]);
+                    }}
+                    className="flex-1"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button 
+                    type="button" 
+                    onClick={confirmarSelecaoCheques}
+                    disabled={chequesSelecionados.length === 0}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700"
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Usar Selecionados
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      <div className="space-y-4 max-h-[80vh] overflow-y-auto">
       {/* Resumo da Conta */}
       <Card className="p-4 bg-blue-50">
         <div className="grid grid-cols-2 gap-3">
@@ -412,40 +607,34 @@ export default function LiquidarContaModal({ conta, saldoCaixa, cheques, onConfi
 
                 {fp.tipo === 'cheque_terceiro' && (
                   <div className="space-y-2">
-                    <Label>Buscar Cheque em Carteira</Label>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <Input
-                        placeholder="Buscar por número, banco ou titular..."
-                        value={searchCheque}
-                        onChange={(e) => setSearchCheque(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
-                    {searchCheque && chequesDisponiveis.length > 0 && (
-                      <div className="max-h-48 overflow-y-auto space-y-2 p-2 bg-white rounded-lg border">
-                        {chequesDisponiveis.map((cheque) => (
-                          <div
-                            key={cheque.id}
-                            onClick={() => selecionarCheque(index, cheque)}
-                            className="p-2 hover:bg-blue-50 rounded-lg cursor-pointer border"
+                    <Button 
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => abrirSeletorCheques(index)}
+                      className="w-full gap-2"
+                    >
+                      <Search className="w-4 h-4" />
+                      🔍 Selecionar Cheques em Carteira
+                    </Button>
+                    
+                    {fp.cheques_ids && fp.cheques_ids.length > 0 && (
+                      <div className="p-3 bg-green-50 border border-green-200 rounded-lg space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-green-700 font-semibold">
+                            ✓ {fp.cheques_ids.length} {fp.cheques_ids.length === 1 ? 'cheque selecionado' : 'cheques selecionados'}
+                          </p>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => abrirSeletorCheques(index)}
+                            className="h-6 text-blue-600"
                           >
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <p className="font-mono text-sm font-medium">
-                                  {cheque.banco} Nº {cheque.numero_cheque}
-                                </p>
-                                <p className="text-xs text-slate-500">{cheque.emitente}</p>
-                              </div>
-                              <span className="font-bold text-blue-600">{formatCurrency(cheque.valor)}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {fp.cheque_id && (
-                      <div className="p-2 bg-green-50 border border-green-200 rounded-lg">
-                        <p className="text-xs text-green-700 font-medium">✓ Cheque selecionado</p>
+                            Editar
+                          </Button>
+                        </div>
+                        <p className="text-xs text-slate-600 line-clamp-2">{fp.detalhes}</p>
                       </div>
                     )}
                   </div>
@@ -543,6 +732,7 @@ export default function LiquidarContaModal({ conta, saldoCaixa, cheques, onConfi
           )}
         </Button>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

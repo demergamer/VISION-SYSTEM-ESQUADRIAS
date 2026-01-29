@@ -654,14 +654,16 @@ export default function Pagamentos() {
           });
         }
 
-        // 3. Atualizar status dos cheques (repasse)
-        if (fp.tipo === 'cheque_terceiro' && fp.cheque_id) {
-          await base44.entities.Cheque.update(fp.cheque_id, {
-            status: 'repassado',
-            fornecedor_repassado_codigo: conta.fornecedor_codigo,
-            fornecedor_repassado_nome: conta.fornecedor_nome,
-            data_repasse: new Date().toISOString()
-          });
+        // 3. Atualizar status dos cheques (repasse) - múltiplos cheques
+        if (fp.tipo === 'cheque_terceiro' && fp.cheques_ids && fp.cheques_ids.length > 0) {
+          for (const chequeId of fp.cheques_ids) {
+            await base44.entities.Cheque.update(chequeId, {
+              status: 'repassado',
+              fornecedor_repassado_codigo: conta.fornecedor_codigo,
+              fornecedor_repassado_nome: conta.fornecedor_nome,
+              data_repasse: new Date().toISOString()
+            });
+          }
         }
       }
     },
