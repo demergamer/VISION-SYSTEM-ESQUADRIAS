@@ -8,17 +8,26 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard, Search, Plus, Edit, Trash2, ArrowLeft, Save, X, Loader2, Upload, CheckCircle, Calendar, DollarSign } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { 
+  CreditCard, Search, Plus, Edit, Trash2, ArrowLeft, Save, X, Loader2, Upload, 
+  CheckCircle, Calendar, DollarSign, Clock, TrendingUp, Archive, Ticket, AlertCircle 
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { toast } from "sonner";
 import ModalContainer from "@/components/modals/ModalContainer";
 import PermissionGuard from "@/components/PermissionGuard";
 import { cn } from "@/lib/utils";
-import { InputCpfCnpj } from "@/components/ui/input-mask";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { format, addMonths, parseISO, isAfter, isBefore, startOfWeek, endOfWeek, isWithinInterval, isPast, isToday } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
+  const [isRecorrente, setIsRecorrente] = useState(conta?.tipo_lancamento === 'recorrente' || false);
+  const [isValorVariavel, setIsValorVariavel] = useState(false);
   const [form, setForm] = useState({
     fornecedor_codigo: conta?.fornecedor_codigo || '',
     fornecedor_nome: conta?.fornecedor_nome || '',
@@ -26,7 +35,10 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
     valor: conta?.valor || '',
     data_vencimento: conta?.data_vencimento || '',
     status: conta?.status || 'pendente',
-    observacao: conta?.observacao || ''
+    observacao: conta?.observacao || '',
+    categoria_financeira: conta?.categoria_financeira || 'fixo',
+    tipo_lancamento: conta?.tipo_lancamento || 'unica',
+    total_parcelas: conta?.total_parcelas || 1
   });
 
   const [comprovante, setComprovante] = useState(null);
@@ -53,17 +65,76 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    
     if (form.status !== 'pendente' && !comprovante && !conta?.comprovante_url) {
       toast.error('Anexe o comprovante de pagamento');
       return;
     }
-    onSave({ ...form, comprovante_url: comprovante || conta?.comprovante_url });
+
+    // Se for conta única
+    if (!isRecorrente) {
+      onSave({ 
+        ...form, 
+        comprovante_url: comprovante || conta?.comprovante_url,
+        tipo_lancamento: 'unica'
+      });
+      return;
+    }
+
+    // Se for recorrente, criar múltiplas parcelas
+    const grupoId = `REC-${Date.now()}`;
+    const valorParcela = parseFloat(form.valor) || 0;
+    const totalParcelas = parseInt(form.total_parcelas) || 1;
+    const dataBase = parseISO(form.data_vencimento);
+
+    const parcelas = [];
+    for (let i = 1; i <= totalParcelas; i++) {
+      const dataVencimento = format(addMonths(dataBase, i - 1), 'yyyy-MM-dd');
+      
+      parcelas.push({
+        ...form,
+        tipo_lancamento: 'recorrente',
+        recorrencia_grupo_id: grupoId,
+        parcela_numero: i,
+        total_parcelas: totalParcelas,
+        valor: (i === 1 || !isValorVariavel) ? valorParcela : 0,
+        status: (i === 1 || !isValorVariavel) ? 'pendente' : 'pendente_preenchimento',
+        data_vencimento: dataVencimento,
+        comprovante_url: comprovante || conta?.comprovante_url
+      });
+    }
+
+    try {
+      await base44.entities.ContaPagar.bulkCreate(parcelas);
+      toast.success(`${totalParcelas} parcelas criadas!`);
+      onCancel();
+    } catch (error) {
+      toast.error('Erro ao criar recorrência');
+    }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+        <div className="flex items-center gap-3">
+          <Switch
+            checked={isRecorrente}
+            onCheckedChange={setIsRecorrente}
+            id="recorrente-toggle"
+          />
+          <Label htmlFor="recorrente-toggle" className="cursor-pointer font-semibold">
+            Lançamento Recorrente
+          </Label>
+        </div>
+        {isRecorrente && (
+          <Badge className="bg-blue-100 text-blue-700">
+            {form.total_parcelas || 1}x
+          </Badge>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Fornecedor *</Label>
@@ -76,8 +147,22 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
             </SelectContent>
           </Select>
         </div>
+
         <div className="space-y-2">
-          <Label>Valor (R$) *</Label>
+          <Label>Categoria *</Label>
+          <Select value={form.categoria_financeira} onValueChange={(v) => setForm({ ...form, categoria_financeira: v })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="fixo">💼 Fixo</SelectItem>
+              <SelectItem value="variavel">⚡ Variável</SelectItem>
+              <SelectItem value="investimento">📈 Investimento</SelectItem>
+              <SelectItem value="vale">🎟️ Vale</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Valor (R$) {isRecorrente && isValorVariavel ? '(1ª Parcela)' : '*'}</Label>
           <Input
             type="number"
             step="0.01"
@@ -86,8 +171,9 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
             required
           />
         </div>
+
         <div className="space-y-2">
-          <Label>Data de Vencimento *</Label>
+          <Label>Data de Vencimento {isRecorrente ? '(1ª Parcela)' : '*'}</Label>
           <Input
             type="date"
             value={form.data_vencimento}
@@ -95,17 +181,42 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
             required
           />
         </div>
-        <div className="space-y-2">
-          <Label>Status</Label>
-          <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="pendente">Pendente</SelectItem>
-              <SelectItem value="pago">Pago</SelectItem>
-              <SelectItem value="futuro">Futuro</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+
+        {isRecorrente && (
+          <>
+            <div className="space-y-2">
+              <Label>Quantidade de Parcelas *</Label>
+              <Input
+                type="number"
+                min="2"
+                max="60"
+                value={form.total_parcelas}
+                onChange={(e) => setForm({ ...form, total_parcelas: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="space-y-3 md:col-span-2 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  checked={isValorVariavel}
+                  onCheckedChange={setIsValorVariavel}
+                  id="valor-variavel"
+                  className="mt-1"
+                />
+                <div className="flex-1">
+                  <Label htmlFor="valor-variavel" className="cursor-pointer font-semibold text-amber-900">
+                    Valor Variável (A definir mês a mês)
+                  </Label>
+                  <p className="text-xs text-amber-700 mt-1">
+                    Ideal para contas como Luz e Água. As parcelas 2 a {form.total_parcelas || 2} serão criadas com valor R$ 0,00.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
         <div className="space-y-2 md:col-span-2">
           <Label>Descrição *</Label>
           <Textarea
@@ -116,6 +227,7 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
             required
           />
         </div>
+
         <div className="space-y-2 md:col-span-2">
           <Label>Observações</Label>
           <Textarea
@@ -126,7 +238,7 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
         </div>
       </div>
 
-      {form.status !== 'pendente' && (
+      {!isRecorrente && form.status !== 'pendente' && (
         <div className="space-y-2">
           <Label>Comprovante de Pagamento *</Label>
           <label className={cn(
@@ -147,10 +259,96 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
         </Button>
         <Button type="submit" disabled={isLoading}>
           {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-          Salvar
+          {isRecorrente ? 'Criar Recorrência' : 'Salvar'}
         </Button>
       </div>
     </form>
+  );
+}
+
+function ContaCard({ conta, onEdit, onDelete, onQuickPay }) {
+  const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
+  
+  const getStatusBadge = (status) => {
+    const config = {
+      pendente: { label: 'Pendente', class: 'bg-yellow-100 text-yellow-700', icon: Clock },
+      pago: { label: 'Pago', class: 'bg-green-100 text-green-700', icon: CheckCircle },
+      futuro: { label: 'Futuro', class: 'bg-blue-100 text-blue-700', icon: Calendar },
+      pendente_preenchimento: { label: 'A Definir', class: 'bg-orange-100 text-orange-700', icon: AlertCircle }
+    };
+    return config[status] || config.pendente;
+  };
+
+  const statusConfig = getStatusBadge(conta?.status);
+  const StatusIcon = statusConfig.icon;
+  
+  const isAtrasada = conta?.status === 'pendente' && conta?.data_vencimento && isPast(parseISO(conta.data_vencimento)) && !isToday(parseISO(conta.data_vencimento));
+  const isHoje = conta?.data_vencimento && isToday(parseISO(conta.data_vencimento));
+
+  return (
+    <Card className={cn(
+      "p-4 hover:shadow-lg transition-all",
+      isAtrasada && "border-red-300 bg-red-50",
+      isHoje && "border-amber-300 bg-amber-50"
+    )}>
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="font-semibold text-slate-800">{conta?.fornecedor_nome}</h3>
+            {conta?.tipo_lancamento === 'recorrente' && (
+              <Badge className="bg-purple-100 text-purple-700 text-xs">
+                {conta.parcela_numero}/{conta.total_parcelas}
+              </Badge>
+            )}
+          </div>
+          <p className="text-sm text-slate-600 truncate">{conta?.descricao}</p>
+        </div>
+        <Badge className={statusConfig.class}>
+          <StatusIcon className="w-3 h-3 mr-1" />
+          {statusConfig.label}
+        </Badge>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div>
+          <p className="text-xs text-slate-500">Vencimento</p>
+          <p className="font-medium text-sm">
+            {conta?.data_vencimento ? format(parseISO(conta.data_vencimento), "dd/MM/yyyy", { locale: ptBR }) : '-'}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-slate-500">Valor</p>
+          <p className="font-bold text-lg text-slate-800">{formatCurrency(conta?.valor)}</p>
+        </div>
+      </div>
+
+      {isAtrasada && (
+        <div className="mb-3 p-2 bg-red-100 border border-red-300 rounded-lg">
+          <p className="text-xs font-semibold text-red-700">⚠️ ATRASADA</p>
+        </div>
+      )}
+
+      {isHoje && (
+        <div className="mb-3 p-2 bg-amber-100 border border-amber-300 rounded-lg">
+          <p className="text-xs font-semibold text-amber-700">🔔 VENCE HOJE</p>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        {conta?.status === 'pendente' && (
+          <Button size="sm" className="flex-1" onClick={() => onQuickPay(conta)}>
+            <CheckCircle className="w-4 h-4 mr-2" />
+            Pagar
+          </Button>
+        )}
+        <Button size="sm" variant="outline" onClick={() => onEdit(conta)}>
+          <Edit className="w-4 h-4" />
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => onDelete(conta)} className="text-red-600">
+          <Trash2 className="w-4 h-4" />
+        </Button>
+      </div>
+    </Card>
   );
 }
 
@@ -205,13 +403,49 @@ export default function Pagamentos() {
     onError: () => toast.error('Erro ao excluir')
   });
 
-  const filteredContas = contas.filter(c =>
-    c?.fornecedor_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c?.descricao?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleQuickPay = (conta) => {
+    setSelectedConta({ ...conta, status: 'pago', data_pagamento: format(new Date(), 'yyyy-MM-dd') });
+    setShowEditModal(true);
+  };
+
+  // Filtros para as abas
+  const essaSemana = useMemo(() => {
+    const now = new Date();
+    const inicio = startOfWeek(now, { weekStartsOn: 0 });
+    const fim = endOfWeek(now, { weekStartsOn: 0 });
+
+    return contas.filter(c => 
+      c?.status !== 'pago' && 
+      c?.data_vencimento && 
+      isWithinInterval(parseISO(c.data_vencimento), { start: inicio, end: fim })
+    ).sort((a, b) => {
+      const dateA = parseISO(a.data_vencimento);
+      const dateB = parseISO(b.data_vencimento);
+      return dateA - dateB;
+    });
+  }, [contas]);
+
+  const futuras = useMemo(() => {
+    const now = new Date();
+    const fimSemana = endOfWeek(now, { weekStartsOn: 0 });
+
+    return contas.filter(c => 
+      c?.status !== 'pago' && 
+      c?.data_vencimento && 
+      isAfter(parseISO(c.data_vencimento), fimSemana)
+    );
+  }, [contas]);
+
+  const vales = useMemo(() => {
+    return contas.filter(c => c?.categoria_financeira === 'vale' && c?.status === 'pendente');
+  }, [contas]);
+
+  const historico = useMemo(() => {
+    return contas.filter(c => c?.status === 'pago');
+  }, [contas]);
 
   const stats = useMemo(() => {
-    const pendentes = contas.filter(c => c?.status === 'pendente');
+    const pendentes = contas.filter(c => c?.status === 'pendente' || c?.status === 'pendente_preenchimento');
     const pagas = contas.filter(c => c?.status === 'pago');
     const futuras = contas.filter(c => c?.status === 'futuro');
 
@@ -225,14 +459,10 @@ export default function Pagamentos() {
 
   const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
-  const getStatusBadge = (status) => {
-    const config = {
-      pendente: { label: 'Pendente', class: 'bg-yellow-100 text-yellow-700' },
-      pago: { label: 'Pago', class: 'bg-green-100 text-green-700' },
-      futuro: { label: 'Futuro', class: 'bg-blue-100 text-blue-700' }
-    };
-    return config[status] || config.pendente;
-  };
+  const filteredContas = (lista) => lista.filter(c =>
+    c?.fornecedor_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c?.descricao?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <PermissionGuard setor="ChequesPagar">
@@ -246,8 +476,8 @@ export default function Pagamentos() {
                 </Button>
               </Link>
               <div>
-                <h1 className="text-3xl font-bold text-slate-800">Pagamentos</h1>
-                <p className="text-slate-500 mt-1">Gestão de contas a pagar e fornecedores</p>
+                <h1 className="text-3xl font-bold text-slate-800">Contas a Pagar</h1>
+                <p className="text-slate-500 mt-1">Dashboard com recorrência e vales</p>
               </div>
             </div>
             <Button onClick={() => setShowAddModal(true)} className="gap-2">
@@ -293,72 +523,129 @@ export default function Pagamentos() {
             </Card>
           </div>
 
-          <Card className="overflow-hidden">
-            <div className="p-4 border-b bg-white">
-              <div className="relative max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <Input
-                  placeholder="Buscar por fornecedor ou descrição..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-slate-50 border-b">
-                  <tr>
-                    <th className="text-left p-4 text-sm font-medium text-slate-600">Fornecedor</th>
-                    <th className="text-left p-4 text-sm font-medium text-slate-600">Descrição</th>
-                    <th className="text-left p-4 text-sm font-medium text-slate-600">Vencimento</th>
-                    <th className="text-left p-4 text-sm font-medium text-slate-600">Valor</th>
-                    <th className="text-left p-4 text-sm font-medium text-slate-600">Status</th>
-                    <th className="text-right p-4 text-sm font-medium text-slate-600">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {isLoading ? (
-                    <tr>
-                      <td colSpan="6" className="p-8 text-center text-slate-500">Carregando...</td>
-                    </tr>
-                  ) : filteredContas.length === 0 ? (
-                    <tr>
-                      <td colSpan="6" className="p-8 text-center text-slate-500">Nenhuma conta encontrada</td>
-                    </tr>
-                  ) : (
-                    filteredContas.map((conta) => {
-                      const statusConfig = getStatusBadge(conta?.status);
-                      return (
-                        <tr key={conta?.id} className="hover:bg-slate-50">
-                          <td className="p-4"><p className="font-semibold">{conta?.fornecedor_nome || 'Sem nome'}</p></td>
-                          <td className="p-4"><p className="text-sm text-slate-600 max-w-xs truncate">{conta?.descricao || '-'}</p></td>
-                          <td className="p-4"><p className="text-sm">{conta?.data_vencimento ? new Date(conta.data_vencimento).toLocaleDateString('pt-BR') : '-'}</p></td>
-                          <td className="p-4"><p className="font-bold text-slate-700">{formatCurrency(conta?.valor)}</p></td>
-                          <td className="p-4">
-                            <Badge className={statusConfig?.class || 'bg-slate-100 text-slate-700'}>{statusConfig?.label || 'N/A'}</Badge>
-                          </td>
-                          <td className="p-4">
-                            <div className="flex justify-end gap-2">
-                              <Button variant="ghost" size="sm" onClick={() => { setSelectedConta(conta); setShowEditModal(true); }}>
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => { setContaToDelete(conta); setShowDeleteDialog(true); }} className="text-red-600 hover:text-red-700">
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+          <Card className="p-4">
+            <div className="relative max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                placeholder="Buscar por fornecedor ou descrição..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
             </div>
           </Card>
 
-          <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Nova Conta a Pagar" description="Cadastre uma nova conta">
+          <Tabs defaultValue="semana" className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="semana" className="gap-2">
+                <Calendar className="w-4 h-4" />
+                Essa Semana ({essaSemana.length})
+              </TabsTrigger>
+              <TabsTrigger value="futuras" className="gap-2">
+                <TrendingUp className="w-4 h-4" />
+                Futuras ({futuras.length})
+              </TabsTrigger>
+              <TabsTrigger value="vales" className="gap-2">
+                <Ticket className="w-4 h-4" />
+                Vales ({vales.length})
+              </TabsTrigger>
+              <TabsTrigger value="historico" className="gap-2">
+                <Archive className="w-4 h-4" />
+                Histórico ({historico.length})
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="semana" className="mt-6">
+              {isLoading ? (
+                <Card className="p-8 text-center text-slate-500">
+                  <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
+                  Carregando...
+                </Card>
+              ) : filteredContas(essaSemana).length === 0 ? (
+                <Card className="p-8 text-center text-slate-500">
+                  <Calendar className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+                  Nenhuma conta para essa semana
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredContas(essaSemana).map((conta) => (
+                    <ContaCard
+                      key={conta?.id}
+                      conta={conta}
+                      onEdit={(c) => { setSelectedConta(c); setShowEditModal(true); }}
+                      onDelete={(c) => { setContaToDelete(c); setShowDeleteDialog(true); }}
+                      onQuickPay={handleQuickPay}
+                    />
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="futuras" className="mt-6">
+              {filteredContas(futuras).length === 0 ? (
+                <Card className="p-8 text-center text-slate-500">
+                  <TrendingUp className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+                  Nenhuma conta futura
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredContas(futuras).map((conta) => (
+                    <ContaCard
+                      key={conta?.id}
+                      conta={conta}
+                      onEdit={(c) => { setSelectedConta(c); setShowEditModal(true); }}
+                      onDelete={(c) => { setContaToDelete(c); setShowDeleteDialog(true); }}
+                      onQuickPay={handleQuickPay}
+                    />
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="vales" className="mt-6">
+              {filteredContas(vales).length === 0 ? (
+                <Card className="p-8 text-center text-slate-500">
+                  <Ticket className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+                  Nenhum vale em aberto
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredContas(vales).map((conta) => (
+                    <ContaCard
+                      key={conta?.id}
+                      conta={conta}
+                      onEdit={(c) => { setSelectedConta(c); setShowEditModal(true); }}
+                      onDelete={(c) => { setContaToDelete(c); setShowDeleteDialog(true); }}
+                      onQuickPay={handleQuickPay}
+                    />
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="historico" className="mt-6">
+              {filteredContas(historico).length === 0 ? (
+                <Card className="p-8 text-center text-slate-500">
+                  <Archive className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+                  Nenhuma conta paga
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredContas(historico).map((conta) => (
+                    <ContaCard
+                      key={conta?.id}
+                      conta={conta}
+                      onEdit={(c) => { setSelectedConta(c); setShowEditModal(true); }}
+                      onDelete={(c) => { setContaToDelete(c); setShowDeleteDialog(true); }}
+                      onQuickPay={handleQuickPay}
+                    />
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+
+          <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Nova Conta a Pagar" description="Cadastre uma nova conta ou crie recorrência" size="lg">
             <ContaPagarForm
               fornecedores={fornecedores}
               onSave={(data) => createMutation.mutate(data)}
