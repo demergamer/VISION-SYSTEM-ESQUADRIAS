@@ -199,6 +199,7 @@ export default function ClienteDetailsModal({ cliente, pedidos = [], cheques = [
               ) : (
                 <p className="text-sm text-slate-500">Nenhuma forma de pagamento configurada</p>
               )}
+            </div>
           </div>
         </ScrollArea>
       </DialogContent>
