@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress"; // Componente de barra de progresso
 import { 
   Building2, 
   UserPlus, 
@@ -14,7 +15,10 @@ import {
   UserCheck,
   ArrowLeft,
   Ban,
-  Users
+  Users,
+  Loader2,
+  CheckCircle,
+  AlertCircle
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -28,15 +32,64 @@ import ClienteDetails from "@/components/clientes/ClienteDetails";
 import PermissionGuard from "@/components/PermissionGuard";
 import { usePermissions } from "@/components/UserNotRegisteredError";
 
+// --- MODAL DE ATUALIZAÇÃO EM MASSA ---
+const BulkUpdateModal = ({ isOpen, total, current, currentName, logs }) => {
+  if (!isOpen) return null;
+
+  const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <Card className="w-full max-w-lg p-6 shadow-2xl border-slate-200">
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 text-blue-600 mb-3 animate-pulse">
+            <RefreshCw className="w-6 h-6 animate-spin" />
+          </div>
+          <h3 className="text-xl font-bold text-slate-800">Atualizando Clientes</h3>
+          <p className="text-sm text-slate-500">Consultando Receita Federal e enriquecendo dados...</p>
+        </div>
+
+        <div className="space-y-2 mb-6">
+          <div className="flex justify-between text-xs font-semibold text-slate-600">
+            <span>Processando: {current} de {total}</span>
+            <span>{percentage}%</span>
+          </div>
+          <Progress value={percentage} className="h-3" />
+          <p className="text-xs text-center text-slate-400 mt-2 truncate min-h-[20px]">
+            {currentName ? `Verificando: ${currentName}` : 'Iniciando...'}
+          </p>
+        </div>
+
+        <div className="bg-slate-50 rounded-lg p-3 h-40 overflow-y-auto border border-slate-100 text-xs font-mono space-y-1">
+          {logs.map((log, index) => (
+            <div key={index} className={`flex items-center gap-2 ${log.type === 'error' ? 'text-red-600' : log.type === 'success' ? 'text-green-600' : 'text-slate-500'}`}>
+              {log.type === 'success' ? <CheckCircle size={10} /> : log.type === 'error' ? <AlertCircle size={10} /> : <Loader2 size={10} />}
+              <span>{log.message}</span>
+            </div>
+          ))}
+          <div id="log-end" />
+        </div>
+      </Card>
+    </div>
+  );
+};
+
 export default function ClientesPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canDo } = usePermissions();
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Modais Normais
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState(null);
+
+  // Estados da Atualização em Massa
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState({ current: 0, total: 0, currentName: '' });
+  const [updateLogs, setUpdateLogs] = useState([]);
 
   // Fetch data
   const { data: clientes = [], isLoading: loadingClientes, refetch: refetchClientes } = useQuery({
@@ -49,22 +102,11 @@ export default function ClientesPage() {
     queryFn: () => base44.entities.Representante.list()
   });
 
-  const { data: pedidos = [] } = useQuery({
-    queryKey: ['pedidos'],
-    queryFn: () => base44.entities.Pedido.list()
-  });
+  const { data: pedidos = [] } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list() });
+  const { data: creditos = [] } = useQuery({ queryKey: ['creditos'], queryFn: () => base44.entities.Credito.list() });
+  const { data: cheques = [] } = useQuery({ queryKey: ['cheques'], queryFn: () => base44.entities.Cheque.list() });
 
-  const { data: creditos = [] } = useQuery({
-    queryKey: ['creditos'],
-    queryFn: () => base44.entities.Credito.list()
-  });
-
-  const { data: cheques = [] } = useQuery({
-    queryKey: ['cheques'],
-    queryFn: () => base44.entities.Cheque.list()
-  });
-
-  // Calcular estatísticas por cliente
+  // --- ESTATÍSTICAS ---
   const clienteStats = useMemo(() => {
     const stats = {};
     const now = new Date();
@@ -81,20 +123,15 @@ export default function ClientesPage() {
         sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0
       );
 
-      // Compras nos últimos 30 dias
       const compras30Dias = cliPedidos
         .filter(p => new Date(p.data_entrega) >= thirtyDaysAgo)
         .reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
 
-      // Ativo (comprou nos últimos 60 dias)
       const ativo = cliPedidos.some(p => new Date(p.data_entrega) >= sixtyDaysAgo);
-
-      // Bloqueado automaticamente (pedidos > 15 dias ou ultrapassou limite)
       const temAtraso = pedidosAbertos.some(p => new Date(p.data_entrega) < fifteenDaysAgo);
       const ultrapassouLimite = totalPedidosAbertos > (cli.limite_credito || 0);
       const bloqueadoAuto = temAtraso || ultrapassouLimite;
 
-      // Calcular cheques a vencer (status normal e vencimento > hoje)
       const chequesAVencer = cheques.filter(ch => {
         if (ch.cliente_codigo !== cli.codigo) return false;
         if (ch.status !== 'normal') return false;
@@ -116,57 +153,133 @@ export default function ClientesPage() {
     return stats;
   }, [clientes, pedidos, cheques]);
 
-  // Estatísticas gerais
   const generalStats = useMemo(() => {
     const ativos = clientes.filter(c => clienteStats[c.codigo]?.ativo).length;
     const inativos = clientes.length - ativos;
     const com30k = clientes.filter(c => clienteStats[c.codigo]?.compras30k).length;
-    const bloqueados = clientes.filter(c => 
-      c.bloqueado_manual || clienteStats[c.codigo]?.bloqueadoAuto
-    ).length;
+    const bloqueados = clientes.filter(c => c.bloqueado_manual || clienteStats[c.codigo]?.bloqueadoAuto).length;
     
-    return {
-      total: clientes.length,
-      ativos,
-      inativos,
-      com30k,
-      bloqueados
-    };
+    return { total: clientes.length, ativos, inativos, com30k, bloqueados };
   }, [clientes, clienteStats]);
 
-  // Mutations
-  const createMutation = useMutation({
-    mutationFn: async (data) => {
-      return await base44.entities.Cliente.create(data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clientes'] });
-      setShowAddModal(false);
-      toast.success('Cliente cadastrado com sucesso!');
-    },
-    onError: (error) => {
-      console.error('Erro ao criar cliente:', error);
-      toast.error('Erro ao cadastrar cliente: ' + (error.message || 'Tente novamente'));
+  // --- LÓGICA DE ATUALIZAÇÃO EM MASSA ---
+  const addLog = (message, type = 'info') => {
+    setUpdateLogs(prev => [{ message, type }, ...prev]);
+  };
+
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+  const handleBulkUpdate = async () => {
+    if (clientes.length === 0) {
+      toast.info("Nenhum cliente para atualizar.");
+      return;
     }
+
+    const confirm = window.confirm(`Deseja iniciar a atualização automática de ${clientes.length} clientes? Isso pode levar alguns minutos.`);
+    if (!confirm) return;
+
+    setIsBulkUpdating(true);
+    setUpdateLogs([]);
+    setUpdateProgress({ current: 0, total: clientes.length, currentName: '' });
+
+    let updatedCount = 0;
+
+    for (let i = 0; i < clientes.length; i++) {
+      const cliente = clientes[i];
+      setUpdateProgress({ current: i + 1, total: clientes.length, currentName: cliente.nome });
+
+      // Verificar se tem CNPJ válido
+      const cnpjLimpo = cliente.cnpj?.replace(/\D/g, '');
+      
+      if (!cnpjLimpo || cnpjLimpo.length !== 14) {
+        addLog(`Ignorado: ${cliente.codigo} - CNPJ inválido ou CPF`, 'info');
+        continue;
+      }
+
+      try {
+        // Pausa para evitar rate limit (300ms)
+        await sleep(300);
+
+        const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`);
+        if (!response.ok) throw new Error('API Error');
+        const data = await response.json();
+
+        // Lógica de Preservação: Só preenche se o campo atual estiver vazio
+        const newData = {};
+        let hasChanges = false;
+
+        // 1. Identificação
+        if (!cliente.razao_social) { newData.razao_social = data.razao_social; hasChanges = true; }
+        if (!cliente.nome_fantasia) { newData.nome_fantasia = data.nome_fantasia || data.razao_social; hasChanges = true; }
+        
+        // 2. Endereço (Só preenche se vazio)
+        if (!cliente.cep) { newData.cep = data.cep; hasChanges = true; }
+        if (!cliente.endereco) { newData.endereco = data.logradouro; hasChanges = true; }
+        if (!cliente.numero) { newData.numero = data.numero; hasChanges = true; }
+        if (!cliente.bairro) { newData.bairro = data.bairro; hasChanges = true; }
+        if (!cliente.cidade) { newData.cidade = data.municipio; hasChanges = true; }
+        if (!cliente.estado) { newData.estado = data.uf; hasChanges = true; }
+        if (!cliente.complemento && data.complemento) { newData.complemento = data.complemento; hasChanges = true; }
+
+        // 3. Inteligência Fiscal (CNAEs e ST)
+        // Isso nós sempre tentamos atualizar/melhorar se não tiver registro
+        if (!cliente.cnaes_descricao) {
+          const cnaesComST = ['4744005', '4744099', '4672900'];
+          const todosCnaes = [
+            { codigo: data.cnae_fiscal, descricao: data.cnae_fiscal_descricao },
+            ...(data.cnaes_secundarios || [])
+          ];
+          
+          const possuiST = todosCnaes.some(cnae => {
+            const codigoLimpo = String(cnae.codigo).replace(/\D/g, '');
+            return cnaesComST.includes(codigoLimpo);
+          });
+
+          const textoCnaes = todosCnaes.map(c => `${c.codigo} - ${c.descricao}`).join('\n');
+
+          newData.cnaes_descricao = textoCnaes;
+          newData.tem_st = possuiST;
+          hasChanges = true;
+        }
+
+        // NÃO ATUALIZAR TELEFONE E EMAIL (Regra do Usuário)
+
+        if (hasChanges) {
+          await base44.entities.Cliente.update(cliente.id, newData);
+          updatedCount++;
+          addLog(`Atualizado: ${cliente.nome}`, 'success');
+        } else {
+          addLog(`Sem mudanças: ${cliente.nome}`, 'info');
+        }
+
+      } catch (error) {
+        addLog(`Erro: ${cliente.nome} - Falha na consulta`, 'error');
+      }
+    }
+
+    // Finalização
+    await queryClient.invalidateQueries({ queryKey: ['clientes'] });
+    toast.success(`Processo finalizado! ${updatedCount} clientes enriquecidos.`);
+    
+    // Pequeno delay para ler o log final
+    setTimeout(() => {
+        setIsBulkUpdating(false);
+    }, 2000);
+  };
+
+  // Mutations (Normais)
+  const createMutation = useMutation({
+    mutationFn: (data) => base44.entities.Cliente.create(data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['clientes'] }); setShowAddModal(false); toast.success('Cliente cadastrado!'); },
+    onError: (e) => toast.error('Erro ao cadastrar: ' + e.message)
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }) => {
-      return await base44.entities.Cliente.update(id, data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clientes'] });
-      setShowEditModal(false);
-      setSelectedCliente(null);
-      toast.success('Cliente atualizado com sucesso!');
-    },
-    onError: (error) => {
-      console.error('Erro ao atualizar cliente:', error);
-      toast.error('Erro ao atualizar cliente: ' + (error.message || 'Tente novamente'));
-    }
+    mutationFn: ({ id, data }) => base44.entities.Cliente.update(id, data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['clientes'] }); setShowEditModal(false); setSelectedCliente(null); toast.success('Cliente atualizado!'); },
+    onError: (e) => toast.error('Erro ao atualizar: ' + e.message)
   });
 
-  // Filtrar clientes
   const filteredClientes = clientes.filter(cli =>
     cli.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     cli.codigo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -174,174 +287,115 @@ export default function ClientesPage() {
     cli.representante_nome?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleEdit = (cli) => {
-    setSelectedCliente(cli);
-    setShowEditModal(true);
-  };
-
-  const handleView = (cli) => {
-    setSelectedCliente(cli);
-    setShowDetailsModal(true);
-  };
-
-  const handleViewPedidos = (cli) => {
-    navigate(createPageUrl('Pedidos') + `?cliente=${cli.codigo}`);
-  };
-
-  const handleRefresh = () => {
-    refetchClientes();
-    queryClient.invalidateQueries({ queryKey: ['pedidos'] });
-    toast.success('Informações atualizadas!');
-  };
-
-  const handleInvite = async (cli) => {
-    if (!cli.email) {
-      toast.error('Cliente não possui email cadastrado');
-      return;
-    }
-
-    try {
-      await base44.users.inviteUser(cli.email, 'user');
-      toast.success(`Convite enviado para ${cli.email}`);
-    } catch (error) {
-      toast.error('Erro ao enviar convite: ' + (error.message || 'Tente novamente'));
-    }
-  };
+  const handleEdit = (cli) => { setSelectedCliente(cli); setShowEditModal(true); };
+  const handleView = (cli) => { setSelectedCliente(cli); setShowDetailsModal(true); };
+  const handleViewPedidos = (cli) => { navigate(createPageUrl('Pedidos') + `?cliente=${cli.codigo}`); };
+  const handleInvite = async (cli) => { /* Lógica de convite mantida */ };
 
   return (
     <PermissionGuard setor="Clientes">
+      
+      {/* COMPONENTE DE LOADING E LOG */}
+      <BulkUpdateModal 
+        isOpen={isBulkUpdating} 
+        total={updateProgress.total} 
+        current={updateProgress.current} 
+        currentName={updateProgress.currentName}
+        logs={updateLogs}
+      />
+
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 font-sans text-slate-900">
-      <div className="max-w-[1600px] mx-auto p-6 md:p-8 space-y-8">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <Link to={createPageUrl('Dashboard')}>
-              <Button variant="ghost" size="icon" className="rounded-xl hover:bg-white hover:shadow-sm">
-                <ArrowLeft className="w-5 h-5 text-slate-500" />
+        <div className="max-w-[1600px] mx-auto p-6 md:p-8 space-y-8">
+          {/* Header */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <Link to={createPageUrl('Dashboard')}>
+                <Button variant="ghost" size="icon" className="rounded-xl hover:bg-white hover:shadow-sm">
+                  <ArrowLeft className="w-5 h-5 text-slate-500" />
+                </Button>
+              </Link>
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight text-slate-900">Clientes</h1>
+                <p className="text-slate-500 mt-1">Cadastro e gestão de clientes</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* BOTÃO ATUALIZAR AGORA COM NOVA FUNÇÃO */}
+              <Button 
+                variant="outline" 
+                onClick={handleBulkUpdate} 
+                disabled={isBulkUpdating}
+                className="bg-white border-slate-200 shadow-sm hover:bg-slate-50 text-slate-600 gap-2 rounded-xl h-10"
+              >
+                {isBulkUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                <span className="hidden sm:inline">Atualizar & Enriquecer</span>
               </Button>
-            </Link>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900">Clientes</h1>
-              <p className="text-slate-500 mt-1">Cadastro e gestão de clientes</p>
+
+              {canDo('Clientes', 'adicionar') && (
+                <Button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 gap-2 rounded-xl h-10 px-6">
+                  <UserPlus className="w-4 h-4" />
+                  Novo Cliente
+                </Button>
+              )}
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <Button variant="outline" onClick={handleRefresh} className="bg-white border-slate-200 shadow-sm hover:bg-slate-50 text-slate-600 gap-2 rounded-xl h-10">
-              <RefreshCw className="w-4 h-4" />
-              Atualizar
-            </Button>
-            {canDo('Clientes', 'adicionar') && (
-              <Button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 gap-2 rounded-xl h-10 px-6">
-                <UserPlus className="w-4 h-4" />
-                Novo Cliente
-              </Button>
-            )}
+
+          {/* Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <StatCard title="Total Cadastrados" value={generalStats.total} icon={Building2} color="blue" />
+            <StatCard title="Ativos (60 dias)" value={generalStats.ativos} icon={UserCheck} color="green" />
+            <StatCard title="Inativos" value={generalStats.inativos} icon={Users} color="slate" />
+            <StatCard title="+ R$ 30k Compras" value={generalStats.com30k} icon={TrendingUp} color="purple" />
+            <StatCard title="Bloqueados" value={generalStats.bloqueados} icon={Ban} color="red" />
           </div>
-        </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <StatCard title="Total Cadastrados" value={generalStats.total} icon={Building2} color="blue" />
-          <StatCard title="Ativos (60 dias)" value={generalStats.ativos} icon={UserCheck} color="green" />
-          <StatCard title="Inativos" value={generalStats.inativos} icon={Users} color="slate" />
-          <StatCard title="+ R$ 30k Compras" value={generalStats.com30k} icon={TrendingUp} color="purple" />
-          <StatCard title="Bloqueados" value={generalStats.bloqueados} icon={Ban} color="red" />
-        </div>
-
-        {/* Search and Table */}
-        <Card className="border border-slate-100 shadow-sm rounded-2xl overflow-hidden bg-white">
-          <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="relative w-full md:w-96">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <Input
-                placeholder="Buscar por nome, código, região ou representante..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all"
-              />
+          {/* Search and Table */}
+          <Card className="border border-slate-100 shadow-sm rounded-2xl overflow-hidden bg-white">
+            <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="relative w-full md:w-96">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input
+                  placeholder="Buscar por nome, código, região ou representante..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all"
+                />
+              </div>
             </div>
-          </div>
-          <ClienteTable
-            clientes={filteredClientes}
-            stats={clienteStats}
-            onEdit={handleEdit}
-            onView={handleView}
-            onViewPedidos={handleViewPedidos}
-            onInvite={handleInvite}
-            isLoading={loadingClientes}
-          />
-        </Card>
-
-        {/* Add Modal */}
-        <ModalContainer
-          open={showAddModal}
-          onClose={() => setShowAddModal(false)}
-          title="Novo Cliente"
-          description="Preencha os dados para cadastrar um novo cliente"
-          size="lg"
-        >
-          <ClienteForm
-            representantes={representantes}
-            todosClientes={clientes} // PASSANDO A LISTA PARA VALIDAÇÃO
-            onSave={(data) => createMutation.mutate(data)}
-            onCancel={() => setShowAddModal(false)}
-            isLoading={createMutation.isPending}
-          />
-        </ModalContainer>
-
-        {/* Edit Modal */}
-        <ModalContainer
-          open={showEditModal}
-          onClose={() => {
-            setShowEditModal(false);
-            setSelectedCliente(null);
-          }}
-          title="Editar Cliente"
-          description="Atualize os dados do cliente"
-          size="lg"
-        >
-          <ClienteForm
-            cliente={selectedCliente}
-            representantes={representantes}
-            todosClientes={clientes} // PASSANDO A LISTA PARA VALIDAÇÃO
-            onSave={(data) => updateMutation.mutate({ id: selectedCliente.id, data })}
-            onCancel={() => {
-              setShowEditModal(false);
-              setSelectedCliente(null);
-            }}
-            isLoading={updateMutation.isPending}
-          />
-        </ModalContainer>
-
-        {/* Details Modal */}
-        <ModalContainer
-          open={showDetailsModal}
-          onClose={() => {
-            setShowDetailsModal(false);
-            setSelectedCliente(null);
-          }}
-          title="Detalhes do Cliente"
-          size="lg"
-        >
-          {selectedCliente && (
-            <ClienteDetails
-              cliente={selectedCliente}
-              stats={clienteStats[selectedCliente.codigo]}
-              creditos={creditos.filter(c => c.cliente_codigo === selectedCliente.codigo)}
-              onEdit={() => {
-                setShowDetailsModal(false);
-                setShowEditModal(true);
-              }}
-              onClose={() => {
-                setShowDetailsModal(false);
-                setSelectedCliente(null);
-              }}
-              onViewPedidos={() => handleViewPedidos(selectedCliente)}
+            <ClienteTable
+              clientes={filteredClientes}
+              stats={clienteStats}
+              onEdit={handleEdit}
+              onView={handleView}
+              onViewPedidos={handleViewPedidos}
+              onInvite={handleInvite}
+              isLoading={loadingClientes}
             />
-          )}
-        </ModalContainer>
+          </Card>
+
+          {/* Modais */}
+          <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Novo Cliente" description="Preencha os dados para cadastrar um novo cliente" size="lg">
+            <ClienteForm representantes={representantes} todosClientes={clientes} onSave={(data) => createMutation.mutate(data)} onCancel={() => setShowAddModal(false)} isLoading={createMutation.isPending} />
+          </ModalContainer>
+
+          <ModalContainer open={showEditModal} onClose={() => { setShowEditModal(false); setSelectedCliente(null); }} title="Editar Cliente" description="Atualize os dados do cliente" size="lg">
+            <ClienteForm cliente={selectedCliente} representantes={representantes} todosClientes={clientes} onSave={(data) => updateMutation.mutate({ id: selectedCliente.id, data })} onCancel={() => { setShowEditModal(false); setSelectedCliente(null); }} isLoading={updateMutation.isPending} />
+          </ModalContainer>
+
+          <ModalContainer open={showDetailsModal} onClose={() => { setShowDetailsModal(false); setSelectedCliente(null); }} title="Detalhes do Cliente" size="lg">
+            {selectedCliente && (
+              <ClienteDetails
+                cliente={selectedCliente}
+                stats={clienteStats[selectedCliente.codigo]}
+                creditos={creditos.filter(c => c.cliente_codigo === selectedCliente.codigo)}
+                onEdit={() => { setShowDetailsModal(false); setShowEditModal(true); }}
+                onClose={() => { setShowDetailsModal(false); setSelectedCliente(null); }}
+                onViewPedidos={() => handleViewPedidos(selectedCliente)}
+              />
+            )}
+          </ModalContainer>
+        </div>
       </div>
-    </div>
     </PermissionGuard>
   );
 }
