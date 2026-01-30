@@ -162,14 +162,14 @@ export default function ClientesPage() {
     return { total: clientes.length, ativos, inativos, com30k, bloqueados };
   }, [clientes, clienteStats]);
 
-  // --- LÓGICA DE ATUALIZAÇÃO EM MASSA ---
+  // --- LÓGICA DE ATUALIZAÇÃO EM MASSA (COM RETRY) ---
   const addLog = (message, type = 'info') => {
     setUpdateLogs(prev => [{ message, type }, ...prev]);
   };
 
   const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-  // Função Recursiva para Processamento com Retry
+  // Função Principal que pode ser chamada recursivamente
   const processBatch = async (batchList, isRetry = false) => {
     if (batchList.length === 0) {
       setIsBulkUpdating(false);
@@ -222,7 +222,7 @@ export default function ClientesPage() {
         if (!cliente.estado) { newData.estado = data.uf; hasChanges = true; }
         if (!cliente.complemento && data.complemento) { newData.complemento = data.complemento; hasChanges = true; }
 
-        // 3. Inteligência Fiscal (CNAEs e ST)
+        // 3. Inteligência Fiscal
         if (!cliente.cnaes_descricao) {
           const cnaesComST = ['4744005', '4744099', '4672900'];
           const todosCnaes = [
@@ -377,13 +377,13 @@ export default function ClientesPage() {
             />
           </Card>
 
-          {/* MODAIS COM TAMANHO AUMENTADO (2xl) */}
+          {/* MUDANÇA PRINCIPAL AQUI: size="3xl" */}
           <ModalContainer 
             open={showAddModal} 
             onClose={() => setShowAddModal(false)} 
             title="Novo Cliente" 
             description="Preencha os dados para cadastrar um novo cliente" 
-            size="2xl" 
+            size="3xl" 
           >
             <ClienteForm representantes={representantes} todosClientes={clientes} onSave={(data) => createMutation.mutate(data)} onCancel={() => setShowAddModal(false)} isLoading={createMutation.isPending} />
           </ModalContainer>
@@ -393,7 +393,7 @@ export default function ClientesPage() {
             onClose={() => { setShowEditModal(false); setSelectedCliente(null); }} 
             title="Editar Cliente" 
             description="Atualize os dados do cliente" 
-            size="2xl"
+            size="3xl"
           >
             <ClienteForm cliente={selectedCliente} representantes={representantes} todosClientes={clientes} onSave={(data) => updateMutation.mutate({ id: selectedCliente.id, data })} onCancel={() => { setShowEditModal(false); setSelectedCliente(null); }} isLoading={updateMutation.isPending} />
           </ModalContainer>
