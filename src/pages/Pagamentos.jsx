@@ -15,7 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { 
   CreditCard, Search, Plus, Edit, Trash2, ArrowLeft, Save, X, Loader2, Upload, 
-  CheckCircle, Calendar, DollarSign, Clock, TrendingUp, Archive, Ticket, AlertCircle 
+  CheckCircle, Calendar, DollarSign, Clock, TrendingUp, Archive, Ticket, AlertCircle, FileText 
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";

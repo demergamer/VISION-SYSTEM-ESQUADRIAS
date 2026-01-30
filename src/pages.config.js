@@ -47,8 +47,10 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
+import AcessoNegado from './pages/AcessoNegado';
 import Balanco from './pages/Balanco';
 import Cadastro from './pages/Cadastro';
+import CaixaDiario from './pages/CaixaDiario';
 import Cheques from './pages/Cheques';
 import Clientes from './pages/Clientes';
 import Comissoes from './pages/Comissoes';
@@ -69,14 +71,14 @@ import Representantes from './pages/Representantes';
 import Representation from './pages/Representation';
 import Usuarios from './pages/Usuarios';
 import Welcome from './pages/Welcome';
-import CaixaDiario from './pages/CaixaDiario';
-import AcessoNegado from './pages/AcessoNegado';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
+    "AcessoNegado": AcessoNegado,
     "Balanco": Balanco,
     "Cadastro": Cadastro,
+    "CaixaDiario": CaixaDiario,
     "Cheques": Cheques,
     "Clientes": Clientes,
     "Comissoes": Comissoes,
@@ -97,8 +99,6 @@ export const PAGES = {
     "Representation": Representation,
     "Usuarios": Usuarios,
     "Welcome": Welcome,
-    "CaixaDiario": CaixaDiario,
-    "AcessoNegado": AcessoNegado,
 }
 
 export const pagesConfig = {
