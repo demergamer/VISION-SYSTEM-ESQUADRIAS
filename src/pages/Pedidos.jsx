@@ -182,7 +182,7 @@ export default function Pedidos() {
 
   // --- STATS ---
   const stats = useMemo(() => {
-    // Lógica para contar pedidos em trânsito: tem rota, não entregue, não cancelado
+    // LÓGICA CORRIGIDA PARA "EM TRÂNSITO": Tem rota E não foi entregue fisicamente
     const transito = pedidos.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado').length;
     const abertos = pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial').length;
     const totalAReceber = pedidos
@@ -298,17 +298,35 @@ export default function Pedidos() {
     }
   };
   
+  // FUNÇÃO ATUALIZADA: Sincronização + Limpeza de Resíduos (< 0.10)
   const handleRefresh = async () => {
     setRefreshingData(true);
-    setRefreshMessage('Sincronizando pedidos e rotas...');
     try {
-        // 1. Buscar dados frescos
+        setRefreshMessage('Buscando dados...');
         const [latestPedidos, latestRotas] = await Promise.all([
             base44.entities.Pedido.list(),
             base44.entities.RotaImportada.list()
         ]);
 
-        // 2. Recalcular Status de Cada Rota
+        // 1. Limpeza de Resíduos (Automaticamente move para Pago se <= 0.10)
+        setRefreshMessage('Analisando resíduos...');
+        let residuosLimpos = 0;
+        const promisesResiduos = latestPedidos
+            .filter(p => (p.status === 'aberto' || p.status === 'parcial') && (p.saldo_restante > 0 && p.saldo_restante <= 0.10))
+            .map(p => {
+                residuosLimpos++;
+                return base44.entities.Pedido.update(p.id, { 
+                    status: 'pago', 
+                    saldo_restante: 0, 
+                    total_pago: p.valor_pedido,
+                    outras_informacoes: (p.outras_informacoes || '') + '\n[AUTO] Baixa automática de resíduo < R$ 0,10'
+                });
+            });
+        
+        await Promise.all(promisesResiduos);
+
+        // 2. Sincronização de Rotas (Recalcular status)
+        setRefreshMessage('Sincronizando rotas...');
         let routesUpdatedCount = 0;
         const updatePromises = latestRotas.map(rota => {
             const pedidosDaRota = latestPedidos.filter(p => p.rota_importada_id === rota.id);
@@ -331,16 +349,18 @@ export default function Pedidos() {
         });
 
         await Promise.all(updatePromises.filter(Boolean));
+
+        // 3. Atualizar tudo na tela
         await Promise.all([refetchPedidos(), refetchRotas(), refetchBorderos(), refetchAutorizacoes()]);
         
-        if (routesUpdatedCount > 0) {
-            toast.success(`Dados atualizados! ${routesUpdatedCount} rotas sincronizadas.`);
-        } else {
-            toast.success('Dados atualizados com sucesso!');
-        }
+        let msg = 'Dados atualizados!';
+        if (residuosLimpos > 0) msg += ` ${residuosLimpos} resíduos baixados.`;
+        if (routesUpdatedCount > 0) msg += ` ${routesUpdatedCount} rotas sincronizadas.`;
+        
+        toast.success(msg);
     } catch (error) {
         console.error(error);
-        toast.error('Erro ao sincronizar dados.');
+        toast.error('Erro ao atualizar dados.');
     } finally {
         setRefreshingData(false);
         setRefreshMessage('Sincronizando dados...');
@@ -410,18 +430,14 @@ export default function Pedidos() {
       setLiquidacaoView('bordero');
   };
 
-  // NOVA FUNÇÃO: Confirmar entrega (Baixa de Canhoto)
   const handleConfirmarEntrega = async (pedido) => {
       setIsProcessing(true);
       try {
-          // Se já pagou, mantém pago. Se não, vira aberto para cobrança.
           const novoStatus = pedido.status === 'pago' ? 'pago' : 'aberto';
-          
           await base44.entities.Pedido.update(pedido.id, {
               confirmado_entrega: true,
               status: novoStatus
           });
-          
           await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
           toast.success('Entrega confirmada com sucesso!');
       } catch (error) {
@@ -545,7 +561,6 @@ export default function Pedidos() {
                 />
             </TabsContent>
 
-            {/* ABA EM TRÂNSITO (AGORA COM BOTÃO DE CONFIRMAR ENTREGA) */}
             <TabsContent value="transito">
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {filteredPedidos.length > 0 ? filteredPedidos.map(p => (
@@ -766,20 +781,44 @@ export default function Pedidos() {
           <ModalContainer open={showAlterarPortadorModal} onClose={() => setShowAlterarPortadorModal(false)} title="Alterar Portador" size="lg">
              {selectedRota && <AlterarPortadorModal rota={selectedRota} pedidos={pedidos.filter(p => p.rota_importada_id === selectedRota.id)} onSave={() => {setShowAlterarPortadorModal(false); toast.success("Portador alterado");}} onCancel={() => setShowAlterarPortadorModal(false)} />}
           </ModalContainer>
+          
           <ModalContainer open={showCadastrarClienteModal} onClose={() => setShowCadastrarClienteModal(false)} title="Cadastrar Cliente" size="lg">
-             <ClienteForm cliente={{ nome: pedidoParaCadastro?.cliente_nome }} onSave={async (data) => {
-                 const novo = await base44.entities.Cliente.create(data);
-                 if(pedidoParaCadastro) {
-                     await base44.entities.Pedido.update(pedidoParaCadastro.id, {
-                         cliente_codigo: novo.codigo,
-                         cliente_pendente: false,
-                         porcentagem_comissao: novo.porcentagem_comissao
-                     });
-                     await refetchPedidos();
+             <ClienteForm 
+               cliente={{ nome: pedidoParaCadastro?.cliente_nome }} 
+               onSave={async (data) => {
+                 try {
+                   // 1. Criar Cliente
+                   const novoCliente = await base44.entities.Cliente.create(data);
+                   
+                   // 2. Buscar TODOS os pedidos pendentes com esse nome
+                   const nomeAlvo = pedidoParaCadastro.cliente_nome.trim().toLowerCase();
+                   const pedidosParaVincular = pedidos.filter(p => 
+                     p.cliente_pendente && 
+                     p.cliente_nome.trim().toLowerCase() === nomeAlvo
+                   );
+
+                   // 3. Atualizar todos eles
+                   const updatePromises = pedidosParaVincular.map(p => 
+                     base44.entities.Pedido.update(p.id, {
+                       cliente_codigo: novoCliente.codigo,
+                       cliente_regiao: novoCliente.regiao,
+                       cliente_pendente: false,
+                       porcentagem_comissao: novoCliente.porcentagem_comissao
+                     })
+                   );
+
+                   await Promise.all(updatePromises);
+                   await refetchPedidos();
+                   
+                   setShowCadastrarClienteModal(false);
+                   toast.success(`Cliente cadastrado! ${updatePromises.length} pedido(s) vinculados.`);
+                 } catch (e) {
+                   toast.error("Erro ao cadastrar cliente.");
+                   console.error(e);
                  }
-                 setShowCadastrarClienteModal(false);
-                 toast.success("Cliente cadastrado!");
-             }} onCancel={() => setShowCadastrarClienteModal(false)} />
+               }} 
+               onCancel={() => setShowCadastrarClienteModal(false)} 
+             />
           </ModalContainer>
           
           <ModalContainer open={showCancelarPedidoModal} onClose={() => setShowCancelarPedidoModal(false)} title="Cancelar Pedido" description="Informe o motivo do cancelamento">
