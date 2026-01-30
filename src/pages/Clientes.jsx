@@ -32,7 +32,7 @@ import ClienteDetails from "@/components/clientes/ClienteDetails";
 import PermissionGuard from "@/components/PermissionGuard";
 import { usePermissions } from "@/components/UserNotRegisteredError";
 
-// --- MODAL DE ATUALIZAÇÃO EM MASSA ---
+// --- MODAL DE ATUALIZAÇÃO EM MASSA (Mantido) ---
 const BulkUpdateModal = ({ isOpen, total, current, currentName, logs }) => {
   if (!isOpen) return null;
 
@@ -106,7 +106,7 @@ export default function ClientesPage() {
   const { data: creditos = [] } = useQuery({ queryKey: ['creditos'], queryFn: () => base44.entities.Credito.list() });
   const { data: cheques = [] } = useQuery({ queryKey: ['cheques'], queryFn: () => base44.entities.Cheque.list() });
 
-  // --- ESTATÍSTICAS (Mantidas) ---
+  // --- ESTATÍSTICAS ---
   const clienteStats = useMemo(() => {
     const stats = {};
     const now = new Date();
@@ -162,14 +162,14 @@ export default function ClientesPage() {
     return { total: clientes.length, ativos, inativos, com30k, bloqueados };
   }, [clientes, clienteStats]);
 
-  // --- LÓGICA DE ATUALIZAÇÃO EM MASSA (COM RETRY) ---
+  // --- LÓGICA DE ATUALIZAÇÃO EM MASSA ---
   const addLog = (message, type = 'info') => {
     setUpdateLogs(prev => [{ message, type }, ...prev]);
   };
 
   const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-  // Função Principal que pode ser chamada recursivamente
+  // Função Recursiva para Processamento com Retry
   const processBatch = async (batchList, isRetry = false) => {
     if (batchList.length === 0) {
       setIsBulkUpdating(false);
@@ -177,23 +177,21 @@ export default function ClientesPage() {
     }
 
     if (!isRetry) {
-      // Confirmação inicial apenas se não for retry
       const confirm = window.confirm(`Deseja iniciar a atualização automática de ${batchList.length} clientes?`);
       if (!confirm) return;
-      setUpdateLogs([]); // Limpa logs apenas no início
+      setUpdateLogs([]);
     }
 
     setIsBulkUpdating(true);
     setUpdateProgress({ current: 0, total: batchList.length, currentName: '' });
 
     let updatedCount = 0;
-    let failedList = []; // Lista para retentativa
+    let failedList = [];
 
     for (let i = 0; i < batchList.length; i++) {
       const cliente = batchList[i];
       setUpdateProgress({ current: i + 1, total: batchList.length, currentName: cliente.nome });
 
-      // Verificar se tem CNPJ válido (Erro Permanente - Não entra no retry)
       const cnpjLimpo = cliente.cnpj?.replace(/\D/g, '');
       
       if (!cnpjLimpo || cnpjLimpo.length !== 14) {
@@ -202,19 +200,12 @@ export default function ClientesPage() {
       }
 
       try {
-        // Pausa para evitar rate limit (300ms)
         await sleep(300);
 
         const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`);
-        
-        // Se erro 429 (Too Many Requests) ou 5xx, lança erro para cair no catch e ir pra retry
-        if (!response.ok) {
-            throw new Error(`API Error: ${response.status}`);
-        }
-        
+        if (!response.ok) throw new Error(`API Error: ${response.status}`);
         const data = await response.json();
 
-        // Lógica de Preservação: Só preenche se o campo atual estiver vazio
         const newData = {};
         let hasChanges = false;
 
@@ -222,7 +213,7 @@ export default function ClientesPage() {
         if (!cliente.razao_social) { newData.razao_social = data.razao_social; hasChanges = true; }
         if (!cliente.nome_fantasia) { newData.nome_fantasia = data.nome_fantasia || data.razao_social; hasChanges = true; }
         
-        // 2. Endereço (Só preenche se vazio)
+        // 2. Endereço
         if (!cliente.cep) { newData.cep = data.cep; hasChanges = true; }
         if (!cliente.endereco) { newData.endereco = data.logradouro; hasChanges = true; }
         if (!cliente.numero) { newData.numero = data.numero; hasChanges = true; }
@@ -261,40 +252,29 @@ export default function ClientesPage() {
 
       } catch (error) {
         addLog(`Erro: ${cliente.nome} - Falha na consulta`, 'error');
-        // Adiciona à lista de falhas para retentativa (exceto se for erro permanente conhecido, mas aqui assumimos erro de API)
         failedList.push(cliente);
       }
     }
 
-    // Finalização do Lote
     await queryClient.invalidateQueries({ queryKey: ['clientes'] });
     
-    // Verificação de Erros para Retentativa
     if (failedList.length > 0) {
-        // Pequeno delay para a UI atualizar o log antes do alert
         await sleep(500); 
-        const retry = window.confirm(`O processo finalizou com ${failedList.length} erros de conexão/API. \n\nDeseja tentar novamente APENAS para estes clientes não processados?`);
-        
+        const retry = window.confirm(`O processo finalizou com ${failedList.length} erros. \n\nDeseja tentar novamente APENAS para estes clientes?`);
         if (retry) {
-            addLog(`--- Iniciando Retentativa para ${failedList.length} clientes ---`, 'info');
-            // Chamada Recursiva
+            addLog(`--- Retentativa para ${failedList.length} clientes ---`, 'info');
             processBatch(failedList, true);
-            return; // Sai da execução atual
+            return;
         }
     }
 
     toast.success(`Processo finalizado!`);
-    setTimeout(() => {
-        setIsBulkUpdating(false);
-    }, 2000);
+    setTimeout(() => { setIsBulkUpdating(false); }, 2000);
   };
 
-  // Wrapper para chamar via botão
-  const handleBulkUpdateClick = () => {
-      processBatch(clientes, false);
-  };
+  const handleBulkUpdateClick = () => { processBatch(clientes, false); };
 
-  // Mutations (Normais)
+  // Mutations
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.Cliente.create(data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['clientes'] }); setShowAddModal(false); toast.success('Cliente cadastrado!'); },
@@ -321,8 +301,6 @@ export default function ClientesPage() {
 
   return (
     <PermissionGuard setor="Clientes">
-      
-      {/* COMPONENTE DE LOADING E LOG */}
       <BulkUpdateModal 
         isOpen={isBulkUpdating} 
         total={updateProgress.total} 
@@ -347,7 +325,6 @@ export default function ClientesPage() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {/* BOTÃO ATUALIZAR AGORA COM NOVA FUNÇÃO RECURSIVA */}
               <Button 
                 variant="outline" 
                 onClick={handleBulkUpdateClick} 
@@ -400,16 +377,33 @@ export default function ClientesPage() {
             />
           </Card>
 
-          {/* Modais */}
-          <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Novo Cliente" description="Preencha os dados para cadastrar um novo cliente" size="lg">
+          {/* MODAIS COM TAMANHO AUMENTADO (2xl) */}
+          <ModalContainer 
+            open={showAddModal} 
+            onClose={() => setShowAddModal(false)} 
+            title="Novo Cliente" 
+            description="Preencha os dados para cadastrar um novo cliente" 
+            size="2xl" 
+          >
             <ClienteForm representantes={representantes} todosClientes={clientes} onSave={(data) => createMutation.mutate(data)} onCancel={() => setShowAddModal(false)} isLoading={createMutation.isPending} />
           </ModalContainer>
 
-          <ModalContainer open={showEditModal} onClose={() => { setShowEditModal(false); setSelectedCliente(null); }} title="Editar Cliente" description="Atualize os dados do cliente" size="lg">
+          <ModalContainer 
+            open={showEditModal} 
+            onClose={() => { setShowEditModal(false); setSelectedCliente(null); }} 
+            title="Editar Cliente" 
+            description="Atualize os dados do cliente" 
+            size="2xl"
+          >
             <ClienteForm cliente={selectedCliente} representantes={representantes} todosClientes={clientes} onSave={(data) => updateMutation.mutate({ id: selectedCliente.id, data })} onCancel={() => { setShowEditModal(false); setSelectedCliente(null); }} isLoading={updateMutation.isPending} />
           </ModalContainer>
 
-          <ModalContainer open={showDetailsModal} onClose={() => { setShowDetailsModal(false); setSelectedCliente(null); }} title="Detalhes do Cliente" size="lg">
+          <ModalContainer 
+            open={showDetailsModal} 
+            onClose={() => { setShowDetailsModal(false); setSelectedCliente(null); }} 
+            title="Detalhes do Cliente" 
+            size="xl"
+          >
             {selectedCliente && (
               <ClienteDetails
                 cliente={selectedCliente}
