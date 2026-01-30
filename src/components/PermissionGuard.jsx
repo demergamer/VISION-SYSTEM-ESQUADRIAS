@@ -1,8 +1,6 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ShieldAlert } from "lucide-react";
+import { Navigate } from 'react-router-dom'; // Import para redirecionamento
 import { createPageUrl } from "@/utils";
 
 export default function PermissionGuard({ setor, funcao, children, showBlocked = true }) {
@@ -35,7 +33,7 @@ export default function PermissionGuard({ setor, funcao, children, showBlocked =
     );
   }
 
-  // Se não há usuário logado, não renderizar nada (será tratado pelo sistema de auth)
+  // Se não há usuário logado, não renderizar nada (será tratado pelo sistema de auth/rota privada)
   if (!user) {
     return null;
   }
@@ -48,42 +46,27 @@ export default function PermissionGuard({ setor, funcao, children, showBlocked =
   // Verificar permissões granulares para usuários não-admin
   const permissoes = user.permissoes || {};
   
-  // Setor sem função específica (acesso à página completa)
+  // --- CASO 1: Bloqueio de Página Inteira (ex: Acessar /pedidos) ---
   if (!funcao) {
     const temAcesso = permissoes[setor]?.visualizar === true;
     
-    if (!temAcesso && showBlocked) {
-      return (
-        <div className="min-h-screen bg-gradient-to-br from-red-50 via-slate-50 to-orange-50 flex items-center justify-center p-6">
-          <Card className="p-8 max-w-md text-center shadow-2xl">
-            <ShieldAlert className="w-16 h-16 text-red-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-slate-800 mb-2">🔒 Acesso Bloqueado</h2>
-            <p className="text-slate-600 leading-relaxed">
-              Você não tem permissão para acessar o módulo <strong className="text-red-600">{setor}</strong>.
-            </p>
-            <p className="text-sm text-slate-500 mt-4">
-              Entre em contato com o administrador do sistema para solicitar as permissões necessárias.
-            </p>
-            <Button 
-              onClick={() => window.location.href = createPageUrl('Dashboard')}
-              className="mt-6 bg-blue-600 hover:bg-blue-700"
-            >
-              Voltar ao Dashboard
-            </Button>
-          </Card>
-        </div>
-      );
+    if (!temAcesso) {
+      if (showBlocked) {
+        // Redireciona para a página dedicada de Acesso Negado
+        return <Navigate to={createPageUrl('AcessoNegado')} replace />;
+      }
+      return null; // Apenas esconde se showBlocked for false
     }
     
-    return temAcesso ? <>{children}</> : null;
+    return <>{children}</>;
   }
 
-  // Função específica dentro do setor (ex: adicionar, editar, excluir)
-  const temAcesso = permissoes[setor]?.[funcao] === true;
+  // --- CASO 2: Bloqueio de Função Específica (ex: Botão "Excluir") ---
+  const temAcessoFuncao = permissoes[setor]?.[funcao] === true;
 
   // Se não tem acesso a função específica, não renderizar (esconder botão/componente)
-  if (!temAcesso) {
-    return null;
+  if (!temAcessoFuncao) {
+    return null; 
   }
 
   return <>{children}</>;
