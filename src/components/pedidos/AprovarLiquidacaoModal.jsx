@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { 
   Search, DollarSign, Percent, Loader2, Plus, X, Upload, 
-  FileText, Trash2, ShoppingCart, AlertTriangle, CheckCircle, Download, ExternalLink
+  FileText, Trash2, ShoppingCart, AlertTriangle, CheckCircle, ExternalLink
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -40,21 +40,20 @@ export default function AprovarLiquidacaoModal({
   const [showRejeicaoForm, setShowRejeicaoForm] = useState(false);
   const [motivoRejeicao, setMotivoRejeicao] = useState('');
 
-  // --- CARREGAMENTO DE DADOS ---
+  // --- CARREGAMENTO BLINDADO DE DADOS ---
   useEffect(() => {
     if (autorizacao) {
       // 1. Pedidos
       const pedidosDoBanco = autorizacao.pedidos_ids?.map(pid => todosPedidos.find(p => p.id === pid)).filter(Boolean) || [];
       setPedidosSelecionados(pedidosDoBanco);
 
-      // 2. Anexos (Lógica corrigida para lista simples)
+      // 2. Anexos
       let anexosIniciais = [];
       if (Array.isArray(autorizacao.comprovantes_urls) && autorizacao.comprovantes_urls.length > 0) {
         anexosIniciais = [...autorizacao.comprovantes_urls];
       } else if (autorizacao.comprovante_url) {
         anexosIniciais = [autorizacao.comprovante_url];
       }
-      // Filtra urls vazias
       setComprovantes(anexosIniciais.filter(url => url && typeof url === 'string' && url.trim() !== ''));
 
       // 3. Descontos
@@ -69,13 +68,22 @@ export default function AprovarLiquidacaoModal({
       // 4. Devolução
       setDevolucao(autorizacao.devolucao_valor ? String(autorizacao.devolucao_valor) : '');
 
-      // 5. Inicializar Pagamento
-      const valorInicial = autorizacao.valor_final_proposto || autorizacao.valor_total_original || 0;
-      setFormasPagamento([{ tipo: 'dinheiro', valor: String(valorInicial), parcelas: '1' }]);
+      // 5. Inicializar Pagamento (CORREÇÃO CRÍTICA)
+      // Se valor_final_proposto for 0 ou nulo, usa o valor_total_original. Nunca deixa 0.
+      let valorInicial = autorizacao.valor_final_proposto;
+      if (!valorInicial || parseFloat(valorInicial) <= 0) {
+          valorInicial = autorizacao.valor_total_original || 0;
+      }
+      
+      setFormasPagamento([{ 
+          tipo: 'dinheiro', 
+          valor: String(valorInicial), 
+          parcelas: '1' 
+      }]);
     }
   }, [autorizacao, todosPedidos]);
 
-  // ... (Funções auxiliares mantidas iguais: pedidosDisponiveis, adicionarPedido, etc)
+  // Filtros e Cálculos
   const pedidosDisponiveis = useMemo(() => {
     const clienteCodigo = autorizacao?.cliente_codigo;
     if (!clienteCodigo) return [];
@@ -91,6 +99,7 @@ export default function AprovarLiquidacaoModal({
 
   const adicionarPedido = (pedido) => { setPedidosSelecionados(prev => [...prev, pedido]); setSearchTerm(''); };
   const removerPedido = (pedidoId) => { setPedidosSelecionados(prev => prev.filter(p => p.id !== pedidoId)); };
+  
   const adicionarFormaPagamento = () => { setFormasPagamento([...formasPagamento, { tipo: 'dinheiro', valor: '', parcelas: '1' }]); };
   const removerFormaPagamento = (index) => { if (formasPagamento.length > 1) setFormasPagamento(formasPagamento.filter((_, i) => i !== index)); };
   const atualizarFormaPagamento = (index, campo, valor) => { const novasFormas = [...formasPagamento]; novasFormas[index][campo] = valor; setFormasPagamento(novasFormas); };
@@ -105,31 +114,46 @@ export default function AprovarLiquidacaoModal({
       const urls = results.map(r => r.file_url).filter(Boolean);
       setComprovantes(prev => [...prev, ...urls]);
       toast.success('Arquivo anexado!');
-    } catch (error) { toast.error('Erro ao enviar'); } finally { setUploadingFile(false); }
+    } catch (error) { toast.error('Erro ao enviar arquivo'); } finally { setUploadingFile(false); }
   };
 
-  const removerComprovante = (index) => { setComprovantes(prev => prev.filter((_, i) => i !== index)); };
+  const removerComprovante = (index) => { setComprovantes(prev => prev.filter((_, i) => i !== index)); toast.success('Removido'); };
 
   const calcularTotais = () => {
     const totalOriginal = pedidosSelecionados.reduce((sum, p) => sum + (p?.saldo_restante || ((p?.valor_pedido || 0) - (p?.total_pago || 0))), 0);
+    
     let desconto = 0;
     if (descontoValor) {
       if (descontoTipo === 'reais') desconto = parseFloat(descontoValor) || 0; 
       else desconto = (totalOriginal * (parseFloat(descontoValor) || 0)) / 100;
     }
+    
     const devolucaoValor = parseFloat(devolucao) || 0;
     const totalComDesconto = totalOriginal - desconto - devolucaoValor;
     const totalPago = formasPagamento.reduce((sum, fp) => sum + (parseFloat(fp.valor) || 0), 0);
+    
     return { totalOriginal, desconto, devolucaoValor, totalComDesconto, totalPago };
   };
 
   const handleRejeitar = () => { if (!motivoRejeicao.trim()) { toast.error('Informe o motivo'); return; } onRejeitar(motivoRejeicao); };
 
+  // --- FUNÇÃO DE APROVAR CORRIGIDA E VERBOSA ---
   const handleAprovar = () => {
-    if (pedidosSelecionados.length === 0) { toast.error('Selecione pelo menos um pedido'); return; }
+    // 1. Validação de Pedidos
+    if (pedidosSelecionados.length === 0) { 
+        toast.error('Erro: Nenhum pedido selecionado para baixa.'); 
+        return; 
+    }
+    
     const totais = calcularTotais();
-    if (totais.totalPago <= 0) { toast.error('Informe o valor pago'); return; }
 
+    // 2. Validação de Valor Zerado
+    if (totais.totalPago <= 0.01) { 
+        toast.error('Erro: O valor total pago não pode ser zero. Verifique a "Forma de Pagamento".'); 
+        return; 
+    }
+
+    // 3. Montagem dos Dados
     const dadosAprovacao = {
       pedidosSelecionados,
       descontoTipo,
@@ -139,6 +163,8 @@ export default function AprovarLiquidacaoModal({
       comprovantes, 
       totais
     };
+
+    // 4. Envio
     onAprovar(dadosAprovacao);
   };
 
@@ -227,7 +253,7 @@ export default function AprovarLiquidacaoModal({
             </div>
           </Card>
 
-          {/* ANEXOS - VERSÃO LISTA SIMPLES (CORRIGIDA) */}
+          {/* ANEXOS - LISTA DE ARQUIVOS (Para funcionar PDF) */}
           <Card className="p-4 space-y-3 bg-white border-slate-200">
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-slate-800 flex items-center gap-2">
@@ -293,10 +319,14 @@ export default function AprovarLiquidacaoModal({
 
       {!showRejeicaoForm && (
         <div className="flex gap-3 pt-4 border-t mt-4">
-          <Button variant="outline" onClick={onCancel} disabled={isProcessing}>Cancelar</Button>
+          <Button variant="outline" onClick={onCancel} disabled={isProcessing} className="flex-1">Cancelar</Button>
           <Button variant="destructive" onClick={() => setShowRejeicaoForm(true)} disabled={isProcessing}>Rejeitar</Button>
-          <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={handleAprovar} disabled={isProcessing}>
-            {isProcessing ? <Loader2 className="animate-spin" /> : <><CheckCircle className="w-4 h-4 mr-2" /> Aprovar e Liquidar</>}
+          <Button 
+            className="flex-1 bg-emerald-600 hover:bg-emerald-700" 
+            onClick={handleAprovar} 
+            disabled={isProcessing}
+          >
+            {isProcessing ? <><Loader2 className="animate-spin mr-2 h-4 w-4" /> Processando...</> : <><CheckCircle className="w-4 h-4 mr-2" /> Aprovar e Liquidar</>}
           </Button>
         </div>
       )}
