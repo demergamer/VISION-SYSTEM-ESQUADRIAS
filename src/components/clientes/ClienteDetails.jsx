@@ -17,8 +17,19 @@ import {
   X,
   FileText,
   Download,
-  DollarSign
+  DollarSign,
+  CheckCircle,
+  AlertCircle,
+  Factory,
+  Briefcase,
+  Mail
 } from "lucide-react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
@@ -42,20 +53,23 @@ export default function ClienteDetails({ cliente, stats, creditos, onEdit, onClo
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header Fixo */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-md">
             <Building2 className="w-8 h-8 text-white" />
           </div>
           <div>
             <h2 className="text-2xl font-bold text-slate-800">{cliente.nome}</h2>
-            <p className="text-slate-500 font-mono">{cliente.codigo}</p>
+            <p className="text-slate-500 font-mono text-sm">Cód: {cliente.codigo}</p>
+            {cliente.nome_fantasia && (
+              <p className="text-xs text-slate-400 mt-0.5">{cliente.nome_fantasia}</p>
+            )}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col items-end gap-2">
           <Badge variant="outline" className={cn(
-            "text-sm px-3 py-1",
+            "text-sm px-3 py-1 shadow-sm",
             isBloqueado 
               ? "bg-red-50 text-red-600 border-red-200" 
               : "bg-emerald-50 text-emerald-600 border-emerald-200"
@@ -63,201 +77,215 @@ export default function ClienteDetails({ cliente, stats, creditos, onEdit, onClo
             {isBloqueado ? 'Bloqueado' : 'Liberado'}
           </Badge>
           {cliStats.ativo && (
-            <Badge variant="outline" className="text-sm px-3 py-1 bg-blue-50 text-blue-600 border-blue-200">
-              Ativo
+            <Badge variant="outline" className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 border-blue-200">
+              Ativo Recente
             </Badge>
           )}
         </div>
       </div>
 
-      {/* Info Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <Card className="p-4 bg-slate-50 border-slate-200">
-          <div className="flex items-center gap-3">
-            <MapPin className="w-5 h-5 text-slate-400" />
-            <div>
-              <p className="text-xs text-slate-500 uppercase">Região</p>
-              <p className="font-medium text-slate-800">{cliente.regiao || 'Não informada'}</p>
-            </div>
-          </div>
+      {/* Resumo Financeiro Rápido (Cards) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="p-4 border-blue-100 bg-blue-50/50">
+          <p className="text-xs text-blue-600 font-semibold mb-1">Limite de Crédito</p>
+          <p className="text-lg font-bold text-blue-700">{formatCurrency(cliente.limite_credito)}</p>
         </Card>
-        <Card className="p-4 bg-slate-50 border-slate-200">
-          <div className="flex items-center gap-3">
-            <Phone className="w-5 h-5 text-slate-400" />
-            <div>
-              <p className="text-xs text-slate-500 uppercase">Telefone</p>
-              <p className="font-medium text-slate-800">{cliente.telefone || 'Não informado'}</p>
-            </div>
-          </div>
+        <Card className="p-4 border-amber-100 bg-amber-50/50">
+          <p className="text-xs text-amber-600 font-semibold mb-1">Pedidos Abertos</p>
+          <p className="text-lg font-bold text-amber-700">{formatCurrency(cliStats.totalPedidosAbertos)}</p>
         </Card>
-        <Card className="p-4 bg-slate-50 border-slate-200">
-          <div className="flex items-center gap-3">
-            <User className="w-5 h-5 text-slate-400" />
-            <div>
-              <p className="text-xs text-slate-500 uppercase">Representante</p>
-              <p className="font-medium text-slate-800">{cliente.representante_nome || cliente.representante_codigo}</p>
-            </div>
-          </div>
+        <Card className="p-4 border-purple-100 bg-purple-50/50">
+          <p className="text-xs text-purple-600 font-semibold mb-1">Cheques a Vencer</p>
+          <p className="text-lg font-bold text-purple-700">{formatCurrency(cliStats.totalChequesVencer)}</p>
         </Card>
-        <Card className="p-4 bg-slate-50 border-slate-200">
-          <div className="flex items-center gap-3">
-            <Percent className="w-5 h-5 text-slate-400" />
-            <div>
-              <p className="text-xs text-slate-500 uppercase">Comissão</p>
-              <p className="font-medium text-slate-800">{cliente.porcentagem_comissao || 5}%</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4 bg-slate-50 border-slate-200">
-          <div className="flex items-center gap-3">
-            <CreditCard className="w-5 h-5 text-slate-400" />
-            <div>
-              <p className="text-xs text-slate-500 uppercase">Score</p>
-              <p className="font-medium text-slate-800">{cliente.score || 'Não consultado'}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4 bg-slate-50 border-slate-200">
-          <div className="flex items-center gap-3">
-            <Calendar className="w-5 h-5 text-slate-400" />
-            <div>
-              <p className="text-xs text-slate-500 uppercase">Última Consulta</p>
-              <p className="font-medium text-slate-800">
-                {cliente.data_consulta ? format(new Date(cliente.data_consulta), 'dd/MM/yyyy') : 'Nunca'}
-              </p>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Financial Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="p-5 border-blue-100 bg-blue-50/30">
-          <div className="flex items-center gap-3 mb-2">
-            <CreditCard className="w-5 h-5 text-blue-600" />
-            <p className="text-sm text-blue-700 font-medium">Limite de Crédito</p>
-          </div>
-          <p className="text-3xl font-bold text-blue-700">{formatCurrency(cliente.limite_credito)}</p>
-        </Card>
-        <Card className="p-5 border-amber-100 bg-amber-50/30">
-          <div className="flex items-center gap-3 mb-2">
-            <ShoppingCart className="w-5 h-5 text-amber-600" />
-            <p className="text-sm text-amber-700 font-medium">Pedidos em Aberto</p>
-          </div>
-          <p className="text-3xl font-bold text-amber-700">{formatCurrency(cliStats.totalPedidosAbertos)}</p>
-        </Card>
-        <Card className="p-5 border-purple-100 bg-purple-50/30">
-          <div className="flex items-center gap-3 mb-2">
-            <CreditCard className="w-5 h-5 text-purple-600" />
-            <p className="text-sm text-purple-700 font-medium">Cheques a Vencer</p>
-          </div>
-          <p className="text-3xl font-bold text-purple-700">{formatCurrency(cliStats.totalChequesVencer)}</p>
-        </Card>
-        <Card className="p-5 border-green-100 bg-green-50/30">
-          <div className="flex items-center gap-3 mb-2">
-            <TrendingUp className="w-5 h-5 text-green-600" />
-            <p className="text-sm text-green-700 font-medium">Créditos Disponíveis</p>
-          </div>
-          <p className="text-3xl font-bold text-green-700">
+        <Card className="p-4 border-green-100 bg-green-50/50">
+          <p className="text-xs text-green-600 font-semibold mb-1">Créditos Disp.</p>
+          <p className="text-lg font-bold text-green-700">
             {formatCurrency((creditos || []).reduce((sum, c) => c.status === 'disponivel' ? sum + c.valor : sum, 0))}
           </p>
         </Card>
       </div>
 
-      {/* ANÁLISE DE CRÉDITO E PAGAMENTO */}
-      <Card className="p-6 bg-gradient-to-br from-slate-50 to-white border-slate-200">
-        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-          <FileText className="w-5 h-5 text-blue-600" />
-          Análise de Crédito e Pagamento
-        </h3>
-        <div className="grid md:grid-cols-2 gap-6">
-          {/* COLUNA A: FORMAS DE PAGAMENTO */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 mb-2">
-              <DollarSign className="w-4 h-4 text-emerald-600" />
-              <p className="text-sm font-semibold text-slate-700">Formas de Pagamento Autorizadas</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {cliente.formas_pagamento && cliente.formas_pagamento.length > 0 ? (
-                cliente.formas_pagamento.map((forma, idx) => (
-                  <Badge 
-                    key={idx} 
-                    className="bg-emerald-100 text-emerald-700 border-emerald-200 px-3 py-1 text-xs"
-                  >
-                    {forma}
-                  </Badge>
-                ))
-              ) : (
-                <p className="text-sm text-slate-400 italic">Nenhuma forma de pagamento definida</p>
-              )}
-            </div>
-          </div>
-
-          {/* COLUNA B: INTEGRAÇÃO SERASA */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 mb-2">
-              <CreditCard className="w-4 h-4 text-blue-600" />
-              <p className="text-sm font-semibold text-slate-700">Análise Serasa / Score</p>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-slate-500">Data da Consulta:</span>
-                <span className="text-sm font-medium text-slate-800">
-                  {cliente.data_consulta ? format(new Date(cliente.data_consulta), 'dd/MM/yyyy') : 'Nunca consultado'}
-                </span>
+      {/* Accordions com Detalhes Completos */}
+      <div className="pr-1">
+        <Accordion type="multiple" defaultValue={['dados_gerais', 'financeiro']} className="space-y-4">
+          
+          {/* 1. DADOS GERAIS & ENDEREÇO */}
+          <AccordionItem value="dados_gerais" className="border rounded-xl bg-white px-4 shadow-sm">
+            <AccordionTrigger className="hover:no-underline py-4">
+              <div className="flex items-center gap-2 text-slate-800">
+                <Building2 className="w-5 h-5 text-slate-500" />
+                <span className="font-semibold text-base">Dados Cadastrais & Endereço</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-slate-500">Score / Pontuação:</span>
-                <span className="text-sm font-bold text-blue-700">
-                  {cliente.score || 'Não disponível'}
-                </span>
+            </AccordionTrigger>
+            <AccordionContent className="pb-4 pt-2 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-xs text-slate-500 uppercase">Razão Social</p>
+                  <p className="font-medium text-slate-800">{cliente.razao_social || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 uppercase">CNPJ / CPF</p>
+                  <p className="font-medium text-slate-800">{cliente.cnpj || '-'}</p>
+                </div>
               </div>
-              {cliente.serasa_file_url && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="w-full gap-2 mt-3 border-blue-200 text-blue-700 hover:bg-blue-50"
-                  onClick={() => window.open(cliente.serasa_file_url, '_blank')}
-                >
-                  <Download className="w-4 h-4" />
-                  Baixar PDF do Serasa
-                </Button>
-              )}
-              {!cliente.serasa_file_url && (
-                <p className="text-xs text-slate-400 italic mt-2">Nenhum relatório Serasa anexado</p>
-              )}
-            </div>
-          </div>
-        </div>
-      </Card>
 
-      {/* Badges */}
-      <div className="flex flex-wrap gap-2">
-        {cliStats.compras30k && (
-          <Badge className="bg-purple-100 text-purple-700 border-purple-200">
-            Mais de R$ 30.000 em compras
-          </Badge>
-        )}
-        {cliStats.bloqueadoAuto && (
-          <Badge className="bg-red-100 text-red-700 border-red-200">
-            Bloqueado automaticamente
-          </Badge>
-        )}
+              {/* Bloco de Endereço */}
+              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                <div className="flex items-start gap-3">
+                  <MapPin className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+                  <div className="text-sm space-y-1">
+                    <p className="font-medium text-slate-800">
+                      {cliente.endereco}, {cliente.numero} {cliente.complemento && `(${cliente.complemento})`}
+                    </p>
+                    <p className="text-slate-600">
+                      {cliente.bairro} - {cliente.cidade} / {cliente.estado}
+                    </p>
+                    <p className="text-slate-500 text-xs">
+                      CEP: {cliente.cep} • Região: {cliente.regiao || 'N/A'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Classificação Fiscal (ST) */}
+              <div className="flex items-center gap-3 pt-2 border-t">
+                <Factory className="w-4 h-4 text-slate-400" />
+                <span className="text-sm text-slate-600">Substituição Tributária (ST):</span>
+                <Badge variant={cliente.tem_st ? "destructive" : "secondary"} className="gap-1">
+                  {cliente.tem_st ? <><AlertCircle className="w-3 h-3" /> SIM (Com ST)</> : <><CheckCircle className="w-3 h-3" /> NÃO (Sem ST)</>}
+                </Badge>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* 2. COMERCIAL & CONTATO */}
+          <AccordionItem value="comercial" className="border rounded-xl bg-white px-4 shadow-sm">
+            <AccordionTrigger className="hover:no-underline py-4">
+              <div className="flex items-center gap-2 text-slate-800">
+                <Briefcase className="w-5 h-5 text-purple-600" />
+                <span className="font-semibold text-base">Comercial & Contato</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pb-4 pt-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <User className="w-4 h-4 text-slate-400" />
+                    <div>
+                      <p className="text-xs text-slate-500 uppercase">Representante</p>
+                      <p className="font-medium text-slate-800">{cliente.representante_nome || cliente.representante_codigo || '-'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Percent className="w-4 h-4 text-slate-400" />
+                    <div>
+                      <p className="text-xs text-slate-500 uppercase">Comissão</p>
+                      <p className="font-medium text-slate-800">{cliente.porcentagem_comissao}%</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3 border-l pl-4 md:pl-6 border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <Phone className="w-4 h-4 text-slate-400" />
+                    <div>
+                      <p className="text-xs text-slate-500 uppercase">Telefone</p>
+                      <p className="font-medium text-slate-800">{cliente.telefone || '-'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Mail className="w-4 h-4 text-slate-400" />
+                    <div>
+                      <p className="text-xs text-slate-500 uppercase">Email</p>
+                      <p className="font-medium text-slate-800">{cliente.email || '-'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* 3. FINANCEIRO & ANÁLISE */}
+          <AccordionItem value="financeiro" className="border rounded-xl bg-white px-4 shadow-sm">
+            <AccordionTrigger className="hover:no-underline py-4">
+              <div className="flex items-center gap-2 text-slate-800">
+                <FileText className="w-5 h-5 text-green-600" />
+                <span className="font-semibold text-base">Análise Financeira</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pb-4 pt-2">
+              <div className="grid md:grid-cols-2 gap-6">
+                
+                {/* Score e Consulta */}
+                <div className="space-y-3 bg-slate-50 p-3 rounded-lg">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-slate-500">Score de Crédito:</span>
+                    <span className="text-sm font-bold text-blue-700">{cliente.score || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between items-center border-t border-slate-200 pt-2">
+                    <span className="text-xs text-slate-500">Última Consulta:</span>
+                    <span className="text-xs font-medium text-slate-800">
+                      {cliente.data_consulta ? format(new Date(cliente.data_consulta), 'dd/MM/yyyy') : 'Nunca'}
+                    </span>
+                  </div>
+                  
+                  {cliente.serasa_file_url ? (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full gap-2 mt-2 bg-white text-blue-700 border-blue-200 hover:bg-blue-50 h-8 text-xs"
+                      onClick={() => window.open(cliente.serasa_file_url, '_blank')}
+                    >
+                      <Download className="w-3 h-3" />
+                      Ver Relatório PDF
+                    </Button>
+                  ) : (
+                    <p className="text-[10px] text-slate-400 text-center italic mt-2">Sem PDF anexado</p>
+                  )}
+                </div>
+
+                {/* Formas de Pagamento */}
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 mb-2 flex items-center gap-1">
+                    <DollarSign className="w-3 h-3" /> Formas de Pagamento Autorizadas
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {cliente.formas_pagamento && cliente.formas_pagamento.length > 0 ? (
+                      cliente.formas_pagamento.map((forma, idx) => (
+                        <Badge 
+                          key={idx} 
+                          className="bg-white text-slate-700 border-slate-200 hover:bg-slate-50 px-2 py-0.5 text-xs font-normal"
+                        >
+                          {forma}
+                        </Badge>
+                      ))
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">Nenhuma definida</p>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+        </Accordion>
       </div>
 
-      {/* Actions */}
-      <div className="flex justify-end gap-3 pt-4 border-t">
-        <Button variant="outline" onClick={onClose}>
+      {/* Footer Actions */}
+      <div className="flex justify-end gap-3 pt-4 border-t sticky bottom-0 bg-white z-10">
+        <Button variant="outline" onClick={onClose} className="h-10">
           <X className="w-4 h-4 mr-2" />
           Fechar
         </Button>
-        <Button variant="outline" onClick={onViewPedidos}>
+        <Button variant="outline" onClick={onViewPedidos} className="h-10">
           <ShoppingCart className="w-4 h-4 mr-2" />
-          Ver Pedidos
+          Histórico de Pedidos
         </Button>
-        <Button onClick={onEdit}>
+        <Button onClick={onEdit} className="h-10 bg-blue-600 hover:bg-blue-700">
           <Edit className="w-4 h-4 mr-2" />
-          Editar Cliente
+          Editar Cadastro
         </Button>
       </div>
 
