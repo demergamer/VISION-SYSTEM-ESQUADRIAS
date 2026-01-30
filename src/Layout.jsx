@@ -194,7 +194,7 @@ export default function Layout({ children, currentPageName }) {
     return unsubscribe;
   }, [user?.email]);
 
-  // Auto-collapse sidebar: fecha após 15s de mouse fora do sidebar
+  // Auto-collapse sidebar
   const [collapseTimer, setCollapseTimer] = React.useState(null);
 
   const handleSidebarMouseEnter = () => {
@@ -230,11 +230,16 @@ export default function Layout({ children, currentPageName }) {
 
   const hasAccess = (pageName) => {
     if (!user) return false;
-    if (user.role === 'admin') return true;
+    
+    // Regra removida: Admin agora também precisa de permissão explícita no banco
+    // if (user.role === 'admin') return true;
+
+    // Itens em desenvolvimento (remova se quiser bloquear tudo)
+    if (['ChequesPagar', 'Logs'].includes(pageName)) return true;
 
     const permissoes = user.permissoes || {};
 
-    // Mapear nomes de página para módulos de permissão
+    // Mapear nomes de página para módulos de permissão do banco de dados
     const pageToModule = {
       'Dashboard': 'Dashboard',
       'Pedidos': 'Pedidos',
@@ -252,12 +257,15 @@ export default function Layout({ children, currentPageName }) {
       'Relatorios': 'Relatorios',
       'Balanco': 'Balanco',
       'Usuarios': 'Usuarios',
-      'Cadastro': 'Orcamentos',
-      'Logs': 'Usuarios'
+      'Cadastro': 'Orcamentos', // Página Cadastro usa permissão de Orçamentos
+      'Logs': 'Usuarios'        // Página Logs usa permissão de Usuários (ou crie um módulo específico)
     };
 
     const moduleName = pageToModule[pageName] || pageName;
-    return permissoes[moduleName]?.visualizar === true;
+    const perm = permissoes[moduleName];
+
+    // Verifica booleano simples OU a propriedade 'visualizar'
+    return perm === true || perm?.visualizar === true;
   };
 
   const handleDevClick = (e, moduleName) => {
@@ -270,7 +278,6 @@ export default function Layout({ children, currentPageName }) {
 
   // --- LAYOUTS ESPECIAIS ---
   if (currentPageName === 'PortalDoRepresentante' || currentPageName === 'PortalCliente') {
-    // ... (Mantido código dos portais)
     const title = currentPageName === 'PortalDoRepresentante' ? 'Portal do Representante' : 'Portal do Cliente';
     return (
       <div className="min-h-screen bg-slate-50">
@@ -311,14 +318,19 @@ export default function Layout({ children, currentPageName }) {
         <SidebarSeparator />
         
         <SidebarContent>
-          {navStructure.map((group, index) => (
-            <SidebarGroup key={index}>
-              <SidebarGroupLabel>{group.category}</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {group.items
-                    .filter(item => hasAccess(item.page))
-                    .map((item) => {
+          {navStructure.map((group, index) => {
+            // --- CORREÇÃO: Filtrar itens antes de renderizar o grupo ---
+            const itensVisiveis = group.items.filter(item => hasAccess(item.page));
+
+            // Se não sobrou nenhum item visível neste grupo, não renderiza o grupo
+            if (itensVisiveis.length === 0) return null;
+
+            return (
+              <SidebarGroup key={index}>
+                <SidebarGroupLabel>{group.category}</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {itensVisiveis.map((item) => {
                       const isActive = currentPageName === item.page;
                       return (
                         <SidebarMenuItem key={item.page}>
@@ -343,10 +355,11 @@ export default function Layout({ children, currentPageName }) {
                         </SidebarMenuItem>
                       );
                     })}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          ))}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            );
+          })}
         </SidebarContent>
 
         <SidebarFooter>
