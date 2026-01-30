@@ -7,9 +7,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { 
   DollarSign, Loader2, Plus, X, Upload, FileText, Trash2, 
-  ShoppingCart, AlertTriangle, CheckCircle, Calculator, ExternalLink
+  ShoppingCart, Calculator, ExternalLink, CheckCircle
 } from "lucide-react";
 import { toast } from "sonner";
+import { format } from "date-fns";
 import { base44 } from '@/api/base44Client';
 
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
@@ -39,7 +40,6 @@ export default function AprovarLiquidacaoModal({
   const [motivoRejeicao, setMotivoRejeicao] = useState('');
 
   // --- 1. INICIALIZAÇÃO SEGURA ---
-  // A chave é rodar APENAS quando o ID da autorização mudar, não quando os pedidos mudarem
   useEffect(() => {
     if (autorizacao?.id) {
       console.log("Inicializando Modal para ID:", autorizacao.id);
@@ -78,7 +78,7 @@ export default function AprovarLiquidacaoModal({
         { tipo: 'dinheiro', valor: String(valorInicial) }
       ]);
     }
-  }, [autorizacao?.id]); // <--- TRAVA AQUI: Só roda se mudar o ID da autorização
+  }, [autorizacao?.id]); 
 
   // --- 2. CÁLCULOS ---
   const totais = useMemo(() => {
