@@ -279,7 +279,29 @@ export default function Pedidos() {
       }
   };
   const handleLiquidar = (pedido) => { setSelectedPedido(pedido); setShowLiquidarModal(true); };
-  const handleCancelar = (pedido) => { setPedidoParaCancelar(pedido); setShowCancelarPedidoModal(true); };
+  
+  // FUNÇÃO CORRIGIDA: handleCancelar
+  const handleCancelar = (pedido) => { 
+      setPedidoParaCancelar(pedido); 
+      setShowCancelarPedidoModal(true); 
+  };
+
+  // FUNÇÃO REINTRODUZIDA: handleSaveCancelarPedido
+  const handleSaveCancelarPedido = async (data) => {
+    setIsProcessing(true);
+    try {
+        await base44.entities.Pedido.update(pedidoParaCancelar.id, data);
+        await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+        setShowCancelarPedidoModal(false);
+        setPedidoParaCancelar(null);
+        toast.success('Pedido cancelado com sucesso!');
+    } catch (error) {
+        toast.error('Erro ao cancelar pedido.');
+        console.error(error);
+    } finally {
+        setIsProcessing(false);
+    }
+  };
   
   const handleRefresh = async () => {
     setRefreshingData(true);
@@ -673,9 +695,7 @@ export default function Pedidos() {
           </ModalContainer>
           <ModalContainer open={showCadastrarClienteModal} onClose={() => setShowCadastrarClienteModal(false)} title="Cadastrar Cliente" size="lg">
              <ClienteForm cliente={{ nome: pedidoParaCadastro?.cliente_nome }} onSave={async (data) => {
-                 // Lógica simplificada de cadastro
                  const novo = await base44.entities.Cliente.create(data);
-                 // Atualizar pedido
                  if(pedidoParaCadastro) {
                      await base44.entities.Pedido.update(pedidoParaCadastro.id, {
                          cliente_codigo: novo.codigo,
@@ -687,6 +707,16 @@ export default function Pedidos() {
                  setShowCadastrarClienteModal(false);
                  toast.success("Cliente cadastrado!");
              }} onCancel={() => setShowCadastrarClienteModal(false)} />
+          </ModalContainer>
+          
+          <ModalContainer open={showCancelarPedidoModal} onClose={() => setShowCancelarPedidoModal(false)} title="Cancelar Pedido" description="Informe o motivo do cancelamento">
+            {pedidoParaCancelar && (
+              <CancelarPedidoModal 
+                pedido={pedidoParaCancelar} 
+                onSave={handleSaveCancelarPedido} 
+                onCancel={() => setShowCancelarPedidoModal(false)} 
+              />
+            )}
           </ModalContainer>
 
         </div>
