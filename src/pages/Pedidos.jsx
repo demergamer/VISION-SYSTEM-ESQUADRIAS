@@ -40,7 +40,7 @@ import RotaCobrancaModal from "@/components/pedidos/RotaCobrancaModal";
 import BorderoDetails from "@/components/pedidos/BorderoDetails";
 import AprovarLiquidacaoModal from "@/components/pedidos/AprovarLiquidacaoModal";
 import DividirRotaModal from "@/components/pedidos/DividirRotaModal";
-import AdicionarRepresentanteModal from "@/components/pedidos/AdicionarRepresentanteModal"; // NOVO COMPONENTE
+import AdicionarRepresentanteModal from "@/components/pedidos/AdicionarRepresentanteModal";
 import PermissionGuard from "@/components/PermissionGuard";
 import { usePermissions } from "@/components/UserNotRegisteredError";
 
@@ -163,7 +163,7 @@ export default function Pedidos() {
   const [showAutorizacaoModal, setShowAutorizacaoModal] = useState(false);
   const [showDividirRotaModal, setShowDividirRotaModal] = useState(false);
   const [showReverterDialog, setShowReverterDialog] = useState(false);
-  const [showAddRepresentanteModal, setShowAddRepresentanteModal] = useState(false); // NOVO STATE
+  const [showAddRepresentanteModal, setShowAddRepresentanteModal] = useState(false);
 
   // --- SELEÇÕES ---
   const [selectedPedido, setSelectedPedido] = useState(null);
@@ -219,18 +219,14 @@ export default function Pedidos() {
   // --- FILTROS DE DADOS ---
   const filteredPedidos = useMemo(() => {
     let filtered = pedidos;
-    // Filtro por Aba
     switch (activeTab) {
       case 'transito': 
-        // REGRA DE OURO: Está em rota E não tem baixa de entrega (independente de estar pago)
         filtered = filtered.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado'); 
         break;
       case 'abertos': 
-        // REGRA: Deve dinheiro
         filtered = filtered.filter(p => p.status === 'aberto' || p.status === 'parcial'); 
         break;
       case 'liquidacoes': 
-        // REGRA: Está pago
         filtered = filtered.filter(p => p.status === 'pago'); 
         break;
       case 'cancelados': 
@@ -281,11 +277,7 @@ export default function Pedidos() {
       }
   };
   const handleLiquidar = (pedido) => { setSelectedPedido(pedido); setShowLiquidarModal(true); };
-  
-  const handleCancelar = (pedido) => { 
-      setPedidoParaCancelar(pedido); 
-      setShowCancelarPedidoModal(true); 
-  };
+  const handleCancelar = (pedido) => { setPedidoParaCancelar(pedido); setShowCancelarPedidoModal(true); };
 
   const handleSaveCancelarPedido = async (data) => {
     setIsProcessing(true);
@@ -303,38 +295,21 @@ export default function Pedidos() {
     }
   };
   
-  // FUNÇÃO DE ATUALIZAÇÃO TURBINADA
+  // FUNÇÃO ATUALIZADA: Sincronização + Limpeza de Resíduos (< 0.10) + AUTO VINCULO CLIENTE
   const handleRefresh = async () => {
     setRefreshingData(true);
-    setRefreshMessage('Iniciando varredura...');
-    
+    setRefreshMessage('Conectando ao banco de dados...');
     try {
-        // ETAPA 1: Limpeza de Resíduos no Servidor
-        setRefreshMessage('🧹 Limpando resíduos financeiros...');
-        let residuosLimpos = 0;
-        try {
-            const responseClean = await base44.functions.invoke('limparResiduos', {});
-            if (responseClean?.data?.success) {
-                residuosLimpos = responseClean.data.pedidos_limpos;
-            }
-        } catch (e) {
-            console.warn("Backend cleaning failed, skipping step.", e);
-        }
-
-        // ETAPA 2: Download de Dados Recentes
-        setRefreshMessage('📥 Baixando dados mais recentes...');
         const [latestPedidos, latestRotas, latestClientes] = await Promise.all([
             base44.entities.Pedido.list(),
             base44.entities.RotaImportada.list(),
             base44.entities.Cliente.list()
         ]);
 
-        // ETAPA 3: Auto-Vínculo de Clientes
-        setRefreshMessage('🔍 Verificando clientes pendentes...');
+        setRefreshMessage('Verificando clientes pendentes...');
         let clientesVinculados = 0;
         const pedidosPendentes = latestPedidos.filter(p => p.cliente_pendente === true);
         
-        // Mapeamento de clientes para busca rápida (performance)
         const mapClientes = new Map();
         latestClientes.forEach(c => mapClientes.set(c.nome.trim().toLowerCase(), c));
 
@@ -342,11 +317,9 @@ export default function Pedidos() {
             const nomePedido = pedido.cliente_nome?.trim().toLowerCase();
             if (!nomePedido) return null;
 
-            // Tenta match exato primeiro, depois parcial
             let clienteEncontrado = mapClientes.get(nomePedido);
             
             if (!clienteEncontrado) {
-                // Fallback: Busca parcial (mais lento, mas necessário)
                 clienteEncontrado = latestClientes.find(c => 
                     c.nome?.trim().toLowerCase().includes(nomePedido) || 
                     nomePedido.includes(c.nome?.trim().toLowerCase())
@@ -361,22 +334,32 @@ export default function Pedidos() {
                     representante_codigo: clienteEncontrado.representante_codigo,
                     representante_nome: clienteEncontrado.representante_nome,
                     porcentagem_comissao: clienteEncontrado.porcentagem_comissao,
-                    cliente_pendente: false // Sai do estado pendente!
+                    cliente_pendente: false
                 });
             }
             return null;
         });
         await Promise.all(promisesClientes.filter(Boolean));
 
-        // ETAPA 4: Sincronização de Status das Rotas
-        setRefreshMessage(`🚚 Sincronizando ${latestRotas.length} rotas...`);
-        let routesUpdatedCount = 0;
-        
-        // Atualiza a lista local de pedidos para considerar as mudanças de cliente
-        const pedidosAtualizados = latestPedidos; // (Simplificação: em um app real refetch faria isso)
+        setRefreshMessage('Analisando resíduos financeiros (< R$ 0,10)...');
+        let residuosLimpos = 0;
+        const promisesResiduos = latestPedidos
+            .filter(p => (p.status === 'aberto' || p.status === 'parcial') && (p.saldo_restante > 0 && p.saldo_restante <= 0.10))
+            .map(p => {
+                residuosLimpos++;
+                return base44.entities.Pedido.update(p.id, { 
+                    status: 'pago', 
+                    saldo_restante: 0, 
+                    total_pago: p.valor_pedido,
+                    outras_informacoes: (p.outras_informacoes || '') + '\n[AUTO] Baixa automática de resíduo < R$ 0,10'
+                });
+            });
+        await Promise.all(promisesResiduos);
 
+        setRefreshMessage(`Sincronizando ${latestRotas.length} rotas de entrega...`);
+        let routesUpdatedCount = 0;
         const updatePromises = latestRotas.map(rota => {
-            const pedidosDaRota = pedidosAtualizados.filter(p => p.rota_importada_id === rota.id);
+            const pedidosDaRota = latestPedidos.filter(p => p.rota_importada_id === rota.id);
             const total = pedidosDaRota.length;
             const confirmados = pedidosDaRota.filter(p => p.confirmado_entrega).length;
             
@@ -396,21 +379,19 @@ export default function Pedidos() {
         });
         await Promise.all(updatePromises.filter(Boolean));
 
-        // ETAPA 5: Finalização
-        setRefreshMessage('✅ Finalizando...');
+        setRefreshMessage('Finalizando atualizações...');
         await Promise.all([refetchPedidos(), refetchRotas(), refetchBorderos(), refetchAutorizacoes(), refetchClientes()]);
         
-        // Relatório Final
-        let msg = 'Tudo atualizado!';
-        if (residuosLimpos > 0) msg += `\n- ${residuosLimpos} resíduos baixados.`;
-        if (clientesVinculados > 0) msg += `\n- ${clientesVinculados} clientes vinculados automaticamente.`;
-        if (routesUpdatedCount > 0) msg += `\n- ${routesUpdatedCount} rotas sincronizadas.`;
+        let msg = 'Dados atualizados com sucesso!';
+        if (clientesVinculados > 0) msg += `\n👤 ${clientesVinculados} clientes vinculados.`;
+        if (residuosLimpos > 0) msg += `\n🧹 ${residuosLimpos} resíduos baixados.`;
+        if (routesUpdatedCount > 0) msg += `\n🚚 ${routesUpdatedCount} rotas sincronizadas.`;
         
-        toast.success(msg, { duration: 5000 });
+        toast.success(msg);
 
     } catch (error) {
         console.error(error);
-        toast.error('Erro na atualização: ' + error.message);
+        toast.error('Erro ao atualizar dados: ' + error.message);
     } finally {
         setRefreshingData(false);
         setRefreshMessage('Conectando...');
@@ -500,11 +481,123 @@ export default function Pedidos() {
 
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
+  // --- NOVA FUNÇÃO DE APROVAÇÃO (CORRIGIDA) ---
+  const handleAprovarSolicitacao = async (dadosAprovacao) => {
+      console.log("Iniciando aprovação com:", dadosAprovacao);
+      setIsProcessing(true);
+      try {
+          const user = await base44.auth.me();
+          const { pedidosSelecionados, descontoValor, devolucao, formasPagamento, comprovantes, totais } = dadosAprovacao;
+          
+          // Tratamento para garantir números
+          const valorDesconto = parseFloat(descontoValor) || 0;
+          const valorDevolucao = parseFloat(devolucao) || 0;
+          const totalPago = parseFloat(totais.totalPago) || 0;
+
+          // 1. Algoritmo Waterfall
+          let devolucaoRestante = valorDevolucao;
+          let descontoRestante = valorDesconto;
+          let pagamentoRestante = totalPago;
+
+          const pedidosProcessados = [];
+
+          for (const pedido of pedidosSelecionados) {
+              if (!pedido?.id) continue;
+              
+              const valorPedido = parseFloat(pedido.valor_pedido) || 0;
+              const totalPagoAtual = parseFloat(pedido.total_pago) || 0;
+              const saldoPedido = parseFloat(pedido.saldo_restante) !== undefined ? parseFloat(pedido.saldo_restante) : (valorPedido - totalPagoAtual);
+              
+              let saldoAtual = saldoPedido;
+              let devolucaoAplicada = 0;
+              let descontoAplicado = 0;
+              let pagamentoAplicado = 0;
+
+              if (devolucaoRestante > 0 && saldoAtual > 0) {
+                  const val = Math.min(saldoAtual, devolucaoRestante);
+                  devolucaoAplicada = val;
+                  saldoAtual -= val;
+                  devolucaoRestante -= val;
+              }
+              if (descontoRestante > 0 && saldoAtual > 0) {
+                  const val = Math.min(saldoAtual, descontoRestante);
+                  descontoAplicado = val;
+                  saldoAtual -= val;
+                  descontoRestante -= val;
+              }
+              if (pagamentoRestante > 0 && saldoAtual > 0) {
+                  const val = Math.min(saldoAtual, pagamentoRestante);
+                  pagamentoAplicado = val;
+                  saldoAtual -= val;
+                  pagamentoRestante -= val;
+              }
+
+              pedidosProcessados.push({
+                  pedido,
+                  novoTotalPago: totalPagoAtual + pagamentoAplicado + devolucaoAplicada,
+                  novoDescontoTotal: (parseFloat(pedido.desconto_dado) || 0) + descontoAplicado,
+                  novoSaldo: Math.max(0, saldoAtual),
+                  devolucaoAplicada,
+                  descontoAplicado,
+                  pagamentoAplicado
+              });
+          }
+
+          // 2. Criar Borderô
+          const todosBorderos = await base44.entities.Bordero.list();
+          const proximoNumeroBordero = todosBorderos.length > 0 ? Math.max(...todosBorderos.map(b => b.numero_bordero || 0)) + 1 : 1;
+
+          const formasStr = formasPagamento.map(fp => `${fp.tipo.toUpperCase()}: ${formatCurrency(parseFloat(fp.valor))}`).join(' | ');
+
+          await base44.entities.Bordero.create({
+              numero_bordero: proximoNumeroBordero,
+              tipo_liquidacao: 'pendente_aprovada',
+              cliente_codigo: selectedAutorizacao.cliente_codigo,
+              cliente_nome: selectedAutorizacao.cliente_nome,
+              pedidos_ids: pedidosSelecionados.map(p => p.id),
+              valor_total: totalPago,
+              valor_desconto_aplicado: valorDesconto, 
+              forma_pagamento: formasStr,
+              comprovantes_urls: comprovantes,
+              observacao: `Sol. #${selectedAutorizacao.numero_solicitacao} | Desc: ${formatCurrency(valorDesconto)} | Dev: ${formatCurrency(valorDevolucao)}`,
+              liquidado_por: user.email
+          });
+
+          // 3. Atualizar Pedidos
+          for (const proc of pedidosProcessados) {
+              await base44.entities.Pedido.update(proc.pedido.id, {
+                  total_pago: proc.novoTotalPago,
+                  desconto_dado: proc.novoDescontoTotal,
+                  saldo_restante: proc.novoSaldo,
+                  status: proc.novoSaldo <= 0.01 ? 'pago' : 'parcial',
+                  bordero_numero: proximoNumeroBordero,
+                  outras_informacoes: (proc.pedido.outras_informacoes || '') + 
+                      `\n[${new Date().toLocaleDateString()}] Borderô #${proximoNumeroBordero} (Sol. #${selectedAutorizacao.numero_solicitacao})`
+              });
+          }
+
+          // 4. Atualizar Solicitação
+          await base44.entities.LiquidacaoPendente.update(selectedAutorizacao.id, {
+              status: 'aprovado',
+              aprovado_por: user.email,
+              data_aprovacao: new Date().toISOString()
+          });
+
+          await Promise.all([refetchPedidos(), refetchBorderos(), refetchAutorizacoes()]);
+          setShowAutorizacaoModal(false);
+          toast.success(`Liquidação #${proximoNumeroBordero} gerada com sucesso!`);
+
+      } catch (e) {
+          console.error("ERRO AO APROVAR:", e);
+          toast.error("Erro crítico ao aprovar: " + e.message);
+      } finally {
+          setIsProcessing(false);
+      }
+  };
+
   return (
     <PermissionGuard setor="Pedidos">
       {isProcessing && <div className="fixed inset-0 z-[100] bg-black/30 flex items-center justify-center"><Loader2 className="w-12 h-12 text-blue-600 animate-spin" /></div>}
-      
-      {/* LOADING DINÂMICO PRECISO */}
       {refreshingData && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all animate-in fade-in duration-300">
             <div className="bg-white p-10 rounded-3xl shadow-2xl flex flex-col items-center gap-5 border border-slate-100 min-w-[350px]">
@@ -831,7 +924,29 @@ export default function Pedidos() {
           <ModalContainer open={showDetailsModal} onClose={() => setShowDetailsModal(false)} title="Detalhes" size="xl">
              {selectedPedido?.isBordero ? <BorderoDetails bordero={selectedPedido} pedidos={pedidos} onClose={() => setShowDetailsModal(false)}/> : <PedidoDetails pedido={selectedPedido} onClose={() => setShowDetailsModal(false)} />}
           </ModalContainer>
-          <ModalContainer open={showAutorizacaoModal} onClose={() => setShowAutorizacaoModal(false)} title="Aprovar Liquidação" size="xl"><AprovarLiquidacaoModal autorizacao={selectedAutorizacao} todosPedidos={pedidos} onAprovar={() => {}} onRejeitar={() => {}} onCancel={() => setShowAutorizacaoModal(false)} /></ModalContainer>
+          
+          <ModalContainer open={showAutorizacaoModal} onClose={() => setShowAutorizacaoModal(false)} title="Aprovar Liquidação" size="xl">
+            <AprovarLiquidacaoModal 
+                autorizacao={selectedAutorizacao} 
+                todosPedidos={pedidos} 
+                onCancel={() => setShowAutorizacaoModal(false)}
+                isProcessing={isProcessing}
+                onRejeitar={async (motivo) => {
+                    setIsProcessing(true);
+                    try {
+                        await base44.entities.LiquidacaoPendente.update(selectedAutorizacao.id, {
+                            status: 'rejeitado',
+                            motivo_rejeicao: motivo
+                        });
+                        await refetchAutorizacoes();
+                        setShowAutorizacaoModal(false);
+                        toast.success('Solicitação rejeitada.');
+                    } catch(e) { toast.error("Erro ao rejeitar"); } finally { setIsProcessing(false); }
+                }}
+                onAprovar={handleAprovarSolicitacao} // USANDO A FUNÇÃO NOVA AQUI
+            />
+          </ModalContainer>
+
           <ModalContainer open={showAlterarPortadorModal} onClose={() => setShowAlterarPortadorModal(false)} title="Alterar Portador" size="lg">
              {selectedRota && <AlterarPortadorModal rota={selectedRota} pedidos={pedidos.filter(p => p.rota_importada_id === selectedRota.id)} onSave={() => {setShowAlterarPortadorModal(false); toast.success("Portador alterado");}} onCancel={() => setShowAlterarPortadorModal(false)} />}
           </ModalContainer>
