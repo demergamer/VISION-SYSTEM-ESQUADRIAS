@@ -18,8 +18,9 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { 
-  Save, X, AlertCircle, Upload, Loader2, Search, Factory, 
-  CheckCircle, Lock, MapPin, Briefcase, Phone, FileText, Building
+  Save, X, AlertCircle, Upload, Loader2, Factory, 
+  CheckCircle, Lock, MapPin, Briefcase, Phone, FileText, Building,
+  Eye, Trash2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -126,6 +127,9 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
         tem_st: cliente.tem_st || false
       });
       setFormasPagamento(cliente.formas_pagamento || []);
+      if (cliente.serasa_file_url) {
+        setSerasaFile(cliente.serasa_file_url);
+      }
     }
   }, [cliente]);
 
@@ -138,17 +142,16 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     });
   };
 
-  // --- CONSULTA CNPJ & LÓGICA DE ST ---
-  const handleConsultarCNPJ = async () => {
-    const cnpjLimpo = form.cnpj?.replace(/\D/g, '');
+  // --- CONSULTA CNPJ AUTOMÁTICA ---
+  const handleConsultarCNPJ = async (cnpjValue) => {
+    const cnpjLimpo = cnpjValue?.replace(/\D/g, '');
 
-    if (!cnpjLimpo || cnpjLimpo.length !== 14) {
-      toast.error("Digite um CNPJ válido (14 dígitos) para consultar.");
-      return;
-    }
+    // Validação de comprimento para evitar chamadas desnecessárias
+    if (!cnpjLimpo || cnpjLimpo.length !== 14) return;
 
     setIsConsulting(true);
-    const toastId = toast.loading("Consultando Receita Federal e CNAEs...");
+    // Toast silencioso ou discreto para não incomodar na digitação, ou normal para feedback
+    const toastId = toast.loading("Buscando dados do CNPJ...");
 
     try {
       const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`);
@@ -181,11 +184,8 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
         razao_social: data.razao_social,
         nome_fantasia: data.nome_fantasia || data.razao_social,
         nome: prev.nome || (data.nome_fantasia || data.razao_social),
-        
         email: data.email || prev.email,
         telefone: data.ddd_telefone_1 || prev.telefone,
-        
-        // Endereço Automático
         cep: data.cep ? data.cep.replace(/(\d{5})(\d{3})/, '$1-$2') : prev.cep,
         endereco: data.logradouro,
         numero: data.numero,
@@ -193,7 +193,6 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
         cidade: data.municipio,
         estado: data.uf,
         complemento: data.complemento,
-        
         data_consulta: new Date().toISOString().split('T')[0],
         cnaes_descricao: textoCnaes,
         tem_st: possuiST 
@@ -209,12 +208,27 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     }
   };
 
+  const handleCnpjChange = (e) => {
+    const newValue = e.target.value;
+    setForm({ ...form, cnpj: newValue });
+    if (errors.cnpj) setErrors({...errors, cnpj: null});
+
+    // Gatilho automático: se tiver 14 dígitos numéricos, chama a função
+    const digits = newValue.replace(/\D/g, '');
+    if (digits.length === 14) {
+      handleConsultarCNPJ(digits);
+    }
+  };
+
   const validate = () => {
     const newErrors = {};
     const isEdit = !!cliente?.id;
 
     if (form.codigo) {
-      const exists = todosClientes.some(c => c.codigo?.toLowerCase() === form.codigo.toLowerCase() && (!isEdit || c.id !== cliente.id));
+      const exists = todosClientes.some(c => 
+        c.codigo?.toLowerCase() === form.codigo.toLowerCase() && 
+        (!isEdit || c.id !== cliente.id)
+      );
       if (exists) newErrors.codigo = "Código já cadastrado.";
     } else {
       newErrors.codigo = "Código é obrigatório.";
@@ -238,6 +252,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
   const handleSerasaUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    
     setSerasaUploading(true);
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
@@ -250,11 +265,20 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     }
   };
 
+  const handleRemoveSerasa = (e) => {
+    e.stopPropagation();
+    setSerasaFile(null);
+  };
+
   const handleSubmit = async () => {
     if (validate()) {
       setIsSaving(true);
       try {
-        const dataToSave = { ...form, formas_pagamento: formasPagamento, serasa_file_url: serasaFile };
+        const dataToSave = { 
+          ...form, 
+          formas_pagamento: formasPagamento, 
+          serasa_file_url: serasaFile
+        };
         await onSave(dataToSave);
       } finally {
         setIsSaving(false);
@@ -272,7 +296,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
       <div className="flex-1 overflow-y-auto pr-2">
         <Accordion type="multiple" defaultValue={['dados_cadastrais', 'endereco']} className="space-y-4">
           
-          {/* 1. DADOS CADASTRAIS & FISCAL */}
+          {/* 1. DADOS CADASTRAIS */}
           <AccordionItem value="dados_cadastrais" className="border rounded-xl bg-white px-4 shadow-sm">
             <AccordionTrigger className="hover:no-underline py-4">
               <div className="flex items-center gap-2 text-slate-800">
@@ -281,7 +305,9 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
               </div>
             </AccordionTrigger>
             <AccordionContent className="pb-4 pt-2">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                
+                {/* Linha 1 */}
                 <div className="space-y-1">
                   <Label htmlFor="codigo" className={labelClass}>Código *</Label>
                   <Input
@@ -295,36 +321,30 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
                     disabled={!!cliente?.id}
                     className={cn(inputClass, errors.codigo && "border-red-300 bg-red-50 focus:border-red-400")}
                   />
-                  {errors.codigo && <p className="text-xs text-red-500 mt-1 ml-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {errors.codigo}</p>}
+                  {errors.codigo && <p className="text-xs text-red-500 mt-1">{errors.codigo}</p>}
                 </div>
 
-                <div className="space-y-1">
-                  <Label htmlFor="cnpj" className={labelClass}>CPF/CNPJ</Label>
-                  <div className="flex gap-2">
+                <div className="space-y-1 lg:col-span-2">
+                  <Label htmlFor="cnpj" className={labelClass}>CPF/CNPJ (Automático)</Label>
+                  <div className="relative">
                     <InputCpfCnpj
                       id="cnpj"
                       value={form.cnpj}
-                      onChange={(e) => {
-                        setForm({ ...form, cnpj: e.target.value });
-                        if (errors.cnpj) setErrors({...errors, cnpj: null});
-                      }}
-                      className={cn(inputClass, errors.cnpj && "border-red-300 bg-red-50 focus:border-red-400")}
+                      onChange={handleCnpjChange}
+                      className={cn(inputClass, "pr-10", errors.cnpj && "border-red-300 bg-red-50 focus:border-red-400")}
+                      placeholder="Digite o CNPJ para busca automática..."
                     />
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      onClick={handleConsultarCNPJ}
-                      disabled={isConsulting}
-                      className="shrink-0 h-11 bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
-                    >
-                      {isConsulting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
-                      Consultar
-                    </Button>
+                    {isConsulting && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                      </div>
+                    )}
                   </div>
-                  {errors.cnpj && <p className="text-xs text-red-500 mt-1 ml-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {errors.cnpj}</p>}
+                  {errors.cnpj && <p className="text-xs text-red-500 mt-1">{errors.cnpj}</p>}
                 </div>
 
-                <div className="space-y-1 md:col-span-2">
+                {/* Linha 2 */}
+                <div className="space-y-1 lg:col-span-3">
                   <Label htmlFor="nome" className={labelClass}>Apelido (Nome no Sistema) *</Label>
                   <Input
                     id="nome"
@@ -335,22 +355,23 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
                     }}
                     className={cn(inputClass, "font-bold text-slate-700", errors.nome && "border-red-300 bg-red-50")}
                   />
-                  {errors.nome && <p className="text-xs text-red-500 mt-1 ml-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {errors.nome}</p>}
+                  {errors.nome && <p className="text-xs text-red-500 mt-1">{errors.nome}</p>}
                 </div>
 
-                <div className="space-y-1">
+                {/* Linha 3 */}
+                <div className="space-y-1 lg:col-span-1">
                   <Label htmlFor="razao_social" className={labelClass}>Razão Social</Label>
                   <Input id="razao_social" value={form.razao_social} onChange={(e) => setForm({ ...form, razao_social: e.target.value })} className={inputClass} />
                 </div>
 
-                <div className="space-y-1">
+                <div className="space-y-1 lg:col-span-2">
                   <Label htmlFor="nome_fantasia" className={labelClass}>Nome Fantasia</Label>
                   <Input id="nome_fantasia" value={form.nome_fantasia} onChange={(e) => setForm({ ...form, nome_fantasia: e.target.value })} className={inputClass} />
                 </div>
 
                 {/* Classificação Fiscal / ST */}
-                <div className="md:col-span-2 mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                <div className="md:col-span-2 lg:col-span-3 mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <Factory className="w-5 h-5 text-slate-500" />
                       <span className="font-semibold text-slate-700">Classificação Fiscal (ST)</span>
@@ -360,7 +381,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
                       "px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 border shadow-sm select-none w-fit",
                       form.tem_st ? "bg-red-100 text-red-700 border-red-200" : "bg-green-100 text-green-700 border-green-200"
                     )}>
-                      {form.tem_st ? <><AlertCircle className="w-4 h-4" /> COM ST (Automático)</> : <><CheckCircle className="w-4 h-4" /> SEM ST (Automático)</>}
+                      {form.tem_st ? <><AlertCircle className="w-4 h-4" /> COM ST</> : <><CheckCircle className="w-4 h-4" /> SEM ST</>}
                       <Lock className="w-3 h-3 ml-2 opacity-50" />
                     </div>
                   </div>
@@ -379,7 +400,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
             </AccordionContent>
           </AccordionItem>
 
-          {/* 2. ENDEREÇO & LOCALIZAÇÃO */}
+          {/* 2. ENDEREÇO & LOCALIZAÇÃO (Otimizado para largura maior) */}
           <AccordionItem value="endereco" className="border rounded-xl bg-white px-4 shadow-sm">
             <AccordionTrigger className="hover:no-underline py-4">
               <div className="flex items-center gap-2 text-slate-800">
@@ -388,42 +409,50 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
               </div>
             </AccordionTrigger>
             <AccordionContent className="pb-4 pt-2">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                
                 <div className="space-y-1 md:col-span-1">
                   <Label htmlFor="cep" className={labelClass}>CEP</Label>
                   <Input id="cep" value={form.cep} onChange={(e) => setForm({ ...form, cep: e.target.value })} className={inputClass} placeholder="00000-000" />
                 </div>
+                
                 <div className="space-y-1 md:col-span-2">
                   <Label htmlFor="endereco" className={labelClass}>Endereço (Rua, Av...)</Label>
                   <Input id="endereco" value={form.endereco} onChange={(e) => setForm({ ...form, endereco: e.target.value })} className={inputClass} />
                 </div>
-                <div className="space-y-1">
+                
+                <div className="space-y-1 md:col-span-1">
                   <Label htmlFor="numero" className={labelClass}>Número</Label>
                   <Input id="numero" value={form.numero} onChange={(e) => setForm({ ...form, numero: e.target.value })} className={inputClass} />
                 </div>
-                <div className="space-y-1">
+
+                <div className="space-y-1 md:col-span-1">
                   <Label htmlFor="complemento" className={labelClass}>Complemento</Label>
-                  <Input id="complemento" value={form.complemento} onChange={(e) => setForm({ ...form, complemento: e.target.value })} className={inputClass} placeholder="Apto, Sala, Galpão" />
+                  <Input id="complemento" value={form.complemento} onChange={(e) => setForm({ ...form, complemento: e.target.value })} className={inputClass} placeholder="Apto, Sala" />
                 </div>
-                <div className="space-y-1">
+
+                <div className="space-y-1 md:col-span-1">
                   <Label htmlFor="bairro" className={labelClass}>Bairro</Label>
                   <Input id="bairro" value={form.bairro} onChange={(e) => setForm({ ...form, bairro: e.target.value })} className={inputClass} />
                 </div>
-                <div className="space-y-1">
+
+                <div className="space-y-1 md:col-span-1">
                   <Label htmlFor="cidade" className={labelClass}>Cidade</Label>
                   <Input id="cidade" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} className={inputClass} />
                 </div>
-                <div className="space-y-1">
-                  <Label htmlFor="estado" className={labelClass}>Estado (UF)</Label>
+
+                <div className="space-y-1 md:col-span-1">
+                  <Label htmlFor="estado" className={labelClass}>Estado</Label>
                   <Input id="estado" value={form.estado} onChange={(e) => setForm({ ...form, estado: e.target.value })} className={inputClass} maxLength={2} />
                 </div>
-                <div className="space-y-1">
-                  <Label htmlFor="regiao" className={labelClass}>Região Comercial</Label>
+
+                <div className="space-y-1 md:col-span-2">
+                  <Label htmlFor="regiao" className={labelClass}>Região Comercial (Ex: Zona Leste)</Label>
                   <Input
                     id="regiao"
                     value={form.regiao}
                     onChange={(e) => setForm({ ...form, regiao: e.target.value })}
-                    placeholder="Ex: Zona Norte"
+                    placeholder="Região de vendas"
                     className={inputClass}
                   />
                 </div>
@@ -440,8 +469,8 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
               </div>
             </AccordionTrigger>
             <AccordionContent className="pb-4 pt-2">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-1">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="space-y-1 lg:col-span-1">
                   <Label htmlFor="representante" className={labelClass}>Representante *</Label>
                   <Select value={form.representante_codigo} onValueChange={handleRepresentanteChange}>
                     <SelectTrigger className={cn(inputClass, "w-full")}><SelectValue placeholder="Selecione" /></SelectTrigger>
@@ -486,10 +515,65 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
                 <div className="space-y-2">
                   <Label className={labelClass}>Arquivo Serasa (PDF)</Label>
                   <div className="flex items-center gap-3">
-                    <label className={cn("flex-1 flex items-center justify-center gap-2 h-11 px-4 rounded-xl border-2 border-dashed cursor-pointer transition-all", serasaFile ? "border-green-300 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 hover:border-blue-300 hover:bg-blue-50 text-slate-600")}>
-                      {serasaUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                      <span className="text-sm font-medium">{serasaUploading ? 'Enviando...' : serasaFile ? 'Arquivo enviado' : 'Selecionar PDF'}</span>
-                      <input type="file" accept=".pdf" onChange={handleSerasaUpload} className="hidden" disabled={serasaUploading} />
+                    <label className={cn(
+                      "flex-1 flex items-center justify-between gap-3 h-12 px-4 rounded-xl border-2 border-dashed cursor-pointer transition-all group",
+                      serasaFile 
+                        ? "border-green-300 bg-green-50 hover:bg-green-100" 
+                        : "border-slate-200 bg-slate-50 hover:border-blue-300 hover:bg-blue-50"
+                    )}>
+                      {serasaUploading ? (
+                        <div className="flex items-center gap-2 text-blue-600">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span className="text-sm font-medium">Enviando...</span>
+                        </div>
+                      ) : serasaFile ? (
+                        <>
+                          <div className="flex items-center gap-3">
+                            <div className="p-1.5 bg-white rounded-lg shadow-sm">
+                              <CheckCircle className="w-4 h-4 text-green-600" />
+                            </div>
+                            <div className="text-left">
+                              <span className="text-sm font-bold text-green-800 block">Arquivo Salvo</span>
+                              <span className="text-[10px] text-green-600">Clique para substituir</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button 
+                              type="button" 
+                              variant="ghost" 
+                              size="sm"
+                              className="h-8 w-8 p-0 text-blue-600 hover:bg-blue-100"
+                              onClick={(e) => { e.stopPropagation(); window.open(serasaFile, '_blank'); }}
+                              title="Visualizar PDF"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button 
+                              type="button" 
+                              variant="ghost" 
+                              size="sm"
+                              className="h-8 w-8 p-0 text-red-600 hover:bg-red-100"
+                              onClick={handleRemoveSerasa}
+                              title="Remover Arquivo"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex items-center justify-center w-full gap-2 text-slate-500 group-hover:text-blue-600">
+                          <Upload className="w-4 h-4" />
+                          <span className="text-sm font-medium">Clique para selecionar PDF do Serasa</span>
+                        </div>
+                      )}
+                      
+                      <input 
+                        type="file" 
+                        accept=".pdf" 
+                        onChange={handleSerasaUpload} 
+                        className="hidden" 
+                        disabled={serasaUploading} 
+                      />
                     </label>
                   </div>
                 </div>
@@ -520,14 +604,12 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
 
         </Accordion>
 
-        {/* Bloqueio Manual (Fora do Accordion para visibilidade) */}
         <div className="mt-4 bg-slate-50 border border-slate-100 rounded-2xl p-5 flex items-center justify-between">
           <div><Label htmlFor="bloqueado" className="text-base font-semibold text-slate-800 cursor-pointer">Bloquear Cliente</Label><p className="text-sm text-slate-500 mt-0.5">Impede a criação de novos pedidos</p></div>
           <Switch id="bloqueado" checked={form.bloqueado_manual} onCheckedChange={(checked) => setForm({ ...form, bloqueado_manual: checked })} />
         </div>
       </div>
 
-      {/* Ações (Fixo no Rodapé) */}
       <div className="flex justify-end gap-3 pt-6 border-t mt-4 bg-white sticky bottom-0 z-10">
         <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading || isSaving} className="h-11 px-6 rounded-xl border-slate-200">Cancelar</Button>
         <Button type="button" onClick={handleSubmit} disabled={isLoading || isSaving} className="h-11 px-8 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg">{isSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Salvando...</> : <><Save className="w-4 h-4 mr-2" /> {cliente ? 'Salvar Alterações' : 'Cadastrar Cliente'}</>}</Button>
