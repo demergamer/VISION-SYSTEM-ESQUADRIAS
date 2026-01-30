@@ -295,18 +295,31 @@ export default function Pedidos() {
     }
   };
   
-  // FUNÇÃO ATUALIZADA: Sincronização + Limpeza de Resíduos (< 0.10) + AUTO VINCULO CLIENTE
+  // FUNÇÃO DE ATUALIZAÇÃO TURBINADA
   const handleRefresh = async () => {
     setRefreshingData(true);
-    setRefreshMessage('Conectando ao banco de dados...');
+    setRefreshMessage('Iniciando varredura...');
+    
     try {
+        setRefreshMessage('🧹 Limpando resíduos financeiros...');
+        let residuosLimpos = 0;
+        try {
+            const responseClean = await base44.functions.invoke('limparResiduos', {});
+            if (responseClean?.data?.success) {
+                residuosLimpos = responseClean.data.pedidos_limpos;
+            }
+        } catch (e) {
+            console.warn("Backend cleaning failed, skipping step.", e);
+        }
+
+        setRefreshMessage('📥 Baixando dados mais recentes...');
         const [latestPedidos, latestRotas, latestClientes] = await Promise.all([
             base44.entities.Pedido.list(),
             base44.entities.RotaImportada.list(),
             base44.entities.Cliente.list()
         ]);
 
-        setRefreshMessage('Verificando clientes pendentes...');
+        setRefreshMessage('🔍 Verificando clientes pendentes...');
         let clientesVinculados = 0;
         const pedidosPendentes = latestPedidos.filter(p => p.cliente_pendente === true);
         
@@ -341,25 +354,13 @@ export default function Pedidos() {
         });
         await Promise.all(promisesClientes.filter(Boolean));
 
-        setRefreshMessage('Analisando resíduos financeiros (< R$ 0,10)...');
-        let residuosLimpos = 0;
-        const promisesResiduos = latestPedidos
-            .filter(p => (p.status === 'aberto' || p.status === 'parcial') && (p.saldo_restante > 0 && p.saldo_restante <= 0.10))
-            .map(p => {
-                residuosLimpos++;
-                return base44.entities.Pedido.update(p.id, { 
-                    status: 'pago', 
-                    saldo_restante: 0, 
-                    total_pago: p.valor_pedido,
-                    outras_informacoes: (p.outras_informacoes || '') + '\n[AUTO] Baixa automática de resíduo < R$ 0,10'
-                });
-            });
-        await Promise.all(promisesResiduos);
-
-        setRefreshMessage(`Sincronizando ${latestRotas.length} rotas de entrega...`);
+        setRefreshMessage(`🚚 Sincronizando ${latestRotas.length} rotas...`);
         let routesUpdatedCount = 0;
+        
+        const pedidosAtualizados = latestPedidos;
+
         const updatePromises = latestRotas.map(rota => {
-            const pedidosDaRota = latestPedidos.filter(p => p.rota_importada_id === rota.id);
+            const pedidosDaRota = pedidosAtualizados.filter(p => p.rota_importada_id === rota.id);
             const total = pedidosDaRota.length;
             const confirmados = pedidosDaRota.filter(p => p.confirmado_entrega).length;
             
@@ -379,19 +380,19 @@ export default function Pedidos() {
         });
         await Promise.all(updatePromises.filter(Boolean));
 
-        setRefreshMessage('Finalizando atualizações...');
+        setRefreshMessage('✅ Finalizando...');
         await Promise.all([refetchPedidos(), refetchRotas(), refetchBorderos(), refetchAutorizacoes(), refetchClientes()]);
         
-        let msg = 'Dados atualizados com sucesso!';
-        if (clientesVinculados > 0) msg += `\n👤 ${clientesVinculados} clientes vinculados.`;
-        if (residuosLimpos > 0) msg += `\n🧹 ${residuosLimpos} resíduos baixados.`;
-        if (routesUpdatedCount > 0) msg += `\n🚚 ${routesUpdatedCount} rotas sincronizadas.`;
+        let msg = 'Tudo atualizado!';
+        if (residuosLimpos > 0) msg += `\n- ${residuosLimpos} resíduos baixados.`;
+        if (clientesVinculados > 0) msg += `\n- ${clientesVinculados} clientes vinculados automaticamente.`;
+        if (routesUpdatedCount > 0) msg += `\n- ${routesUpdatedCount} rotas sincronizadas.`;
         
-        toast.success(msg);
+        toast.success(msg, { duration: 5000 });
 
     } catch (error) {
         console.error(error);
-        toast.error('Erro ao atualizar dados: ' + error.message);
+        toast.error('Erro na atualização: ' + error.message);
     } finally {
         setRefreshingData(false);
         setRefreshMessage('Conectando...');
@@ -481,7 +482,7 @@ export default function Pedidos() {
 
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
-  // --- NOVA FUNÇÃO DE APROVAÇÃO (CORRIGIDA) ---
+  // --- NOVA FUNÇÃO DE APROVAÇÃO (CORRIGIDA E BLINDADA) ---
   const handleAprovarSolicitacao = async (dadosAprovacao) => {
       console.log("Iniciando aprovação com:", dadosAprovacao);
       setIsProcessing(true);
@@ -489,21 +490,36 @@ export default function Pedidos() {
           const user = await base44.auth.me();
           const { pedidosSelecionados, descontoValor, devolucao, formasPagamento, comprovantes, totais } = dadosAprovacao;
           
-          // Tratamento para garantir números
           const valorDesconto = parseFloat(descontoValor) || 0;
           const valorDevolucao = parseFloat(devolucao) || 0;
           const totalPago = parseFloat(totais.totalPago) || 0;
 
-          // 1. Algoritmo Waterfall
+          // 2. Criar Borderô
+          const todosBorderos = await base44.entities.Bordero.list();
+          const proximoNumeroBordero = todosBorderos.length > 0 ? Math.max(...todosBorderos.map(b => b.numero_bordero || 0)) + 1 : 1;
+
+          const formasStr = formasPagamento.map(fp => `${fp.tipo.toUpperCase()}: ${formatCurrency(parseFloat(fp.valor))}`).join(' | ');
+
+          await base44.entities.Bordero.create({
+              numero_bordero: proximoNumeroBordero,
+              tipo_liquidacao: 'pendente_aprovada',
+              cliente_codigo: selectedAutorizacao.cliente_codigo,
+              cliente_nome: selectedAutorizacao.cliente_nome,
+              pedidos_ids: pedidosSelecionados.map(p => p.id),
+              valor_total: totalPago,
+              valor_desconto_aplicado: valorDesconto, 
+              forma_pagamento: formasStr,
+              comprovantes_urls: comprovantes,
+              observacao: `Sol. #${selectedAutorizacao.numero_solicitacao} | Desc: ${formatCurrency(valorDesconto)} | Dev: ${formatCurrency(valorDevolucao)}`,
+              liquidado_por: user.email
+          });
+
+          // 3. Atualizar Pedidos (Waterfall Logic)
           let devolucaoRestante = valorDevolucao;
           let descontoRestante = valorDesconto;
           let pagamentoRestante = totalPago;
 
-          const pedidosProcessados = [];
-
           for (const pedido of pedidosSelecionados) {
-              if (!pedido?.id) continue;
-              
               const valorPedido = parseFloat(pedido.valor_pedido) || 0;
               const totalPagoAtual = parseFloat(pedido.total_pago) || 0;
               const saldoPedido = parseFloat(pedido.saldo_restante) !== undefined ? parseFloat(pedido.saldo_restante) : (valorPedido - totalPagoAtual);
@@ -532,46 +548,16 @@ export default function Pedidos() {
                   pagamentoRestante -= val;
               }
 
-              pedidosProcessados.push({
-                  pedido,
-                  novoTotalPago: totalPagoAtual + pagamentoAplicado + devolucaoAplicada,
-                  novoDescontoTotal: (parseFloat(pedido.desconto_dado) || 0) + descontoAplicado,
-                  novoSaldo: Math.max(0, saldoAtual),
-                  devolucaoAplicada,
-                  descontoAplicado,
-                  pagamentoAplicado
-              });
-          }
+              const novoTotalPago = totalPagoAtual + pagamentoAplicado + devolucaoAplicada;
+              const novoSaldo = Math.max(0, saldoAtual);
 
-          // 2. Criar Borderô
-          const todosBorderos = await base44.entities.Bordero.list();
-          const proximoNumeroBordero = todosBorderos.length > 0 ? Math.max(...todosBorderos.map(b => b.numero_bordero || 0)) + 1 : 1;
-
-          const formasStr = formasPagamento.map(fp => `${fp.tipo.toUpperCase()}: ${formatCurrency(parseFloat(fp.valor))}`).join(' | ');
-
-          await base44.entities.Bordero.create({
-              numero_bordero: proximoNumeroBordero,
-              tipo_liquidacao: 'pendente_aprovada',
-              cliente_codigo: selectedAutorizacao.cliente_codigo,
-              cliente_nome: selectedAutorizacao.cliente_nome,
-              pedidos_ids: pedidosSelecionados.map(p => p.id),
-              valor_total: totalPago,
-              valor_desconto_aplicado: valorDesconto, 
-              forma_pagamento: formasStr,
-              comprovantes_urls: comprovantes,
-              observacao: `Sol. #${selectedAutorizacao.numero_solicitacao} | Desc: ${formatCurrency(valorDesconto)} | Dev: ${formatCurrency(valorDevolucao)}`,
-              liquidado_por: user.email
-          });
-
-          // 3. Atualizar Pedidos
-          for (const proc of pedidosProcessados) {
-              await base44.entities.Pedido.update(proc.pedido.id, {
-                  total_pago: proc.novoTotalPago,
-                  desconto_dado: proc.novoDescontoTotal,
-                  saldo_restante: proc.novoSaldo,
-                  status: proc.novoSaldo <= 0.01 ? 'pago' : 'parcial',
+              await base44.entities.Pedido.update(pedido.id, {
+                  total_pago: novoTotalPago,
+                  desconto_dado: (parseFloat(pedido.desconto_dado) || 0) + descontoAplicado,
+                  saldo_restante: novoSaldo,
+                  status: novoSaldo <= 0.01 ? 'pago' : 'parcial',
                   bordero_numero: proximoNumeroBordero,
-                  outras_informacoes: (proc.pedido.outras_informacoes || '') + 
+                  outras_informacoes: (pedido.outras_informacoes || '') + 
                       `\n[${new Date().toLocaleDateString()}] Borderô #${proximoNumeroBordero} (Sol. #${selectedAutorizacao.numero_solicitacao})`
               });
           }
@@ -583,8 +569,11 @@ export default function Pedidos() {
               data_aprovacao: new Date().toISOString()
           });
 
-          await Promise.all([refetchPedidos(), refetchBorderos(), refetchAutorizacoes()]);
+          // 5. FECHAR MODAL ANTES DE RECARREGAR (Evita Crash de Tela Branca)
           setShowAutorizacaoModal(false);
+          setSelectedAutorizacao(null); 
+
+          await Promise.all([refetchPedidos(), refetchBorderos(), refetchAutorizacoes()]);
           toast.success(`Liquidação #${proximoNumeroBordero} gerada com sucesso!`);
 
       } catch (e) {
@@ -943,7 +932,7 @@ export default function Pedidos() {
                         toast.success('Solicitação rejeitada.');
                     } catch(e) { toast.error("Erro ao rejeitar"); } finally { setIsProcessing(false); }
                 }}
-                onAprovar={handleAprovarSolicitacao} // USANDO A FUNÇÃO NOVA AQUI
+                onAprovar={handleAprovarSolicitacao} 
             />
           </ModalContainer>
 
@@ -960,7 +949,7 @@ export default function Pedidos() {
                    // 1. Criar Cliente
                    const novoCliente = await base44.entities.Cliente.create(data);
                    
-                   // 2. Buscar TODOS os pedidos pendentes com esse nome (CORREÇÃO DE LÓGICA)
+                   // 2. Buscar TODOS os pedidos pendentes com esse nome
                    const nomeAlvo = pedidoParaCadastro.cliente_nome.trim().toLowerCase();
                    // Filtra todos os pedidos pendentes que tenham o nome similar
                    const pedidosParaVincular = pedidos.filter(p => 
