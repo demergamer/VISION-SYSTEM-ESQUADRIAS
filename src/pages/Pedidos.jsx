@@ -1,16 +1,16 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ShoppingCart, Plus, Search, RefreshCw, DollarSign, AlertTriangle,
   FileText, ArrowLeft, Filter, Upload, Truck, Clock, CheckCircle, XCircle,
   MoreHorizontal, LayoutGrid, List, MapPin, Calendar, Edit, Eye, RotateCcw,
-  SlidersHorizontal, X as XIcon, Loader2, Factory
+  SlidersHorizontal, X as XIcon, Loader2, Factory, Split
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -18,13 +18,10 @@ import { toast } from "sonner";
 import { format, differenceInDays, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 // Componentes Internos
 import ModalContainer from "@/components/modals/ModalContainer";
@@ -84,7 +81,13 @@ const FilterPanel = ({ filters, setFilters, onClear, isOpen }) => {
   );
 };
 
-// Componente: Card de Pedido em Grade
+// --- WIDGETS ---
+const StatWidget = ({ title, value, icon: Icon, color }) => {
+  const colorStyles = { blue: "bg-blue-50 text-blue-600", red: "bg-red-50 text-red-600", yellow: "bg-amber-50 text-amber-600", purple: "bg-purple-50 text-purple-600", emerald: "bg-emerald-50 text-emerald-600", slate: "bg-slate-100 text-slate-600" };
+  return (<div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-start justify-between hover:shadow-md transition-all duration-300"><div><p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{title}</p><h3 className="text-2xl font-bold text-slate-800">{value}</h3></div><div className={`p-3 rounded-xl ${colorStyles[color] || colorStyles.slate}`}><Icon size={20} /></div></div>);
+};
+
+// Componente: Card de Pedido em Grade (Explorer)
 const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReverter, canDo }) => {
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
   const getStatusBadge = (status, dataEntrega) => {
@@ -128,11 +131,6 @@ const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReve
   );
 };
 
-const StatWidget = ({ title, value, icon: Icon, color }) => {
-  const colorStyles = { blue: "bg-blue-50 text-blue-600", red: "bg-red-50 text-red-600", yellow: "bg-amber-50 text-amber-600", purple: "bg-purple-50 text-purple-600", emerald: "bg-emerald-50 text-emerald-600", slate: "bg-slate-100 text-slate-600" };
-  return (<div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-start justify-between hover:shadow-md transition-all duration-300"><div><p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{title}</p><h3 className="text-2xl font-bold text-slate-800">{value}</h3></div><div className={`p-3 rounded-xl ${colorStyles[color] || colorStyles.slate}`}><Icon size={20} /></div></div>);
-};
-
 export default function Pedidos() {
   const queryClient = useQueryClient();
   const { canDo } = usePermissions();
@@ -140,14 +138,13 @@ export default function Pedidos() {
   // --- STATES ---
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('abertos');
-  const [viewMode, setViewMode] = useState('table'); // 'table' or 'grid'
-  const [liquidacaoView, setLiquidacaoView] = useState('bordero'); // 'bordero' or 'pedidos'
+  const [viewMode, setViewMode] = useState('table'); 
+  const [liquidacaoView, setLiquidacaoView] = useState('bordero'); 
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({ dateStart: '', dateEnd: '', region: '', minValue: '' });
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [refreshingData, setRefreshingData] = useState(false);
-  const [refreshMessage, setRefreshMessage] = useState('Sincronizando dados...');
 
   // --- MODAIS ---
   const [showAddModal, setShowAddModal] = useState(false);
@@ -202,9 +199,11 @@ export default function Pedidos() {
   const updateMutation = useMutation({ 
     mutationFn: ({ id, data }) => base44.entities.Pedido.update(id, data), 
     onSuccess: async () => { 
-      await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
-      await queryClient.invalidateQueries({ queryKey: ['creditos'] });
-      await queryClient.invalidateQueries({ queryKey: ['borderos'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['pedidos'] }),
+        queryClient.invalidateQueries({ queryKey: ['creditos'] }),
+        queryClient.invalidateQueries({ queryKey: ['borderos'] })
+      ]);
       setShowEditModal(false); 
       setShowLiquidarModal(false); 
       setSelectedPedido(null); 
@@ -215,16 +214,14 @@ export default function Pedidos() {
   // --- FILTROS DE DADOS ---
   const filteredPedidos = useMemo(() => {
     let filtered = pedidos;
-    // Filtro por Aba
     switch (activeTab) {
       case 'transito': filtered = filtered.filter(p => p.status === 'aguardando'); break;
       case 'abertos': filtered = filtered.filter(p => p.status === 'aberto' || p.status === 'parcial'); break;
       case 'liquidacoes': filtered = filtered.filter(p => p.status === 'pago'); break;
       case 'cancelados': filtered = filtered.filter(p => p.status === 'cancelado'); break;
-      default: break; // Rotas, Autorizacoes e Producao tratam seus proprios dados
+      default: break; 
     }
 
-    // Filtro de Busca
     if (searchTerm) {
       filtered = filtered.filter(pedido =>
         pedido.cliente_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -234,7 +231,6 @@ export default function Pedidos() {
       );
     }
     
-    // Filtros Avançados
     if (showFilters) {
         if (filters.dateStart) { const start = parseISO(filters.dateStart); filtered = filtered.filter(p => p.data_entrega && new Date(p.data_entrega) >= start); }
         if (filters.dateEnd) { const end = parseISO(filters.dateEnd); end.setHours(23, 59, 59, 999); filtered = filtered.filter(p => p.data_entrega && new Date(p.data_entrega) <= end); }
@@ -259,7 +255,6 @@ export default function Pedidos() {
   // --- HANDLERS ---
   const handleEdit = (pedido) => { setSelectedPedido(pedido); setShowEditModal(true); };
   const handleView = (pedido) => { 
-      // Se for borderô (tem isBordero ou numero_bordero sem id de pedido normal)
       if (pedido.isBordero) {
           setSelectedPedido(pedido);
           setShowDetailsModal(true);
@@ -285,7 +280,6 @@ export default function Pedidos() {
   const handleAlterarPortador = (rota) => { setSelectedRota(rota); setShowAlterarPortadorModal(true); };
   const handleDividirRota = (rota) => { setSelectedRota(rota); setShowDividirRotaModal(true); };
 
-  // Handler para Salvar Divisão de Rota
   const handleSaveDivisaoRota = async (novaRotaInfo, idsSelecionados) => {
     setIsProcessing(true);
     try {
@@ -327,9 +321,7 @@ export default function Pedidos() {
     }
   };
 
-  // Handlers adicionais para os modais
   const handleSaveRotaChecklist = async (data) => {
-      // (Mantém lógica anterior, simplificada aqui)
       try {
           await base44.entities.RotaImportada.update(data.rota.id, data.rota);
           const promises = data.pedidos.map(p => base44.entities.Pedido.update(p.id, { confirmado_entrega: p.confirmado_entrega, status: p.status }));
@@ -341,7 +333,6 @@ export default function Pedidos() {
   };
 
   const handleLiquidacaoMassa = async () => {
-      // Recarregar dados após massa
       await Promise.all([refetchPedidos(), refetchBorderos()]);
       setShowLiquidacaoMassaModal(false);
       setActiveTab('liquidacoes');
@@ -402,21 +393,17 @@ export default function Pedidos() {
                     <TabsTrigger value="rotas" className="rounded-full gap-2 px-4"><Truck className="w-4 h-4 text-purple-500"/> Rotas</TabsTrigger>
                 </TabsList>
 
-                {/* Toolbar: Filtros, View Mode e Busca */}
+                {/* Toolbar */}
                 {activeTab !== 'rotas' && activeTab !== 'producao' && (
                     <div className="flex gap-2 w-full md:w-auto">
                         <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)} className={cn("h-10 px-3 rounded-xl", showFilters ? "bg-blue-50 border-blue-300" : "")}>
                             <Filter className="w-4 h-4 mr-2"/> Filtros
                         </Button>
                         
-                        {/* SELETORES DE VIEW MODE RESTAURADOS */}
+                        {/* SELETORES DE VIEW MODE */}
                         <div className="bg-white border border-slate-200 rounded-xl p-1 flex">
-                            <Button variant="ghost" size="sm" className={cn("h-8 px-2 rounded-lg transition-all", viewMode === 'table' ? "bg-slate-100 text-slate-900" : "text-slate-400 hover:text-slate-600")} onClick={() => setViewMode('table')} title="Lista">
-                                <List className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" className={cn("h-8 px-2 rounded-lg transition-all", viewMode === 'grid' ? "bg-slate-100 text-slate-900" : "text-slate-400 hover:text-slate-600")} onClick={() => setViewMode('grid')} title="Grade">
-                                <LayoutGrid className="w-4 h-4" />
-                            </Button>
+                            <Button variant="ghost" size="sm" className={cn("h-8 px-2 rounded-lg transition-all", viewMode === 'table' ? "bg-slate-100 text-slate-900" : "text-slate-400 hover:text-slate-600")} onClick={() => setViewMode('table')} title="Lista"><List className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="sm" className={cn("h-8 px-2 rounded-lg transition-all", viewMode === 'grid' ? "bg-slate-100 text-slate-900" : "text-slate-400 hover:text-slate-600")} onClick={() => setViewMode('grid')} title="Grade"><LayoutGrid className="w-4 h-4" /></Button>
                         </div>
 
                         <div className="relative flex-1 md:w-64">
@@ -431,7 +418,6 @@ export default function Pedidos() {
 
             {/* --- CONTEÚDO DAS ABAS --- */}
 
-            {/* 1. PRODUÇÃO */}
             <TabsContent value="producao">
                 <div className="flex flex-col items-center justify-center py-20 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
                     <Factory className="w-16 h-16 mb-4 opacity-50" />
@@ -440,7 +426,6 @@ export default function Pedidos() {
                 </div>
             </TabsContent>
 
-            {/* 2. ROTAS */}
             <TabsContent value="rotas">
                 <RotasList 
                     rotas={rotas} 
@@ -451,14 +436,13 @@ export default function Pedidos() {
                 />
             </TabsContent>
 
-            {/* 3. EM TRÂNSITO (Aguardando) */}
             <TabsContent value="transito">
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {filteredPedidos.length > 0 ? filteredPedidos.map(p => (
                         <div key={p.id} className="bg-amber-50 border border-amber-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all">
                             <div className="flex justify-between mb-2">
                                 <span className="font-bold text-amber-800">#{p.numero_pedido}</span>
-                                <span className="text-sm bg-white px-2 rounded border border-amber-100">{p.data_entrega ? format(new Date(p.data_entrega), 'dd/MM/yyyy') : '-'}</span>
+                                <span className="text-sm bg-white px-2 rounded border border-amber-100">{format(new Date(p.data_entrega), 'dd/MM/yyyy')}</span>
                             </div>
                             <p className="font-bold text-slate-800 mb-4">{p.cliente_nome}</p>
                             <p className="text-xl font-bold text-emerald-600 mb-4">{formatCurrency(p.valor_pedido)}</p>
@@ -471,14 +455,13 @@ export default function Pedidos() {
                 </div>
             </TabsContent>
 
-            {/* 4. AUTORIZAÇÕES */}
             <TabsContent value="autorizacoes">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {liquidacoesPendentes.filter(lp => lp.status === 'pendente').map(aut => (
                         <Card key={aut.id} className="p-5 border-orange-200 bg-orange-50/30 cursor-pointer hover:shadow-md transition-all" onClick={() => { setSelectedAutorizacao(aut); setShowAutorizacaoModal(true); }}>
                             <div className="flex justify-between items-start mb-2">
                                 <Badge className="bg-orange-100 text-orange-700">Solicitação #{aut.numero_solicitacao}</Badge>
-                                <span className="text-xs text-slate-500">{aut.created_date ? format(new Date(aut.created_date), 'dd/MM HH:mm') : '-'}</span>
+                                <span className="text-xs text-slate-500">{format(new Date(aut.created_date), 'dd/MM HH:mm')}</span>
                             </div>
                             <p className="font-bold text-slate-800 mb-1">{aut.cliente_nome}</p>
                             <p className="text-sm text-slate-600 mb-3">{aut.pedidos_ids?.length || 0} pedidos</p>
@@ -492,7 +475,7 @@ export default function Pedidos() {
                 </div>
             </TabsContent>
 
-            {/* 5. LIQUIDAÇÕES (Lógica Restaurada de Borderô vs Pedidos) */}
+            {/* ABA LIQUIDAÇÕES - CORRIGIDA */}
             <TabsContent value="liquidacoes">
                 <div className="flex gap-2 mb-4">
                     <Button 
@@ -513,21 +496,20 @@ export default function Pedidos() {
 
                 {liquidacaoView === 'bordero' ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {filteredBorderos.map(bordero => (
+                        {filteredBorderos.length > 0 ? filteredBorderos.map(bordero => (
                             <Card key={bordero.id} className="p-5 hover:shadow-md transition-all cursor-pointer border-slate-200" onClick={() => { setSelectedPedido({...bordero, isBordero: true}); setShowDetailsModal(true); }}>
                                 <div className="flex justify-between mb-2">
                                     <span className="font-bold text-slate-700">Borderô #{bordero.numero_bordero}</span>
                                     <Badge variant="outline" className="border-emerald-200 text-emerald-700 bg-emerald-50">Liquidado</Badge>
                                 </div>
                                 <p className="text-sm text-slate-600 mb-1">{bordero.cliente_nome || "Vários Clientes"}</p>
-                                <p className="text-xs text-slate-400 mb-3">{bordero.created_date ? format(new Date(bordero.created_date), 'dd/MM/yyyy HH:mm') : '-'}</p>
+                                <p className="text-xs text-slate-400 mb-3">{format(new Date(bordero.created_date), 'dd/MM/yyyy HH:mm')}</p>
                                 <div className="flex justify-between items-end border-t pt-3">
                                     <span className="text-xs text-slate-500">{bordero.pedidos_ids?.length || 0} pedidos</span>
                                     <span className="font-bold text-emerald-600 text-lg">{formatCurrency(bordero.valor_total)}</span>
                                 </div>
                             </Card>
-                        ))}
-                        {filteredBorderos.length === 0 && <p className="col-span-full text-center py-10 text-slate-500">Nenhum borderô encontrado.</p>}
+                        )) : <p className="col-span-full text-center py-10 text-slate-500">Nenhum borderô encontrado.</p>}
                     </div>
                 ) : (
                     <PedidoTable 
@@ -543,7 +525,7 @@ export default function Pedidos() {
                 )}
             </TabsContent>
 
-            {/* 6. ABERTOS & CANCELADOS */}
+            {/* ABAS ABERTOS E CANCELADOS */}
             {['abertos', 'cancelados'].map(tab => (
                 <TabsContent key={tab} value={tab}>
                     {viewMode === 'table' ? (
@@ -576,12 +558,12 @@ export default function Pedidos() {
 
           </Tabs>
 
-          {/* --- MODAIS DE FATO --- */}
+          {/* MODAIS (Restaurados e Corrigidos) */}
           <ModalContainer open={showImportModal} onClose={() => setShowImportModal(false)} title="Importar Pedidos" size="lg">
             <ImportarPedidos 
                 clientes={clientes} 
                 rotas={rotas} 
-                pedidosExistentes={pedidos} // Passando a prop vital para verificação de duplicidade
+                pedidosExistentes={pedidos} 
                 onImportComplete={() => { queryClient.invalidateQueries({queryKey:['pedidos']}); setShowImportModal(false); toast.success('Importado!'); }} 
                 onCancel={() => setShowImportModal(false)} 
             />
@@ -606,8 +588,6 @@ export default function Pedidos() {
              {selectedPedido?.isBordero ? <BorderoDetails bordero={selectedPedido} pedidos={pedidos} onClose={() => setShowDetailsModal(false)}/> : <PedidoDetails pedido={selectedPedido} onClose={() => setShowDetailsModal(false)} />}
           </ModalContainer>
           <ModalContainer open={showAutorizacaoModal} onClose={() => setShowAutorizacaoModal(false)} title="Aprovar Liquidação" size="xl"><AprovarLiquidacaoModal autorizacao={selectedAutorizacao} todosPedidos={pedidos} onAprovar={() => {}} onRejeitar={() => {}} onCancel={() => setShowAutorizacaoModal(false)} /></ModalContainer>
-          
-          {/* Outros modais menores omitidos para brevidade mas devem estar aqui (Cancelar, Cadastrar Cliente, Alterar Portador) */}
           <ModalContainer open={showAlterarPortadorModal} onClose={() => setShowAlterarPortadorModal(false)} title="Alterar Portador" size="lg">
              {selectedRota && <AlterarPortadorModal rota={selectedRota} pedidos={pedidos.filter(p => p.rota_importada_id === selectedRota.id)} onSave={() => {setShowAlterarPortadorModal(false); toast.success("Portador alterado");}} onCancel={() => setShowAlterarPortadorModal(false)} />}
           </ModalContainer>
