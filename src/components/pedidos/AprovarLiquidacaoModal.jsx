@@ -10,6 +10,7 @@ import {
   DollarSign, Loader2, Plus, X, Upload, FileText, Trash2, 
   ShoppingCart, Calculator, ExternalLink, CheckCircle
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { base44 } from '@/api/base44Client';
