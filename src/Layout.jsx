@@ -1,17 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { createPageUrl } from "@/utils";
+import React, { useState, useEffect, useRef } from 'react';
+import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { 
-  LayoutDashboard, Users, Building2, ShoppingCart, CreditCard, Wallet,
-  BarChart3, PieChart, LogOut, Lock, Search, Bell, Menu, X, FileText,
-  ChevronRight, Command, Truck, UserPlus, Package, Layers, Landmark
-} from "lucide-react";
+  Eye, 
+  EyeOff, 
+  Settings, 
+  LogOut, 
+  Clock, 
+  Calendar,
+  ChevronRight,
+  ChevronLeft,
+  ChevronUp,
+  ChevronDown,
+  LayoutDashboard
+} from 'lucide-react';
+import { cn } from "@/lib/utils";
+import { useAuth } from '@/lib/AuthContext';
+import { pagesConfig } from './pages.config';
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { base44 } from '@/api/base44Client';
-import { toast } from "sonner";
-import NotificationCenter from "@/components/notificacoes/NotificationCenter";
-import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,372 +25,228 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-} from "@/components/ui/dialog";
 
-// Importando os componentes da Sidebar
-import {
-  SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarGroup,
-  SidebarGroupLabel, SidebarGroupContent, SidebarMenu, SidebarMenuItem,
-  SidebarMenuButton, SidebarFooter, SidebarInset, SidebarTrigger, SidebarSeparator
-} from "@/components/ui/sidebar";
+// Componente de Relógio em Tempo Real
+const LiveClock = () => {
+  const [time, setTime] = useState(new Date());
 
-// --- Estrutura do Menu ---
-const navStructure = [
-  {
-    category: "Principal",
-    items: [
-      { name: 'Dashboard', icon: LayoutDashboard, page: 'Dashboard' }
-    ]
-  },
-  {
-    category: "Cadastros",
-    items: [
-      { name: 'Clientes', icon: Building2, page: 'Clientes' },
-      { name: 'Representantes', icon: Users, page: 'Representantes' },
-      { name: 'Fornecedores', icon: Truck, page: 'Fornecedores' },
-      { name: 'Formas de Pagamento', icon: CreditCard, page: 'FormasPagamento' },
-    ]
-  },
-  {
-    category: "Vendas",
-    items: [
-      { name: 'Solicitações', icon: UserPlus, page: 'Cadastro' },
-      { name: 'Orçamentos', icon: FileText, page: 'Orcamentos' },
-      { name: 'Produtos', icon: Package, page: 'Produtos' },
-      { name: 'Entrada/Caução', icon: Wallet, page: 'EntradaCaucao' },
-    ]
-  },
-  {
-    category: "A Receber",
-    items: [
-      { name: 'Pedidos', icon: ShoppingCart, page: 'Pedidos' },
-      { name: 'Cheques', icon: CreditCard, page: 'Cheques' },
-      { name: 'Créditos', icon: Wallet, page: 'Creditos' },
-    ]
-  },
-  {
-    category: "A Pagar",
-    items: [
-      { name: 'Pagamentos', icon: CreditCard, page: 'Pagamentos' },
-      { name: 'Caixa Diário', icon: Landmark, page: 'CaixaDiario' }, // Adicionado
-      { name: 'Comissões', icon: Wallet, page: 'Comissoes' },
-    ]
-  },
-  {
-    category: "Feedback",
-    items: [
-      { name: 'Relatórios', icon: PieChart, page: 'Relatorios' },
-      { name: 'Balanço', icon: BarChart3, page: 'Balanco' },
-    ]
-  },
-  {
-    category: "Master",
-    items: [
-      { name: 'Logs de Atividade', icon: FileText, page: 'Logs', isDev: true },
-      { name: 'Usuários', icon: Users, page: 'Usuarios' },
-    ]
-  }
-];
-
-// --- Componente de Busca Global ---
-const GlobalSearch = ({ open, onOpenChange, navigate }) => {
-  const [query, setQuery] = useState("");
-  const mockResults = [
-    { type: 'Cliente', name: 'J&C Esquadrias', id: 'CLI001', page: 'Clientes' },
-    { type: 'Pedido', name: 'Pedido #60285 - Loja Jacui', id: '60285', page: 'Pedidos' },
-    { type: 'Representante', name: 'Altimar', id: 'REP05', page: 'Representation' },
-  ].filter(item => item.name.toLowerCase().includes(query.toLowerCase()));
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="p-0 gap-0 max-w-xl bg-white overflow-hidden rounded-2xl border-none shadow-2xl">
-        <div className="flex items-center px-4 py-3 border-b border-slate-100">
-          <Search className="w-5 h-5 text-slate-400 mr-3" />
-          <input 
-            className="flex-1 bg-transparent outline-none text-lg text-slate-700 placeholder:text-slate-300"
-            placeholder="O que você procura?"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            autoFocus
-          />
-          <div className="text-xs text-slate-300 font-mono border border-slate-100 px-1.5 py-0.5 rounded">ESC</div>
-        </div>
-        <div className="max-h-[300px] overflow-y-auto p-2">
-          {query === "" && <p className="text-xs text-slate-400 p-3 text-center">Digite para buscar...</p>}
-          {query !== "" && mockResults.length === 0 && <p className="text-sm text-slate-500 p-4 text-center">Nenhum resultado encontrado.</p>}
-          {mockResults.map((result, idx) => (
-            <button
-              key={idx}
-              onClick={() => {
-                navigate(createPageUrl(result.page) + (result.type === 'Pedido' ? `?busca=${result.id}` : ''));
-                onOpenChange(false);
-              }}
-              className="w-full flex items-center justify-between p-3 hover:bg-blue-50 rounded-xl group transition-all"
-            >
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${result.type === 'Pedido' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}`}>
-                  {result.type === 'Pedido' ? <ShoppingCart size={16} /> : <Users size={16} />}
-                </div>
-                <div className="text-left">
-                  <p className="text-sm font-semibold text-slate-800 group-hover:text-blue-700">{result.name}</p>
-                  <p className="text-xs text-slate-400">{result.type}</p>
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-400" />
-            </button>
-          ))}
-        </div>
-      </DialogContent>
-    </Dialog>
+    <div className="flex flex-col items-center justify-center p-4 bg-slate-900/50 rounded-xl border border-white/10 text-white backdrop-blur-md mb-4 w-full">
+      <div className="flex items-center gap-2 text-2xl font-bold tracking-widest font-mono">
+        <Clock className="w-5 h-5 text-blue-400" />
+        {time.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+      </div>
+      <div className="flex items-center gap-2 text-xs text-slate-400 mt-1 uppercase tracking-wide">
+        <Calendar className="w-3 h-3" />
+        {time.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
+      </div>
+    </div>
   );
 };
 
 export default function Layout({ children, currentPageName }) {
+  const location = useLocation();
   const navigate = useNavigate();
-  const [user, setUser] = React.useState(null);
-  const [searchOpen, setSearchOpen] = React.useState(false);
-  const [notificationCount, setNotificationCount] = React.useState(0);
+  const { user, signOut } = useAuth();
+  
+  // --- ESTADOS DE PREFERÊNCIA (PERSISTENTES) ---
+  const [isEnabled, setIsEnabled] = useState(() => localStorage.getItem('jc_sidebar_enabled') !== 'false');
+  const [position, setPosition] = useState(() => localStorage.getItem('jc_sidebar_pos') || 'left');
+  
+  // --- ESTADO DE INTERAÇÃO (HOVER) ---
+  const [isOpen, setIsOpen] = useState(false);
+  const hoverTimeoutRef = useRef(null);
 
-  useEffect(() => {
-    const down = (e) => {
-      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        setSearchOpen((open) => !open);
-      }
-    };
-    document.addEventListener("keydown", down);
-    return () => document.removeEventListener("keydown", down);
-  }, []);
+  // Salvar preferências
+  useEffect(() => { localStorage.setItem('jc_sidebar_enabled', isEnabled); }, [isEnabled]);
+  useEffect(() => { localStorage.setItem('jc_sidebar_pos', position); }, [position]);
 
-  React.useEffect(() => {
-    base44.auth.me().then(setUser).catch(() => {});
-  }, []);
-
-  // Real-time notification count
-  React.useEffect(() => {
-    if (!user?.email) return;
-
-    const fetchCount = async () => {
-      const notifs = await base44.entities.Notificacao.list();
-      const naoLidas = notifs.filter(n => n.destinatario_email === user.email && !n.lida).length;
-      setNotificationCount(naoLidas);
-    };
-
-    fetchCount();
-
-    const unsubscribe = base44.entities.Notificacao.subscribe((event) => {
-      if (event.data?.destinatario_email === user.email) {
-        fetchCount();
-      }
-    });
-
-    return unsubscribe;
-  }, [user?.email]);
-
-  const handleSidebarMouseEnter = () => {}; // Desabilitado temporariamente ou use lógica de timer
-  const handleSidebarMouseLeave = () => {};
-
-  const handleLogout = () => {
-    base44.auth.logout();
+  // Lógica de "Hover" inteligente (com delay para não piscar)
+  const handleMouseEnter = () => {
+    if (!isEnabled) return;
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    setIsOpen(true);
   };
 
-  const hasAccess = (pageName) => {
-    if (!user) return false;
+  const handleMouseLeave = () => {
+    hoverTimeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 300); // 300ms de tolerância antes de fechar
+  };
+
+  // Ícones de Navegação
+  const { Pages } = pagesConfig;
+  const navItems = Object.keys(Pages).filter(key => key !== 'Login' && key !== 'Cadastro' && key !== 'AcessoNegado').map(key => ({
+    name: key,
+    path: `/${key}`,
+    icon: LayoutDashboard // Você pode mapear ícones específicos aqui se quiser
+  }));
+
+  // Classes dinâmicas baseadas na posição
+  const sidebarClasses = cn(
+    "fixed z-[50] bg-slate-950/95 backdrop-blur-xl border-slate-800 text-slate-200 shadow-2xl transition-all duration-300 ease-out flex",
+    // Posições
+    position === 'left' && "left-0 top-0 bottom-0 w-72 border-r transform",
+    position === 'right' && "right-0 top-0 bottom-0 w-72 border-l transform",
+    position === 'top' && "top-0 left-0 right-0 h-auto border-b transform flex-row",
+    position === 'bottom' && "bottom-0 left-0 right-0 h-auto border-t transform flex-row",
     
-    // Itens em desenvolvimento
-    if (['ChequesPagar', 'Logs'].includes(pageName)) return true;
+    // Visibilidade (Slide)
+    !isOpen && position === 'left' && "-translate-x-full",
+    !isOpen && position === 'right' && "translate-x-full",
+    !isOpen && position === 'top' && "-translate-y-full",
+    !isOpen && position === 'bottom' && "translate-y-full",
+    
+    // Se estiver desativado pelo olho, esconde totalmente
+    !isEnabled && "opacity-0 pointer-events-none"
+  );
 
-    const permissoes = user.permissoes || {};
-
-    const pageToModule = {
-      'Dashboard': 'Dashboard',
-      'Pedidos': 'Pedidos',
-      'Orcamentos': 'Orcamentos',
-      'EntradaCaucao': 'EntradaCaucao',
-      'Clientes': 'Clientes',
-      'Representantes': 'Representantes',
-      'Comissoes': 'Comissoes',
-      'Pagamentos': 'Pagamentos',
-      'Produtos': 'Produtos',
-      'Cheques': 'Cheques',
-      'Creditos': 'Creditos',
-      'Fornecedores': 'Fornecedores',
-      'FormasPagamento': 'FormasPagamento',
-      'Relatorios': 'Relatorios',
-      'Balanco': 'Balanco',
-      'Usuarios': 'Usuarios',
-      'Cadastro': 'Orcamentos', 
-      'Logs': 'Usuarios',
-      'CaixaDiario': 'CaixaDiario' // Mapeamento novo
-    };
-
-    const moduleName = pageToModule[pageName] || pageName;
-    const perm = permissoes[moduleName];
-
-    return perm === true || perm?.visualizar === true;
-  };
-
-  const handleDevClick = (e, moduleName) => {
-    e.preventDefault();
-    toast.info(`Módulo ${moduleName}`, {
-      description: "Esta funcionalidade está em desenvolvimento (Fase Master).",
-      icon: <Lock className="w-4 h-4 text-amber-500" />
-    });
-  };
-
-  if (currentPageName === 'PortalDoRepresentante' || currentPageName === 'PortalCliente') {
-    const title = currentPageName === 'PortalDoRepresentante' ? 'Portal do Representante' : 'Portal do Cliente';
-    return (
-      <div className="min-h-screen bg-slate-50">
-        <div className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b px-6 py-4 flex items-center justify-between shadow-sm">
-          <div>
-            <h1 className="font-bold text-xl text-slate-800">{title}</h1>
-            <p className="text-xs text-slate-500">{user?.email || ''}</p>
-          </div>
-          <Button variant="ghost" className="gap-2 text-red-600 hover:bg-red-50" onClick={handleLogout}>
-            <LogOut className="w-4 h-4" /> Sair
-          </Button>
-        </div>
-        <main className="pt-24 px-4 pb-10 max-w-7xl mx-auto">{children}</main>
-      </div>
-    );
-  }
+  // Zona de Gatilho (A borda invisível)
+  const triggerZoneClasses = cn(
+    "fixed z-[40] bg-transparent hover:bg-blue-500/10 transition-colors duration-200",
+    !isEnabled && "hidden", // Se o olho tá fechado, a zona não existe
+    // Tamanho da zona
+    position === 'left' && "left-0 top-0 bottom-0 w-6",
+    position === 'right' && "right-0 top-0 bottom-0 w-6",
+    position === 'top' && "top-0 left-0 right-0 h-6",
+    position === 'bottom' && "bottom-0 left-0 right-0 h-6",
+  );
 
   return (
-    <SidebarProvider>
-      <Sidebar 
-        variant="inset" 
-        collapsible="icon"
-        onMouseEnter={handleSidebarMouseEnter}
-        onMouseLeave={handleSidebarMouseLeave}
-      >
-        <SidebarHeader>
-          <div className="flex items-center gap-3 p-2">
-            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-blue-600 text-white shadow-md">
-              <Building2 className="size-4" />
-            </div>
-            <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-bold text-slate-800">J&C Esquadrias</span>
-              <span className="truncate text-xs text-slate-500 font-medium">Gestão Financeira</span>
-            </div>
-          </div>
-        </SidebarHeader>
-        <SidebarSeparator />
+    <div className="min-h-screen bg-slate-50 relative overflow-x-hidden">
+      
+      {/* --- BOTÃO MESTRE (OLHO) --- */}
+      <div className="fixed top-4 left-4 z-[60] flex flex-col gap-2 group">
+        <Button
+          variant="secondary"
+          size="icon"
+          onClick={() => setIsEnabled(!isEnabled)}
+          className={cn(
+            "rounded-full shadow-lg border border-white/20 transition-all duration-300",
+            isEnabled ? "bg-slate-900 text-white hover:bg-slate-800" : "bg-red-500 text-white hover:bg-red-600 animate-pulse"
+          )}
+          title={isEnabled ? "Desativar Menu Lateral" : "Ativar Menu Lateral"}
+        >
+          {isEnabled ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+        </Button>
         
-        <SidebarContent>
-          {navStructure.map((group, index) => {
-            const itensVisiveis = group.items.filter(item => hasAccess(item.page));
-            if (itensVisiveis.length === 0) return null;
+        {/* Menu de Configuração Rápida (Aparece ao passar o mouse no olho) */}
+        <div className="absolute top-12 left-0 bg-white p-2 rounded-xl shadow-xl border border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none group-hover:pointer-events-auto w-40 origin-top-left transform scale-95 group-hover:scale-100">
+          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 px-2">Posição do Menu</p>
+          <div className="grid grid-cols-4 gap-1">
+            <button onClick={() => setPosition('left')} className={cn("p-1.5 rounded hover:bg-slate-100 flex justify-center", position === 'left' && "bg-blue-100 text-blue-600")} title="Esquerda"><ChevronLeft size={16}/></button>
+            <button onClick={() => setPosition('right')} className={cn("p-1.5 rounded hover:bg-slate-100 flex justify-center", position === 'right' && "bg-blue-100 text-blue-600")} title="Direita"><ChevronRight size={16}/></button>
+            <button onClick={() => setPosition('top')} className={cn("p-1.5 rounded hover:bg-slate-100 flex justify-center", position === 'top' && "bg-blue-100 text-blue-600")} title="Topo"><ChevronUp size={16}/></button>
+            <button onClick={() => setPosition('bottom')} className={cn("p-1.5 rounded hover:bg-slate-100 flex justify-center", position === 'bottom' && "bg-blue-100 text-blue-600")} title="Baixo"><ChevronDown size={16}/></button>
+          </div>
+        </div>
+      </div>
 
-            return (
-              <SidebarGroup key={index}>
-                <SidebarGroupLabel>{group.category}</SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {itensVisiveis.map((item) => {
-                      const isActive = currentPageName === item.page;
-                      return (
-                        <SidebarMenuItem key={item.page}>
-                          <SidebarMenuButton 
-                            asChild 
-                            isActive={isActive}
-                            tooltip={item.name}
-                            size="default"
-                            className={item.isDev ? "opacity-70 grayscale-[0.5]" : ""}
-                          >
-                            <button 
-                              className="cursor-pointer flex items-center w-full"
-                              onClick={item.isDev ? (e) => handleDevClick(e, item.name) : () => navigate(createPageUrl(item.page))}
-                            >
-                              <item.icon className={item.isDev ? "text-slate-400" : ""} />
-                              <span>{item.name}</span>
-                              {item.isDev && (
-                                <Lock className="ml-auto w-3 h-3 text-slate-400" />
-                              )}
-                            </button>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      );
-                    })}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            );
-          })}
-        </SidebarContent>
+      {/* --- ZONA DE GATILHO (Invisível) --- */}
+      <div 
+        className={triggerZoneClasses} 
+        onMouseEnter={handleMouseEnter}
+      />
 
-        <SidebarFooter>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton size="lg" className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
-                  <Users className="size-4" />
-                </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">{user?.nome || 'Usuário'}</span>
-                  <span className="truncate text-xs text-slate-500">{user?.email}</span>
-                </div>
-                <LogOut className="ml-auto size-4 text-red-500 hover:text-red-700 cursor-pointer" onClick={(e) => { e.stopPropagation(); handleLogout(); }} />
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarFooter>
-      </Sidebar>
-
-      <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center justify-between border-b bg-white/70 backdrop-blur-md px-4 sticky top-0 z-20">
-          <div className="flex items-center gap-2">
-            <SidebarTrigger className="-ml-1" data-sidebar="trigger" />
-            <div className="h-4 w-px bg-slate-200 mx-2" />
-            <h1 className="font-semibold text-slate-800 text-sm md:text-base">
-              {navStructure.flatMap(g => g.items).find(i => i.page === currentPageName)?.name || 'J&C System'}
-            </h1>
+      {/* --- SIDEBAR PRINCIPAL --- */}
+      <aside 
+        className={sidebarClasses}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
+        <div className={cn("flex w-full h-full p-4", (position === 'top' || position === 'bottom') ? "flex-row items-center gap-6 overflow-x-auto" : "flex-col")}>
+          
+          {/* Cabeçalho do Menu */}
+          <div className={cn("flex items-center gap-3 shrink-0", (position === 'top' || position === 'bottom') ? "border-r border-white/10 pr-6 mr-2" : "mb-6 border-b border-white/10 pb-6")}>
+            <div className="h-10 w-10 rounded-lg bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-900/50">
+              <span className="font-bold text-white text-xl">J&C</span>
+            </div>
+            <div>
+              <h1 className="font-bold text-white leading-tight">Gestão B2B</h1>
+              <p className="text-xs text-slate-400">Financeiro & Vendas</p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div 
-              onClick={() => setSearchOpen(true)}
-              className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-100/50 border border-slate-200/60 rounded-full cursor-pointer hover:bg-slate-100 transition-colors mr-2"
-            >
-              <Search className="w-3.5 h-3.5 text-slate-400" />
-              <span className="text-xs text-slate-500">Buscar...</span>
-              <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-white px-1.5 font-mono text-[10px] font-medium text-slate-500 opacity-100">
-                <span className="text-xs">⌘</span>K
-              </kbd>
-            </div>
-            
-            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setSearchOpen(true)}>
-               <Search className="w-5 h-5 text-slate-500" />
-            </Button>
+          {/* Relógio (Só aparece se for vertical para não ocupar muito espaço horizontal) */}
+          {(position === 'left' || position === 'right') && <LiveClock />}
 
+          {/* Lista de Navegação */}
+          <nav className={cn("flex-1 overflow-y-auto space-y-1 custom-scrollbar", (position === 'top' || position === 'bottom') && "flex flex-row space-y-0 space-x-2 items-center overflow-x-auto")}>
+            {navItems.map((item) => (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group relative overflow-hidden",
+                  currentPageName === item.name
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-900/20"
+                    : "text-slate-400 hover:bg-white/5 hover:text-white"
+                )}
+              >
+                <item.icon className={cn("w-4 h-4 transition-transform group-hover:scale-110", currentPageName === item.name ? "text-white" : "text-slate-500 group-hover:text-white")} />
+                <span className="truncate">{item.name}</span>
+                {currentPageName === item.name && (
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-white rounded-r-full opacity-50" />
+                )}
+              </Link>
+            ))}
+          </nav>
+
+          {/* Rodapé / Usuário */}
+          <div className={cn("mt-auto pt-4 border-t border-white/10", (position === 'top' || position === 'bottom') && "border-t-0 border-l ml-auto pl-4 border-white/10 mt-0 pt-0")}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative">
-                  <Bell className="w-5 h-5 text-slate-500" />
-                  {notificationCount > 0 && (
-                    <span className="absolute top-1 right-1 flex items-center justify-center min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full border-2 border-white px-1">
-                      {notificationCount > 9 ? '9+' : notificationCount}
-                    </span>
-                  )}
-                </Button>
+                <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 cursor-pointer transition-colors">
+                  <Avatar className="h-9 w-9 border-2 border-slate-700">
+                    <AvatarImage src={user?.photoURL} />
+                    <AvatarFallback className="bg-slate-800 text-slate-200">
+                      {user?.email?.substring(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 overflow-hidden hidden sm:block">
+                    <p className="text-sm font-medium text-white truncate">{user?.displayName || 'Usuário'}</p>
+                    <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+                  </div>
+                  <Settings className="w-4 h-4 text-slate-500" />
+                </div>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-fit p-0">
-                <NotificationCenter />
+              <DropdownMenuContent align="end" className="w-56 bg-slate-900 border-slate-800 text-slate-200">
+                <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-slate-800" />
+                <DropdownMenuLabel className="text-xs text-slate-500 mt-2">Posição do Menu</DropdownMenuLabel>
+                <DropdownMenuRadioGroup value={position} onValueChange={setPosition}>
+                  <DropdownMenuRadioItem value="left" className="focus:bg-slate-800 focus:text-white">Esquerda</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="right" className="focus:bg-slate-800 focus:text-white">Direita</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="top" className="focus:bg-slate-800 focus:text-white">Topo</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="bottom" className="focus:bg-slate-800 focus:text-white">Baixo</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+                <DropdownMenuSeparator className="bg-slate-800" />
+                <DropdownMenuItem 
+                  className="text-red-400 focus:text-red-300 focus:bg-red-950/30 cursor-pointer"
+                  onClick={signOut}
+                >
+                  <LogOut className="mr-2 h-4 w-4" /> Sair do Sistema
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-        </header>
-        
-        <div className="flex-1 p-4 md:p-8 pt-6 overflow-x-hidden">
-          {children}
-        </div>
 
-        <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} navigate={navigate} />
-      </SidebarInset>
-    </SidebarProvider>
+        </div>
+      </aside>
+
+      {/* --- CONTEÚDO DA PÁGINA --- */}
+      <main className="w-full min-h-screen transition-all duration-300">
+        {children}
+      </main>
+
+    </div>
   );
 }
