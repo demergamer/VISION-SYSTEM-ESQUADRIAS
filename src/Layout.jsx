@@ -4,7 +4,7 @@ import { createPageUrl } from "@/utils";
 import { 
   LayoutDashboard, Users, Building2, ShoppingCart, CreditCard, Wallet,
   BarChart3, PieChart, LogOut, Lock, Search, Bell, Menu, X, FileText,
-  ChevronRight, Command, Truck, UserPlus, Package, Layers
+  ChevronRight, Command, Truck, UserPlus, Package, Layers, Landmark
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,7 +69,8 @@ const navStructure = [
   {
     category: "A Pagar",
     items: [
-      { name: 'Pagamentos', icon: CreditCard, page: 'Pagamentos' }, 
+      { name: 'Pagamentos', icon: CreditCard, page: 'Pagamentos' },
+      { name: 'Caixa Diário', icon: Landmark, page: 'CaixaDiario' }, // Adicionado
       { name: 'Comissões', icon: Wallet, page: 'Comissoes' },
     ]
   },
@@ -89,11 +90,9 @@ const navStructure = [
   }
 ];
 
-// --- Componente de Busca Global (Command Palette) ---
+// --- Componente de Busca Global ---
 const GlobalSearch = ({ open, onOpenChange, navigate }) => {
   const [query, setQuery] = useState("");
-  
-  // Simulação de resultados (aqui você conectaria com base44.entities...)
   const mockResults = [
     { type: 'Cliente', name: 'J&C Esquadrias', id: 'CLI001', page: 'Clientes' },
     { type: 'Pedido', name: 'Pedido #60285 - Loja Jacui', id: '60285', page: 'Pedidos' },
@@ -115,12 +114,8 @@ const GlobalSearch = ({ open, onOpenChange, navigate }) => {
           <div className="text-xs text-slate-300 font-mono border border-slate-100 px-1.5 py-0.5 rounded">ESC</div>
         </div>
         <div className="max-h-[300px] overflow-y-auto p-2">
-          {query === "" && (
-            <p className="text-xs text-slate-400 p-3 text-center">Digite para buscar clientes, pedidos ou módulos...</p>
-          )}
-          {query !== "" && mockResults.length === 0 && (
-            <p className="text-sm text-slate-500 p-4 text-center">Nenhum resultado encontrado.</p>
-          )}
+          {query === "" && <p className="text-xs text-slate-400 p-3 text-center">Digite para buscar...</p>}
+          {query !== "" && mockResults.length === 0 && <p className="text-sm text-slate-500 p-4 text-center">Nenhum resultado encontrado.</p>}
           {mockResults.map((result, idx) => (
             <button
               key={idx}
@@ -143,9 +138,6 @@ const GlobalSearch = ({ open, onOpenChange, navigate }) => {
             </button>
           ))}
         </div>
-        <div className="bg-slate-50 p-2 text-[10px] text-slate-400 text-center border-t border-slate-100">
-          <strong>J&C System</strong> Global Search
-        </div>
       </DialogContent>
     </Dialog>
   );
@@ -157,7 +149,6 @@ export default function Layout({ children, currentPageName }) {
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [notificationCount, setNotificationCount] = React.useState(0);
 
-  // Atalho de Teclado CTRL+K ou CMD+K
   useEffect(() => {
     const down = (e) => {
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
@@ -194,35 +185,8 @@ export default function Layout({ children, currentPageName }) {
     return unsubscribe;
   }, [user?.email]);
 
-  // Auto-collapse sidebar
-  const [collapseTimer, setCollapseTimer] = React.useState(null);
-
-  const handleSidebarMouseEnter = () => {
-    if (collapseTimer) {
-      clearTimeout(collapseTimer);
-      setCollapseTimer(null);
-    }
-  };
-
-  const handleSidebarMouseLeave = () => {
-    const timer = setTimeout(() => {
-      const sidebarElement = document.querySelector('[data-sidebar="sidebar"]');
-      if (sidebarElement && !sidebarElement.matches(':hover')) {
-        const sidebarTrigger = document.querySelector('[data-sidebar="trigger"]');
-        const isOpen = sidebarElement.getAttribute('data-state') === 'expanded';
-        if (sidebarTrigger && isOpen) {
-          sidebarTrigger.click();
-        }
-      }
-    }, 15000);
-    setCollapseTimer(timer);
-  };
-
-  React.useEffect(() => {
-    return () => {
-      if (collapseTimer) clearTimeout(collapseTimer);
-    };
-  }, [collapseTimer]);
+  const handleSidebarMouseEnter = () => {}; // Desabilitado temporariamente ou use lógica de timer
+  const handleSidebarMouseLeave = () => {};
 
   const handleLogout = () => {
     base44.auth.logout();
@@ -231,15 +195,11 @@ export default function Layout({ children, currentPageName }) {
   const hasAccess = (pageName) => {
     if (!user) return false;
     
-    // Regra removida: Admin agora também precisa de permissão explícita no banco
-    // if (user.role === 'admin') return true;
-
-    // Itens em desenvolvimento (remova se quiser bloquear tudo)
+    // Itens em desenvolvimento
     if (['ChequesPagar', 'Logs'].includes(pageName)) return true;
 
     const permissoes = user.permissoes || {};
 
-    // Mapear nomes de página para módulos de permissão do banco de dados
     const pageToModule = {
       'Dashboard': 'Dashboard',
       'Pedidos': 'Pedidos',
@@ -257,14 +217,14 @@ export default function Layout({ children, currentPageName }) {
       'Relatorios': 'Relatorios',
       'Balanco': 'Balanco',
       'Usuarios': 'Usuarios',
-      'Cadastro': 'Orcamentos', // Página Cadastro usa permissão de Orçamentos
-      'Logs': 'Usuarios'        // Página Logs usa permissão de Usuários (ou crie um módulo específico)
+      'Cadastro': 'Orcamentos', 
+      'Logs': 'Usuarios',
+      'CaixaDiario': 'CaixaDiario' // Mapeamento novo
     };
 
     const moduleName = pageToModule[pageName] || pageName;
     const perm = permissoes[moduleName];
 
-    // Verifica booleano simples OU a propriedade 'visualizar'
     return perm === true || perm?.visualizar === true;
   };
 
@@ -276,7 +236,6 @@ export default function Layout({ children, currentPageName }) {
     });
   };
 
-  // --- LAYOUTS ESPECIAIS ---
   if (currentPageName === 'PortalDoRepresentante' || currentPageName === 'PortalCliente') {
     const title = currentPageName === 'PortalDoRepresentante' ? 'Portal do Representante' : 'Portal do Cliente';
     return (
@@ -295,7 +254,6 @@ export default function Layout({ children, currentPageName }) {
     );
   }
 
-  // --- LAYOUT PRINCIPAL (ADMIN) ---
   return (
     <SidebarProvider>
       <Sidebar 
@@ -319,10 +277,7 @@ export default function Layout({ children, currentPageName }) {
         
         <SidebarContent>
           {navStructure.map((group, index) => {
-            // --- CORREÇÃO: Filtrar itens antes de renderizar o grupo ---
             const itensVisiveis = group.items.filter(item => hasAccess(item.page));
-
-            // Se não sobrou nenhum item visível neste grupo, não renderiza o grupo
             if (itensVisiveis.length === 0) return null;
 
             return (
@@ -381,7 +336,6 @@ export default function Layout({ children, currentPageName }) {
       </Sidebar>
 
       <SidebarInset>
-        {/* HEADER COM BUSCA E NOTIFICAÇÕES */}
         <header className="flex h-16 shrink-0 items-center justify-between border-b bg-white/70 backdrop-blur-md px-4 sticky top-0 z-20">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" data-sidebar="trigger" />
@@ -392,7 +346,6 @@ export default function Layout({ children, currentPageName }) {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Botão de Busca */}
             <div 
               onClick={() => setSearchOpen(true)}
               className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-100/50 border border-slate-200/60 rounded-full cursor-pointer hover:bg-slate-100 transition-colors mr-2"
@@ -404,12 +357,10 @@ export default function Layout({ children, currentPageName }) {
               </kbd>
             </div>
             
-            {/* Mobile Search Icon */}
             <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setSearchOpen(true)}>
                <Search className="w-5 h-5 text-slate-500" />
             </Button>
 
-            {/* Centro de Notificações */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative">
