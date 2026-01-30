@@ -10,7 +10,7 @@ import {
   ShoppingCart, Plus, Search, RefreshCw, DollarSign, AlertTriangle,
   FileText, ArrowLeft, Filter, Upload, Truck, Clock, CheckCircle, XCircle,
   MoreHorizontal, LayoutGrid, List, MapPin, Calendar, Edit, Eye, RotateCcw,
-  SlidersHorizontal, X as XIcon, Loader2, Factory, Split
+  SlidersHorizontal, X as XIcon, Loader2, Factory, Split, UserPlus
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -339,14 +339,7 @@ export default function Pedidos() {
   const handleSaveRotaChecklist = async (data) => {
       try {
           await base44.entities.RotaImportada.update(data.rota.id, data.rota);
-          // Atualiza status e confirmado_entrega (logística)
-          const promises = data.pedidos.map(p => base44.entities.Pedido.update(p.id, { 
-              confirmado_entrega: p.confirmado_entrega,
-              // Se foi confirmado, status deve ir pra 'aberto' (se não pago) ou manter 'pago'. 
-              // Se não confirmado, volta pra 'aguardando'.
-              // A lógica de RotaChecklist.jsx já manda o status correto.
-              status: p.status 
-          }));
+          const promises = data.pedidos.map(p => base44.entities.Pedido.update(p.id, { confirmado_entrega: p.confirmado_entrega, status: p.status }));
           await Promise.all(promises);
           await Promise.all([refetchRotas(), refetchPedidos()]);
           setShowRotaModal(false);
@@ -461,19 +454,87 @@ export default function Pedidos() {
             <TabsContent value="transito">
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {filteredPedidos.length > 0 ? filteredPedidos.map(p => (
-                        <div key={p.id} className="bg-amber-50 border border-amber-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all">
-                            <div className="flex justify-between mb-2">
-                                <span className="font-bold text-amber-800">#{p.numero_pedido}</span>
-                                <span className="text-sm bg-white px-2 rounded border border-amber-100">{p.data_entrega ? format(new Date(p.data_entrega), 'dd/MM/yyyy') : '-'}</span>
+                        <div key={p.id} className={cn(
+                            "border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col gap-3",
+                            p.cliente_pendente ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200"
+                        )}>
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <span className={cn(
+                                        "font-bold text-xs uppercase tracking-wider mb-1 block",
+                                        p.cliente_pendente ? "text-amber-700" : "text-slate-400"
+                                    )}>
+                                        #{p.numero_pedido}
+                                    </span>
+                                    <h3 className="font-bold text-slate-800 line-clamp-1" title={p.cliente_nome}>
+                                        {p.cliente_nome}
+                                    </h3>
+                                    {p.cliente_pendente ? (
+                                        <Badge variant="outline" className="mt-1 bg-amber-100 text-amber-700 border-amber-300 text-[10px]">
+                                            <AlertTriangle className="w-3 h-3 mr-1" /> Cliente Não Cadastrado
+                                        </Badge>
+                                    ) : (
+                                        <p className="text-xs text-slate-500 font-mono mt-0.5">{p.cliente_codigo}</p>
+                                    )}
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Valor</span>
+                                    <span className="text-lg font-bold text-emerald-600">{formatCurrency(p.valor_pedido)}</span>
+                                </div>
                             </div>
-                            <p className="font-bold text-slate-800 mb-4 truncate">{p.cliente_nome}</p>
-                            <p className="text-xl font-bold text-emerald-600 mb-4">{formatCurrency(p.valor_pedido)}</p>
-                            <div className="grid grid-cols-2 gap-2">
-                                <Button size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white" onClick={() => handleLiquidar(p)}>Liquidar</Button>
-                                <Button size="sm" variant="outline" className="border-red-200 text-red-600 hover:bg-red-50" onClick={() => handleCancelar(p)}>Cancelar</Button>
+
+                            <div className="flex items-center gap-4 text-xs text-slate-500 py-2 border-t border-slate-100/50 border-b">
+                                <div className="flex items-center gap-1">
+                                    <Calendar className="w-3.5 h-3.5" /> 
+                                    {p.data_entrega ? format(new Date(p.data_entrega), 'dd/MM/yyyy') : '-'}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <MapPin className="w-3.5 h-3.5" /> 
+                                    {p.cliente_regiao || 'Sem região'}
+                                </div>
+                            </div>
+
+                            <div className="mt-auto pt-2">
+                                {p.cliente_pendente ? (
+                                    <Button 
+                                        className="w-full bg-amber-500 hover:bg-amber-600 text-white shadow-sm shadow-amber-200" 
+                                        onClick={() => { 
+                                            setPedidoParaCadastro(p); 
+                                            setShowCadastrarClienteModal(true); 
+                                        }}
+                                    >
+                                        <UserPlus className="w-4 h-4 mr-2" /> Cadastrar Cliente
+                                    </Button>
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <Button 
+                                            size="sm" 
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm" 
+                                            onClick={() => handleLiquidar(p)}
+                                        >
+                                            <DollarSign className="w-4 h-4 mr-2" /> Liquidar
+                                        </Button>
+                                        <Button 
+                                            size="sm" 
+                                            variant="outline" 
+                                            className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300" 
+                                            onClick={() => handleCancelar(p)}
+                                        >
+                                            Cancelar
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
                         </div>
-                    )) : <p className="col-span-full text-center py-10 text-slate-500">Nenhum pedido em trânsito.</p>}
+                    )) : (
+                        <div className="col-span-full flex flex-col items-center justify-center py-16 text-center border-dashed border-2 border-slate-200 rounded-xl bg-slate-50/50">
+                            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm border border-slate-100">
+                                <Truck className="w-8 h-8 text-slate-300" />
+                            </div>
+                            <h3 className="text-lg font-medium text-slate-900">Nenhum pedido em trânsito</h3>
+                            <p className="text-slate-500 max-w-sm mt-1">Importe uma rota ou lance novos pedidos.</p>
+                        </div>
+                    )}
                 </div>
             </TabsContent>
 
@@ -483,7 +544,7 @@ export default function Pedidos() {
                         <Card key={aut.id} className="p-5 border-orange-200 bg-orange-50/30 cursor-pointer hover:shadow-md transition-all" onClick={() => { setSelectedAutorizacao(aut); setShowAutorizacaoModal(true); }}>
                             <div className="flex justify-between items-start mb-2">
                                 <Badge className="bg-orange-100 text-orange-700">Solicitação #{aut.numero_solicitacao}</Badge>
-                                <span className="text-xs text-slate-500">{aut.created_date ? format(new Date(aut.created_date), 'dd/MM HH:mm') : '-'}</span>
+                                <span className="text-xs text-slate-500">{format(new Date(aut.created_date), 'dd/MM HH:mm')}</span>
                             </div>
                             <p className="font-bold text-slate-800 mb-1">{aut.cliente_nome}</p>
                             <p className="text-sm text-slate-600 mb-3">{aut.pedidos_ids?.length || 0} pedidos</p>
@@ -524,7 +585,7 @@ export default function Pedidos() {
                                     <Badge variant="outline" className="border-emerald-200 text-emerald-700 bg-emerald-50">Liquidado</Badge>
                                 </div>
                                 <p className="text-sm text-slate-600 mb-1">{bordero.cliente_nome || "Vários Clientes"}</p>
-                                <p className="text-xs text-slate-400 mb-3">{bordero.created_date ? format(new Date(bordero.created_date), 'dd/MM/yyyy HH:mm') : '-'}</p>
+                                <p className="text-xs text-slate-400 mb-3">{format(new Date(bordero.created_date), 'dd/MM/yyyy HH:mm')}</p>
                                 <div className="flex justify-between items-end border-t pt-3">
                                     <span className="text-xs text-slate-500">{bordero.pedidos_ids?.length || 0} pedidos</span>
                                     <span className="font-bold text-emerald-600 text-lg">{formatCurrency(bordero.valor_total)}</span>
@@ -546,7 +607,6 @@ export default function Pedidos() {
                 )}
             </TabsContent>
 
-            {/* ABERTOS & CANCELADOS */}
             {['abertos', 'cancelados'].map(tab => (
                 <TabsContent key={tab} value={tab}>
                     {viewMode === 'table' ? (
@@ -579,7 +639,6 @@ export default function Pedidos() {
 
           </Tabs>
 
-          {/* MODAIS */}
           <ModalContainer open={showImportModal} onClose={() => setShowImportModal(false)} title="Importar Pedidos" size="lg">
             <ImportarPedidos 
                 clientes={clientes} 
@@ -611,6 +670,23 @@ export default function Pedidos() {
           <ModalContainer open={showAutorizacaoModal} onClose={() => setShowAutorizacaoModal(false)} title="Aprovar Liquidação" size="xl"><AprovarLiquidacaoModal autorizacao={selectedAutorizacao} todosPedidos={pedidos} onAprovar={() => {}} onRejeitar={() => {}} onCancel={() => setShowAutorizacaoModal(false)} /></ModalContainer>
           <ModalContainer open={showAlterarPortadorModal} onClose={() => setShowAlterarPortadorModal(false)} title="Alterar Portador" size="lg">
              {selectedRota && <AlterarPortadorModal rota={selectedRota} pedidos={pedidos.filter(p => p.rota_importada_id === selectedRota.id)} onSave={() => {setShowAlterarPortadorModal(false); toast.success("Portador alterado");}} onCancel={() => setShowAlterarPortadorModal(false)} />}
+          </ModalContainer>
+          <ModalContainer open={showCadastrarClienteModal} onClose={() => setShowCadastrarClienteModal(false)} title="Cadastrar Cliente" size="lg">
+             <ClienteForm cliente={{ nome: pedidoParaCadastro?.cliente_nome }} onSave={async (data) => {
+                 // Lógica simplificada de cadastro
+                 const novo = await base44.entities.Cliente.create(data);
+                 // Atualizar pedido
+                 if(pedidoParaCadastro) {
+                     await base44.entities.Pedido.update(pedidoParaCadastro.id, {
+                         cliente_codigo: novo.codigo,
+                         cliente_pendente: false,
+                         porcentagem_comissao: novo.porcentagem_comissao
+                     });
+                     await refetchPedidos();
+                 }
+                 setShowCadastrarClienteModal(false);
+                 toast.success("Cliente cadastrado!");
+             }} onCancel={() => setShowCadastrarClienteModal(false)} />
           </ModalContainer>
 
         </div>
