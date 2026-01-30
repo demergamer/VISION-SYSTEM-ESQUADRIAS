@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Save, X, AlertCircle, Upload, Loader2 } from "lucide-react";
+import { Save, X, AlertCircle, Upload, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { base44 } from '@/api/base44Client';
@@ -66,7 +66,15 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     score: '',
     data_consulta: '',
     limite_credito: 0,
-    bloqueado_manual: false
+    bloqueado_manual: false,
+    // Endereço (Novos campos para preenchimento automático)
+    cep: '',
+    endereco: '',
+    numero: '',
+    bairro: '',
+    cidade: '',
+    estado: '',
+    complemento: ''
   });
 
   const [errors, setErrors] = useState({});
@@ -74,6 +82,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
   const [serasaUploading, setSerasaUploading] = useState(false);
   const [formasPagamento, setFormasPagamento] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isConsulting, setIsConsulting] = useState(false); // Estado para o loading da consulta
 
   useEffect(() => {
     if (cliente) {
@@ -90,7 +99,14 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
         score: cliente.score || '',
         data_consulta: cliente.data_consulta || '',
         limite_credito: cliente.limite_credito || 0,
-        bloqueado_manual: cliente.bloqueado_manual || false
+        bloqueado_manual: cliente.bloqueado_manual || false,
+        cep: cliente.cep || '',
+        endereco: cliente.endereco || '',
+        numero: cliente.numero || '',
+        bairro: cliente.bairro || '',
+        cidade: cliente.cidade || '',
+        estado: cliente.estado || '',
+        complemento: cliente.complemento || ''
       });
       setFormasPagamento(cliente.formas_pagamento || []);
     }
@@ -103,6 +119,57 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
       representante_codigo: codigo,
       representante_nome: rep?.nome || ''
     });
+  };
+
+  // --- FUNÇÃO DE CONSULTA CNPJ (BRASIL API) ---
+  const handleConsultarCNPJ = async () => {
+    // Remove caracteres não numéricos
+    const cnpjLimpo = form.cnpj?.replace(/\D/g, '');
+
+    if (!cnpjLimpo || cnpjLimpo.length !== 14) {
+      toast.error("Digite um CNPJ válido (14 dígitos) para consultar.");
+      return;
+    }
+
+    setIsConsulting(true);
+    const toastId = toast.loading("Consultando Receita Federal...");
+
+    try {
+      // Usando BrasilAPI (Gratuita e sem Token)
+      const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`);
+      
+      if (!response.ok) {
+        throw new Error('CNPJ não encontrado ou erro na API.');
+      }
+
+      const data = await response.json();
+
+      // Preenche o formulário com os dados retornados
+      setForm(prev => ({
+        ...prev,
+        nome: data.razao_social, // Razão Social
+        nome_fantasia: data.nome_fantasia || data.razao_social,
+        email: data.email || prev.email,
+        telefone: data.ddd_telefone_1 || prev.telefone,
+        cep: data.cep ? data.cep.replace(/(\d{5})(\d{3})/, '$1-$2') : prev.cep,
+        endereco: data.logradouro,
+        numero: data.numero,
+        bairro: data.bairro,
+        cidade: data.municipio,
+        estado: data.uf,
+        complemento: data.complemento,
+        // Atualiza a data da consulta para hoje
+        data_consulta: new Date().toISOString().split('T')[0]
+      }));
+
+      toast.success("Dados da empresa carregados!", { id: toastId });
+
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao consultar CNPJ. Verifique o número ou tente novamente.", { id: toastId });
+    } finally {
+      setIsConsulting(false);
+    }
   };
 
   const validate = () => {
@@ -207,6 +274,33 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
           </div>
 
           <div className="space-y-1">
+            <Label htmlFor="cnpj" className={labelClass}>CPF/CNPJ</Label>
+            <div className="flex gap-2">
+              <InputCpfCnpj
+                id="cnpj"
+                value={form.cnpj}
+                onChange={(e) => {
+                  setForm({ ...form, cnpj: e.target.value });
+                  if (errors.cnpj) setErrors({...errors, cnpj: null});
+                }}
+                className={cn(inputClass, errors.cnpj && "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100")}
+              />
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={handleConsultarCNPJ}
+                disabled={isConsulting}
+                title="Consultar na Receita"
+                className="shrink-0 h-11 bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 hover:text-blue-700"
+              >
+                {isConsulting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
+                {isConsulting ? "..." : "Consultar"}
+              </Button>
+            </div>
+            {errors.cnpj && <p className="text-xs text-red-500 mt-1 ml-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {errors.cnpj}</p>}
+          </div>
+
+          <div className="space-y-1 md:col-span-2">
             <Label htmlFor="nome" className={labelClass}>Nome / Razão Social *</Label>
             <Input
               id="nome"
@@ -221,29 +315,38 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
             {errors.nome && <p className="text-xs text-red-500 mt-1 ml-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {errors.nome}</p>}
           </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="cnpj" className={labelClass}>CPF/CNPJ</Label>
-            <InputCpfCnpj
-              id="cnpj"
-              value={form.cnpj}
-              onChange={(e) => {
-                setForm({ ...form, cnpj: e.target.value });
-                if (errors.cnpj) setErrors({...errors, cnpj: null});
-              }}
-              className={cn(inputClass, errors.cnpj && "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100")}
-            />
-            {errors.cnpj && <p className="text-xs text-red-500 mt-1 ml-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {errors.cnpj}</p>}
-          </div>
-
-          <div className="space-y-1">
-            <Label htmlFor="regiao" className={labelClass}>Região</Label>
-            <Input
-              id="regiao"
-              value={form.regiao}
-              onChange={(e) => setForm({ ...form, regiao: e.target.value })}
-              placeholder="Ex: Sul, Sudeste, Norte"
-              className={inputClass}
-            />
+          {/* Endereço Completo */}
+          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+             <div className="space-y-1 md:col-span-1">
+                <Label htmlFor="cep" className={labelClass}>CEP</Label>
+                <Input id="cep" value={form.cep} onChange={(e) => setForm({ ...form, cep: e.target.value })} className={cn(inputClass, "bg-white")} />
+             </div>
+             <div className="space-y-1 md:col-span-2">
+                <Label htmlFor="endereco" className={labelClass}>Endereço</Label>
+                <Input id="endereco" value={form.endereco} onChange={(e) => setForm({ ...form, endereco: e.target.value })} className={cn(inputClass, "bg-white")} />
+             </div>
+             <div className="space-y-1">
+                <Label htmlFor="numero" className={labelClass}>Número</Label>
+                <Input id="numero" value={form.numero} onChange={(e) => setForm({ ...form, numero: e.target.value })} className={cn(inputClass, "bg-white")} />
+             </div>
+             <div className="space-y-1">
+                <Label htmlFor="bairro" className={labelClass}>Bairro</Label>
+                <Input id="bairro" value={form.bairro} onChange={(e) => setForm({ ...form, bairro: e.target.value })} className={cn(inputClass, "bg-white")} />
+             </div>
+             <div className="space-y-1">
+                <Label htmlFor="cidade" className={labelClass}>Cidade</Label>
+                <Input id="cidade" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} className={cn(inputClass, "bg-white")} />
+             </div>
+             <div className="space-y-1">
+                <Label htmlFor="regiao" className={labelClass}>Região</Label>
+                <Input
+                  id="regiao"
+                  value={form.regiao}
+                  onChange={(e) => setForm({ ...form, regiao: e.target.value })}
+                  placeholder="Ex: Sul, Sudeste"
+                  className={cn(inputClass, "bg-white")}
+                />
+             </div>
           </div>
         </div>
       </div>
