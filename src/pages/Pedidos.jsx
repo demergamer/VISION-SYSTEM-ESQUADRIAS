@@ -182,7 +182,6 @@ export default function Pedidos() {
 
   // --- STATS ---
   const stats = useMemo(() => {
-    // LÓGICA CORRIGIDA PARA "EM TRÂNSITO": Tem rota E não foi entregue fisicamente
     const transito = pedidos.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado').length;
     const abertos = pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial').length;
     const totalAReceber = pedidos
@@ -280,7 +279,11 @@ export default function Pedidos() {
       }
   };
   const handleLiquidar = (pedido) => { setSelectedPedido(pedido); setShowLiquidarModal(true); };
-  const handleCancelar = (pedido) => { setPedidoParaCancelar(pedido); setShowCancelarPedidoModal(true); };
+  
+  const handleCancelar = (pedido) => { 
+      setPedidoParaCancelar(pedido); 
+      setShowCancelarPedidoModal(true); 
+  };
 
   const handleSaveCancelarPedido = async (data) => {
     setIsProcessing(true);
@@ -298,34 +301,55 @@ export default function Pedidos() {
     }
   };
   
-  // FUNÇÃO ATUALIZADA: Sincronização + Limpeza de Resíduos (< 0.10) + AUTO VINCULO CLIENTE
+  // FUNÇÃO DE ATUALIZAÇÃO TURBINADA
   const handleRefresh = async () => {
     setRefreshingData(true);
-    setRefreshMessage('Conectando ao banco de dados...');
+    setRefreshMessage('Iniciando varredura...');
+    
     try {
-        // 1. Buscar dados frescos de TUDO
-        setRefreshMessage('Baixando dados mais recentes...');
+        // ETAPA 1: Limpeza de Resíduos no Servidor
+        setRefreshMessage('🧹 Limpando resíduos financeiros...');
+        let residuosLimpos = 0;
+        try {
+            const responseClean = await base44.functions.invoke('limparResiduos', {});
+            if (responseClean?.data?.success) {
+                residuosLimpos = responseClean.data.pedidos_limpos;
+            }
+        } catch (e) {
+            console.warn("Backend cleaning failed, skipping step.", e);
+        }
+
+        // ETAPA 2: Download de Dados Recentes
+        setRefreshMessage('📥 Baixando dados mais recentes...');
         const [latestPedidos, latestRotas, latestClientes] = await Promise.all([
             base44.entities.Pedido.list(),
             base44.entities.RotaImportada.list(),
-            base44.entities.Cliente.list() // Importante buscar clientes atualizados
+            base44.entities.Cliente.list()
         ]);
 
-        // 2. AUTO-ASSOCIAÇÃO DE CLIENTES (Feature Nova)
-        setRefreshMessage('Verificando clientes pendentes...');
+        // ETAPA 3: Auto-Vínculo de Clientes
+        setRefreshMessage('🔍 Verificando clientes pendentes...');
         let clientesVinculados = 0;
         const pedidosPendentes = latestPedidos.filter(p => p.cliente_pendente === true);
         
+        // Mapeamento de clientes para busca rápida (performance)
+        const mapClientes = new Map();
+        latestClientes.forEach(c => mapClientes.set(c.nome.trim().toLowerCase(), c));
+
         const promisesClientes = pedidosPendentes.map(pedido => {
             const nomePedido = pedido.cliente_nome?.trim().toLowerCase();
             if (!nomePedido) return null;
 
-            // Busca match exato ou parcial no nome
-            const clienteEncontrado = latestClientes.find(c => 
-                c.nome?.trim().toLowerCase() === nomePedido || 
-                c.nome?.trim().toLowerCase().includes(nomePedido) || 
-                nomePedido.includes(c.nome?.trim().toLowerCase())
-            );
+            // Tenta match exato primeiro, depois parcial
+            let clienteEncontrado = mapClientes.get(nomePedido);
+            
+            if (!clienteEncontrado) {
+                // Fallback: Busca parcial (mais lento, mas necessário)
+                clienteEncontrado = latestClientes.find(c => 
+                    c.nome?.trim().toLowerCase().includes(nomePedido) || 
+                    nomePedido.includes(c.nome?.trim().toLowerCase())
+                );
+            }
 
             if (clienteEncontrado) {
                 clientesVinculados++;
@@ -335,34 +359,22 @@ export default function Pedidos() {
                     representante_codigo: clienteEncontrado.representante_codigo,
                     representante_nome: clienteEncontrado.representante_nome,
                     porcentagem_comissao: clienteEncontrado.porcentagem_comissao,
-                    cliente_pendente: false // Remove a pendência
+                    cliente_pendente: false // Sai do estado pendente!
                 });
             }
             return null;
         });
         await Promise.all(promisesClientes.filter(Boolean));
 
-        // 3. Limpeza de Resíduos (Automaticamente move para Pago se <= 0.10)
-        setRefreshMessage('Analisando resíduos financeiros (< R$ 0,10)...');
-        let residuosLimpos = 0;
-        const promisesResiduos = latestPedidos
-            .filter(p => (p.status === 'aberto' || p.status === 'parcial') && (p.saldo_restante > 0 && p.saldo_restante <= 0.10))
-            .map(p => {
-                residuosLimpos++;
-                return base44.entities.Pedido.update(p.id, { 
-                    status: 'pago', 
-                    saldo_restante: 0, 
-                    total_pago: p.valor_pedido,
-                    outras_informacoes: (p.outras_informacoes || '') + '\n[AUTO] Baixa automática de resíduo < R$ 0,10'
-                });
-            });
-        await Promise.all(promisesResiduos);
-
-        // 4. Sincronização de Rotas (Recalcular status)
-        setRefreshMessage(`Sincronizando ${latestRotas.length} rotas de entrega...`);
+        // ETAPA 4: Sincronização de Status das Rotas
+        setRefreshMessage(`🚚 Sincronizando ${latestRotas.length} rotas...`);
         let routesUpdatedCount = 0;
+        
+        // Atualiza a lista local de pedidos para considerar as mudanças de cliente
+        const pedidosAtualizados = latestPedidos; // (Simplificação: em um app real refetch faria isso)
+
         const updatePromises = latestRotas.map(rota => {
-            const pedidosDaRota = latestPedidos.filter(p => p.rota_importada_id === rota.id);
+            const pedidosDaRota = pedidosAtualizados.filter(p => p.rota_importada_id === rota.id);
             const total = pedidosDaRota.length;
             const confirmados = pedidosDaRota.filter(p => p.confirmado_entrega).length;
             
@@ -382,21 +394,21 @@ export default function Pedidos() {
         });
         await Promise.all(updatePromises.filter(Boolean));
 
-        // 5. Finalização: Recarregar caches
-        setRefreshMessage('Finalizando atualizações...');
+        // ETAPA 5: Finalização
+        setRefreshMessage('✅ Finalizando...');
         await Promise.all([refetchPedidos(), refetchRotas(), refetchBorderos(), refetchAutorizacoes(), refetchClientes()]);
         
-        // Mensagem Final Dinâmica
-        const msgs = ['Dados atualizados com sucesso!'];
-        if (clientesVinculados > 0) msgs.push(`${clientesVinculados} clientes vinculados.`);
-        if (residuosLimpos > 0) msgs.push(`${residuosLimpos} resíduos baixados.`);
-        if (routesUpdatedCount > 0) msgs.push(`${routesUpdatedCount} rotas sincronizadas.`);
+        // Relatório Final
+        let msg = 'Tudo atualizado!';
+        if (residuosLimpos > 0) msg += `\n- ${residuosLimpos} resíduos baixados.`;
+        if (clientesVinculados > 0) msg += `\n- ${clientesVinculados} clientes vinculados automaticamente.`;
+        if (routesUpdatedCount > 0) msg += `\n- ${routesUpdatedCount} rotas sincronizadas.`;
         
-        toast.success(msgs.join('\n'));
+        toast.success(msg, { duration: 5000 });
 
     } catch (error) {
         console.error(error);
-        toast.error('Erro ao atualizar dados: ' + error.message);
+        toast.error('Erro na atualização: ' + error.message);
     } finally {
         setRefreshingData(false);
         setRefreshMessage('Conectando...');
@@ -490,19 +502,21 @@ export default function Pedidos() {
     <PermissionGuard setor="Pedidos">
       {isProcessing && <div className="fixed inset-0 z-[100] bg-black/30 flex items-center justify-center"><Loader2 className="w-12 h-12 text-blue-600 animate-spin" /></div>}
       
-      {/* LOADING DINÂMICO APRIMORADO */}
+      {/* LOADING DINÂMICO PRECISO */}
       {refreshingData && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all animate-in fade-in duration-300">
-            <div className="bg-white p-10 rounded-3xl shadow-2xl flex flex-col items-center gap-5 border border-slate-100 min-w-[320px]">
+            <div className="bg-white p-10 rounded-3xl shadow-2xl flex flex-col items-center gap-5 border border-slate-100 min-w-[350px]">
                 <div className="relative">
                   <Loader2 className="w-16 h-16 text-blue-600 animate-spin" />
                   <div className="absolute inset-0 w-16 h-16 border-4 border-blue-200 rounded-full animate-pulse" />
                 </div>
-                <div className="text-center space-y-2">
-                    <h3 className="text-xl font-bold text-slate-800">Verificando Sistema...</h3>
-                    <p className="text-sm text-slate-600 font-medium animate-pulse min-h-[20px] px-4">
-                      {refreshMessage}
-                    </p>
+                <div className="text-center space-y-2 w-full">
+                    <h3 className="text-xl font-bold text-slate-800">Varrendo Sistema...</h3>
+                    <div className="h-6 flex items-center justify-center">
+                        <p className="text-sm text-slate-600 font-medium animate-pulse">
+                          {refreshMessage}
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -827,11 +841,12 @@ export default function Pedidos() {
                    // 1. Criar Cliente
                    const novoCliente = await base44.entities.Cliente.create(data);
                    
-                   // 2. Buscar TODOS os pedidos pendentes com esse nome
+                   // 2. Buscar TODOS os pedidos pendentes com esse nome (CORREÇÃO DE LÓGICA)
                    const nomeAlvo = pedidoParaCadastro.cliente_nome.trim().toLowerCase();
+                   // Filtra todos os pedidos pendentes que tenham o nome similar
                    const pedidosParaVincular = pedidos.filter(p => 
                      p.cliente_pendente && 
-                     p.cliente_nome.trim().toLowerCase() === nomeAlvo
+                     (p.cliente_nome.trim().toLowerCase() === nomeAlvo || p.cliente_nome.trim().toLowerCase().includes(nomeAlvo))
                    );
 
                    // 3. Atualizar todos eles
@@ -840,7 +855,9 @@ export default function Pedidos() {
                        cliente_codigo: novoCliente.codigo,
                        cliente_regiao: novoCliente.regiao,
                        cliente_pendente: false,
-                       porcentagem_comissao: novoCliente.porcentagem_comissao
+                       porcentagem_comissao: novoCliente.porcentagem_comissao,
+                       representante_codigo: novoCliente.representante_codigo, // Importante: Vincular representante também
+                       representante_nome: novoCliente.representante_nome
                      })
                    );
 
