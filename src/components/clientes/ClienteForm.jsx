@@ -28,6 +28,7 @@ import { base44 } from '@/api/base44Client';
 import { InputCpfCnpj } from "@/components/ui/input-mask";
 import { useQuery } from '@tanstack/react-query';
 
+// Componente para Seleção de Formas de Pagamento
 function FormasPagamentoSelector({ formasSelecionadas, onChange }) {
   const { data: formasCadastradas = [] } = useQuery({
     queryKey: ['formasPagamento'],
@@ -35,8 +36,9 @@ function FormasPagamentoSelector({ formasSelecionadas, onChange }) {
   });
 
   const formasPadrao = ['Dinheiro', 'PIX', 'Cheque', 'Crédito', 'Boleto', 'Cartão'];
+  // Combina formas padrão com as cadastradas (evitando duplicatas se necessário)
   const formasCustomizadas = formasCadastradas.filter(f => f.ativa).map(f => f.nome);
-  const todasFormas = [...formasPadrao, ...formasCustomizadas];
+  const todasFormas = Array.from(new Set([...formasPadrao, ...formasCustomizadas]));
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -50,10 +52,10 @@ function FormasPagamentoSelector({ formasSelecionadas, onChange }) {
             );
           }}
           className={cn(
-            "px-4 py-2 rounded-xl text-sm font-medium transition-all",
+            "px-4 py-2 rounded-xl text-sm font-medium transition-all border",
             formasSelecionadas.includes(forma)
-              ? "bg-blue-600 text-white shadow-sm"
-              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+              : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
           )}
         >
           {forma}
@@ -98,34 +100,18 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
   const [isSaving, setIsSaving] = useState(false);
   const [isConsulting, setIsConsulting] = useState(false);
 
+  // Inicializa o formulário com dados existentes (edição)
   useEffect(() => {
     if (cliente) {
-      setForm({
-        codigo: cliente.codigo || '',
-        nome: cliente.nome || '',
-        razao_social: cliente.razao_social || '',
-        nome_fantasia: cliente.nome_fantasia || '',
-        cnpj: cliente.cnpj || '',
-        regiao: cliente.regiao || '',
-        representante_codigo: cliente.representante_codigo || '',
-        representante_nome: cliente.representante_nome || '',
-        porcentagem_comissao: cliente.porcentagem_comissao || 5,
-        telefone: cliente.telefone || '',
-        email: cliente.email || '',
-        score: cliente.score || '',
-        data_consulta: cliente.data_consulta || '',
-        limite_credito: cliente.limite_credito || 0,
-        bloqueado_manual: cliente.bloqueado_manual || false,
-        cep: cliente.cep || '',
-        endereco: cliente.endereco || '',
-        numero: cliente.numero || '',
-        bairro: cliente.bairro || '',
-        cidade: cliente.cidade || '',
-        estado: cliente.estado || '',
-        complemento: cliente.complemento || '',
-        cnaes_descricao: cliente.cnaes_descricao || '',
-        tem_st: cliente.tem_st || false
-      });
+      setForm(prev => ({
+        ...prev,
+        ...cliente,
+        // Garante valores padrão para evitar undefined
+        porcentagem_comissao: cliente.porcentagem_comissao ?? 5,
+        limite_credito: cliente.limite_credito ?? 0,
+        bloqueado_manual: cliente.bloqueado_manual ?? false,
+        tem_st: cliente.tem_st ?? false
+      }));
       setFormasPagamento(cliente.formas_pagamento || []);
       if (cliente.serasa_file_url) {
         setSerasaFile(cliente.serasa_file_url);
@@ -135,25 +121,24 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
 
   const handleRepresentanteChange = (codigo) => {
     const rep = representantes.find(r => r.codigo === codigo);
-    setForm({
-      ...form,
+    setForm(prev => ({
+      ...prev,
       representante_codigo: codigo,
       representante_nome: rep?.nome || ''
-    });
+    }));
   };
 
   // --- CONSULTA CNPJ AUTOMÁTICA ---
   const handleConsultarCNPJ = async (cnpjValue) => {
     const cnpjLimpo = cnpjValue?.replace(/\D/g, '');
 
-    // Validação de comprimento para evitar chamadas desnecessárias
     if (!cnpjLimpo || cnpjLimpo.length !== 14) return;
 
     setIsConsulting(true);
-    // Toast silencioso ou discreto para não incomodar na digitação, ou normal para feedback
     const toastId = toast.loading("Buscando dados do CNPJ...");
 
     try {
+      // Usando BrasilAPI (gratuita e estável)
       const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`);
       
       if (!response.ok) {
@@ -162,8 +147,9 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
 
       const data = await response.json();
 
-      // --- LÓGICA DE VERIFICAÇÃO ST ---
-      const cnaesComST = ['4744005', '4744099', '4672900'];
+      // Lógica de ST (Substituição Tributária) baseada em CNAEs específicos
+      // Adicione mais CNAEs conforme a regra de negócio da sua empresa
+      const cnaesComST = ['4744005', '4744099', '4672900']; 
 
       const todosCnaesDaEmpresa = [
         { codigo: data.cnae_fiscal, descricao: data.cnae_fiscal_descricao },
@@ -183,6 +169,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
         ...prev,
         razao_social: data.razao_social,
         nome_fantasia: data.nome_fantasia || data.razao_social,
+        // Se já tiver nome (apelido), mantém. Senão usa Fantasia ou Razão.
         nome: prev.nome || (data.nome_fantasia || data.razao_social),
         email: data.email || prev.email,
         telefone: data.ddd_telefone_1 || prev.telefone,
@@ -213,7 +200,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     setForm({ ...form, cnpj: newValue });
     if (errors.cnpj) setErrors({...errors, cnpj: null});
 
-    // Gatilho automático: se tiver 14 dígitos numéricos, chama a função
+    // Gatilho automático ao completar 14 dígitos
     const digits = newValue.replace(/\D/g, '');
     if (digits.length === 14) {
       handleConsultarCNPJ(digits);
@@ -224,25 +211,30 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     const newErrors = {};
     const isEdit = !!cliente?.id;
 
-    if (form.codigo) {
+    if (!form.codigo) newErrors.codigo = "Código é obrigatório.";
+    else {
       const exists = todosClientes.some(c => 
         c.codigo?.toLowerCase() === form.codigo.toLowerCase() && 
         (!isEdit || c.id !== cliente.id)
       );
       if (exists) newErrors.codigo = "Código já cadastrado.";
-    } else {
-      newErrors.codigo = "Código é obrigatório.";
     }
 
     if (!form.nome) newErrors.nome = "Apelido é obrigatório.";
 
     if (form.cnpj) {
         const cleanCNPJ = form.cnpj.replace(/\D/g, '');
+        // Validação simples de tamanho (pode adicionar validação de dígito verificador se quiser)
+        if (cleanCNPJ.length !== 14 && cleanCNPJ.length !== 11) {
+             // Aceita CPF ou CNPJ, mas alerta se tamanho estiver errado
+             // newErrors.cnpj = "CPF/CNPJ inválido."; 
+        }
+
         const exists = todosClientes.some(c => {
             const existingClean = c.cnpj?.replace(/\D/g, '') || '';
             return existingClean === cleanCNPJ && (!isEdit || c.id !== cliente.id);
         });
-        if (exists) newErrors.cnpj = "CNPJ já cadastrado.";
+        if (exists) newErrors.cnpj = "Documento já cadastrado.";
     }
 
     setErrors(newErrors);
@@ -277,9 +269,14 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
         const dataToSave = { 
           ...form, 
           formas_pagamento: formasPagamento, 
-          serasa_file_url: serasaFile
+          serasa_file_url: serasaFile,
+          // Garante numéricos
+          porcentagem_comissao: parseFloat(form.porcentagem_comissao) || 0,
+          limite_credito: parseFloat(form.limite_credito) || 0
         };
         await onSave(dataToSave);
+      } catch (error) {
+          toast.error("Erro ao salvar cliente.");
       } finally {
         setIsSaving(false);
       }
@@ -293,8 +290,8 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
 
   return (
     <div className="py-2 h-full flex flex-col">
-      <div className="flex-1 overflow-y-auto pr-2">
-        <Accordion type="multiple" defaultValue={['dados_cadastrais', 'endereco']} className="space-y-4">
+      <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+        <Accordion type="multiple" defaultValue={['dados_cadastrais', 'endereco', 'dados_comerciais']} className="space-y-4">
           
           {/* 1. DADOS CADASTRAIS */}
           <AccordionItem value="dados_cadastrais" className="border rounded-xl bg-white px-4 shadow-sm">
@@ -307,7 +304,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
             <AccordionContent className="pb-4 pt-2">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 
-                {/* Linha 1 */}
+                {/* Código */}
                 <div className="space-y-1">
                   <Label htmlFor="codigo" className={labelClass}>Código *</Label>
                   <Input
@@ -318,12 +315,13 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
                       if (errors.codigo) setErrors({...errors, codigo: null});
                     }}
                     placeholder="Ex: CLI001"
-                    disabled={!!cliente?.id}
+                    disabled={!!cliente?.id} // Código não editável na edição para integridade
                     className={cn(inputClass, errors.codigo && "border-red-300 bg-red-50 focus:border-red-400")}
                   />
                   {errors.codigo && <p className="text-xs text-red-500 mt-1">{errors.codigo}</p>}
                 </div>
 
+                {/* CNPJ */}
                 <div className="space-y-1 lg:col-span-2">
                   <Label htmlFor="cnpj" className={labelClass}>CPF/CNPJ (Automático)</Label>
                   <div className="relative">
@@ -343,7 +341,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
                   {errors.cnpj && <p className="text-xs text-red-500 mt-1">{errors.cnpj}</p>}
                 </div>
 
-                {/* Linha 2 */}
+                {/* Nome/Apelido */}
                 <div className="space-y-1 lg:col-span-3">
                   <Label htmlFor="nome" className={labelClass}>Apelido (Nome no Sistema) *</Label>
                   <Input
@@ -358,19 +356,20 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
                   {errors.nome && <p className="text-xs text-red-500 mt-1">{errors.nome}</p>}
                 </div>
 
-                {/* Linha 3 */}
+                {/* Razão Social */}
                 <div className="space-y-1 lg:col-span-1">
                   <Label htmlFor="razao_social" className={labelClass}>Razão Social</Label>
                   <Input id="razao_social" value={form.razao_social} onChange={(e) => setForm({ ...form, razao_social: e.target.value })} className={inputClass} />
                 </div>
 
+                {/* Nome Fantasia */}
                 <div className="space-y-1 lg:col-span-2">
                   <Label htmlFor="nome_fantasia" className={labelClass}>Nome Fantasia</Label>
                   <Input id="nome_fantasia" value={form.nome_fantasia} onChange={(e) => setForm({ ...form, nome_fantasia: e.target.value })} className={inputClass} />
                 </div>
 
                 {/* Classificação Fiscal / ST */}
-                <div className="md:col-span-2 lg:col-span-3 mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                <div className="md:col-span-2 lg:col-span-3 mt-2 p-4 bg-slate-50 border border-slate-200 rounded-xl">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <Factory className="w-5 h-5 text-slate-500" />
@@ -378,9 +377,9 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
                     </div>
                     
                     <div className={cn(
-                      "px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 border shadow-sm select-none w-fit",
-                      form.tem_st ? "bg-red-100 text-red-700 border-red-200" : "bg-green-100 text-green-700 border-green-200"
-                    )}>
+                      "px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 border shadow-sm select-none w-fit cursor-pointer transition-all",
+                      form.tem_st ? "bg-red-100 text-red-700 border-red-200 hover:bg-red-200" : "bg-green-100 text-green-700 border-green-200 hover:bg-green-200"
+                    )} onClick={() => setForm(prev => ({...prev, tem_st: !prev.tem_st}))}>
                       {form.tem_st ? <><AlertCircle className="w-4 h-4" /> COM ST</> : <><CheckCircle className="w-4 h-4" /> SEM ST</>}
                       <Lock className="w-3 h-3 ml-2 opacity-50" />
                     </div>
@@ -400,7 +399,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
             </AccordionContent>
           </AccordionItem>
 
-          {/* 2. ENDEREÇO & LOCALIZAÇÃO (Otimizado para largura maior) */}
+          {/* 2. ENDEREÇO & LOCALIZAÇÃO */}
           <AccordionItem value="endereco" className="border rounded-xl bg-white px-4 shadow-sm">
             <AccordionTrigger className="hover:no-underline py-4">
               <div className="flex items-center gap-2 text-slate-800">
@@ -410,51 +409,37 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
             </AccordionTrigger>
             <AccordionContent className="pb-4 pt-2">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                
                 <div className="space-y-1 md:col-span-1">
                   <Label htmlFor="cep" className={labelClass}>CEP</Label>
                   <Input id="cep" value={form.cep} onChange={(e) => setForm({ ...form, cep: e.target.value })} className={inputClass} placeholder="00000-000" />
                 </div>
-                
                 <div className="space-y-1 md:col-span-2">
                   <Label htmlFor="endereco" className={labelClass}>Endereço (Rua, Av...)</Label>
                   <Input id="endereco" value={form.endereco} onChange={(e) => setForm({ ...form, endereco: e.target.value })} className={inputClass} />
                 </div>
-                
                 <div className="space-y-1 md:col-span-1">
                   <Label htmlFor="numero" className={labelClass}>Número</Label>
                   <Input id="numero" value={form.numero} onChange={(e) => setForm({ ...form, numero: e.target.value })} className={inputClass} />
                 </div>
-
                 <div className="space-y-1 md:col-span-1">
                   <Label htmlFor="complemento" className={labelClass}>Complemento</Label>
                   <Input id="complemento" value={form.complemento} onChange={(e) => setForm({ ...form, complemento: e.target.value })} className={inputClass} placeholder="Apto, Sala" />
                 </div>
-
                 <div className="space-y-1 md:col-span-1">
                   <Label htmlFor="bairro" className={labelClass}>Bairro</Label>
                   <Input id="bairro" value={form.bairro} onChange={(e) => setForm({ ...form, bairro: e.target.value })} className={inputClass} />
                 </div>
-
                 <div className="space-y-1 md:col-span-1">
                   <Label htmlFor="cidade" className={labelClass}>Cidade</Label>
                   <Input id="cidade" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} className={inputClass} />
                 </div>
-
                 <div className="space-y-1 md:col-span-1">
                   <Label htmlFor="estado" className={labelClass}>Estado</Label>
                   <Input id="estado" value={form.estado} onChange={(e) => setForm({ ...form, estado: e.target.value })} className={inputClass} maxLength={2} />
                 </div>
-
                 <div className="space-y-1 md:col-span-2">
-                  <Label htmlFor="regiao" className={labelClass}>Região Comercial (Ex: Zona Leste)</Label>
-                  <Input
-                    id="regiao"
-                    value={form.regiao}
-                    onChange={(e) => setForm({ ...form, regiao: e.target.value })}
-                    placeholder="Região de vendas"
-                    className={inputClass}
-                  />
+                  <Label htmlFor="regiao" className={labelClass}>Região Comercial</Label>
+                  <Input id="regiao" value={form.regiao} onChange={(e) => setForm({ ...form, regiao: e.target.value })} placeholder="Ex: Zona Leste" className={inputClass} />
                 </div>
               </div>
             </AccordionContent>
@@ -538,24 +523,10 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Button 
-                              type="button" 
-                              variant="ghost" 
-                              size="sm"
-                              className="h-8 w-8 p-0 text-blue-600 hover:bg-blue-100"
-                              onClick={(e) => { e.stopPropagation(); window.open(serasaFile, '_blank'); }}
-                              title="Visualizar PDF"
-                            >
+                            <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-blue-600 hover:bg-blue-100" onClick={(e) => { e.stopPropagation(); window.open(serasaFile, '_blank'); }} title="Visualizar PDF">
                               <Eye className="w-4 h-4" />
                             </Button>
-                            <Button 
-                              type="button" 
-                              variant="ghost" 
-                              size="sm"
-                              className="h-8 w-8 p-0 text-red-600 hover:bg-red-100"
-                              onClick={handleRemoveSerasa}
-                              title="Remover Arquivo"
-                            >
+                            <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-600 hover:bg-red-100" onClick={handleRemoveSerasa} title="Remover Arquivo">
                               <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>
@@ -567,13 +538,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
                         </div>
                       )}
                       
-                      <input 
-                        type="file" 
-                        accept=".pdf" 
-                        onChange={handleSerasaUpload} 
-                        className="hidden" 
-                        disabled={serasaUploading} 
-                      />
+                      <input type="file" accept=".pdf" onChange={handleSerasaUpload} className="hidden" disabled={serasaUploading} />
                     </label>
                   </div>
                 </div>
