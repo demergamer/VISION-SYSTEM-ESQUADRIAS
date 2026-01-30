@@ -40,6 +40,7 @@ import RotaCobrancaModal from "@/components/pedidos/RotaCobrancaModal";
 import BorderoDetails from "@/components/pedidos/BorderoDetails";
 import AprovarLiquidacaoModal from "@/components/pedidos/AprovarLiquidacaoModal";
 import DividirRotaModal from "@/components/pedidos/DividirRotaModal";
+import AdicionarRepresentanteModal from "@/components/pedidos/AdicionarRepresentanteModal"; // NOVO COMPONENTE
 import PermissionGuard from "@/components/PermissionGuard";
 import { usePermissions } from "@/components/UserNotRegisteredError";
 
@@ -162,6 +163,7 @@ export default function Pedidos() {
   const [showAutorizacaoModal, setShowAutorizacaoModal] = useState(false);
   const [showDividirRotaModal, setShowDividirRotaModal] = useState(false);
   const [showReverterDialog, setShowReverterDialog] = useState(false);
+  const [showAddRepresentanteModal, setShowAddRepresentanteModal] = useState(false); // NOVO STATE
 
   // --- SELEÇÕES ---
   const [selectedPedido, setSelectedPedido] = useState(null);
@@ -175,7 +177,7 @@ export default function Pedidos() {
   const { data: pedidos = [], isLoading: loadingPedidos, refetch: refetchPedidos } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list() });
   const { data: clientes = [], refetch: refetchClientes } = useQuery({ queryKey: ['clientes'], queryFn: () => base44.entities.Cliente.list() });
   const { data: rotas = [], isLoading: loadingRotas, refetch: refetchRotas } = useQuery({ queryKey: ['rotas'], queryFn: () => base44.entities.RotaImportada.list('-created_date') });
-  const { data: representantes = [] } = useQuery({ queryKey: ['representantes'], queryFn: () => base44.entities.Representante.list() });
+  const { data: representantes = [], refetch: refetchRepresentantes } = useQuery({ queryKey: ['representantes'], queryFn: () => base44.entities.Representante.list() });
   const { data: cheques = [] } = useQuery({ queryKey: ['cheques'], queryFn: () => base44.entities.Cheque.list() });
   const { data: borderos = [], isLoading: loadingBorderos, refetch: refetchBorderos } = useQuery({ queryKey: ['borderos'], queryFn: () => base44.entities.Bordero.list('-created_date') });
   const { data: liquidacoesPendentes = [], isLoading: loadingAutorizacoes, refetch: refetchAutorizacoes } = useQuery({ queryKey: ['liquidacoesPendentes'], queryFn: () => base44.entities.LiquidacaoPendente.list('-created_date') });
@@ -823,8 +825,8 @@ export default function Pedidos() {
              <LiquidacaoMassa pedidos={pedidos} onSave={handleLiquidacaoMassa} onCancel={() => setShowLiquidacaoMassaModal(false)} />
           </ModalContainer>
 
-          <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Novo Pedido" size="lg"><PedidoForm clientes={clientes} onSave={(data) => createMutation.mutate(data)} onCancel={() => setShowAddModal(false)} isLoading={createMutation.isPending} /></ModalContainer>
-          <ModalContainer open={showEditModal} onClose={() => setShowEditModal(false)} title="Editar Pedido" size="lg"><PedidoForm pedido={selectedPedido} clientes={clientes} onSave={(data) => updateMutation.mutate({ id: selectedPedido.id, data })} onCancel={() => setShowEditModal(false)} isLoading={updateMutation.isPending} /></ModalContainer>
+          <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Novo Pedido" size="lg"><PedidoForm clientes={clientes} representantes={representantes} onAddRepresentante={() => setShowAddRepresentanteModal(true)} onSave={(data) => createMutation.mutate(data)} onCancel={() => setShowAddModal(false)} isLoading={createMutation.isPending} /></ModalContainer>
+          <ModalContainer open={showEditModal} onClose={() => setShowEditModal(false)} title="Editar Pedido" size="lg"><PedidoForm pedido={selectedPedido} clientes={clientes} representantes={representantes} onAddRepresentante={() => setShowAddRepresentanteModal(true)} onSave={(data) => updateMutation.mutate({ id: selectedPedido.id, data })} onCancel={() => setShowEditModal(false)} isLoading={updateMutation.isPending} /></ModalContainer>
           <ModalContainer open={showLiquidarModal} onClose={() => setShowLiquidarModal(false)} title="Liquidar"><LiquidacaoForm pedido={selectedPedido} onSave={(data) => updateMutation.mutate({ id: selectedPedido.id, data })} onCancel={() => setShowLiquidarModal(false)} /></ModalContainer>
           <ModalContainer open={showDetailsModal} onClose={() => setShowDetailsModal(false)} title="Detalhes" size="xl">
              {selectedPedido?.isBordero ? <BorderoDetails bordero={selectedPedido} pedidos={pedidos} onClose={() => setShowDetailsModal(false)}/> : <PedidoDetails pedido={selectedPedido} onClose={() => setShowDetailsModal(false)} />}
@@ -835,7 +837,9 @@ export default function Pedidos() {
           </ModalContainer>
           <ModalContainer open={showCadastrarClienteModal} onClose={() => setShowCadastrarClienteModal(false)} title="Cadastrar Cliente" size="lg">
              <ClienteForm 
-               cliente={{ nome: pedidoParaCadastro?.cliente_nome }} 
+               cliente={{ nome: pedidoParaCadastro?.cliente_nome }}
+               representantes={representantes} 
+               onAddRepresentante={() => setShowAddRepresentanteModal(true)}
                onSave={async (data) => {
                  try {
                    // 1. Criar Cliente
@@ -856,7 +860,7 @@ export default function Pedidos() {
                        cliente_regiao: novoCliente.regiao,
                        cliente_pendente: false,
                        porcentagem_comissao: novoCliente.porcentagem_comissao,
-                       representante_codigo: novoCliente.representante_codigo, // Importante: Vincular representante também
+                       representante_codigo: novoCliente.representante_codigo,
                        representante_nome: novoCliente.representante_nome
                      })
                    );
@@ -873,6 +877,14 @@ export default function Pedidos() {
                }} 
                onCancel={() => setShowCadastrarClienteModal(false)} 
              />
+          </ModalContainer>
+          <ModalContainer open={showAddRepresentanteModal} onClose={() => setShowAddRepresentanteModal(false)} title="Novo Representante">
+             <AdicionarRepresentanteModal onSave={async (data) => {
+                 await base44.entities.Representante.create(data);
+                 await refetchRepresentantes();
+                 setShowAddRepresentanteModal(false);
+                 toast.success("Representante adicionado!");
+             }} onCancel={() => setShowAddRepresentanteModal(false)} />
           </ModalContainer>
           
           <ModalContainer open={showCancelarPedidoModal} onClose={() => setShowCancelarPedidoModal(false)} title="Cancelar Pedido" description="Informe o motivo do cancelamento">
