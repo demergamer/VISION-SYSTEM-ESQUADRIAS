@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea"; // Importando Textarea
 import {
   Select,
   SelectContent,
@@ -10,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Save, X, AlertCircle, Upload, Loader2, Search } from "lucide-react";
+import { Save, X, AlertCircle, Upload, Loader2, Search, Factory } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { base44 } from '@/api/base44Client';
@@ -55,7 +56,9 @@ function FormasPagamentoSelector({ formasSelecionadas, onChange }) {
 export default function ClienteForm({ cliente, representantes = [], todosClientes = [], onSave, onCancel, isLoading }) {
   const [form, setForm] = useState({
     codigo: '',
-    nome: '',
+    nome: '', 
+    razao_social: '', 
+    nome_fantasia: '', 
     cnpj: '',
     regiao: '',
     representante_codigo: '',
@@ -67,14 +70,16 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     data_consulta: '',
     limite_credito: 0,
     bloqueado_manual: false,
-    // Endereço (Novos campos para preenchimento automático)
     cep: '',
     endereco: '',
     numero: '',
     bairro: '',
     cidade: '',
     estado: '',
-    complemento: ''
+    complemento: '',
+    // Novos campos Fiscais
+    cnaes_descricao: '', // Lista de CNAEs para visualização
+    tem_st: false // Flag de Substituição Tributária
   });
 
   const [errors, setErrors] = useState({});
@@ -82,13 +87,15 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
   const [serasaUploading, setSerasaUploading] = useState(false);
   const [formasPagamento, setFormasPagamento] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [isConsulting, setIsConsulting] = useState(false); // Estado para o loading da consulta
+  const [isConsulting, setIsConsulting] = useState(false);
 
   useEffect(() => {
     if (cliente) {
       setForm({
         codigo: cliente.codigo || '',
         nome: cliente.nome || '',
+        razao_social: cliente.razao_social || '',
+        nome_fantasia: cliente.nome_fantasia || '',
         cnpj: cliente.cnpj || '',
         regiao: cliente.regiao || '',
         representante_codigo: cliente.representante_codigo || '',
@@ -106,7 +113,9 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
         bairro: cliente.bairro || '',
         cidade: cliente.cidade || '',
         estado: cliente.estado || '',
-        complemento: cliente.complemento || ''
+        complemento: cliente.complemento || '',
+        cnaes_descricao: cliente.cnaes_descricao || '',
+        tem_st: cliente.tem_st || false
       });
       setFormasPagamento(cliente.formas_pagamento || []);
     }
@@ -121,9 +130,8 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     });
   };
 
-  // --- FUNÇÃO DE CONSULTA CNPJ (BRASIL API) ---
+  // --- CONSULTA CNPJ & LÓGICA DE ST ---
   const handleConsultarCNPJ = async () => {
-    // Remove caracteres não numéricos
     const cnpjLimpo = form.cnpj?.replace(/\D/g, '');
 
     if (!cnpjLimpo || cnpjLimpo.length !== 14) {
@@ -132,10 +140,9 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     }
 
     setIsConsulting(true);
-    const toastId = toast.loading("Consultando Receita Federal...");
+    const toastId = toast.loading("Consultando Receita Federal e CNAEs...");
 
     try {
-      // Usando BrasilAPI (Gratuita e sem Token)
       const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`);
       
       if (!response.ok) {
@@ -144,11 +151,37 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
 
       const data = await response.json();
 
-      // Preenche o formulário com os dados retornados
+      // --- LÓGICA DE VERIFICAÇÃO ST ---
+      // CNAEs que ativam o ST automaticamente (somente números)
+      const cnaesComST = [
+        '4744005', // Comércio varejista de materiais de construção não especificados
+        '4744099', // Comércio varejista de materiais de construção em geral
+        '4672900'  // Comércio atacadista de ferragens e ferramentas
+      ];
+
+      // Monta lista com Principal + Secundários
+      const todosCnaesDaEmpresa = [
+        { codigo: data.cnae_fiscal, descricao: data.cnae_fiscal_descricao },
+        ...(data.cnaes_secundarios || [])
+      ];
+
+      // Verifica se ALGUM CNAE da empresa está na lista de ST
+      const possuiST = todosCnaesDaEmpresa.some(cnae => {
+        // Remove pontuação do código vindo da API para comparar
+        const codigoLimpo = String(cnae.codigo).replace(/\D/g, '');
+        return cnaesComST.includes(codigoLimpo);
+      });
+
+      // Cria um texto legível com todos os CNAEs para salvar no cadastro
+      const textoCnaes = todosCnaesDaEmpresa
+        .map(c => `${c.codigo} - ${c.descricao}`)
+        .join('\n');
+
       setForm(prev => ({
         ...prev,
-        nome: data.razao_social, // Razão Social
+        razao_social: data.razao_social,
         nome_fantasia: data.nome_fantasia || data.razao_social,
+        nome: prev.nome || (data.nome_fantasia || data.razao_social),
         email: data.email || prev.email,
         telefone: data.ddd_telefone_1 || prev.telefone,
         cep: data.cep ? data.cep.replace(/(\d{5})(\d{3})/, '$1-$2') : prev.cep,
@@ -158,15 +191,17 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
         cidade: data.municipio,
         estado: data.uf,
         complemento: data.complemento,
-        // Atualiza a data da consulta para hoje
-        data_consulta: new Date().toISOString().split('T')[0]
+        data_consulta: new Date().toISOString().split('T')[0],
+        // Novos Campos Preenchidos Automaticamente
+        cnaes_descricao: textoCnaes,
+        tem_st: possuiST
       }));
 
-      toast.success("Dados da empresa carregados!", { id: toastId });
+      toast.success(possuiST ? "Dados carregados. ATENÇÃO: Cliente tem ST!" : "Dados carregados com sucesso!", { id: toastId });
 
     } catch (error) {
       console.error(error);
-      toast.error("Erro ao consultar CNPJ. Verifique o número ou tente novamente.", { id: toastId });
+      toast.error("Erro ao consultar CNPJ.", { id: toastId });
     } finally {
       setIsConsulting(false);
     }
@@ -176,7 +211,6 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     const newErrors = {};
     const isEdit = !!cliente?.id;
 
-    // Verificar Código Duplicado
     if (form.codigo) {
       const exists = todosClientes.some(c => 
         c.codigo?.toLowerCase() === form.codigo.toLowerCase() && 
@@ -187,20 +221,9 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
       newErrors.codigo = "Código é obrigatório.";
     }
 
-    // Verificar Nome Duplicado
-    if (form.nome) {
-      const exists = todosClientes.some(c => 
-        c.nome?.toLowerCase() === form.nome.toLowerCase() && 
-        (!isEdit || c.id !== cliente.id)
-      );
-      if (exists) newErrors.nome = "Nome/Razão Social já cadastrado.";
-    } else {
-      newErrors.nome = "Nome é obrigatório.";
-    }
+    if (!form.nome) newErrors.nome = "Apelido é obrigatório.";
 
-    // Verificar CNPJ Duplicado
     if (form.cnpj) {
-        // Remover caracteres não numéricos para comparação
         const cleanCNPJ = form.cnpj.replace(/\D/g, '');
         const exists = todosClientes.some(c => {
             const existingClean = c.cnpj?.replace(/\D/g, '') || '';
@@ -216,7 +239,6 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
   const handleSerasaUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
     setSerasaUploading(true);
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
@@ -301,7 +323,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
           </div>
 
           <div className="space-y-1 md:col-span-2">
-            <Label htmlFor="nome" className={labelClass}>Nome / Razão Social *</Label>
+            <Label htmlFor="nome" className={labelClass}>Apelido (Nome no Sistema) *</Label>
             <Input
               id="nome"
               value={form.nome}
@@ -309,13 +331,34 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
                 setForm({ ...form, nome: e.target.value });
                 if (errors.nome) setErrors({...errors, nome: null});
               }}
-              placeholder="Nome completo ou razão social"
-              className={cn(inputClass, errors.nome && "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100")}
+              placeholder="Como este cliente é conhecido no sistema"
+              className={cn(inputClass, "font-bold text-slate-700", errors.nome && "border-red-300 bg-red-50")}
             />
+            <p className="text-[10px] text-slate-400 ml-1">Usado nas listagens rápidas.</p>
             {errors.nome && <p className="text-xs text-red-500 mt-1 ml-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {errors.nome}</p>}
           </div>
 
-          {/* Endereço Completo */}
+          <div className="space-y-1">
+            <Label htmlFor="razao_social" className={labelClass}>Razão Social</Label>
+            <Input
+              id="razao_social"
+              value={form.razao_social}
+              onChange={(e) => setForm({ ...form, razao_social: e.target.value })}
+              className={inputClass}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="nome_fantasia" className={labelClass}>Nome Fantasia</Label>
+            <Input
+              id="nome_fantasia"
+              value={form.nome_fantasia}
+              onChange={(e) => setForm({ ...form, nome_fantasia: e.target.value })}
+              className={inputClass}
+            />
+          </div>
+
+          {/* Endereço */}
           <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
              <div className="space-y-1 md:col-span-1">
                 <Label htmlFor="cep" className={labelClass}>CEP</Label>
@@ -351,200 +394,131 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
         </div>
       </div>
 
-      {/* Seção Comercial */}
+      {/* CLASSIFICAÇÃO FISCAL (ST) */}
       <div className="space-y-6">
-        <h3 className="text-sm font-medium text-slate-900 border-b pb-2 mb-4">Dados Comerciais</h3>
+        <h3 className="text-sm font-medium text-slate-900 border-b pb-2 mb-4 flex items-center gap-2">
+          <Factory className="w-4 h-4 text-slate-500" /> Classificação Fiscal
+        </h3>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-1">
-            <Label htmlFor="representante" className={labelClass}>Representante *</Label>
-            <Select
-              value={form.representante_codigo}
-              onValueChange={handleRepresentanteChange}
-            >
-              <SelectTrigger className={cn(inputClass, "w-full")}>
-                <SelectValue placeholder="Selecione o representante" />
-              </SelectTrigger>
-              <SelectContent className="max-h-[200px]">
-                {representantes.map((rep) => (
-                  <SelectItem key={rep.codigo} value={rep.codigo}>
-                    {rep.codigo} - {rep.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1">
-            <Label htmlFor="porcentagem" className={labelClass}>Comissão (%)</Label>
-            <div className="relative">
-                <Input
-                id="porcentagem"
-                type="number"
-                min="0"
-                max="100"
-                step="0.1"
-                value={form.porcentagem_comissao}
-                onChange={(e) => setForm({ ...form, porcentagem_comissao: parseFloat(e.target.value) || 0 })}
-                className={cn(inputClass, "pr-8")}
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">%</span>
+        <div className="grid grid-cols-1 gap-4">
+          <div className="p-4 rounded-xl border-2 transition-all duration-300 bg-slate-50 border-slate-200">
+            <div className="flex items-center justify-between mb-2">
+              <Label className="text-base font-bold text-slate-700">Substituição Tributária (ST)</Label>
+              {/* Botões Visuais tipo "Pílula" */}
+              <div className="flex bg-slate-200 rounded-lg p-1">
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, tem_st: false })}
+                  className={cn(
+                    "px-4 py-1.5 rounded-md text-sm font-semibold transition-all",
+                    !form.tem_st ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  Sem ST
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, tem_st: true })}
+                  className={cn(
+                    "px-4 py-1.5 rounded-md text-sm font-semibold transition-all flex items-center gap-2",
+                    form.tem_st ? "bg-red-500 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  Com ST
+                </button>
+              </div>
             </div>
+            <p className="text-xs text-slate-500 mb-3">
+              Define se os pedidos deste cliente terão cálculo de ST. Preenchido automaticamente via CNAE.
+            </p>
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="limite" className={labelClass}>Limite de Crédito</Label>
-            <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">R$</span>
-                <Input
-                id="limite"
-                type="number"
-                min="0"
-                step="100"
-                value={form.limite_credito}
-                onChange={(e) => setForm({ ...form, limite_credito: parseFloat(e.target.value) || 0 })}
-                className={cn(inputClass, "pl-9 font-medium text-slate-700")}
-                />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <Label htmlFor="score" className={labelClass}>Score de Crédito</Label>
-            <Input
-              id="score"
-              value={form.score}
-              onChange={(e) => setForm({ ...form, score: e.target.value })}
-              placeholder="Ex: A, B, C ou pontuação"
-              className={inputClass}
-            />
-          </div>
-          
-          <div className="space-y-1">
-            <Label htmlFor="data_consulta" className={labelClass}>Data da Consulta</Label>
-            <Input
-              id="data_consulta"
-              type="date"
-              value={form.data_consulta}
-              onChange={(e) => setForm({ ...form, data_consulta: e.target.value })}
-              className={inputClass}
+            <Label className={labelClass}>CNAEs da Empresa</Label>
+            <Textarea
+              value={form.cnaes_descricao}
+              readOnly
+              className="bg-slate-100 text-xs font-mono border-slate-200 h-24 resize-none"
+              placeholder="Os códigos de atividade econômica aparecerão aqui após a consulta..."
             />
           </div>
         </div>
       </div>
 
-      {/* Upload Serasa */}
+      {/* Seção Comercial */}
+      <div className="space-y-6">
+        <h3 className="text-sm font-medium text-slate-900 border-b pb-2 mb-4">Dados Comerciais</h3>
+        {/* ... (Resto do código comercial mantido igual) ... */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-1">
+            <Label htmlFor="representante" className={labelClass}>Representante *</Label>
+            <Select value={form.representante_codigo} onValueChange={handleRepresentanteChange}>
+              <SelectTrigger className={cn(inputClass, "w-full")}><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent className="max-h-[200px]">
+                {representantes.map((rep) => (<SelectItem key={rep.codigo} value={rep.codigo}>{rep.codigo} - {rep.nome}</SelectItem>))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="porcentagem" className={labelClass}>Comissão (%)</Label>
+            <div className="relative"><Input type="number" value={form.porcentagem_comissao} onChange={(e) => setForm({ ...form, porcentagem_comissao: parseFloat(e.target.value) || 0 })} className={cn(inputClass, "pr-8")} /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">%</span></div>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="limite" className={labelClass}>Limite de Crédito</Label>
+            <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">R$</span><Input type="number" step="100" value={form.limite_credito} onChange={(e) => setForm({ ...form, limite_credito: parseFloat(e.target.value) || 0 })} className={cn(inputClass, "pl-9 font-medium text-slate-700")} /></div>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="score" className={labelClass}>Score de Crédito</Label>
+            <Input value={form.score} onChange={(e) => setForm({ ...form, score: e.target.value })} className={inputClass} />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="data_consulta" className={labelClass}>Data da Consulta</Label>
+            <Input type="date" value={form.data_consulta} onChange={(e) => setForm({ ...form, data_consulta: e.target.value })} className={inputClass} />
+          </div>
+        </div>
+      </div>
+
+      {/* Upload Serasa & Pagamentos */}
       <div className="space-y-6">
         <h3 className="text-sm font-medium text-slate-900 border-b pb-2 mb-4">Análise de Crédito</h3>
-        
         <div className="space-y-2">
-          <Label htmlFor="serasa" className={labelClass}>Arquivo Serasa (PDF)</Label>
+          <Label className={labelClass}>Arquivo Serasa (PDF)</Label>
           <div className="flex items-center gap-3">
-            <label className={cn(
-              "flex-1 flex items-center justify-center gap-2 h-11 px-4 rounded-xl border-2 border-dashed cursor-pointer transition-all",
-              serasaFile ? "border-green-300 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 hover:border-blue-300 hover:bg-blue-50 text-slate-600"
-            )}>
-              {serasaUploading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Upload className="w-4 h-4" />
-              )}
-              <span className="text-sm font-medium">
-                {serasaUploading ? 'Enviando...' : serasaFile ? 'Arquivo enviado' : 'Selecionar PDF'}
-              </span>
-              <input
-                id="serasa"
-                type="file"
-                accept=".pdf"
-                onChange={handleSerasaUpload}
-                className="hidden"
-                disabled={serasaUploading}
-              />
+            <label className={cn("flex-1 flex items-center justify-center gap-2 h-11 px-4 rounded-xl border-2 border-dashed cursor-pointer transition-all", serasaFile ? "border-green-300 bg-green-50 text-green-700" : "border-slate-200 bg-slate-50 hover:border-blue-300 hover:bg-blue-50 text-slate-600")}>
+              {serasaUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              <span className="text-sm font-medium">{serasaUploading ? 'Enviando...' : serasaFile ? 'Arquivo enviado' : 'Selecionar PDF'}</span>
+              <input type="file" accept=".pdf" onChange={handleSerasaUpload} className="hidden" disabled={serasaUploading} />
             </label>
           </div>
         </div>
-
         <div className="space-y-2">
-          <Label htmlFor="formasPag" className={labelClass}>Formas de Pagamento Autorizadas</Label>
+          <Label className={labelClass}>Formas de Pagamento Autorizadas</Label>
           <FormasPagamentoSelector formasSelecionadas={formasPagamento} onChange={setFormasPagamento} />
         </div>
       </div>
 
-      {/* Seção Contato */}
+      {/* Contato & Bloqueio */}
       <div className="space-y-6">
         <h3 className="text-sm font-medium text-slate-900 border-b pb-2 mb-4">Contato</h3>
-        
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-1">
-            <Label htmlFor="telefone" className={labelClass}>Telefone</Label>
-            <Input
-              id="telefone"
-              value={form.telefone}
-              onChange={(e) => setForm({ ...form, telefone: e.target.value })}
-              placeholder="(00) 00000-0000"
-              className={inputClass}
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label htmlFor="email" className={labelClass}>Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              placeholder="email@exemplo.com"
-              className={inputClass}
-            />
-          </div>
+          <div className="space-y-1"><Label className={labelClass}>Telefone</Label><Input value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} className={inputClass} /></div>
+          <div className="space-y-1"><Label className={labelClass}>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className={inputClass} /></div>
         </div>
       </div>
 
-      {/* Bloqueio */}
       <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 flex items-center justify-between">
-        <div>
-          <Label htmlFor="bloqueado" className="text-base font-semibold text-slate-800 cursor-pointer">Bloquear Cliente</Label>
-          <p className="text-sm text-slate-500 mt-0.5">Impede a criação de novos pedidos para este cliente</p>
-        </div>
-        <Switch
-          id="bloqueado"
-          checked={form.bloqueado_manual}
-          onCheckedChange={(checked) => setForm({ ...form, bloqueado_manual: checked })}
-        />
+        <div><Label htmlFor="bloqueado" className="text-base font-semibold text-slate-800 cursor-pointer">Bloquear Cliente</Label><p className="text-sm text-slate-500 mt-0.5">Impede a criação de novos pedidos</p></div>
+        <Switch id="bloqueado" checked={form.bloqueado_manual} onCheckedChange={(checked) => setForm({ ...form, bloqueado_manual: checked })} />
       </div>
 
       {/* Ações */}
       <div className="flex justify-end gap-3 pt-6 border-t">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading || isSaving} className="h-11 px-6 rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900">
-          <X className="w-4 h-4 mr-2" />
-          Cancelar
-        </Button>
-        <Button type="button" onClick={handleSubmit} disabled={isLoading || isSaving} className="h-11 px-8 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200">
-          {isSaving ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Salvando...
-            </>
-          ) : (
-            <>
-              <Save className="w-4 h-4 mr-2" />
-              {cliente ? 'Salvar Alterações' : 'Cadastrar Cliente'}
-            </>
-          )}
-        </Button>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading || isSaving} className="h-11 px-6 rounded-xl border-slate-200">Cancelar</Button>
+        <Button type="button" onClick={handleSubmit} disabled={isLoading || isSaving} className="h-11 px-8 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg">{isSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Salvando...</> : <><Save className="w-4 h-4 mr-2" /> {cliente ? 'Salvar Alterações' : 'Cadastrar Cliente'}</>}</Button>
       </div>
 
-      {/* Overlay de Loading */}
-      {isSaving && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4">
-            <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
-            <div className="text-center">
-              <h3 className="text-lg font-bold text-slate-800">Salvando Cliente</h3>
-              <p className="text-sm text-slate-500">Aguarde um momento...</p>
-            </div>
-          </div>
-        </div>
-      )}
+      {isSaving && (<div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm"><div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4"><Loader2 className="w-12 h-12 text-blue-600 animate-spin" /><div className="text-center"><h3 className="text-lg font-bold text-slate-800">Salvando Cliente</h3><p className="text-sm text-slate-500">Aguarde um momento...</p></div></div></div>)}
     </div>
   );
 }
