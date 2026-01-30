@@ -42,24 +42,32 @@ export default function AprovarLiquidacaoModal({
   const [showRejeicaoForm, setShowRejeicaoForm] = useState(false);
   const [motivoRejeicao, setMotivoRejeicao] = useState('');
 
-  // --- CORREÇÃO PRINCIPAL: CARREGAR DADOS DO REPRESENTANTE ---
+  // --- CARREGAR DADOS DO REPRESENTANTE ---
   useEffect(() => {
     if (autorizacao) {
+      console.log("Carregando autorização:", autorizacao);
+
       // 1. Carregar Pedidos
       const pedidosDoBanco = autorizacao.pedidos_ids?.map(pid => todosPedidos.find(p => p.id === pid)).filter(Boolean) || [];
       setPedidosSelecionados(pedidosDoBanco);
 
-      // 2. Carregar Anexos (Comprovantes)
-      // Tenta pegar do array novo ou do campo antigo para compatibilidade
+      // 2. Carregar Anexos (Comprovantes) - Lógica Blindada
       let anexosIniciais = [];
-      if (autorizacao.comprovantes_urls && Array.isArray(autorizacao.comprovantes_urls)) {
+      
+      // Tenta pegar do array (novo padrão)
+      if (Array.isArray(autorizacao.comprovantes_urls) && autorizacao.comprovantes_urls.length > 0) {
         anexosIniciais = [...autorizacao.comprovantes_urls];
-      } else if (autorizacao.comprovante_url) {
+      } 
+      // Se não tiver array, tenta pegar do campo único (legado)
+      else if (autorizacao.comprovante_url) {
         anexosIniciais = [autorizacao.comprovante_url];
       }
+      
+      // Filtra strings vazias
+      anexosIniciais = anexosIniciais.filter(url => url && typeof url === 'string' && url.trim() !== '');
       setComprovantes(anexosIniciais);
 
-      // 3. Carregar Descontos (Pega o primeiro se houver)
+      // 3. Carregar Descontos
       if (autorizacao.descontos_cascata && autorizacao.descontos_cascata.length > 0) {
         const desc = autorizacao.descontos_cascata[0];
         setDescontoTipo(desc.tipo || 'reais');
@@ -71,19 +79,21 @@ export default function AprovarLiquidacaoModal({
       // 4. Carregar Devolução
       setDevolucao(autorizacao.devolucao_valor ? String(autorizacao.devolucao_valor) : '');
 
-      // 5. Inicializar Forma de Pagamento com o Valor Proposto
-      // Isso evita que o total pago comece zerado
+      // 5. Inicializar Pagamento (Evita botão travado)
+      // Se o valor proposto for 0 ou nulo, usa o valor total original como fallback
+      const valorInicial = autorizacao.valor_final_proposto || autorizacao.valor_total_original || 0;
+      
       setFormasPagamento([
         { 
-          tipo: 'dinheiro', // Padrão, já que o representante não envia detalhes estruturados de pagamento aqui
-          valor: autorizacao.valor_final_proposto ? String(autorizacao.valor_final_proposto) : '', 
+          tipo: 'dinheiro', 
+          valor: String(valorInicial), 
           parcelas: '1' 
         }
       ]);
     }
   }, [autorizacao, todosPedidos]);
 
-  // Filtro de pedidos disponíveis para adicionar (mesma lógica anterior)
+  // Filtro de pedidos disponíveis
   const pedidosDisponiveis = useMemo(() => {
     const clienteCodigo = autorizacao?.cliente_codigo;
     if (!clienteCodigo) return [];
@@ -145,9 +155,20 @@ export default function AprovarLiquidacaoModal({
   const handleRejeitar = () => { if (!motivoRejeicao.trim()) { toast.error('Informe o motivo da rejeição'); return; } onRejeitar(motivoRejeicao); };
 
   const handleAprovar = () => {
-    if (pedidosSelecionados.length === 0) { toast.error('Selecione pelo menos um pedido'); return; }
+    console.log("Tentando aprovar...");
+
+    if (pedidosSelecionados.length === 0) { 
+        toast.error('Selecione pelo menos um pedido'); 
+        return; 
+    }
+    
     const totais = calcularTotais();
-    if (totais.totalPago <= 0) { toast.error('Informe pelo menos uma forma de pagamento'); return; }
+    console.log("Totais calculados:", totais);
+
+    if (totais.totalPago <= 0) { 
+        toast.error('O Valor Pago não pode ser zero. Verifique as formas de pagamento.'); 
+        return; 
+    }
 
     const dadosAprovacao = {
       pedidosSelecionados,
@@ -155,9 +176,11 @@ export default function AprovarLiquidacaoModal({
       descontoValor: parseFloat(descontoValor) || 0,
       devolucao: parseFloat(devolucao) || 0,
       formasPagamento: formasPagamento.filter(fp => parseFloat(fp.valor) > 0),
-      comprovantes, // Passando o array correto de URLs
+      comprovantes, // Array completo de URLs
       totais
     };
+
+    console.log("Enviando dados de aprovação:", dadosAprovacao);
     onAprovar(dadosAprovacao);
   };
 
@@ -176,7 +199,7 @@ export default function AprovarLiquidacaoModal({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Esquerda: Seleção de Pedidos */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between"><h3 className="font-bold text-slate-800 flex items-center gap-2"><ShoppingCart className="w-5 h-5 text-blue-600" /> Pedidos ({pedidosSelecionados.length})</h3></div>
+          <div className="flex items-center justify-between"><h3 className="font-bold text-slate-800 flex items-center gap-2"><ShoppingCart className="w-5 h-5 text-blue-600" /> Pedidos Selecionados ({pedidosSelecionados.length})</h3></div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <Input placeholder="Buscar e adicionar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
@@ -259,7 +282,7 @@ export default function AprovarLiquidacaoModal({
               {(totais.desconto > 0 || totais.devolucaoValor > 0) && <div className="flex justify-between text-red-600"><span>Ajustes:</span><span>- {formatCurrency(totais.desconto + totais.devolucaoValor)}</span></div>}
               <div className="flex justify-between font-bold text-lg text-blue-700 border-t pt-2"><span>A Pagar:</span><span>{formatCurrency(totais.totalComDesconto)}</span></div>
               <div className="flex justify-between font-bold text-lg text-emerald-700"><span>Informado:</span><span>{formatCurrency(totais.totalPago)}</span></div>
-              {Math.abs(totais.totalPago - totais.totalComDesconto) > 0.01 && <div className="flex justify-between font-bold text-red-600 border-t pt-2"><span>Diferença:</span><span>{formatCurrency(totais.totalPago - totais.totalComDesconto)}</span></div>}
+              {Math.abs(totais.totalPago - totais.totalComDesconto) > 0.01 && <div className={cn("flex justify-between font-bold text-red-600 border-t pt-2")}><span>Diferença:</span><span>{formatCurrency(totais.totalPago - totais.totalComDesconto)}</span></div>}
             </div>
           </Card>
 
