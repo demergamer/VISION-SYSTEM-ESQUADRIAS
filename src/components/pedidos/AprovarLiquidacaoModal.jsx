@@ -3,18 +3,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { 
   DollarSign, Loader2, Plus, X, Upload, FileText, Trash2, 
-  ShoppingCart, AlertTriangle, CheckCircle, ExternalLink, Calculator
+  ShoppingCart, AlertTriangle, CheckCircle, Calculator, ExternalLink
 } from "lucide-react";
 import { toast } from "sonner";
-import { format } from "date-fns";
 import { base44 } from '@/api/base44Client';
 
-// Utilitário de formatação
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
 export default function AprovarLiquidacaoModal({ 
@@ -29,22 +26,23 @@ export default function AprovarLiquidacaoModal({
   const [pedidosSelecionados, setPedidosSelecionados] = useState([]);
   
   // Financeiro
-  const [descontoReais, setDescontoReais] = useState(''); // Vamos simplificar para R$ direto
+  const [descontoReais, setDescontoReais] = useState(''); 
   const [devolucaoReais, setDevolucaoReais] = useState('');
-  const [formasPagamento, setFormasPagamento] = useState([]); // [{ tipo: 'dinheiro', valor: '100.00' }]
+  const [formasPagamento, setFormasPagamento] = useState([]); 
   
   // Anexos
-  const [comprovantes, setComprovantes] = useState([]); // Array de Strings (URLs)
+  const [comprovantes, setComprovantes] = useState([]); 
   const [uploading, setUploading] = useState(false);
 
   // Rejeição
   const [modoRejeicao, setModoRejeicao] = useState(false);
   const [motivoRejeicao, setMotivoRejeicao] = useState('');
 
-  // --- 1. INICIALIZAÇÃO (A MÁGICA ACONTECE AQUI) ---
+  // --- 1. INICIALIZAÇÃO SEGURA ---
+  // A chave é rodar APENAS quando o ID da autorização mudar, não quando os pedidos mudarem
   useEffect(() => {
-    if (autorizacao) {
-      console.log("Inicializando Modal com:", autorizacao);
+    if (autorizacao?.id) {
+      console.log("Inicializando Modal para ID:", autorizacao.id);
 
       // A. Carregar Pedidos
       const pedidosDoBanco = autorizacao.pedidos_ids?.map(pid => 
@@ -52,30 +50,27 @@ export default function AprovarLiquidacaoModal({
       ).filter(Boolean) || [];
       setPedidosSelecionados(pedidosDoBanco);
 
-      // B. Carregar Anexos (Suporte a legado e novo)
+      // B. Carregar Anexos
       let listaAnexos = [];
       if (Array.isArray(autorizacao.comprovantes_urls) && autorizacao.comprovantes_urls.length > 0) {
         listaAnexos = [...autorizacao.comprovantes_urls];
       } else if (autorizacao.comprovante_url) {
         listaAnexos = [autorizacao.comprovante_url];
       }
-      setComprovantes(listaAnexos.filter(url => url && url.trim() !== ''));
+      setComprovantes(listaAnexos.filter(url => url && typeof url === 'string' && url.trim() !== ''));
 
-      // C. Carregar Valores (Desconto/Devolução)
-      // Se tiver histórico de cascata, pega o valor. Senão zera.
+      // C. Carregar Valores
       let descInicial = '';
       if (autorizacao.descontos_cascata?.length > 0) {
-        // Assume que o primeiro é o principal ou soma eles
         const totalDesc = autorizacao.descontos_cascata.reduce((acc, d) => acc + (parseFloat(d.valor) || 0), 0);
         if (totalDesc > 0) descInicial = String(totalDesc);
       }
       setDescontoReais(descInicial);
       setDevolucaoReais(autorizacao.devolucao_valor ? String(autorizacao.devolucao_valor) : '');
 
-      // D. Inicializar Pagamento (CRÍTICO: NÃO PODE SER ZERO)
-      // Se não tiver valor proposto, calcula baseado nos pedidos
+      // D. Inicializar Pagamento
       let valorInicial = parseFloat(autorizacao.valor_final_proposto) || 0;
-      if (valorInicial <= 0) {
+      if (valorInicial <= 0.01) {
          valorInicial = parseFloat(autorizacao.valor_total_original) || 0;
       }
       
@@ -83,13 +78,11 @@ export default function AprovarLiquidacaoModal({
         { tipo: 'dinheiro', valor: String(valorInicial) }
       ]);
     }
-  }, [autorizacao, todosPedidos]);
+  }, [autorizacao?.id]); // <--- TRAVA AQUI: Só roda se mudar o ID da autorização
 
-  // --- 2. CÁLCULOS EM TEMPO REAL ---
+  // --- 2. CÁLCULOS ---
   const totais = useMemo(() => {
-    // Soma o saldo original dos pedidos selecionados
     const totalOriginal = pedidosSelecionados.reduce((acc, p) => {
-        // Tenta pegar o saldo, se não tiver, calcula (valor - pago)
         const saldo = p.saldo_restante !== undefined ? p.saldo_restante : (p.valor_pedido - (p.total_pago || 0));
         return acc + saldo;
     }, 0);
@@ -106,7 +99,7 @@ export default function AprovarLiquidacaoModal({
     return { totalOriginal, desconto, devolucao, totalAjustes, totalAPagar, totalInformado, diferenca };
   }, [pedidosSelecionados, descontoReais, devolucaoReais, formasPagamento]);
 
-  // --- 3. AÇÕES (HANDLERS) ---
+  // --- 3. AÇÕES (HANDLERS SEGUROS) ---
   
   const handleAddForma = () => {
     setFormasPagamento([...formasPagamento, { tipo: 'dinheiro', valor: '' }]);
@@ -118,10 +111,13 @@ export default function AprovarLiquidacaoModal({
     }
   };
 
+  // CORREÇÃO CRÍTICA PARA TELA BRANCA NA EDIÇÃO
   const handleUpdateForma = (index, field, value) => {
-    const novas = [...formasPagamento];
-    novas[index][field] = value;
-    setFormasPagamento(novas);
+    setFormasPagamento(current => {
+      const novas = [...current];
+      novas[index] = { ...novas[index], [field]: value }; // Cria novo objeto, não muta
+      return novas;
+    });
   };
 
   const handleFileUpload = async (e) => {
@@ -134,7 +130,7 @@ export default function AprovarLiquidacaoModal({
       const results = await Promise.all(promises);
       const urls = results.map(r => r.file_url).filter(Boolean);
       setComprovantes(prev => [...prev, ...urls]);
-      toast.success(`${urls.length} arquivos anexados!`);
+      toast.success("Anexo adicionado!");
     } catch (err) {
       toast.error("Erro ao enviar arquivo.");
     } finally {
@@ -148,25 +144,16 @@ export default function AprovarLiquidacaoModal({
 
   // --- 4. VALIDAÇÃO E ENVIO ---
   const handleAprovarClick = () => {
-    // Validação 1: Pedidos
     if (pedidosSelecionados.length === 0) {
-      toast.error("Erro: Nenhum pedido selecionado.");
+      toast.error("Nenhum pedido selecionado.");
       return;
     }
 
-    // Validação 2: Valor Zerado
     if (totais.totalInformado <= 0.01) {
-      toast.error("Erro: O valor do pagamento não pode ser zero.");
+      toast.error("O valor do pagamento não pode ser zero.");
       return;
     }
 
-    // Validação 3: Comprovantes (Opcional, mas bom ter)
-    if (comprovantes.length === 0) {
-      toast.warning("Atenção: Nenhum comprovante anexado.");
-      // Não bloqueia, mas avisa
-    }
-
-    // Monta objeto final limpo
     const dadosFinais = {
       pedidosSelecionados,
       totais: {
@@ -175,45 +162,35 @@ export default function AprovarLiquidacaoModal({
         devolucao: totais.devolucao,
         totalPago: totais.totalInformado
       },
-      descontoTipo: 'reais', // Simplificado
+      descontoTipo: 'reais',
       descontoValor: totais.desconto,
       devolucao: totais.devolucao,
-      // Filtra formas vazias
       formasPagamento: formasPagamento.filter(f => parseFloat(f.valor) > 0),
       comprovantes: comprovantes
     };
 
-    console.log("Enviando aprovação:", dadosFinais);
     onAprovar(dadosFinais);
   };
 
-  const handleRejeitarClick = () => {
-    if (!motivoRejeicao.trim()) {
-      toast.error("Informe o motivo da rejeição.");
-      return;
-    }
-    onRejeitar(motivoRejeicao);
-  };
+  if (!autorizacao) return null;
 
   return (
     <div className="space-y-6 h-full flex flex-col">
-      {/* HEADER DE INFORMAÇÕES */}
+      {/* HEADER */}
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid grid-cols-2 gap-4 text-sm">
         <div>
           <span className="text-xs font-bold text-slate-500 uppercase block">Solicitação</span>
-          <span className="font-bold text-lg text-slate-800">#{autorizacao?.numero_solicitacao}</span>
+          <span className="font-bold text-lg text-slate-800">#{autorizacao.numero_solicitacao}</span>
         </div>
         <div>
           <span className="text-xs font-bold text-slate-500 uppercase block">Cliente</span>
-          <span className="font-medium text-slate-700 truncate block" title={autorizacao?.cliente_nome}>
-            {autorizacao?.cliente_nome}
-          </span>
+          <span className="font-medium text-slate-700 truncate block">{autorizacao.cliente_nome}</span>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 overflow-hidden">
         
-        {/* COLUNA DA ESQUERDA: LISTA DE PEDIDOS */}
+        {/* ESQUERDA: PEDIDOS */}
         <div className="flex flex-col space-y-3 h-full overflow-hidden">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
@@ -221,7 +198,7 @@ export default function AprovarLiquidacaoModal({
               Pedidos ({pedidosSelecionados.length})
             </h3>
             <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-bold">
-              Total: {formatCurrency(totais.totalOriginal)}
+              {formatCurrency(totais.totalOriginal)}
             </span>
           </div>
 
@@ -230,9 +207,7 @@ export default function AprovarLiquidacaoModal({
               <Card key={p.id} className="p-3 bg-white flex justify-between items-center shadow-sm">
                 <div>
                   <p className="font-bold text-xs text-slate-500">#{p.numero_pedido}</p>
-                  <p className="text-sm font-medium text-slate-700 truncate w-32" title={p.cliente_nome}>
-                    {p.cliente_nome}
-                  </p>
+                  <p className="text-sm font-medium text-slate-700 truncate w-32">{p.cliente_nome}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-slate-400">Saldo</p>
@@ -242,22 +217,16 @@ export default function AprovarLiquidacaoModal({
                 </div>
               </Card>
             ))}
-            {pedidosSelecionados.length === 0 && (
-              <div className="text-center py-10 text-slate-400">Nenhum pedido vinculado.</div>
-            )}
           </div>
         </div>
 
-        {/* COLUNA DA DIREITA: FINANCEIRO E ANEXOS */}
+        {/* DIREITA: PAGAMENTO */}
         <div className="flex flex-col space-y-4 h-full overflow-y-auto pr-2">
-          
-          {/* CARD FINANCEIRO */}
           <Card className="p-4 bg-white border-slate-200 shadow-sm space-y-4">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
-              <Calculator className="w-4 h-4" /> Conferência Financeira
+              <Calculator className="w-4 h-4" /> Conferência
             </h3>
 
-            {/* Inputs de Ajuste */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs text-slate-500 mb-1">Desconto (R$)</Label>
@@ -287,7 +256,6 @@ export default function AprovarLiquidacaoModal({
               </div>
             </div>
 
-            {/* Inputs de Pagamento */}
             <div className="space-y-2 border-t pt-3">
               <div className="flex justify-between items-center mb-1">
                 <Label className="text-xs font-bold text-slate-700">Formas de Pagamento</Label>
@@ -321,104 +289,70 @@ export default function AprovarLiquidacaoModal({
               ))}
             </div>
 
-            {/* Resumo Final */}
             <div className="bg-slate-100 rounded-lg p-3 space-y-1 text-sm">
-              <div className="flex justify-between text-slate-500">
-                <span>Total Pedidos:</span>
-                <span>{formatCurrency(totais.totalOriginal)}</span>
-              </div>
-              {(totais.desconto > 0 || totais.devolucao > 0) && (
-                <div className="flex justify-between text-red-500">
-                  <span>Ajustes:</span>
-                  <span>- {formatCurrency(totais.totalAjustes)}</span>
-                </div>
-              )}
-              <div className="flex justify-between font-bold text-slate-800 pt-1 border-t border-slate-200">
+              <div className="flex justify-between font-bold text-slate-800 border-b border-slate-200 pb-1 mb-1">
                 <span>A Pagar:</span>
                 <span>{formatCurrency(totais.totalAPagar)}</span>
               </div>
-              <div className="flex justify-between font-bold text-emerald-600 pt-1">
+              <div className="flex justify-between font-bold text-emerald-600">
                 <span>Total Pago:</span>
                 <span>{formatCurrency(totais.totalInformado)}</span>
               </div>
               {Math.abs(totais.diferenca) > 0.01 && (
                 <div className={cn("flex justify-between font-bold pt-1", totais.diferenca > 0 ? "text-blue-600" : "text-red-600")}>
-                  <span>{totais.diferenca > 0 ? "Troco/Crédito:" : "Faltam:"}</span>
+                  <span>{totais.diferenca > 0 ? "Troco:" : "Faltam:"}</span>
                   <span>{formatCurrency(Math.abs(totais.diferenca))}</span>
                 </div>
               )}
             </div>
           </Card>
 
-          {/* CARD ANEXOS (LISTA SIMPLES) */}
           <Card className="p-4 bg-white border-slate-200 shadow-sm">
-            <div className="flex justify-between items-center mb-3">
+            <div className="flex justify-between items-center mb-2">
               <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                <FileText className="w-4 h-4" /> Comprovantes ({comprovantes.length})
+                <FileText className="w-4 h-4" /> Anexos ({comprovantes.length})
               </h3>
               <label className="cursor-pointer">
                 <input type="file" multiple onChange={handleFileUpload} disabled={uploading} className="hidden" />
                 <Badge variant="outline" className="cursor-pointer hover:bg-slate-100">
-                  {uploading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Upload className="w-3 h-3 mr-1" />}
-                  Anexar
+                  {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
                 </Badge>
               </label>
             </div>
             
-            {comprovantes.length > 0 ? (
-              <div className="space-y-2 max-h-32 overflow-y-auto">
-                {comprovantes.map((url, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 border rounded text-xs">
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <FileText className="w-3 h-3 text-slate-400 shrink-0" />
-                      <span className="truncate max-w-[150px] text-blue-600 underline cursor-pointer" onClick={() => window.open(url, '_blank')}>
-                        Comprovante {idx + 1}
-                      </span>
-                    </div>
-                    <Button size="icon" variant="ghost" className="h-5 w-5 text-red-400 hover:text-red-600" onClick={() => handleRemoveAnexo(idx)}>
-                      <X className="w-3 h-3" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-slate-400 text-center py-2">Sem anexos.</p>
-            )}
+            <div className="space-y-2 max-h-32 overflow-y-auto">
+              {comprovantes.length > 0 ? comprovantes.map((url, idx) => (
+                <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 border rounded text-xs">
+                  <span className="truncate max-w-[180px] text-blue-600 underline cursor-pointer" onClick={() => window.open(url, '_blank')}>
+                    Comprovante {idx + 1}
+                  </span>
+                  <Button size="icon" variant="ghost" className="h-5 w-5 text-red-400" onClick={() => handleRemoveAnexo(idx)}>
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              )) : <p className="text-xs text-slate-400 text-center">Sem anexos.</p>}
+            </div>
           </Card>
         </div>
       </div>
 
-      {/* RODAPÉ / AÇÕES */}
       <div className="pt-4 border-t mt-auto">
         {!modoRejeicao ? (
           <div className="flex gap-3">
-            <Button variant="outline" onClick={onCancel} disabled={isProcessing} className="flex-1">
-              Cancelar
-            </Button>
-            <Button variant="destructive" onClick={() => setModoRejeicao(true)} disabled={isProcessing} className="flex-1">
-              Recusar
-            </Button>
-            <Button 
-              className="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white" 
-              onClick={handleAprovarClick} 
-              disabled={isProcessing}
-            >
+            <Button variant="outline" onClick={onCancel} disabled={isProcessing} className="flex-1">Cancelar</Button>
+            <Button variant="destructive" onClick={() => setModoRejeicao(true)} disabled={isProcessing} className="flex-1">Recusar</Button>
+            <Button className="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleAprovarClick} disabled={isProcessing}>
               {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle className="mr-2 h-4 w-4" />}
-              Aprovar e Liquidar
+              Aprovar
             </Button>
           </div>
         ) : (
           <div className="space-y-3 bg-red-50 p-3 rounded-lg border border-red-200">
             <Label className="text-red-700 font-bold">Motivo da Recusa:</Label>
-            <Textarea 
-              value={motivoRejeicao} 
-              onChange={e => setMotivoRejeicao(e.target.value)} 
-              className="bg-white border-red-200 focus:border-red-400"
-              placeholder="Descreva o motivo para o representante..."
-            />
+            <Textarea value={motivoRejeicao} onChange={e => setMotivoRejeicao(e.target.value)} className="bg-white" />
             <div className="flex gap-2 justify-end">
               <Button size="sm" variant="ghost" onClick={() => setModoRejeicao(false)}>Voltar</Button>
-              <Button size="sm" variant="destructive" onClick={handleRejeitarClick}>Confirmar Recusa</Button>
+              <Button size="sm" variant="destructive" onClick={() => onRejeitar(motivoRejeicao)}>Confirmar</Button>
             </div>
           </div>
         )}
