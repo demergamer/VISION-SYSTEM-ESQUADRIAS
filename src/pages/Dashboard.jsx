@@ -7,13 +7,13 @@ import {
   Users, UserCheck, ShoppingCart, CreditCard, TrendingUp,
   AlertTriangle, DollarSign, FileText, PieChart, Wallet,
   Building2, BarChart3, ArrowRight, Activity, Ban,
-  ChevronDown, ChevronRight, Lock, Layers
+  ChevronDown, ChevronRight, Lock, Layers, Landmark
 } from "lucide-react";
-import { toast } from "sonner"; // Para aviso de módulos em desenvolvimento
+import { toast } from "sonner";
 
 import PermissionGuard from "@/components/PermissionGuard";
 
-// --- Componente: Widget de Estatística ---
+// --- Componente: Widget de Estatística (Mantido) ---
 const StatWidget = ({ title, value, subtitle, icon: Icon, colorTheme }) => {
   const themes = {
     blue:   { bg: "bg-blue-50", text: "text-blue-600", border: "border-blue-100", iconBg: "bg-blue-100" },
@@ -46,7 +46,7 @@ const StatWidget = ({ title, value, subtitle, icon: Icon, colorTheme }) => {
   );
 };
 
-// --- Componente: Botão de Módulo (Sub-item) ---
+// --- Componente: Botão de Módulo (Mantido) ---
 const ModuleButton = ({ title, description, icon: Icon, onClick, isDev }) => (
   <button 
     onClick={onClick}
@@ -63,7 +63,7 @@ const ModuleButton = ({ title, description, icon: Icon, onClick, isDev }) => (
   </button>
 );
 
-// --- Componente: Card de Setor Expansível ---
+// --- Componente: Card de Setor Expansível (Mantido) ---
 const SectorCard = ({ title, description, icon: Icon, color, modules, isOpen, onToggle }) => {
   const themes = {
     blue:   { bg: "bg-blue-50", text: "text-blue-600", border: "border-blue-200" },
@@ -95,9 +95,8 @@ const SectorCard = ({ title, description, icon: Icon, color, modules, isOpen, on
         </div>
       </button>
       
-      {/* Conteúdo Expansível */}
       <div className={`grid gap-3 px-6 transition-all duration-300 ease-in-out overflow-hidden ${isOpen ? 'max-h-[500px] pb-6 opacity-100' : 'max-h-0 pb-0 opacity-0'}`}>
-        <div className="h-px bg-slate-100 w-full mb-2" /> {/* Separator */}
+        <div className="h-px bg-slate-100 w-full mb-2" />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {modules.map((mod, idx) => (
             <ModuleButton key={idx} {...mod} />
@@ -110,7 +109,7 @@ const SectorCard = ({ title, description, icon: Icon, color, modules, isOpen, on
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [openSector, setOpenSector] = useState(null); // Controla qual setor está aberto
+  const [openSector, setOpenSector] = useState(null);
 
   // --- Fetch Data ---
   const { data: representantes = [] } = useQuery({ queryKey: ['representantes'], queryFn: () => base44.entities.Representante.list() });
@@ -118,21 +117,17 @@ export default function Dashboard() {
   const { data: pedidos = [] } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list() });
   const { data: creditos = [] } = useQuery({ queryKey: ['creditos'], queryFn: () => base44.entities.Credito.list() });
 
-  // --- Statistics Logic ---
+  // --- Statistics Logic (Mantida) ---
   const stats = useMemo(() => {
-    // ... (Lógica estatística mantida igual para brevidade)
     const now = new Date();
-    const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
     const twentyDaysAgo = new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000);
     
-    // Stats simples
     const pedidosAbertos = pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial');
     const totalAReceber = pedidosAbertos.reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
     const pedidosAtrasados = pedidosAbertos.filter(p => new Date(p.data_entrega) < twentyDaysAgo);
     const totalAtrasado = pedidosAtrasados.reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
     const creditosDisponiveis = creditos.filter(c => c.status === 'disponivel');
     const totalCreditos = creditosDisponiveis.reduce((sum, c) => sum + c.valor, 0);
-    const repsCom30k = representantes.length; // Simplificado para exemplo
 
     return {
       financeiro: { aReceber: totalAReceber, atrasado: totalAtrasado, creditos: totalCreditos },
@@ -192,11 +187,13 @@ export default function Dashboard() {
     {
       id: 'pagar',
       title: "A Pagar",
-      description: "Gestão de saídas e comissões",
+      description: "Gestão de saídas e caixa",
       icon: DollarSign,
       color: "amber",
       modules: [
-        { title: "Cheques a Pagar", description: "Controle de pagamentos", icon: CreditCard, onClick: handleDevClick, isDev: true },
+        // NOVOS MÓDULOS AQUI
+        { title: "Contas a Pagar", description: "Gestão de pagamentos", icon: CreditCard, onClick: () => navigate(createPageUrl('Pagamentos')) },
+        { title: "Caixa Diário", description: "Movimentações do dia", icon: Landmark, onClick: () => navigate(createPageUrl('CaixaDiario')) },
         { title: "Comissões", description: "Pagamento de vendedores", icon: Wallet, onClick: () => navigate(createPageUrl('Comissoes')) },
       ]
     },
@@ -222,7 +219,6 @@ export default function Dashboard() {
       <div className="min-h-screen bg-slate-50/50 pb-12">
         <div className="max-w-7xl mx-auto p-6 md:p-8 space-y-10">
           
-          {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Dashboard</h1>
@@ -234,7 +230,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* KPIs Principais (Resumo Rápido) */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <StatWidget title="A Receber" value={formatCurrency(stats.financeiro.aReceber)} icon={DollarSign} colorTheme="blue" subtitle="Total em aberto" />
             <StatWidget title="Em Atraso" value={formatCurrency(stats.financeiro.atrasado)} icon={AlertTriangle} colorTheme="red" subtitle="Atenção requerida" />
@@ -242,7 +237,6 @@ export default function Dashboard() {
             <StatWidget title="Pedidos Abertos" value={stats.operacional.pedidosAbertos} icon={ShoppingCart} colorTheme="purple" subtitle="Aguardando liquidação" />
           </div>
 
-          {/* Navegação por Setores (Accordion) */}
           <div>
             <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 ml-1">Módulos do Sistema</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
