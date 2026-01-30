@@ -8,7 +8,6 @@ import { Upload, FileSpreadsheet, AlertTriangle, CheckCircle, Loader2, X, Info }
 import { base44 } from '@/api/base44Client';
 import * as XLSX from 'xlsx';
 
-// ADICIONADO: Prop 'pedidosExistentes' para conferência
 export default function ImportarPedidos({ clientes, rotas, pedidosExistentes = [], onImportComplete, onCancel }) {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -36,12 +35,15 @@ export default function ImportarPedidos({ clientes, rotas, pedidosExistentes = [
       const avisos = [];
       let rotaCodigo = '';
 
+      // Começa na linha 12 (índice 11) conforme seu padrão
       for (let i = 11; i < jsonData.length; i++) {
         const row = jsonData[i];
         if (!row || row.length === 0) continue;
 
         const colA = row[0]?.toString()?.trim() || '';
         if (colA.toLowerCase().includes('total geral')) break;
+        
+        // Se não tem número do pedido (col J) nem cliente (col H), pula
         if (!row[9] && !row[7]) continue;
 
         const rota = row[0]?.toString()?.trim() || rotaCodigo;
@@ -94,24 +96,23 @@ export default function ImportarPedidos({ clientes, rotas, pedidosExistentes = [
           valor_pedido: valorPedido,
           cliente_pendente: !clienteCadastrado,
           porcentagem_comissao: clienteCadastrado?.porcentagem_comissao || 5,
-          // Novos campos de controle
           duplicado: deveIgnorar,
           status_existente: statusExistencia
         });
       }
 
-      // Filtrar apenas os válidos para os totais do preview, mas manter todos na lista visual
       const validos = pedidosImportados.filter(p => !p.duplicado);
 
       setPreview({
         rota: rotaCodigo,
-        pedidos: pedidosImportados, // Mostra todos
+        pedidos: pedidosImportados,
         totalPedidos: validos.length,
         valorTotal: validos.reduce((sum, p) => sum + p.valor_pedido, 0)
       });
       setErrors(avisos);
 
     } catch (error) {
+      console.error(error);
       setErrors(['Erro ao ler o arquivo. Verifique se é um arquivo Excel válido.']);
     } finally {
       setLoading(false);
@@ -121,7 +122,6 @@ export default function ImportarPedidos({ clientes, rotas, pedidosExistentes = [
   const handleImport = async () => {
     if (!preview) return;
     
-    // Filtra apenas os não duplicados para importar
     const pedidosParaImportar = preview.pedidos.filter(p => !p.duplicado);
     if (pedidosParaImportar.length === 0) {
         alert("Todos os pedidos da planilha já existem no sistema.");
@@ -136,7 +136,7 @@ export default function ImportarPedidos({ clientes, rotas, pedidosExistentes = [
         rotaId = rotaSelecionada.id;
         await base44.entities.RotaImportada.update(rotaId, {
           total_pedidos: rotaSelecionada.total_pedidos + pedidosParaImportar.length,
-          valor_total: rotaSelecionada.valor_total + preview.valorTotal, // Usa o total recalculado dos válidos
+          valor_total: rotaSelecionada.valor_total + preview.valorTotal,
           motorista_codigo: motorista.codigo || rotaSelecionada.motorista_codigo,
           motorista_nome: motorista.nome || rotaSelecionada.motorista_nome
         });
@@ -155,7 +155,6 @@ export default function ImportarPedidos({ clientes, rotas, pedidosExistentes = [
       }
 
       const payload = pedidosParaImportar.map(p => ({
-        // ... dados do pedido ...
         rota_importada_id: rotaId,
         cliente_nome: p.cliente_nome,
         cliente_codigo: p.cliente_codigo,
@@ -184,81 +183,90 @@ export default function ImportarPedidos({ clientes, rotas, pedidosExistentes = [
 
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
-  // ... (Resto do JSX igual, alterando apenas a tabela de preview)
-
   return (
     <div className="space-y-6">
-        {/* ... (Partes de upload iguais até a tabela) ... */}
-        
-        {preview && (
-            <div className="space-y-4">
-               {/* Resumo atualizado para mostrar Ignorados */}
-               <Card className="p-4 bg-blue-50 border-blue-200">
-                 {/* ... header do card ... */}
-                 <div className="grid grid-cols-4 gap-4 text-sm">
-                    {/* ... outros dados ... */}
-                    <div>
-                        <p className="text-blue-600">Novos Pedidos</p>
-                        <p className="font-bold text-blue-800">{preview.totalPedidos}</p>
-                    </div>
-                    <div>
-                        <p className="text-amber-600">Ignorados (Duplicados)</p>
-                        <p className="font-bold text-amber-800">{preview.pedidos.length - preview.totalPedidos}</p>
-                    </div>
-                 </div>
-               </Card>
-
-               {/* ... Avisos ... */}
-
-               {/* Lista de Pedidos com Coluna de Status */}
-               <Card className="p-4">
-                 <h3 className="font-semibold mb-3">Pré-visualização</h3>
-                 <div className="max-h-64 overflow-y-auto">
-                   <table className="w-full text-sm">
-                     <thead className="bg-slate-50 sticky top-0 z-10">
-                       <tr>
-                         <th className="text-left p-2">Nº Pedido</th>
-                         <th className="text-left p-2">Cliente</th>
-                         <th className="text-right p-2">Valor</th>
-                         <th className="text-center p-2">Validação</th>
-                       </tr>
-                     </thead>
-                     <tbody>
-                       {preview.pedidos.map((p, i) => (
-                         <tr key={i} className={`border-t ${p.duplicado ? 'bg-slate-50 opacity-60' : ''}`}>
-                           <td className="p-2 font-mono">{p.numero_pedido}</td>
-                           <td className="p-2">{p.cliente_nome}</td>
-                           <td className="p-2 text-right">{formatCurrency(p.valor_pedido)}</td>
-                           <td className="p-2 text-center">
-                             {p.duplicado ? (
-                               <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 bg-slate-200 px-2 py-1 rounded">
-                                 <Info className="w-3 h-3" /> Existe em: {p.status_existente}
-                               </span>
-                             ) : p.cliente_pendente ? (
-                               <span className="text-amber-600 text-xs font-medium">Cliente Pendente</span>
-                             ) : (
-                               <span className="text-emerald-600 text-xs font-bold flex items-center justify-center gap-1"><CheckCircle className="w-3 h-3"/> Novo</span>
-                             )}
-                           </td>
-                         </tr>
-                       ))}
-                     </tbody>
-                   </table>
-                 </div>
-               </Card>
+      {!preview && (
+        <div className="space-y-4">
+          <Card className="p-4 bg-blue-50 border-blue-200">
+            <Label className="block mb-3 font-semibold">Modo de Importação</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <Button variant={modoImportacao === 'nova' ? 'default' : 'outline'} onClick={() => setModoImportacao('nova')} className="w-full">Nova Rota</Button>
+              <Button variant={modoImportacao === 'adicionar' ? 'default' : 'outline'} onClick={() => setModoImportacao('adicionar')} className="w-full">Adicionar à Existente</Button>
             </div>
-        )}
-
-        {/* ... Footer Actions ... */}
-        <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button variant="outline" onClick={onCancel} disabled={loading}>Cancelar</Button>
-            {preview && (
-                <Button onClick={handleImport} disabled={loading || preview.totalPedidos === 0}>
-                    {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-                    Importar {preview.totalPedidos} Novos
-                </Button>
+            {modoImportacao === 'adicionar' && (
+              <div className="mt-4 space-y-2">
+                <Label>Selecione a Rota</Label>
+                <select className="w-full p-2 border rounded-md" value={rotaSelecionada?.id || ''} onChange={(e) => { const r = rotas.find(x => x.id === e.target.value); setRotaSelecionada(r); if(r) setMotorista({ codigo: r.motorista_codigo, nome: r.motorista_nome }); }}>
+                  <option value="">Selecione...</option>
+                  {rotas && rotas.map(r => <option key={r.id} value={r.id}>{r.codigo_rota} - {r.motorista_nome}</option>)}
+                </select>
+              </div>
             )}
+          </Card>
+
+          <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-blue-400 transition-colors">
+            <input type="file" accept=".xlsx,.xls" onChange={handleFileChange} className="hidden" id="file-upload" disabled={modoImportacao === 'adicionar' && !rotaSelecionada} />
+            <label htmlFor="file-upload" className="cursor-pointer">
+              <FileSpreadsheet className="w-12 h-12 mx-auto text-slate-400 mb-4" />
+              <p className="text-lg font-medium text-slate-700">Clique para selecionar planilha</p>
+            </label>
+          </div>
+          {loading && <div className="flex justify-center gap-2"><Loader2 className="animate-spin" /> Processando...</div>}
         </div>
+      )}
+
+      {preview && (
+        <div className="space-y-4">
+           <Card className="p-4 bg-blue-50 border-blue-200">
+             <div className="grid grid-cols-4 gap-4 text-sm">
+                <div><p className="text-blue-600">Novos Pedidos</p><p className="font-bold text-blue-800">{preview.totalPedidos}</p></div>
+                <div><p className="text-amber-600">Ignorados</p><p className="font-bold text-amber-800">{preview.pedidos.length - preview.totalPedidos}</p></div>
+                <div><p className="text-blue-600">Rota</p><p className="font-bold text-blue-800">{preview.rota}</p></div>
+                <div><p className="text-blue-600">Valor Total</p><p className="font-bold text-blue-800">{formatCurrency(preview.valorTotal)}</p></div>
+             </div>
+           </Card>
+
+           <Card className="p-4">
+             <h3 className="font-semibold mb-3">Pré-visualização</h3>
+             <div className="max-h-64 overflow-y-auto">
+               <table className="w-full text-sm">
+                 <thead className="bg-slate-50 sticky top-0 z-10">
+                   <tr>
+                     <th className="text-left p-2">Nº Pedido</th>
+                     <th className="text-left p-2">Cliente</th>
+                     <th className="text-right p-2">Valor</th>
+                     <th className="text-center p-2">Status</th>
+                   </tr>
+                 </thead>
+                 <tbody>
+                   {preview.pedidos.map((p, i) => (
+                     <tr key={i} className={`border-t ${p.duplicado ? 'bg-slate-50 opacity-60' : ''}`}>
+                       <td className="p-2 font-mono">{p.numero_pedido}</td>
+                       <td className="p-2">{p.cliente_nome}</td>
+                       <td className="p-2 text-right">{formatCurrency(p.valor_pedido)}</td>
+                       <td className="p-2 text-center">
+                         {p.duplicado ? <span className="text-xs font-bold text-slate-500 bg-slate-200 px-2 py-1 rounded">Existe: {p.status_existente}</span> : 
+                          p.cliente_pendente ? <span className="text-amber-600 text-xs">Pendente</span> : 
+                          <span className="text-emerald-600 text-xs font-bold">Novo</span>}
+                       </td>
+                     </tr>
+                   ))}
+                 </tbody>
+               </table>
+             </div>
+           </Card>
+        </div>
+      )}
+
+      <div className="flex justify-end gap-3 pt-4 border-t">
+        <Button variant="outline" onClick={onCancel} disabled={loading}>Cancelar</Button>
+        {preview && (
+            <Button onClick={handleImport} disabled={loading || preview.totalPedidos === 0}>
+                {loading ? <Loader2 className="animate-spin mr-2" /> : <Upload className="mr-2 w-4 h-4" />}
+                Importar {preview.totalPedidos} Novos
+            </Button>
+        )}
+      </div>
     </div>
   );
 }
