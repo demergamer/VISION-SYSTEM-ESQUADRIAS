@@ -8,32 +8,48 @@ export function usePermissions() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Busca os dados do usuário atual
     base44.auth.me()
       .then(setUser)
-      .catch(() => {})
+      .catch(() => {
+        setUser(null);
+      })
       .finally(() => setLoading(false));
   }, []);
 
+  // Verifica se pode acessar uma página/setor inteiro
   const canAccess = (setor) => {
     if (!user) return false;
+    
+    // Regra removida: Admin agora também precisa de permissão explícita
+    // if (user.role === 'admin') return true; 
+
     const permissoes = user.permissoes || {};
     const perm = permissoes[setor];
-    return perm === true || perm?.acesso === true;
+
+    // Se a permissão for true direto (legado) ou se tiver a flag 'visualizar'
+    return perm === true || perm?.visualizar === true;
   };
 
+  // Verifica se pode executar uma ação específica (botões)
   const canDo = (setor, funcao) => {
     if (!user) return false;
+    
+    // Regra removida: Admin agora também precisa de permissão explícita
+    // if (user.role === 'admin') return true; 
+
     const permissoes = user.permissoes || {};
     const setorPerms = permissoes[setor];
     
-    // Se não tem acesso ao setor, não pode fazer nada
-    if (!setorPerms?.acesso && setorPerms !== true) return false;
+    // 1. Se não existe registro de permissão para esse setor, bloqueia.
+    if (!setorPerms) return false;
     
-    // Se for setor simples (true/false)
+    // 2. Se for um booleano simples 'true', libera tudo.
     if (setorPerms === true) return true;
     
-    // Verificar função específica
-    return setorPerms?.[funcao] === true;
+    // 3. Se for um objeto, verifica a função específica (ex: 'editar', 'excluir')
+    // Se a função for undefined no objeto, retorna false (bloqueado)
+    return setorPerms[funcao] === true;
   };
 
   return { user, loading, canAccess, canDo };
