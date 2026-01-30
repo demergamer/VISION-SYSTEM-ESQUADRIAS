@@ -1,258 +1,299 @@
-import React, { useMemo, useState } from 'react';
-import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
-import { createPageUrl } from "@/utils";
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { 
-  Users, UserCheck, ShoppingCart, CreditCard, TrendingUp,
-  AlertTriangle, DollarSign, FileText, PieChart, Wallet,
-  Building2, BarChart3, ArrowRight, Activity, Ban,
-  ChevronDown, ChevronRight, Lock, Layers, Landmark
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  BarChart,
+  Bar
+} from 'recharts';
+import { 
+  DollarSign, 
+  ShoppingCart, 
+  Users, 
+  TrendingUp, 
+  ArrowUpRight, 
+  ArrowDownRight,
+  Package,
+  AlertCircle,
+  Calendar,
+  CreditCard,
+  Plus
 } from "lucide-react";
-import { toast } from "sonner";
+import { useAuth } from '@/lib/AuthContext';
+import { createPageUrl } from '@/utils';
+import { Link } from 'react-router-dom';
+import { usePermissions } from "@/components/UserNotRegisteredError";
 
-import PermissionGuard from "@/components/PermissionGuard";
+// --- DADOS MOCK (Simulação - Depois conectamos na API) ---
+const chartData = [
+  { name: 'Seg', vendas: 4000, custo: 2400 },
+  { name: 'Ter', vendas: 3000, custo: 1398 },
+  { name: 'Qua', vendas: 2000, custo: 9800 },
+  { name: 'Qui', vendas: 2780, custo: 3908 },
+  { name: 'Sex', vendas: 1890, custo: 4800 },
+  { name: 'Sáb', vendas: 2390, custo: 3800 },
+  { name: 'Dom', vendas: 3490, custo: 4300 },
+];
 
-// --- Componente: Widget de Estatística (Mantido) ---
-const StatWidget = ({ title, value, subtitle, icon: Icon, colorTheme }) => {
-  const themes = {
-    blue:   { bg: "bg-blue-50", text: "text-blue-600", border: "border-blue-100", iconBg: "bg-blue-100" },
-    red:    { bg: "bg-red-50", text: "text-red-600", border: "border-red-100", iconBg: "bg-red-100" },
-    green:  { bg: "bg-emerald-50", text: "text-emerald-600", border: "border-emerald-100", iconBg: "bg-emerald-100" },
-    purple: { bg: "bg-violet-50", text: "text-violet-600", border: "border-violet-100", iconBg: "bg-violet-100" },
-    amber:  { bg: "bg-amber-50", text: "text-amber-600", border: "border-amber-100", iconBg: "bg-amber-100" },
-    slate:  { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-100", iconBg: "bg-slate-100" },
-  };
-  const theme = themes[colorTheme] || themes.slate;
+const recentSales = [
+  { id: 1, cliente: "Depósito São Jorge", valor: 1250.00, status: "Aprovado", data: "Hoje, 10:42" },
+  { id: 2, cliente: "ConstruNorte", valor: 3450.50, status: "Pendente", data: "Hoje, 09:15" },
+  { id: 3, cliente: "Vila Nova Materiais", valor: 890.00, status: "Aprovado", data: "Ontem" },
+  { id: 4, cliente: "Construtora Ideal", valor: 12500.00, status: "Cancelado", data: "Ontem" },
+];
 
-  return (
-    <div className={`relative overflow-hidden bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 group`}>
-      <div className="flex justify-between items-start">
-        <div>
-          <p className="text-slate-500 text-xs font-medium uppercase tracking-wider mb-1">{title}</p>
-          <h3 className="text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">{value}</h3>
-          {subtitle && (
-            <p className={`text-xs font-medium mt-2 flex items-center gap-1 ${theme.text}`}>
-              {subtitle}
-            </p>
-          )}
-        </div>
-        <div className={`p-3 rounded-xl ${theme.iconBg} ${theme.text} group-hover:scale-110 transition-transform duration-300`}>
-          <Icon size={24} />
-        </div>
-      </div>
-      <div className={`absolute bottom-0 left-0 w-full h-1 ${theme.bg.replace('bg-', 'bg-gradient-to-r from-white via-')}${theme.text.replace('text-', '')} to-white opacity-50`} />
-    </div>
-  );
-};
-
-// --- Componente: Botão de Módulo (Mantido) ---
-const ModuleButton = ({ title, description, icon: Icon, onClick, isDev }) => (
-  <button 
-    onClick={onClick}
-    className={`flex items-center gap-4 p-4 w-full bg-white hover:bg-slate-50 border border-slate-100 rounded-xl transition-all duration-200 group text-left ${isDev ? 'opacity-70' : ''}`}
-  >
-    <div className={`p-2 rounded-lg bg-slate-100 text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors`}>
-      <Icon size={20} />
-    </div>
-    <div className="flex-1">
-      <h4 className="font-semibold text-slate-800 group-hover:text-blue-700 transition-colors">{title}</h4>
-      <p className="text-xs text-slate-500 line-clamp-1">{description}</p>
-    </div>
-    {isDev ? <Lock className="w-4 h-4 text-amber-500" /> : <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-400" />}
-  </button>
-);
-
-// --- Componente: Card de Setor Expansível (Mantido) ---
-const SectorCard = ({ title, description, icon: Icon, color, modules, isOpen, onToggle }) => {
-  const themes = {
-    blue:   { bg: "bg-blue-50", text: "text-blue-600", border: "border-blue-200" },
-    green:  { bg: "bg-emerald-50", text: "text-emerald-600", border: "border-emerald-200" },
-    purple: { bg: "bg-violet-50", text: "text-violet-600", border: "border-violet-200" },
-    amber:  { bg: "bg-amber-50", text: "text-amber-600", border: "border-amber-200" },
-    red:    { bg: "bg-red-50", text: "text-red-600", border: "border-red-200" },
-    slate:  { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200" },
-  };
-  const theme = themes[color] || themes.slate;
-
-  return (
-    <div className={`bg-white rounded-2xl border shadow-sm transition-all duration-300 overflow-hidden ${isOpen ? `ring-2 ring-offset-2 ${theme.border.replace('border', 'ring')}` : 'border-slate-100 hover:border-slate-300'}`}>
-      <button 
-        onClick={onToggle}
-        className="w-full p-6 flex items-center justify-between text-left focus:outline-none"
-      >
-        <div className="flex items-center gap-4">
-          <div className={`p-3 rounded-xl ${theme.bg} ${theme.text}`}>
-            <Icon size={24} />
-          </div>
-          <div>
-            <h3 className="text-lg font-bold text-slate-800">{title}</h3>
-            <p className="text-sm text-slate-500">{description}</p>
-          </div>
-        </div>
-        <div className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''} text-slate-400`}>
-          <ChevronDown size={24} />
-        </div>
-      </button>
-      
-      <div className={`grid gap-3 px-6 transition-all duration-300 ease-in-out overflow-hidden ${isOpen ? 'max-h-[500px] pb-6 opacity-100' : 'max-h-0 pb-0 opacity-0'}`}>
-        <div className="h-px bg-slate-100 w-full mb-2" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {modules.map((mod, idx) => (
-            <ModuleButton key={idx} {...mod} />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
+const alerts = [
+  { id: 1, text: "3 Cheques vencendo hoje", type: "warning" },
+  { id: 2, text: "Estoque baixo: Fechadura 90mm", type: "destructive" },
+  { id: 3, text: "5 Pedidos aguardando faturamento", type: "info" },
+];
 
 export default function Dashboard() {
-  const navigate = useNavigate();
-  const [openSector, setOpenSector] = useState(null);
+  const { user } = useAuth();
+  const { canDo } = usePermissions();
+  const [periodo, setPeriodo] = useState('semana');
 
-  // --- Fetch Data ---
-  const { data: representantes = [] } = useQuery({ queryKey: ['representantes'], queryFn: () => base44.entities.Representante.list() });
-  const { data: clientes = [] } = useQuery({ queryKey: ['clientes'], queryFn: () => base44.entities.Cliente.list() });
-  const { data: pedidos = [] } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list() });
-  const { data: creditos = [] } = useQuery({ queryKey: ['creditos'], queryFn: () => base44.entities.Credito.list() });
+  // Formatação de Moeda
+  const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
-  // --- Statistics Logic (Mantida) ---
-  const stats = useMemo(() => {
-    const now = new Date();
-    const twentyDaysAgo = new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000);
-    
-    const pedidosAbertos = pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial');
-    const totalAReceber = pedidosAbertos.reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
-    const pedidosAtrasados = pedidosAbertos.filter(p => new Date(p.data_entrega) < twentyDaysAgo);
-    const totalAtrasado = pedidosAtrasados.reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
-    const creditosDisponiveis = creditos.filter(c => c.status === 'disponivel');
-    const totalCreditos = creditosDisponiveis.reduce((sum, c) => sum + c.valor, 0);
-
-    return {
-      financeiro: { aReceber: totalAReceber, atrasado: totalAtrasado, creditos: totalCreditos },
-      operacional: { pedidosAbertos: pedidosAbertos.length, pedidosAtrasados: pedidosAtrasados.length, clientes: clientes.length }
-    };
-  }, [pedidos, clientes, creditos, representantes]);
-
-  const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value || 0);
-
-  const handleDevClick = () => {
-    toast.info("Módulo em Desenvolvimento", {
-      description: "Esta funcionalidade estará disponível em breve.",
-      icon: <Lock className="w-4 h-4 text-amber-500" />
-    });
-  };
-
-  // --- Configuração dos Setores ---
-  const sectors = [
-    {
-      id: 'cadastros',
-      title: "Cadastros",
-      description: "Gerencie clientes, representantes e usuários",
-      icon: Users,
-      color: "blue",
-      modules: [
-        { title: "Clientes", description: "Base de clientes", icon: Building2, onClick: () => navigate(createPageUrl('Clientes')) },
-        { title: "Representantes", description: "Equipe de vendas", icon: Users, onClick: () => navigate(createPageUrl('Representation')) },
-        { title: "Fornecedores", description: "Gestão de fornecedores", icon: TrendingUp, onClick: () => navigate(createPageUrl('CadastroFornecedor')) },
-        { title: "Formas de Pagamento", description: "Configurar pagamentos", icon: CreditCard, onClick: () => navigate(createPageUrl('FormasPagamento')) },
-      ]
-    },
-    {
-      id: 'vendas',
-      title: "Vendas",
-      description: "Gestão comercial e orçamentos",
-      icon: ShoppingCart,
-      color: "purple",
-      modules: [
-        { title: "Solicitação de Cadastro", description: "Novos clientes", icon: UserCheck, onClick: () => navigate(createPageUrl('SolicitacaoCadastro')) },
-        { title: "Orçamentos", description: "Propostas comerciais", icon: FileText, onClick: () => navigate(createPageUrl('Orcamentos')) },
-        { title: "Cadastro de Peças", description: "Produtos e preços", icon: Building2, onClick: () => navigate(createPageUrl('CadastroPecas')) },
-        { title: "Agrupar Orçamentos", description: "Consolidar propostas", icon: Layers, onClick: () => navigate(createPageUrl('AgruparOrcamentos')) },
-      ]
-    },
-    {
-      id: 'receber',
-      title: "A Receber",
-      description: "Controle de entradas, pedidos e créditos",
-      icon:  TrendingUp,
-      color: "green",
-      modules: [
-        { title: "Pedidos", description: "Gestão de vendas", icon: ShoppingCart, onClick: () => navigate(createPageUrl('Pedidos')) },
-        { title: "Cheques", description: "Custódia de cheques", icon: CreditCard, onClick: () => navigate(createPageUrl('Cheques')) },
-        { title: "Créditos", description: "Créditos de clientes", icon: Wallet, onClick: () => navigate(createPageUrl('Creditos')) },
-      ]
-    },
-    {
-      id: 'pagar',
-      title: "A Pagar",
-      description: "Gestão de saídas e caixa",
-      icon: DollarSign,
-      color: "amber",
-      modules: [
-        // NOVOS MÓDULOS AQUI
-        { title: "Contas a Pagar", description: "Gestão de pagamentos", icon: CreditCard, onClick: () => navigate(createPageUrl('Pagamentos')) },
-        { title: "Caixa Diário", description: "Movimentações do dia", icon: Landmark, onClick: () => navigate(createPageUrl('CaixaDiario')) },
-        { title: "Comissões", description: "Pagamento de vendedores", icon: Wallet, onClick: () => navigate(createPageUrl('Comissoes')) },
-      ]
-    },
-    {
-      id: 'feedback',
-      title: "Feedback",
-      description: "Relatórios gerenciais e balanços",
-      icon: PieChart,
-      color: "purple",
-      modules: [
-        { title: "Relatórios", description: "Análise de dados", icon: FileText, onClick: () => navigate(createPageUrl('Relatorios')) },
-        { title: "Balanço", description: "Visão geral financeira", icon: BarChart3, onClick: () => navigate(createPageUrl('Balanco')) },
-      ]
-    }
-  ];
-
-  const toggleSector = (id) => {
-    setOpenSector(openSector === id ? null : id);
+  // Saudação baseada no horário
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Bom dia";
+    if (hour < 18) return "Boa tarde";
+    return "Boa noite";
   };
 
   return (
-    <PermissionGuard setor="Dashboard">
-      <div className="min-h-screen bg-slate-50/50 pb-12">
-        <div className="max-w-7xl mx-auto p-6 md:p-8 space-y-10">
+    <div className="p-6 space-y-8 max-w-[1600px] mx-auto animate-in fade-in duration-500">
+      
+      {/* --- HEADER: BOAS VINDAS E AÇÕES --- */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-800 tracking-tight">
+            {getGreeting()}, {user?.displayName?.split(' ')[0] || 'Usuário'}!
+          </h1>
+          <p className="text-slate-500 mt-1">
+            Aqui está o resumo financeiro e operacional de hoje.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+           <Link to={createPageUrl('Pedidos')}>
+            <Button className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200">
+              <Plus className="w-4 h-4 mr-2" /> Novo Pedido
+            </Button>
+           </Link>
+        </div>
+      </div>
+
+      {/* --- KPI CARDS (Indicadores Chave) --- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        {/* Card 1: Faturamento */}
+        <Card className="border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">
+              Faturamento (Mês)
+            </CardTitle>
+            <DollarSign className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-slate-800">R$ 45.231,89</div>
+            <div className="flex items-center text-xs text-emerald-600 mt-1 font-medium">
+              <ArrowUpRight className="h-3 w-3 mr-1" />
+              +20.1% em relação ao mês anterior
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Card 2: Pedidos */}
+        <Card className="border-l-4 border-l-amber-500 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">
+              Pedidos (Semana)
+            </CardTitle>
+            <ShoppingCart className="h-4 w-4 text-amber-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-slate-800">+573</div>
+            <div className="flex items-center text-xs text-emerald-600 mt-1 font-medium">
+              <ArrowUpRight className="h-3 w-3 mr-1" />
+              +12 novos hoje
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Card 3: Clientes Ativos */}
+        <Card className="border-l-4 border-l-purple-500 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">
+              Clientes Ativos
+            </CardTitle>
+            <Users className="h-4 w-4 text-purple-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-slate-800">321</div>
+            <div className="flex items-center text-xs text-rose-500 mt-1 font-medium">
+              <ArrowDownRight className="h-3 w-3 mr-1" />
+              -2 inativos nos últimos 30 dias
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Card 4: À Receber */}
+        <Card className="border-l-4 border-l-emerald-500 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">
+              À Receber (Hoje)
+            </CardTitle>
+            <CreditCard className="h-4 w-4 text-emerald-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-slate-800">R$ 12.450,00</div>
+            <div className="text-xs text-slate-500 mt-1">
+              3 boletos e 2 cheques vencendo
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* --- SEÇÃO DO MEIO: GRÁFICO + ALERTAS --- */}
+      <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
+        
+        {/* GRÁFICO PRINCIPAL (Ocupa 4 colunas) */}
+        <Card className="lg:col-span-4 border-slate-200 shadow-sm">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-bold text-slate-800">Visão Geral de Vendas</CardTitle>
+                <CardDescription>Performance de vendas vs custo nos últimos 7 dias</CardDescription>
+              </div>
+              {/* Filtro simples */}
+              <div className="flex bg-slate-100 p-1 rounded-lg">
+                {['semana', 'mês', 'ano'].map((p) => (
+                  <button 
+                    key={p}
+                    onClick={() => setPeriodo(p)}
+                    className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${periodo === p ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pl-0">
+            <div className="h-[300px] w-full mt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorVendas" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorCusto" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis 
+                    stroke="#94a3b8" 
+                    fontSize={12} 
+                    tickLine={false} 
+                    axisLine={false} 
+                    tickFormatter={(value) => `R$${value/1000}k`} 
+                  />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                    itemStyle={{ color: '#1e293b', fontSize: '12px' }}
+                    labelStyle={{ color: '#64748b', marginBottom: '4px' }}
+                  />
+                  <Area type="monotone" dataKey="vendas" stroke="#2563eb" strokeWidth={2} fillOpacity={1} fill="url(#colorVendas)" name="Vendas" />
+                  <Area type="monotone" dataKey="custo" stroke="#f59e0b" strokeWidth={2} fillOpacity={1} fill="url(#colorCusto)" name="Custo" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ALERTAS E ATIVIDADES (Ocupa 3 colunas) */}
+        <div className="lg:col-span-3 space-y-6">
           
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Dashboard</h1>
-              <p className="text-slate-500 mt-1">Visão geral financeira e operacional</p>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-slate-400 bg-white px-4 py-2 rounded-full border border-slate-100 shadow-sm">
-              <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
-              Sistema Online
-            </div>
-          </div>
+          {/* Card de Alertas */}
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-orange-500" />
+                Atenção Necessária
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {alerts.map((alert) => (
+                  <div key={alert.id} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                    <div className={`w-2 h-2 mt-1.5 rounded-full shrink-0 ${
+                      alert.type === 'destructive' ? 'bg-red-500' : 
+                      alert.type === 'warning' ? 'bg-amber-500' : 'bg-blue-500'
+                    }`} />
+                    <p className="text-sm text-slate-600 leading-snug">{alert.text}</p>
+                  </div>
+                ))}
+                {alerts.length === 0 && <p className="text-sm text-slate-400 italic">Nenhum alerta pendente.</p>}
+              </div>
+            </CardContent>
+          </Card>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatWidget title="A Receber" value={formatCurrency(stats.financeiro.aReceber)} icon={DollarSign} colorTheme="blue" subtitle="Total em aberto" />
-            <StatWidget title="Em Atraso" value={formatCurrency(stats.financeiro.atrasado)} icon={AlertTriangle} colorTheme="red" subtitle="Atenção requerida" />
-            <StatWidget title="Créditos Disp." value={formatCurrency(stats.financeiro.creditos)} icon={Wallet} colorTheme="green" subtitle="Saldo de clientes" />
-            <StatWidget title="Pedidos Abertos" value={stats.operacional.pedidosAbertos} icon={ShoppingCart} colorTheme="purple" subtitle="Aguardando liquidação" />
-          </div>
-
-          <div>
-            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 ml-1">Módulos do Sistema</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {sectors.map((sector) => (
-                <SectorCard 
-                  key={sector.id}
-                  {...sector}
-                  isOpen={openSector === sector.id}
-                  onToggle={() => toggleSector(sector.id)}
-                />
-              ))}
-            </div>
-          </div>
+          {/* Últimos Pedidos */}
+          <Card className="border-slate-200 shadow-sm h-full max-h-[300px] flex flex-col">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-bold text-slate-800">Vendas Recentes</CardTitle>
+                <Link to={createPageUrl('Pedidos')} className="text-xs text-blue-600 hover:underline">Ver todas</Link>
+              </div>
+            </CardHeader>
+            <CardContent className="overflow-y-auto pr-2 custom-scrollbar flex-1">
+              <div className="space-y-4">
+                {recentSales.map((sale) => (
+                  <div key={sale.id} className="flex items-center justify-between group">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-9 w-9 border border-slate-100">
+                        <AvatarFallback className="bg-slate-100 text-slate-600 text-xs font-bold">
+                          {sale.cliente.substring(0,2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="text-sm font-medium text-slate-800 leading-none group-hover:text-blue-600 transition-colors">{sale.cliente}</p>
+                        <p className="text-xs text-slate-400 mt-1">{sale.data}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-slate-700">{formatCurrency(sale.valor)}</p>
+                      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 border-0 ${
+                        sale.status === 'Aprovado' ? 'bg-emerald-100 text-emerald-700' :
+                        sale.status === 'Pendente' ? 'bg-amber-100 text-amber-700' :
+                        'bg-red-100 text-red-700'
+                      }`}>
+                        {sale.status}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
         </div>
       </div>
-    </PermissionGuard>
+    </div>
   );
 }
