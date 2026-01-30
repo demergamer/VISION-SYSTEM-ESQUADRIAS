@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Navigate } from 'react-router-dom'; // Import para redirecionamento
+import { Navigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 
 export default function PermissionGuard({ setor, funcao, children, showBlocked = true }) {
@@ -33,21 +33,21 @@ export default function PermissionGuard({ setor, funcao, children, showBlocked =
     );
   }
 
-  // Se não há usuário logado, não renderizar nada (será tratado pelo sistema de auth/rota privada)
+  // Se não há usuário logado, não renderizar nada
   if (!user) {
     return null;
   }
 
-  // CRÍTICO: Admin tem acesso total - NUNCA BLOQUEAR
-  if (user.role === 'admin') {
-    return <>{children}</>;
-  }
+  // --- ALTERAÇÃO AQUI ---
+  // A regra que dava acesso total ao admin foi REMOVIDA.
+  // Agora o admin também passa pela verificação abaixo.
 
-  // Verificar permissões granulares para usuários não-admin
+  // Verificar permissões granulares
   const permissoes = user.permissoes || {};
   
   // --- CASO 1: Bloqueio de Página Inteira (ex: Acessar /pedidos) ---
   if (!funcao) {
+    // Verifica se tem a permissão de VISUALIZAR o setor
     const temAcesso = permissoes[setor]?.visualizar === true;
     
     if (!temAcesso) {
@@ -55,7 +55,7 @@ export default function PermissionGuard({ setor, funcao, children, showBlocked =
         // Redireciona para a página dedicada de Acesso Negado
         return <Navigate to={createPageUrl('AcessoNegado')} replace />;
       }
-      return null; // Apenas esconde se showBlocked for false
+      return null; // Apenas esconde (ex: botão no menu) se showBlocked for false
     }
     
     return <>{children}</>;
