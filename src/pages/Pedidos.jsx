@@ -145,6 +145,7 @@ export default function Pedidos() {
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [refreshingData, setRefreshingData] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState('Sincronizando dados...');
 
   // --- MODAIS ---
   const [showAddModal, setShowAddModal] = useState(false);
@@ -181,7 +182,6 @@ export default function Pedidos() {
 
   // --- STATS ---
   const stats = useMemo(() => {
-    // LÓGICA CORRIGIDA PARA "EM TRÂNSITO": Tem rota E não foi entregue fisicamente
     const transito = pedidos.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado').length;
     const abertos = pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial').length;
     const totalAReceber = pedidos
@@ -217,18 +217,14 @@ export default function Pedidos() {
   // --- FILTROS DE DADOS ---
   const filteredPedidos = useMemo(() => {
     let filtered = pedidos;
-    // Filtro por Aba
     switch (activeTab) {
       case 'transito': 
-        // REGRA DE OURO: Está em rota E não tem baixa de entrega (independente de estar pago)
         filtered = filtered.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado'); 
         break;
       case 'abertos': 
-        // REGRA: Deve dinheiro
         filtered = filtered.filter(p => p.status === 'aberto' || p.status === 'parcial'); 
         break;
       case 'liquidacoes': 
-        // REGRA: Está pago
         filtered = filtered.filter(p => p.status === 'pago'); 
         break;
       case 'cancelados': 
@@ -279,14 +275,8 @@ export default function Pedidos() {
       }
   };
   const handleLiquidar = (pedido) => { setSelectedPedido(pedido); setShowLiquidarModal(true); };
-  
-  // FUNÇÃO CORRIGIDA: handleCancelar
-  const handleCancelar = (pedido) => { 
-      setPedidoParaCancelar(pedido); 
-      setShowCancelarPedidoModal(true); 
-  };
+  const handleCancelar = (pedido) => { setPedidoParaCancelar(pedido); setShowCancelarPedidoModal(true); };
 
-  // FUNÇÃO REINTRODUZIDA: handleSaveCancelarPedido
   const handleSaveCancelarPedido = async (data) => {
     setIsProcessing(true);
     try {
@@ -303,13 +293,60 @@ export default function Pedidos() {
     }
   };
   
+  // FUNÇÃO ATUALIZADA: Sincronização Inteligente de Rotas
   const handleRefresh = async () => {
     setRefreshingData(true);
+    setRefreshMessage('Sincronizando pedidos e rotas...');
     try {
+        // 1. Buscar dados frescos
+        const [latestPedidos, latestRotas] = await Promise.all([
+            base44.entities.Pedido.list(),
+            base44.entities.RotaImportada.list()
+        ]);
+
+        // 2. Recalcular Status de Cada Rota
+        let routesUpdatedCount = 0;
+        const updatePromises = latestRotas.map(rota => {
+            // Pegar pedidos vinculados a essa rota
+            const pedidosDaRota = latestPedidos.filter(p => p.rota_importada_id === rota.id);
+            
+            const total = pedidosDaRota.length;
+            // Confirmados são aqueles onde confirmado_entrega é true
+            const confirmados = pedidosDaRota.filter(p => p.confirmado_entrega).length;
+            
+            let novoStatus = 'pendente';
+            if (total > 0 && confirmados === total) novoStatus = 'concluida';
+            else if (confirmados > 0) novoStatus = 'parcial';
+
+            // Se houver discrepância, atualizar a rota
+            if (rota.total_pedidos !== total || rota.pedidos_confirmados !== confirmados || rota.status !== novoStatus) {
+                routesUpdatedCount++;
+                return base44.entities.RotaImportada.update(rota.id, {
+                    total_pedidos: total,
+                    pedidos_confirmados: confirmados,
+                    status: novoStatus
+                });
+            }
+            return null;
+        });
+
+        // Esperar atualizações terminarem
+        await Promise.all(updatePromises.filter(Boolean));
+
+        // 3. Recarregar caches para o usuário ver
         await Promise.all([refetchPedidos(), refetchRotas(), refetchBorderos(), refetchAutorizacoes()]);
-        toast.success('Dados atualizados!');
+        
+        if (routesUpdatedCount > 0) {
+            toast.success(`Dados atualizados! ${routesUpdatedCount} rotas sincronizadas.`);
+        } else {
+            toast.success('Dados atualizados com sucesso!');
+        }
+    } catch (error) {
+        console.error(error);
+        toast.error('Erro ao sincronizar dados.');
     } finally {
         setRefreshingData(false);
+        setRefreshMessage('Sincronizando dados...');
     }
   };
 
@@ -381,6 +418,22 @@ export default function Pedidos() {
   return (
     <PermissionGuard setor="Pedidos">
       {isProcessing && <div className="fixed inset-0 z-[100] bg-black/30 flex items-center justify-center"><Loader2 className="w-12 h-12 text-blue-600 animate-spin" /></div>}
+      {refreshingData && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all animate-in fade-in duration-300">
+            <div className="bg-white p-10 rounded-3xl shadow-2xl flex flex-col items-center gap-5 border border-slate-100 min-w-[320px]">
+                <div className="relative">
+                  <Loader2 className="w-16 h-16 text-blue-600 animate-spin" />
+                  <div className="absolute inset-0 w-16 h-16 border-4 border-blue-200 rounded-full animate-pulse" />
+                </div>
+                <div className="text-center space-y-2">
+                    <h3 className="text-xl font-bold text-slate-800">Atualizando Sistema</h3>
+                    <p className="text-sm text-slate-600 font-medium animate-pulse min-h-[20px]">
+                      {refreshMessage}
+                    </p>
+                </div>
+            </div>
+        </div>
+      )}
 
       <div className="min-h-screen bg-[#F5F7FA] pb-10 font-sans text-slate-900">
         <div className="max-w-[1600px] mx-auto p-4 md:p-8 space-y-8">
