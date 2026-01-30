@@ -63,7 +63,6 @@ export default function ClienteTable({
       .toUpperCase();
   };
 
-  // Gera uma cor consistente baseada no nome
   const getAvatarColor = (name) => {
     const colors = [
       "bg-red-100 text-red-700",
@@ -88,7 +87,8 @@ export default function ClienteTable({
     return colors[Math.abs(hash) % colors.length];
   };
 
-  const copyToClipboard = (text) => {
+  const copyToClipboard = (e, text) => {
+    e.stopPropagation(); // Impede que abra o modal ao clicar em copiar
     navigator.clipboard.writeText(text);
     toast.success("Copiado para a área de transferência!");
   };
@@ -121,7 +121,7 @@ export default function ClienteTable({
   }
 
   return (
-    <div className="border border-slate-200 rounded-xl overflow-hidden">
+    <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
       <Table>
         <TableHeader className="bg-slate-50/80">
           <TableRow className="hover:bg-slate-50/80">
@@ -145,8 +145,38 @@ export default function ClienteTable({
 
             const isBloqueado = cli.bloqueado_manual || cliStats.bloqueadoAuto;
 
+            // --- LÓGICA DE EVENTOS DE ROW ---
+            const handleRowClick = (e) => {
+                // Se foi um texto selecionado, não dispara
+                if (window.getSelection().toString().length > 0) return;
+                onView(cli);
+            };
+
+            const handleRowDoubleClick = (e) => {
+                // Impede a propagação para evitar conflito com single click (embora react dispare ambos)
+                e.preventDefault(); 
+                if (canDo('Clientes', 'editar')) {
+                    onEdit(cli);
+                } else {
+                    toast.error("Você não tem permissão para editar clientes.");
+                }
+            };
+
+            const handleContextMenu = (e) => {
+                e.preventDefault(); // Impede menu do navegador
+                onViewPedidos(cli); // Abre pedidos
+                toast.info(`Abrindo pedidos de ${cli.nome}...`, { duration: 1500 });
+            };
+
             return (
-              <TableRow key={cli.id} className="group hover:bg-slate-50/50 transition-colors">
+              <TableRow 
+                key={cli.id} 
+                className="group hover:bg-blue-50/30 transition-colors cursor-pointer select-none"
+                onClick={handleRowClick}
+                onDoubleClick={handleRowDoubleClick}
+                onContextMenu={handleContextMenu}
+                title="Clique: Detalhes | 2x: Editar | Botão Direito: Pedidos"
+              >
                 
                 {/* COLUNA 1: IDENTIDADE */}
                 <TableCell className="align-top py-4">
@@ -162,13 +192,17 @@ export default function ClienteTable({
                         )}
                       </div>
                       
-                      {/* Nome Fantasia ou Razão Social secundária */}
                       {(cli.nome_fantasia && cli.nome_fantasia !== cli.nome) && (
                         <span className="text-xs text-slate-500 line-clamp-1">{cli.nome_fantasia}</span>
                       )}
                       
                       <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="font-mono text-[10px] px-1.5 py-0 h-4 bg-slate-50 text-slate-500 border-slate-200 group-hover:border-blue-200 transition-colors cursor-pointer" onClick={() => copyToClipboard(cli.codigo)} title="Clique para copiar código">
+                        <Badge 
+                            variant="outline" 
+                            className="font-mono text-[10px] px-1.5 py-0 h-4 bg-slate-50 text-slate-500 border-slate-200 group-hover:border-blue-200 transition-colors cursor-copy hover:bg-slate-200" 
+                            onClick={(e) => copyToClipboard(e, cli.codigo)} 
+                            title="Clique para copiar código"
+                        >
                           {cli.codigo}
                         </Badge>
                         {cli.cnpj && (
@@ -184,14 +218,12 @@ export default function ClienteTable({
                 {/* COLUNA 2: CONTATO & REPRESENTANTE */}
                 <TableCell className="align-top py-4">
                   <div className="space-y-2">
-                    {/* Localização */}
                     <div className="flex items-center gap-1.5 text-xs text-slate-600">
                       <div className="w-1 h-1 rounded-full bg-slate-300"></div>
                       <span className="font-medium text-slate-700">{cli.regiao || 'Região N/D'}</span>
                       {cli.cidade && <span className="text-slate-400">• {cli.cidade}/{cli.estado}</span>}
                     </div>
 
-                    {/* Representante */}
                     <div className="flex items-center gap-1.5 text-xs">
                       <Badge variant="outline" className="bg-slate-50 border-slate-200 text-slate-600 font-normal px-2 py-0.5 h-5">
                         Rep: {cli.representante_nome?.split(' ')[0] || cli.representante_codigo || '-'}
@@ -201,7 +233,6 @@ export default function ClienteTable({
                       </span>
                     </div>
 
-                    {/* Telefone (se houver) */}
                     {cli.telefone && (
                       <div className="text-xs text-slate-500 pl-1">
                         {cli.telefone}
@@ -214,13 +245,11 @@ export default function ClienteTable({
                 <TableCell className="align-top py-4">
                   <div className="flex flex-col gap-1.5">
                     
-                    {/* Limite */}
                     <div className="flex justify-between items-center text-xs w-full max-w-[180px]">
                       <span className="text-slate-500">Limite:</span>
                       <span className="font-semibold text-blue-600">{formatCurrency(cli.limite_credito)}</span>
                     </div>
 
-                    {/* Pedidos Abertos */}
                     <div className="flex justify-between items-center text-xs w-full max-w-[180px]">
                       <span className="text-slate-500">Aberto:</span>
                       <span className={cn("font-semibold", cliStats.totalPedidosAbertos > 0 ? "text-amber-600" : "text-slate-400")}>
@@ -228,7 +257,6 @@ export default function ClienteTable({
                       </span>
                     </div>
 
-                    {/* Cheques */}
                     {cliStats.totalChequesVencer > 0 && (
                       <div className="flex justify-between items-center text-xs w-full max-w-[180px] bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
                         <span className="text-purple-600">Cheques:</span>
@@ -274,10 +302,10 @@ export default function ClienteTable({
                 </TableCell>
 
                 {/* COLUNA 6: AÇÕES (MENU) */}
-                <TableCell className="align-middle text-right pr-4">
+                <TableCell className="align-middle text-right pr-4" onClick={(e) => e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-slate-100">
+                      <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-slate-100 focus:bg-slate-100">
                         <span className="sr-only">Menu</span>
                         <MoreHorizontal className="h-4 w-4 text-slate-500" />
                       </Button>
@@ -288,19 +316,19 @@ export default function ClienteTable({
                       
                       {canDo('Clientes', 'visualizar') && (
                         <DropdownMenuItem onClick={() => onView(cli)}>
-                          <Eye className="mr-2 h-4 w-4 text-slate-500" /> Detalhes
+                          <Eye className="mr-2 h-4 w-4 text-slate-500" /> Detalhes (1 Clique)
                         </DropdownMenuItem>
                       )}
                       
                       {canDo('Clientes', 'editar') && (
                         <DropdownMenuItem onClick={() => onEdit(cli)}>
-                          <Edit className="mr-2 h-4 w-4 text-slate-500" /> Editar Cadastro
+                          <Edit className="mr-2 h-4 w-4 text-slate-500" /> Editar (2 Cliques)
                         </DropdownMenuItem>
                       )}
 
                       {canDo('Clientes', 'visualizar') && (
                         <DropdownMenuItem onClick={() => onViewPedidos(cli)}>
-                          <ShoppingCart className="mr-2 h-4 w-4 text-slate-500" /> Ver Pedidos
+                          <ShoppingCart className="mr-2 h-4 w-4 text-slate-500" /> Ver Pedidos (Btn Direito)
                         </DropdownMenuItem>
                       )}
                       
@@ -317,7 +345,7 @@ export default function ClienteTable({
                         </DropdownMenuItem>
                       )}
                       
-                      <DropdownMenuItem onClick={() => copyToClipboard(cli.cnpj || cli.codigo)}>
+                      <DropdownMenuItem onClick={(e) => copyToClipboard(e, cli.cnpj || cli.codigo)}>
                         <Copy className="mr-2 h-4 w-4 text-slate-500" /> Copiar CNPJ
                       </DropdownMenuItem>
                     </DropdownMenuContent>
