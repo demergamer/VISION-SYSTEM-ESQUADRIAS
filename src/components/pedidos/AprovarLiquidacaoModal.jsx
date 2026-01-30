@@ -1,335 +1,428 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { 
-  Search, DollarSign, Percent, Loader2, Plus, X, Upload, 
-  FileText, Trash2, ShoppingCart, AlertTriangle, CheckCircle, ExternalLink
+  DollarSign, Loader2, Plus, X, Upload, FileText, Trash2, 
+  ShoppingCart, AlertTriangle, CheckCircle, ExternalLink, Calculator
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { base44 } from '@/api/base44Client';
 
+// Utilitário de formatação
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
 export default function AprovarLiquidacaoModal({ 
   autorizacao, 
-  todosPedidos, 
+  todosPedidos = [], 
   onAprovar, 
   onRejeitar, 
   onCancel, 
   isProcessing 
 }) {
-  const [searchTerm, setSearchTerm] = useState('');
+  // --- ESTADOS ---
   const [pedidosSelecionados, setPedidosSelecionados] = useState([]);
   
-  // Estados do formulário
-  const [descontoTipo, setDescontoTipo] = useState('reais');
-  const [descontoValor, setDescontoValor] = useState('');
-  const [devolucao, setDevolucao] = useState('');
-  const [formasPagamento, setFormasPagamento] = useState([]);
-  const [comprovantes, setComprovantes] = useState([]);
+  // Financeiro
+  const [descontoReais, setDescontoReais] = useState(''); // Vamos simplificar para R$ direto
+  const [devolucaoReais, setDevolucaoReais] = useState('');
+  const [formasPagamento, setFormasPagamento] = useState([]); // [{ tipo: 'dinheiro', valor: '100.00' }]
   
-  const [uploadingFile, setUploadingFile] = useState(false);
-  const [showRejeicaoForm, setShowRejeicaoForm] = useState(false);
+  // Anexos
+  const [comprovantes, setComprovantes] = useState([]); // Array de Strings (URLs)
+  const [uploading, setUploading] = useState(false);
+
+  // Rejeição
+  const [modoRejeicao, setModoRejeicao] = useState(false);
   const [motivoRejeicao, setMotivoRejeicao] = useState('');
 
-  // --- CARREGAMENTO BLINDADO DE DADOS ---
+  // --- 1. INICIALIZAÇÃO (A MÁGICA ACONTECE AQUI) ---
   useEffect(() => {
     if (autorizacao) {
-      // 1. Pedidos
-      const pedidosDoBanco = autorizacao.pedidos_ids?.map(pid => todosPedidos.find(p => p.id === pid)).filter(Boolean) || [];
+      console.log("Inicializando Modal com:", autorizacao);
+
+      // A. Carregar Pedidos
+      const pedidosDoBanco = autorizacao.pedidos_ids?.map(pid => 
+        todosPedidos.find(p => p.id === pid)
+      ).filter(Boolean) || [];
       setPedidosSelecionados(pedidosDoBanco);
 
-      // 2. Anexos
-      let anexosIniciais = [];
+      // B. Carregar Anexos (Suporte a legado e novo)
+      let listaAnexos = [];
       if (Array.isArray(autorizacao.comprovantes_urls) && autorizacao.comprovantes_urls.length > 0) {
-        anexosIniciais = [...autorizacao.comprovantes_urls];
+        listaAnexos = [...autorizacao.comprovantes_urls];
       } else if (autorizacao.comprovante_url) {
-        anexosIniciais = [autorizacao.comprovante_url];
+        listaAnexos = [autorizacao.comprovante_url];
       }
-      setComprovantes(anexosIniciais.filter(url => url && typeof url === 'string' && url.trim() !== ''));
+      setComprovantes(listaAnexos.filter(url => url && url.trim() !== ''));
 
-      // 3. Descontos
-      if (autorizacao.descontos_cascata && autorizacao.descontos_cascata.length > 0) {
-        const desc = autorizacao.descontos_cascata[0];
-        setDescontoTipo(desc.tipo || 'reais');
-        setDescontoValor(desc.valor ? String(desc.valor) : '');
-      } else {
-        setDescontoValor('');
+      // C. Carregar Valores (Desconto/Devolução)
+      // Se tiver histórico de cascata, pega o valor. Senão zera.
+      let descInicial = '';
+      if (autorizacao.descontos_cascata?.length > 0) {
+        // Assume que o primeiro é o principal ou soma eles
+        const totalDesc = autorizacao.descontos_cascata.reduce((acc, d) => acc + (parseFloat(d.valor) || 0), 0);
+        if (totalDesc > 0) descInicial = String(totalDesc);
       }
+      setDescontoReais(descInicial);
+      setDevolucaoReais(autorizacao.devolucao_valor ? String(autorizacao.devolucao_valor) : '');
 
-      // 4. Devolução
-      setDevolucao(autorizacao.devolucao_valor ? String(autorizacao.devolucao_valor) : '');
-
-      // 5. Inicializar Pagamento (CORREÇÃO CRÍTICA)
-      // Se valor_final_proposto for 0 ou nulo, usa o valor_total_original. Nunca deixa 0.
-      let valorInicial = autorizacao.valor_final_proposto;
-      if (!valorInicial || parseFloat(valorInicial) <= 0) {
-          valorInicial = autorizacao.valor_total_original || 0;
+      // D. Inicializar Pagamento (CRÍTICO: NÃO PODE SER ZERO)
+      // Se não tiver valor proposto, calcula baseado nos pedidos
+      let valorInicial = parseFloat(autorizacao.valor_final_proposto) || 0;
+      if (valorInicial <= 0) {
+         valorInicial = parseFloat(autorizacao.valor_total_original) || 0;
       }
       
-      setFormasPagamento([{ 
-          tipo: 'dinheiro', 
-          valor: String(valorInicial), 
-          parcelas: '1' 
-      }]);
+      setFormasPagamento([
+        { tipo: 'dinheiro', valor: String(valorInicial) }
+      ]);
     }
   }, [autorizacao, todosPedidos]);
 
-  // Filtros e Cálculos
-  const pedidosDisponiveis = useMemo(() => {
-    const clienteCodigo = autorizacao?.cliente_codigo;
-    if (!clienteCodigo) return [];
-    const idsJaSelecionados = pedidosSelecionados.map(p => p.id);
-    return todosPedidos.filter(p => 
-      p.cliente_codigo === clienteCodigo &&
-      ['aberto', 'parcial', 'aguardando'].includes(p.status) &&
-      !idsJaSelecionados.includes(p.id) &&
-      (p.numero_pedido?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       p.cliente_nome?.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-  }, [todosPedidos, autorizacao, pedidosSelecionados, searchTerm]);
+  // --- 2. CÁLCULOS EM TEMPO REAL ---
+  const totais = useMemo(() => {
+    // Soma o saldo original dos pedidos selecionados
+    const totalOriginal = pedidosSelecionados.reduce((acc, p) => {
+        // Tenta pegar o saldo, se não tiver, calcula (valor - pago)
+        const saldo = p.saldo_restante !== undefined ? p.saldo_restante : (p.valor_pedido - (p.total_pago || 0));
+        return acc + saldo;
+    }, 0);
 
-  const adicionarPedido = (pedido) => { setPedidosSelecionados(prev => [...prev, pedido]); setSearchTerm(''); };
-  const removerPedido = (pedidoId) => { setPedidosSelecionados(prev => prev.filter(p => p.id !== pedidoId)); };
+    const desconto = parseFloat(descontoReais) || 0;
+    const devolucao = parseFloat(devolucaoReais) || 0;
+    
+    const totalAjustes = desconto + devolucao;
+    const totalAPagar = Math.max(0, totalOriginal - totalAjustes);
+
+    const totalInformado = formasPagamento.reduce((acc, f) => acc + (parseFloat(f.valor) || 0), 0);
+    const diferenca = totalInformado - totalAPagar;
+
+    return { totalOriginal, desconto, devolucao, totalAjustes, totalAPagar, totalInformado, diferenca };
+  }, [pedidosSelecionados, descontoReais, devolucaoReais, formasPagamento]);
+
+  // --- 3. AÇÕES (HANDLERS) ---
   
-  const adicionarFormaPagamento = () => { setFormasPagamento([...formasPagamento, { tipo: 'dinheiro', valor: '', parcelas: '1' }]); };
-  const removerFormaPagamento = (index) => { if (formasPagamento.length > 1) setFormasPagamento(formasPagamento.filter((_, i) => i !== index)); };
-  const atualizarFormaPagamento = (index, campo, valor) => { const novasFormas = [...formasPagamento]; novasFormas[index][campo] = valor; setFormasPagamento(novasFormas); };
+  const handleAddForma = () => {
+    setFormasPagamento([...formasPagamento, { tipo: 'dinheiro', valor: '' }]);
+  };
+
+  const handleRemoveForma = (index) => {
+    if (formasPagamento.length > 1) {
+      setFormasPagamento(formasPagamento.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleUpdateForma = (index, field, value) => {
+    const novas = [...formasPagamento];
+    novas[index][field] = value;
+    setFormasPagamento(novas);
+  };
 
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
-    setUploadingFile(true);
+
+    setUploading(true);
     try {
-      const uploadPromises = files.map(file => base44.integrations.Core.UploadFile({ file }));
-      const results = await Promise.all(uploadPromises);
+      const promises = files.map(file => base44.integrations.Core.UploadFile({ file }));
+      const results = await Promise.all(promises);
       const urls = results.map(r => r.file_url).filter(Boolean);
       setComprovantes(prev => [...prev, ...urls]);
-      toast.success('Arquivo anexado!');
-    } catch (error) { toast.error('Erro ao enviar arquivo'); } finally { setUploadingFile(false); }
+      toast.success(`${urls.length} arquivos anexados!`);
+    } catch (err) {
+      toast.error("Erro ao enviar arquivo.");
+    } finally {
+      setUploading(false);
+    }
   };
 
-  const removerComprovante = (index) => { setComprovantes(prev => prev.filter((_, i) => i !== index)); toast.success('Removido'); };
-
-  const calcularTotais = () => {
-    const totalOriginal = pedidosSelecionados.reduce((sum, p) => sum + (p?.saldo_restante || ((p?.valor_pedido || 0) - (p?.total_pago || 0))), 0);
-    
-    let desconto = 0;
-    if (descontoValor) {
-      if (descontoTipo === 'reais') desconto = parseFloat(descontoValor) || 0; 
-      else desconto = (totalOriginal * (parseFloat(descontoValor) || 0)) / 100;
-    }
-    
-    const devolucaoValor = parseFloat(devolucao) || 0;
-    const totalComDesconto = totalOriginal - desconto - devolucaoValor;
-    const totalPago = formasPagamento.reduce((sum, fp) => sum + (parseFloat(fp.valor) || 0), 0);
-    
-    return { totalOriginal, desconto, devolucaoValor, totalComDesconto, totalPago };
+  const handleRemoveAnexo = (index) => {
+    setComprovantes(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleRejeitar = () => { if (!motivoRejeicao.trim()) { toast.error('Informe o motivo'); return; } onRejeitar(motivoRejeicao); };
-
-  // --- FUNÇÃO DE APROVAR CORRIGIDA E VERBOSA ---
-  const handleAprovar = () => {
-    // 1. Validação de Pedidos
-    if (pedidosSelecionados.length === 0) { 
-        toast.error('Erro: Nenhum pedido selecionado para baixa.'); 
-        return; 
-    }
-    
-    const totais = calcularTotais();
-
-    // 2. Validação de Valor Zerado
-    if (totais.totalPago <= 0.01) { 
-        toast.error('Erro: O valor total pago não pode ser zero. Verifique a "Forma de Pagamento".'); 
-        return; 
+  // --- 4. VALIDAÇÃO E ENVIO ---
+  const handleAprovarClick = () => {
+    // Validação 1: Pedidos
+    if (pedidosSelecionados.length === 0) {
+      toast.error("Erro: Nenhum pedido selecionado.");
+      return;
     }
 
-    // 3. Montagem dos Dados
-    const dadosAprovacao = {
+    // Validação 2: Valor Zerado
+    if (totais.totalInformado <= 0.01) {
+      toast.error("Erro: O valor do pagamento não pode ser zero.");
+      return;
+    }
+
+    // Validação 3: Comprovantes (Opcional, mas bom ter)
+    if (comprovantes.length === 0) {
+      toast.warning("Atenção: Nenhum comprovante anexado.");
+      // Não bloqueia, mas avisa
+    }
+
+    // Monta objeto final limpo
+    const dadosFinais = {
       pedidosSelecionados,
-      descontoTipo,
-      descontoValor: parseFloat(descontoValor) || 0,
-      devolucao: parseFloat(devolucao) || 0,
-      formasPagamento: formasPagamento.filter(fp => parseFloat(fp.valor) > 0),
-      comprovantes, 
-      totais
+      totais: {
+        totalOriginal: totais.totalOriginal,
+        desconto: totais.desconto,
+        devolucao: totais.devolucao,
+        totalPago: totais.totalInformado
+      },
+      descontoTipo: 'reais', // Simplificado
+      descontoValor: totais.desconto,
+      devolucao: totais.devolucao,
+      // Filtra formas vazias
+      formasPagamento: formasPagamento.filter(f => parseFloat(f.valor) > 0),
+      comprovantes: comprovantes
     };
 
-    // 4. Envio
-    onAprovar(dadosAprovacao);
+    console.log("Enviando aprovação:", dadosFinais);
+    onAprovar(dadosFinais);
   };
 
-  const totais = calcularTotais();
+  const handleRejeitarClick = () => {
+    if (!motivoRejeicao.trim()) {
+      toast.error("Informe o motivo da rejeição.");
+      return;
+    }
+    onRejeitar(motivoRejeicao);
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Header Info */}
-      <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
-        <div><p className="text-xs text-slate-500 font-bold uppercase">Solicitação</p><p className="text-xl font-bold text-slate-800">#{autorizacao?.numero_solicitacao}</p></div>
-        <div><p className="text-xs text-slate-500 font-bold uppercase">Cliente</p><p className="text-sm font-semibold text-slate-800 truncate">{autorizacao?.cliente_nome}</p></div>
+    <div className="space-y-6 h-full flex flex-col">
+      {/* HEADER DE INFORMAÇÕES */}
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid grid-cols-2 gap-4 text-sm">
+        <div>
+          <span className="text-xs font-bold text-slate-500 uppercase block">Solicitação</span>
+          <span className="font-bold text-lg text-slate-800">#{autorizacao?.numero_solicitacao}</span>
+        </div>
+        <div>
+          <span className="text-xs font-bold text-slate-500 uppercase block">Cliente</span>
+          <span className="font-medium text-slate-700 truncate block" title={autorizacao?.cliente_nome}>
+            {autorizacao?.cliente_nome}
+          </span>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* ESQUERDA: Pedidos */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between"><h3 className="font-bold text-slate-800 flex items-center gap-2"><ShoppingCart className="w-5 h-5 text-blue-600" /> Pedidos ({pedidosSelecionados.length})</h3></div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input placeholder="Buscar e adicionar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 overflow-hidden">
+        
+        {/* COLUNA DA ESQUERDA: LISTA DE PEDIDOS */}
+        <div className="flex flex-col space-y-3 h-full overflow-hidden">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <ShoppingCart className="w-5 h-5 text-blue-600" /> 
+              Pedidos ({pedidosSelecionados.length})
+            </h3>
+            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-bold">
+              Total: {formatCurrency(totais.totalOriginal)}
+            </span>
           </div>
-          {searchTerm && pedidosDisponiveis.length > 0 && (
-            <Card className="p-2 space-y-1 max-h-48 overflow-y-auto bg-blue-50 border-blue-100">
-              {pedidosDisponiveis.slice(0, 3).map(pedido => (
-                <div key={pedido.id} onClick={() => adicionarPedido(pedido)} className="flex justify-between p-2 hover:bg-blue-100 rounded cursor-pointer">
-                  <span className="text-sm">#{pedido.numero_pedido} - {formatCurrency(pedido.saldo_restante)}</span>
-                  <Plus className="w-4 h-4 text-blue-600" />
+
+          <div className="flex-1 overflow-y-auto border rounded-xl bg-slate-50 p-2 space-y-2 max-h-[400px]">
+            {pedidosSelecionados.map(p => (
+              <Card key={p.id} className="p-3 bg-white flex justify-between items-center shadow-sm">
+                <div>
+                  <p className="font-bold text-xs text-slate-500">#{p.numero_pedido}</p>
+                  <p className="text-sm font-medium text-slate-700 truncate w-32" title={p.cliente_nome}>
+                    {p.cliente_nome}
+                  </p>
                 </div>
-              ))}
-            </Card>
-          )}
-          <div className="space-y-2 max-h-80 overflow-y-auto">
-            {pedidosSelecionados.map((pedido) => (
-              <Card key={pedido.id} className="p-3 relative bg-white border-slate-200">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="font-mono text-sm font-bold">#{pedido.numero_pedido}</p>
-                    <p className="text-xs text-slate-500">{formatCurrency(pedido.saldo_restante)}</p>
-                  </div>
-                  <Button size="icon" variant="ghost" className="h-6 w-6 text-red-500" onClick={() => removerPedido(pedido.id)}><Trash2 className="w-4 h-4" /></Button>
+                <div className="text-right">
+                  <p className="text-xs text-slate-400">Saldo</p>
+                  <p className="font-bold text-emerald-600">
+                    {formatCurrency(p.saldo_restante || (p.valor_pedido - (p.total_pago || 0)))}
+                  </p>
                 </div>
               </Card>
             ))}
+            {pedidosSelecionados.length === 0 && (
+              <div className="text-center py-10 text-slate-400">Nenhum pedido vinculado.</div>
+            )}
           </div>
         </div>
 
-        {/* DIREITA: Financeiro e Anexos */}
-        <div className="space-y-4">
-          {/* Ajustes */}
-          <Card className="p-4 bg-slate-50 space-y-3">
-            <h3 className="font-semibold text-slate-800">Pagamento</h3>
-            
+        {/* COLUNA DA DIREITA: FINANCEIRO E ANEXOS */}
+        <div className="flex flex-col space-y-4 h-full overflow-y-auto pr-2">
+          
+          {/* CARD FINANCEIRO */}
+          <Card className="p-4 bg-white border-slate-200 shadow-sm space-y-4">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <Calculator className="w-4 h-4" /> Conferência Financeira
+            </h3>
+
+            {/* Inputs de Ajuste */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs">Desconto</Label>
-                <div className="flex gap-1">
-                  <select className="h-9 rounded-md border text-xs" value={descontoTipo} onChange={e => setDescontoTipo(e.target.value)}>
-                    <option value="reais">R$</option>
-                    <option value="porcentagem">%</option>
-                  </select>
-                  <Input className="h-9" type="number" value={descontoValor} onChange={e => setDescontoValor(e.target.value)} />
+                <Label className="text-xs text-slate-500 mb-1">Desconto (R$)</Label>
+                <div className="relative">
+                  <DollarSign className="absolute left-2 top-2.5 w-3 h-3 text-slate-400" />
+                  <Input 
+                    type="number" 
+                    className="pl-7 h-9 text-sm" 
+                    value={descontoReais} 
+                    onChange={e => setDescontoReais(e.target.value)} 
+                    placeholder="0,00"
+                  />
                 </div>
               </div>
               <div>
-                <Label className="text-xs">Devolução (R$)</Label>
-                <Input className="h-9" type="number" value={devolucao} onChange={e => setDevolucao(e.target.value)} />
+                <Label className="text-xs text-slate-500 mb-1">Devolução (R$)</Label>
+                <div className="relative">
+                  <DollarSign className="absolute left-2 top-2.5 w-3 h-3 text-slate-400" />
+                  <Input 
+                    type="number" 
+                    className="pl-7 h-9 text-sm" 
+                    value={devolucaoReais} 
+                    onChange={e => setDevolucaoReais(e.target.value)} 
+                    placeholder="0,00"
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="space-y-2 border-t pt-2">
-               {formasPagamento.map((fp, idx) => (
-                 <div key={idx} className="flex gap-2">
-                   <Select value={fp.tipo} onValueChange={v => atualizarFormaPagamento(idx, 'tipo', v)}>
-                     <SelectTrigger className="h-9 w-28"><SelectValue /></SelectTrigger>
-                     <SelectContent><SelectItem value="dinheiro">Dinheiro</SelectItem><SelectItem value="pix">PIX</SelectItem><SelectItem value="cheque">Cheque</SelectItem></SelectContent>
-                   </Select>
-                   <Input className="h-9 flex-1" type="number" value={fp.valor} onChange={e => atualizarFormaPagamento(idx, 'valor', e.target.value)} />
-                   {idx === 0 ? <Button size="icon" variant="outline" className="h-9 w-9" onClick={adicionarFormaPagamento}><Plus className="w-4 h-4" /></Button> : <Button size="icon" variant="ghost" className="h-9 w-9 text-red-500" onClick={() => removerFormaPagamento(idx)}><X className="w-4 h-4" /></Button>}
-                 </div>
-               ))}
+            {/* Inputs de Pagamento */}
+            <div className="space-y-2 border-t pt-3">
+              <div className="flex justify-between items-center mb-1">
+                <Label className="text-xs font-bold text-slate-700">Formas de Pagamento</Label>
+                <Button size="sm" variant="ghost" className="h-6 text-xs text-blue-600" onClick={handleAddForma}>
+                  <Plus className="w-3 h-3 mr-1" /> Adicionar
+                </Button>
+              </div>
+              {formasPagamento.map((fp, idx) => (
+                <div key={idx} className="flex gap-2">
+                  <Select value={fp.tipo} onValueChange={v => handleUpdateForma(idx, 'tipo', v)}>
+                    <SelectTrigger className="h-9 w-28 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                      <SelectItem value="pix">PIX</SelectItem>
+                      <SelectItem value="cheque">Cheque</SelectItem>
+                      <SelectItem value="credito">Crédito</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input 
+                    type="number" 
+                    className="h-9 flex-1 text-sm" 
+                    value={fp.valor} 
+                    onChange={e => handleUpdateForma(idx, 'valor', e.target.value)} 
+                  />
+                  {idx > 0 && (
+                    <Button size="icon" variant="ghost" className="h-9 w-9 text-red-500" onClick={() => handleRemoveForma(idx)}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
             </div>
 
-            <div className="pt-2 border-t flex justify-between items-center">
-              <span className="text-sm font-medium text-slate-600">Total a Pagar:</span>
-              <span className="text-lg font-bold text-blue-600">{formatCurrency(totais.totalComDesconto)}</span>
+            {/* Resumo Final */}
+            <div className="bg-slate-100 rounded-lg p-3 space-y-1 text-sm">
+              <div className="flex justify-between text-slate-500">
+                <span>Total Pedidos:</span>
+                <span>{formatCurrency(totais.totalOriginal)}</span>
+              </div>
+              {(totais.desconto > 0 || totais.devolucao > 0) && (
+                <div className="flex justify-between text-red-500">
+                  <span>Ajustes:</span>
+                  <span>- {formatCurrency(totais.totalAjustes)}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-bold text-slate-800 pt-1 border-t border-slate-200">
+                <span>A Pagar:</span>
+                <span>{formatCurrency(totais.totalAPagar)}</span>
+              </div>
+              <div className="flex justify-between font-bold text-emerald-600 pt-1">
+                <span>Total Pago:</span>
+                <span>{formatCurrency(totais.totalInformado)}</span>
+              </div>
+              {Math.abs(totais.diferenca) > 0.01 && (
+                <div className={cn("flex justify-between font-bold pt-1", totais.diferenca > 0 ? "text-blue-600" : "text-red-600")}>
+                  <span>{totais.diferenca > 0 ? "Troco/Crédito:" : "Faltam:"}</span>
+                  <span>{formatCurrency(Math.abs(totais.diferenca))}</span>
+                </div>
+              )}
             </div>
           </Card>
 
-          {/* ANEXOS - LISTA DE ARQUIVOS (Para funcionar PDF) */}
-          <Card className="p-4 space-y-3 bg-white border-slate-200">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                <FileText className="w-4 h-4 text-emerald-600" /> 
-                Anexos ({comprovantes.length})
+          {/* CARD ANEXOS (LISTA SIMPLES) */}
+          <Card className="p-4 bg-white border-slate-200 shadow-sm">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <FileText className="w-4 h-4" /> Comprovantes ({comprovantes.length})
               </h3>
               <label className="cursor-pointer">
-                 <input type="file" multiple onChange={handleFileUpload} disabled={uploadingFile} className="hidden" />
-                 <span className="text-xs bg-slate-100 px-2 py-1 rounded hover:bg-slate-200 cursor-pointer border flex items-center gap-1">
-                   {uploadingFile ? <Loader2 className="w-3 h-3 animate-spin"/> : <Upload className="w-3 h-3"/>} Adicionar
-                 </span>
+                <input type="file" multiple onChange={handleFileUpload} disabled={uploading} className="hidden" />
+                <Badge variant="outline" className="cursor-pointer hover:bg-slate-100">
+                  {uploading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Upload className="w-3 h-3 mr-1" />}
+                  Anexar
+                </Badge>
               </label>
             </div>
-
+            
             {comprovantes.length > 0 ? (
-              <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                {comprovantes.map((url, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 bg-slate-50 rounded border border-slate-100 group">
+              <div className="space-y-2 max-h-32 overflow-y-auto">
+                {comprovantes.map((url, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 border rounded text-xs">
                     <div className="flex items-center gap-2 overflow-hidden">
-                      <div className="bg-emerald-100 p-1.5 rounded"><FileText className="w-4 h-4 text-emerald-700" /></div>
-                      <span className="text-xs text-slate-600 truncate max-w-[150px]">Comprovante {index + 1}</span>
+                      <FileText className="w-3 h-3 text-slate-400 shrink-0" />
+                      <span className="truncate max-w-[150px] text-blue-600 underline cursor-pointer" onClick={() => window.open(url, '_blank')}>
+                        Comprovante {idx + 1}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        className="h-7 px-2 text-blue-600 hover:bg-blue-50 text-xs" 
-                        onClick={() => window.open(url, '_blank')}
-                      >
-                        <ExternalLink className="w-3 h-3 mr-1" /> Abrir
-                      </Button>
-                      <Button 
-                        size="icon" 
-                        variant="ghost" 
-                        className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50" 
-                        onClick={() => removerComprovante(index)}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
+                    <Button size="icon" variant="ghost" className="h-5 w-5 text-red-400 hover:text-red-600" onClick={() => handleRemoveAnexo(idx)}>
+                      <X className="w-3 h-3" />
+                    </Button>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-4 border border-dashed rounded bg-slate-50/50">
-                <p className="text-xs text-slate-400">Nenhum comprovante anexado</p>
-              </div>
+              <p className="text-xs text-slate-400 text-center py-2">Sem anexos.</p>
             )}
           </Card>
         </div>
       </div>
 
-      {showRejeicaoForm && (
-        <Card className="p-4 bg-red-50 border-red-200 mt-4 space-y-2">
-          <Label className="text-red-700 font-bold">Motivo da Rejeição</Label>
-          <Textarea value={motivoRejeicao} onChange={e => setMotivoRejeicao(e.target.value)} className="bg-white" />
-          <div className="flex gap-2 justify-end">
-            <Button size="sm" variant="ghost" onClick={() => setShowRejeicaoForm(false)}>Cancelar</Button>
-            <Button size="sm" variant="destructive" onClick={handleRejeitar}>Confirmar Rejeição</Button>
+      {/* RODAPÉ / AÇÕES */}
+      <div className="pt-4 border-t mt-auto">
+        {!modoRejeicao ? (
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={onCancel} disabled={isProcessing} className="flex-1">
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={() => setModoRejeicao(true)} disabled={isProcessing} className="flex-1">
+              Recusar
+            </Button>
+            <Button 
+              className="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white" 
+              onClick={handleAprovarClick} 
+              disabled={isProcessing}
+            >
+              {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+              Aprovar e Liquidar
+            </Button>
           </div>
-        </Card>
-      )}
-
-      {!showRejeicaoForm && (
-        <div className="flex gap-3 pt-4 border-t mt-4">
-          <Button variant="outline" onClick={onCancel} disabled={isProcessing} className="flex-1">Cancelar</Button>
-          <Button variant="destructive" onClick={() => setShowRejeicaoForm(true)} disabled={isProcessing}>Rejeitar</Button>
-          <Button 
-            className="flex-1 bg-emerald-600 hover:bg-emerald-700" 
-            onClick={handleAprovar} 
-            disabled={isProcessing}
-          >
-            {isProcessing ? <><Loader2 className="animate-spin mr-2 h-4 w-4" /> Processando...</> : <><CheckCircle className="w-4 h-4 mr-2" /> Aprovar e Liquidar</>}
-          </Button>
-        </div>
-      )}
+        ) : (
+          <div className="space-y-3 bg-red-50 p-3 rounded-lg border border-red-200">
+            <Label className="text-red-700 font-bold">Motivo da Recusa:</Label>
+            <Textarea 
+              value={motivoRejeicao} 
+              onChange={e => setMotivoRejeicao(e.target.value)} 
+              className="bg-white border-red-200 focus:border-red-400"
+              placeholder="Descreva o motivo para o representante..."
+            />
+            <div className="flex gap-2 justify-end">
+              <Button size="sm" variant="ghost" onClick={() => setModoRejeicao(false)}>Voltar</Button>
+              <Button size="sm" variant="destructive" onClick={handleRejeitarClick}>Confirmar Recusa</Button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
