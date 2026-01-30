@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress"; // Componente de barra de progresso
+import { Progress } from "@/components/ui/progress";
 import { 
   Building2, 
   UserPlus, 
@@ -106,7 +106,7 @@ export default function ClientesPage() {
   const { data: creditos = [] } = useQuery({ queryKey: ['creditos'], queryFn: () => base44.entities.Credito.list() });
   const { data: cheques = [] } = useQuery({ queryKey: ['cheques'], queryFn: () => base44.entities.Cheque.list() });
 
-  // --- ESTATÍSTICAS ---
+  // --- ESTATÍSTICAS (Mantidas) ---
   const clienteStats = useMemo(() => {
     const stats = {};
     const now = new Date();
@@ -162,33 +162,38 @@ export default function ClientesPage() {
     return { total: clientes.length, ativos, inativos, com30k, bloqueados };
   }, [clientes, clienteStats]);
 
-  // --- LÓGICA DE ATUALIZAÇÃO EM MASSA ---
+  // --- LÓGICA DE ATUALIZAÇÃO EM MASSA (COM RETRY) ---
   const addLog = (message, type = 'info') => {
     setUpdateLogs(prev => [{ message, type }, ...prev]);
   };
 
   const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-  const handleBulkUpdate = async () => {
-    if (clientes.length === 0) {
-      toast.info("Nenhum cliente para atualizar.");
+  // Função Principal que pode ser chamada recursivamente
+  const processBatch = async (batchList, isRetry = false) => {
+    if (batchList.length === 0) {
+      setIsBulkUpdating(false);
       return;
     }
 
-    const confirm = window.confirm(`Deseja iniciar a atualização automática de ${clientes.length} clientes? Isso pode levar alguns minutos.`);
-    if (!confirm) return;
+    if (!isRetry) {
+      // Confirmação inicial apenas se não for retry
+      const confirm = window.confirm(`Deseja iniciar a atualização automática de ${batchList.length} clientes?`);
+      if (!confirm) return;
+      setUpdateLogs([]); // Limpa logs apenas no início
+    }
 
     setIsBulkUpdating(true);
-    setUpdateLogs([]);
-    setUpdateProgress({ current: 0, total: clientes.length, currentName: '' });
+    setUpdateProgress({ current: 0, total: batchList.length, currentName: '' });
 
     let updatedCount = 0;
+    let failedList = []; // Lista para retentativa
 
-    for (let i = 0; i < clientes.length; i++) {
-      const cliente = clientes[i];
-      setUpdateProgress({ current: i + 1, total: clientes.length, currentName: cliente.nome });
+    for (let i = 0; i < batchList.length; i++) {
+      const cliente = batchList[i];
+      setUpdateProgress({ current: i + 1, total: batchList.length, currentName: cliente.nome });
 
-      // Verificar se tem CNPJ válido
+      // Verificar se tem CNPJ válido (Erro Permanente - Não entra no retry)
       const cnpjLimpo = cliente.cnpj?.replace(/\D/g, '');
       
       if (!cnpjLimpo || cnpjLimpo.length !== 14) {
@@ -201,7 +206,12 @@ export default function ClientesPage() {
         await sleep(300);
 
         const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`);
-        if (!response.ok) throw new Error('API Error');
+        
+        // Se erro 429 (Too Many Requests) ou 5xx, lança erro para cair no catch e ir pra retry
+        if (!response.ok) {
+            throw new Error(`API Error: ${response.status}`);
+        }
+        
         const data = await response.json();
 
         // Lógica de Preservação: Só preenche se o campo atual estiver vazio
@@ -222,7 +232,6 @@ export default function ClientesPage() {
         if (!cliente.complemento && data.complemento) { newData.complemento = data.complemento; hasChanges = true; }
 
         // 3. Inteligência Fiscal (CNAEs e ST)
-        // Isso nós sempre tentamos atualizar/melhorar se não tiver registro
         if (!cliente.cnaes_descricao) {
           const cnaesComST = ['4744005', '4744099', '4672900'];
           const todosCnaes = [
@@ -242,8 +251,6 @@ export default function ClientesPage() {
           hasChanges = true;
         }
 
-        // NÃO ATUALIZAR TELEFONE E EMAIL (Regra do Usuário)
-
         if (hasChanges) {
           await base44.entities.Cliente.update(cliente.id, newData);
           updatedCount++;
@@ -254,17 +261,37 @@ export default function ClientesPage() {
 
       } catch (error) {
         addLog(`Erro: ${cliente.nome} - Falha na consulta`, 'error');
+        // Adiciona à lista de falhas para retentativa (exceto se for erro permanente conhecido, mas aqui assumimos erro de API)
+        failedList.push(cliente);
       }
     }
 
-    // Finalização
+    // Finalização do Lote
     await queryClient.invalidateQueries({ queryKey: ['clientes'] });
-    toast.success(`Processo finalizado! ${updatedCount} clientes enriquecidos.`);
     
-    // Pequeno delay para ler o log final
+    // Verificação de Erros para Retentativa
+    if (failedList.length > 0) {
+        // Pequeno delay para a UI atualizar o log antes do alert
+        await sleep(500); 
+        const retry = window.confirm(`O processo finalizou com ${failedList.length} erros de conexão/API. \n\nDeseja tentar novamente APENAS para estes clientes não processados?`);
+        
+        if (retry) {
+            addLog(`--- Iniciando Retentativa para ${failedList.length} clientes ---`, 'info');
+            // Chamada Recursiva
+            processBatch(failedList, true);
+            return; // Sai da execução atual
+        }
+    }
+
+    toast.success(`Processo finalizado!`);
     setTimeout(() => {
         setIsBulkUpdating(false);
     }, 2000);
+  };
+
+  // Wrapper para chamar via botão
+  const handleBulkUpdateClick = () => {
+      processBatch(clientes, false);
   };
 
   // Mutations (Normais)
@@ -290,7 +317,7 @@ export default function ClientesPage() {
   const handleEdit = (cli) => { setSelectedCliente(cli); setShowEditModal(true); };
   const handleView = (cli) => { setSelectedCliente(cli); setShowDetailsModal(true); };
   const handleViewPedidos = (cli) => { navigate(createPageUrl('Pedidos') + `?cliente=${cli.codigo}`); };
-  const handleInvite = async (cli) => { /* Lógica de convite mantida */ };
+  const handleInvite = async (cli) => { /* Mantido */ };
 
   return (
     <PermissionGuard setor="Clientes">
@@ -320,10 +347,10 @@ export default function ClientesPage() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {/* BOTÃO ATUALIZAR AGORA COM NOVA FUNÇÃO */}
+              {/* BOTÃO ATUALIZAR AGORA COM NOVA FUNÇÃO RECURSIVA */}
               <Button 
                 variant="outline" 
-                onClick={handleBulkUpdate} 
+                onClick={handleBulkUpdateClick} 
                 disabled={isBulkUpdating}
                 className="bg-white border-slate-200 shadow-sm hover:bg-slate-50 text-slate-600 gap-2 rounded-xl h-10"
               >
