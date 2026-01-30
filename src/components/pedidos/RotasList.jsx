@@ -35,7 +35,11 @@ export default function RotasList({ rotas, onSelectRota, onAlterarPortador, onDi
       const matchesTab = subTab === 'todos' || status === subTab;
 
       return matchesSearch && matchesTab;
-    }).sort((a, b) => new Date(b.created_date || b.data_importacao) - new Date(a.created_date || a.data_importacao));
+    }).sort((a, b) => {
+      const dateA = a.created_date || a.data_importacao || '1970-01-01';
+      const dateB = b.created_date || b.data_importacao || '1970-01-01';
+      return new Date(dateB) - new Date(dateA);
+    });
   }, [rotas, searchTerm, subTab]);
 
   const getStatusConfig = (status) => {

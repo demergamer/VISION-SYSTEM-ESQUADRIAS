@@ -380,7 +380,7 @@ export default function Pedidos() {
                             {/* Reutilizando estrutura visual simplificada para brevidade */}
                             <div className="flex justify-between mb-2">
                                 <span className="font-bold text-amber-800">#{p.numero_pedido}</span>
-                                <span className="text-sm bg-white px-2 rounded border border-amber-100">{format(new Date(p.data_entrega), 'dd/MM/yyyy')}</span>
+                                <span className="text-sm bg-white px-2 rounded border border-amber-100">{p.data_entrega ? format(new Date(p.data_entrega), 'dd/MM/yyyy') : '-'}</span>
                             </div>
                             <p className="font-bold text-slate-800 mb-4">{p.cliente_nome}</p>
                             <p className="text-xl font-bold text-emerald-600 mb-4">{formatCurrency(p.valor_pedido)}</p>
@@ -402,7 +402,7 @@ export default function Pedidos() {
                         <Card key={aut.id} className="p-5 border-orange-200 bg-orange-50/30 cursor-pointer hover:shadow-md transition-all" onClick={() => { setSelectedAutorizacao(aut); setShowAutorizacaoModal(true); }}>
                             <div className="flex justify-between items-start mb-2">
                                 <Badge className="bg-orange-100 text-orange-700">Solicitação #{aut.numero_solicitacao}</Badge>
-                                <span className="text-xs text-slate-500">{format(new Date(aut.created_date), 'dd/MM HH:mm')}</span>
+                                <span className="text-xs text-slate-500">{aut.created_date ? format(new Date(aut.created_date), 'dd/MM HH:mm') : '-'}</span>
                             </div>
                             <p className="font-bold text-slate-800 mb-1">{aut.cliente_nome}</p>
                             <p className="text-sm text-slate-600 mb-3">{aut.pedidos_ids?.length || 0} pedidos</p>
