@@ -182,6 +182,7 @@ export default function Pedidos() {
 
   // --- STATS ---
   const stats = useMemo(() => {
+    // Lógica para contar pedidos em trânsito: tem rota, não entregue, não cancelado
     const transito = pedidos.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado').length;
     const abertos = pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial').length;
     const totalAReceber = pedidos
@@ -217,14 +218,18 @@ export default function Pedidos() {
   // --- FILTROS DE DADOS ---
   const filteredPedidos = useMemo(() => {
     let filtered = pedidos;
+    // Filtro por Aba
     switch (activeTab) {
       case 'transito': 
+        // REGRA DE OURO: Está em rota E não tem baixa de entrega (independente de estar pago)
         filtered = filtered.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado'); 
         break;
       case 'abertos': 
+        // REGRA: Deve dinheiro
         filtered = filtered.filter(p => p.status === 'aberto' || p.status === 'parcial'); 
         break;
       case 'liquidacoes': 
+        // REGRA: Está pago
         filtered = filtered.filter(p => p.status === 'pago'); 
         break;
       case 'cancelados': 
@@ -293,7 +298,6 @@ export default function Pedidos() {
     }
   };
   
-  // FUNÇÃO ATUALIZADA: Sincronização Inteligente de Rotas
   const handleRefresh = async () => {
     setRefreshingData(true);
     setRefreshMessage('Sincronizando pedidos e rotas...');
@@ -307,18 +311,14 @@ export default function Pedidos() {
         // 2. Recalcular Status de Cada Rota
         let routesUpdatedCount = 0;
         const updatePromises = latestRotas.map(rota => {
-            // Pegar pedidos vinculados a essa rota
             const pedidosDaRota = latestPedidos.filter(p => p.rota_importada_id === rota.id);
-            
             const total = pedidosDaRota.length;
-            // Confirmados são aqueles onde confirmado_entrega é true
             const confirmados = pedidosDaRota.filter(p => p.confirmado_entrega).length;
             
             let novoStatus = 'pendente';
             if (total > 0 && confirmados === total) novoStatus = 'concluida';
             else if (confirmados > 0) novoStatus = 'parcial';
 
-            // Se houver discrepância, atualizar a rota
             if (rota.total_pedidos !== total || rota.pedidos_confirmados !== confirmados || rota.status !== novoStatus) {
                 routesUpdatedCount++;
                 return base44.entities.RotaImportada.update(rota.id, {
@@ -330,10 +330,7 @@ export default function Pedidos() {
             return null;
         });
 
-        // Esperar atualizações terminarem
         await Promise.all(updatePromises.filter(Boolean));
-
-        // 3. Recarregar caches para o usuário ver
         await Promise.all([refetchPedidos(), refetchRotas(), refetchBorderos(), refetchAutorizacoes()]);
         
         if (routesUpdatedCount > 0) {
@@ -411,6 +408,28 @@ export default function Pedidos() {
       setShowLiquidacaoMassaModal(false);
       setActiveTab('liquidacoes');
       setLiquidacaoView('bordero');
+  };
+
+  // NOVA FUNÇÃO: Confirmar entrega (Baixa de Canhoto)
+  const handleConfirmarEntrega = async (pedido) => {
+      setIsProcessing(true);
+      try {
+          // Se já pagou, mantém pago. Se não, vira aberto para cobrança.
+          const novoStatus = pedido.status === 'pago' ? 'pago' : 'aberto';
+          
+          await base44.entities.Pedido.update(pedido.id, {
+              confirmado_entrega: true,
+              status: novoStatus
+          });
+          
+          await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+          toast.success('Entrega confirmada com sucesso!');
+      } catch (error) {
+          toast.error('Erro ao confirmar entrega.');
+          console.error(error);
+      } finally {
+          setIsProcessing(false);
+      }
   };
 
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
@@ -526,6 +545,7 @@ export default function Pedidos() {
                 />
             </TabsContent>
 
+            {/* ABA EM TRÂNSITO (AGORA COM BOTÃO DE CONFIRMAR ENTREGA) */}
             <TabsContent value="transito">
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {filteredPedidos.length > 0 ? filteredPedidos.map(p => (
@@ -585,9 +605,9 @@ export default function Pedidos() {
                                         <Button 
                                             size="sm" 
                                             className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm" 
-                                            onClick={() => handleLiquidar(p)}
+                                            onClick={() => handleConfirmarEntrega(p)}
                                         >
-                                            <DollarSign className="w-4 h-4 mr-2" /> Liquidar
+                                            <CheckCircle className="w-4 h-4 mr-2" /> Confirmar
                                         </Button>
                                         <Button 
                                             size="sm" 
