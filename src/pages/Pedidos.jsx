@@ -145,7 +145,7 @@ export default function Pedidos() {
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [refreshingData, setRefreshingData] = useState(false);
-  const [refreshMessage, setRefreshMessage] = useState('Sincronizando dados...');
+  const [refreshMessage, setRefreshMessage] = useState('Conectando...');
 
   // --- MODAIS ---
   const [showAddModal, setShowAddModal] = useState(false);
@@ -173,7 +173,7 @@ export default function Pedidos() {
 
   // --- QUERIES ---
   const { data: pedidos = [], isLoading: loadingPedidos, refetch: refetchPedidos } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list() });
-  const { data: clientes = [] } = useQuery({ queryKey: ['clientes'], queryFn: () => base44.entities.Cliente.list() });
+  const { data: clientes = [], refetch: refetchClientes } = useQuery({ queryKey: ['clientes'], queryFn: () => base44.entities.Cliente.list() });
   const { data: rotas = [], isLoading: loadingRotas, refetch: refetchRotas } = useQuery({ queryKey: ['rotas'], queryFn: () => base44.entities.RotaImportada.list('-created_date') });
   const { data: representantes = [] } = useQuery({ queryKey: ['representantes'], queryFn: () => base44.entities.Representante.list() });
   const { data: cheques = [] } = useQuery({ queryKey: ['cheques'], queryFn: () => base44.entities.Cheque.list() });
@@ -298,18 +298,52 @@ export default function Pedidos() {
     }
   };
   
-  // FUNÇÃO ATUALIZADA: Sincronização + Limpeza de Resíduos (< 0.10)
+  // FUNÇÃO ATUALIZADA: Sincronização + Limpeza de Resíduos (< 0.10) + AUTO VINCULO CLIENTE
   const handleRefresh = async () => {
     setRefreshingData(true);
+    setRefreshMessage('Conectando ao banco de dados...');
     try {
-        setRefreshMessage('Buscando dados...');
-        const [latestPedidos, latestRotas] = await Promise.all([
+        // 1. Buscar dados frescos de TUDO
+        setRefreshMessage('Baixando dados mais recentes...');
+        const [latestPedidos, latestRotas, latestClientes] = await Promise.all([
             base44.entities.Pedido.list(),
-            base44.entities.RotaImportada.list()
+            base44.entities.RotaImportada.list(),
+            base44.entities.Cliente.list() // Importante buscar clientes atualizados
         ]);
 
-        // 1. Limpeza de Resíduos (Automaticamente move para Pago se <= 0.10)
-        setRefreshMessage('Analisando resíduos...');
+        // 2. AUTO-ASSOCIAÇÃO DE CLIENTES (Feature Nova)
+        setRefreshMessage('Verificando clientes pendentes...');
+        let clientesVinculados = 0;
+        const pedidosPendentes = latestPedidos.filter(p => p.cliente_pendente === true);
+        
+        const promisesClientes = pedidosPendentes.map(pedido => {
+            const nomePedido = pedido.cliente_nome?.trim().toLowerCase();
+            if (!nomePedido) return null;
+
+            // Busca match exato ou parcial no nome
+            const clienteEncontrado = latestClientes.find(c => 
+                c.nome?.trim().toLowerCase() === nomePedido || 
+                c.nome?.trim().toLowerCase().includes(nomePedido) || 
+                nomePedido.includes(c.nome?.trim().toLowerCase())
+            );
+
+            if (clienteEncontrado) {
+                clientesVinculados++;
+                return base44.entities.Pedido.update(pedido.id, {
+                    cliente_codigo: clienteEncontrado.codigo,
+                    cliente_regiao: clienteEncontrado.regiao,
+                    representante_codigo: clienteEncontrado.representante_codigo,
+                    representante_nome: clienteEncontrado.representante_nome,
+                    porcentagem_comissao: clienteEncontrado.porcentagem_comissao,
+                    cliente_pendente: false // Remove a pendência
+                });
+            }
+            return null;
+        });
+        await Promise.all(promisesClientes.filter(Boolean));
+
+        // 3. Limpeza de Resíduos (Automaticamente move para Pago se <= 0.10)
+        setRefreshMessage('Analisando resíduos financeiros (< R$ 0,10)...');
         let residuosLimpos = 0;
         const promisesResiduos = latestPedidos
             .filter(p => (p.status === 'aberto' || p.status === 'parcial') && (p.saldo_restante > 0 && p.saldo_restante <= 0.10))
@@ -322,11 +356,10 @@ export default function Pedidos() {
                     outras_informacoes: (p.outras_informacoes || '') + '\n[AUTO] Baixa automática de resíduo < R$ 0,10'
                 });
             });
-        
         await Promise.all(promisesResiduos);
 
-        // 2. Sincronização de Rotas (Recalcular status)
-        setRefreshMessage('Sincronizando rotas...');
+        // 4. Sincronização de Rotas (Recalcular status)
+        setRefreshMessage(`Sincronizando ${latestRotas.length} rotas de entrega...`);
         let routesUpdatedCount = 0;
         const updatePromises = latestRotas.map(rota => {
             const pedidosDaRota = latestPedidos.filter(p => p.rota_importada_id === rota.id);
@@ -347,23 +380,26 @@ export default function Pedidos() {
             }
             return null;
         });
-
         await Promise.all(updatePromises.filter(Boolean));
 
-        // 3. Atualizar tudo na tela
-        await Promise.all([refetchPedidos(), refetchRotas(), refetchBorderos(), refetchAutorizacoes()]);
+        // 5. Finalização: Recarregar caches
+        setRefreshMessage('Finalizando atualizações...');
+        await Promise.all([refetchPedidos(), refetchRotas(), refetchBorderos(), refetchAutorizacoes(), refetchClientes()]);
         
-        let msg = 'Dados atualizados!';
-        if (residuosLimpos > 0) msg += ` ${residuosLimpos} resíduos baixados.`;
-        if (routesUpdatedCount > 0) msg += ` ${routesUpdatedCount} rotas sincronizadas.`;
+        // Mensagem Final Dinâmica
+        const msgs = ['Dados atualizados com sucesso!'];
+        if (clientesVinculados > 0) msgs.push(`${clientesVinculados} clientes vinculados.`);
+        if (residuosLimpos > 0) msgs.push(`${residuosLimpos} resíduos baixados.`);
+        if (routesUpdatedCount > 0) msgs.push(`${routesUpdatedCount} rotas sincronizadas.`);
         
-        toast.success(msg);
+        toast.success(msgs.join('\n'));
+
     } catch (error) {
         console.error(error);
-        toast.error('Erro ao atualizar dados.');
+        toast.error('Erro ao atualizar dados: ' + error.message);
     } finally {
         setRefreshingData(false);
-        setRefreshMessage('Sincronizando dados...');
+        setRefreshMessage('Conectando...');
     }
   };
 
@@ -453,6 +489,8 @@ export default function Pedidos() {
   return (
     <PermissionGuard setor="Pedidos">
       {isProcessing && <div className="fixed inset-0 z-[100] bg-black/30 flex items-center justify-center"><Loader2 className="w-12 h-12 text-blue-600 animate-spin" /></div>}
+      
+      {/* LOADING DINÂMICO APRIMORADO */}
       {refreshingData && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md transition-all animate-in fade-in duration-300">
             <div className="bg-white p-10 rounded-3xl shadow-2xl flex flex-col items-center gap-5 border border-slate-100 min-w-[320px]">
@@ -461,8 +499,8 @@ export default function Pedidos() {
                   <div className="absolute inset-0 w-16 h-16 border-4 border-blue-200 rounded-full animate-pulse" />
                 </div>
                 <div className="text-center space-y-2">
-                    <h3 className="text-xl font-bold text-slate-800">Atualizando Sistema</h3>
-                    <p className="text-sm text-slate-600 font-medium animate-pulse min-h-[20px]">
+                    <h3 className="text-xl font-bold text-slate-800">Verificando Sistema...</h3>
+                    <p className="text-sm text-slate-600 font-medium animate-pulse min-h-[20px] px-4">
                       {refreshMessage}
                     </p>
                 </div>
@@ -781,7 +819,6 @@ export default function Pedidos() {
           <ModalContainer open={showAlterarPortadorModal} onClose={() => setShowAlterarPortadorModal(false)} title="Alterar Portador" size="lg">
              {selectedRota && <AlterarPortadorModal rota={selectedRota} pedidos={pedidos.filter(p => p.rota_importada_id === selectedRota.id)} onSave={() => {setShowAlterarPortadorModal(false); toast.success("Portador alterado");}} onCancel={() => setShowAlterarPortadorModal(false)} />}
           </ModalContainer>
-          
           <ModalContainer open={showCadastrarClienteModal} onClose={() => setShowCadastrarClienteModal(false)} title="Cadastrar Cliente" size="lg">
              <ClienteForm 
                cliente={{ nome: pedidoParaCadastro?.cliente_nome }} 
