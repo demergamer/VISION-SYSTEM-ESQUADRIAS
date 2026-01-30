@@ -181,13 +181,16 @@ export default function Pedidos() {
 
   // --- STATS ---
   const stats = useMemo(() => {
-    const aguardando = pedidos.filter(p => p.status === 'aguardando');
-    const abertos = pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial');
-    const totalAReceber = abertos.reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
+    // LÓGICA CORRIGIDA PARA "EM TRÂNSITO": Tem rota E não foi entregue fisicamente
+    const transito = pedidos.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado').length;
+    const abertos = pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial').length;
+    const totalAReceber = pedidos
+        .filter(p => p.status === 'aberto' || p.status === 'parcial')
+        .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
     const autorizacoes = liquidacoesPendentes.filter(lp => lp.status === 'pendente').length;
     return { 
-        transito: aguardando.length, 
-        abertos: abertos.length, 
+        transito, 
+        abertos, 
         autorizacoes, 
         rotas: rotas.length,
         totalAReceber
@@ -214,11 +217,23 @@ export default function Pedidos() {
   // --- FILTROS DE DADOS ---
   const filteredPedidos = useMemo(() => {
     let filtered = pedidos;
+    // Filtro por Aba
     switch (activeTab) {
-      case 'transito': filtered = filtered.filter(p => p.status === 'aguardando'); break;
-      case 'abertos': filtered = filtered.filter(p => p.status === 'aberto' || p.status === 'parcial'); break;
-      case 'liquidacoes': filtered = filtered.filter(p => p.status === 'pago'); break;
-      case 'cancelados': filtered = filtered.filter(p => p.status === 'cancelado'); break;
+      case 'transito': 
+        // REGRA DE OURO: Está em rota E não tem baixa de entrega (independente de estar pago)
+        filtered = filtered.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado'); 
+        break;
+      case 'abertos': 
+        // REGRA: Deve dinheiro
+        filtered = filtered.filter(p => p.status === 'aberto' || p.status === 'parcial'); 
+        break;
+      case 'liquidacoes': 
+        // REGRA: Está pago
+        filtered = filtered.filter(p => p.status === 'pago'); 
+        break;
+      case 'cancelados': 
+        filtered = filtered.filter(p => p.status === 'cancelado'); 
+        break;
       default: break; 
     }
 
@@ -324,7 +339,14 @@ export default function Pedidos() {
   const handleSaveRotaChecklist = async (data) => {
       try {
           await base44.entities.RotaImportada.update(data.rota.id, data.rota);
-          const promises = data.pedidos.map(p => base44.entities.Pedido.update(p.id, { confirmado_entrega: p.confirmado_entrega, status: p.status }));
+          // Atualiza status e confirmado_entrega (logística)
+          const promises = data.pedidos.map(p => base44.entities.Pedido.update(p.id, { 
+              confirmado_entrega: p.confirmado_entrega,
+              // Se foi confirmado, status deve ir pra 'aberto' (se não pago) ou manter 'pago'. 
+              // Se não confirmado, volta pra 'aguardando'.
+              // A lógica de RotaChecklist.jsx já manda o status correto.
+              status: p.status 
+          }));
           await Promise.all(promises);
           await Promise.all([refetchRotas(), refetchPedidos()]);
           setShowRotaModal(false);
@@ -442,12 +464,12 @@ export default function Pedidos() {
                         <div key={p.id} className="bg-amber-50 border border-amber-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all">
                             <div className="flex justify-between mb-2">
                                 <span className="font-bold text-amber-800">#{p.numero_pedido}</span>
-                                <span className="text-sm bg-white px-2 rounded border border-amber-100">{p.data_entrega ? format(new Date(p.data_entrega), 'dd/MM/yyyy') : '-'}</span>
+                                <span className="text-sm bg-white px-2 rounded border border-amber-100">{format(new Date(p.data_entrega), 'dd/MM/yyyy')}</span>
                             </div>
-                            <p className="font-bold text-slate-800 mb-4">{p.cliente_nome}</p>
+                            <p className="font-bold text-slate-800 mb-4 truncate">{p.cliente_nome}</p>
                             <p className="text-xl font-bold text-emerald-600 mb-4">{formatCurrency(p.valor_pedido)}</p>
                             <div className="grid grid-cols-2 gap-2">
-                                <Button size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white" onClick={() => {/* Confirm logic */}}>Confirmar</Button>
+                                <Button size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white" onClick={() => handleLiquidar(p)}>Liquidar</Button>
                                 <Button size="sm" variant="outline" className="border-red-200 text-red-600 hover:bg-red-50" onClick={() => handleCancelar(p)}>Cancelar</Button>
                             </div>
                         </div>
@@ -461,7 +483,7 @@ export default function Pedidos() {
                         <Card key={aut.id} className="p-5 border-orange-200 bg-orange-50/30 cursor-pointer hover:shadow-md transition-all" onClick={() => { setSelectedAutorizacao(aut); setShowAutorizacaoModal(true); }}>
                             <div className="flex justify-between items-start mb-2">
                                 <Badge className="bg-orange-100 text-orange-700">Solicitação #{aut.numero_solicitacao}</Badge>
-                                <span className="text-xs text-slate-500">{aut.created_date ? format(new Date(aut.created_date), 'dd/MM HH:mm') : '-'}</span>
+                                <span className="text-xs text-slate-500">{format(new Date(aut.created_date), 'dd/MM HH:mm')}</span>
                             </div>
                             <p className="font-bold text-slate-800 mb-1">{aut.cliente_nome}</p>
                             <p className="text-sm text-slate-600 mb-3">{aut.pedidos_ids?.length || 0} pedidos</p>
@@ -475,7 +497,6 @@ export default function Pedidos() {
                 </div>
             </TabsContent>
 
-            {/* ABA LIQUIDAÇÕES - CORRIGIDA */}
             <TabsContent value="liquidacoes">
                 <div className="flex gap-2 mb-4">
                     <Button 
@@ -503,7 +524,7 @@ export default function Pedidos() {
                                     <Badge variant="outline" className="border-emerald-200 text-emerald-700 bg-emerald-50">Liquidado</Badge>
                                 </div>
                                 <p className="text-sm text-slate-600 mb-1">{bordero.cliente_nome || "Vários Clientes"}</p>
-                                <p className="text-xs text-slate-400 mb-3">{bordero.created_date ? format(new Date(bordero.created_date), 'dd/MM/yyyy HH:mm') : '-'}</p>
+                                <p className="text-xs text-slate-400 mb-3">{format(new Date(bordero.created_date), 'dd/MM/yyyy HH:mm')}</p>
                                 <div className="flex justify-between items-end border-t pt-3">
                                     <span className="text-xs text-slate-500">{bordero.pedidos_ids?.length || 0} pedidos</span>
                                     <span className="font-bold text-emerald-600 text-lg">{formatCurrency(bordero.valor_total)}</span>
@@ -525,7 +546,7 @@ export default function Pedidos() {
                 )}
             </TabsContent>
 
-            {/* ABAS ABERTOS E CANCELADOS */}
+            {/* ABERTOS & CANCELADOS */}
             {['abertos', 'cancelados'].map(tab => (
                 <TabsContent key={tab} value={tab}>
                     {viewMode === 'table' ? (
@@ -558,7 +579,7 @@ export default function Pedidos() {
 
           </Tabs>
 
-          {/* MODAIS (Restaurados e Corrigidos) */}
+          {/* MODAIS */}
           <ModalContainer open={showImportModal} onClose={() => setShowImportModal(false)} title="Importar Pedidos" size="lg">
             <ImportarPedidos 
                 clientes={clientes} 
