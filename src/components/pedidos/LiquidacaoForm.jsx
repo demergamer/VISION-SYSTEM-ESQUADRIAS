@@ -168,7 +168,6 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
         anexo_video_url: ch.anexo_video_url
       }));
 
-      // Copiar comprovantes do PORT se estiver usando sinal
       let comprovantesFinais = [...comprovantes];
       if (valorPortAUsar > 0 && portSelecionado?.comprovantes_urls) {
         comprovantesFinais = [...comprovantesFinais, ...portSelecionado.comprovantes_urls];
@@ -197,14 +196,14 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
         total_pago: novoTotalPago,
         saldo_restante: Math.max(0, novoSaldo),
         desconto_dado: novoDescontoTotal,
-        status: novoSaldo <= 0 ? 'pago' : 'parcial',
-        data_pagamento: novoSaldo <= 0 ? new Date().toISOString().split('T')[0] : pedido.data_pagamento,
-        mes_pagamento: novoSaldo <= 0 ? new Date().toISOString().slice(0, 7) : pedido.mes_pagamento,
+        status: novoSaldo <= 0.01 ? 'pago' : 'parcial',
+        confirmado_entrega: pedido.confirmado_entrega, // MANTÉM O ESTADO ORIGINAL
+        data_pagamento: novoSaldo <= 0.01 ? new Date().toISOString().split('T')[0] : pedido.data_pagamento,
+        mes_pagamento: novoSaldo <= 0.01 ? new Date().toISOString().slice(0, 7) : pedido.mes_pagamento,
         outras_informacoes: novasOutrasInfo,
         bordero_numero: proximoNumeroBordero
       };
 
-      // Atualizar PORT se foi usado
       if (valorPortAUsar > 0 && portSelecionado) {
         const novoSaldoPort = portSelecionado.saldo_disponivel - valorPortAUsar;
         const novoStatusPort = novoSaldoPort <= 0 ? 'finalizado' : 'parcialmente_usado';
@@ -260,6 +259,7 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* ... (JSX do formulário, idêntico ao anterior) ... */}
       <Card className="p-4 bg-slate-50">
         <div className="grid grid-cols-2 gap-4">
           <div><p className="text-sm text-slate-500">Pedido</p><p className="font-semibold">{pedido.numero_pedido}</p></div>
@@ -397,7 +397,7 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
       {formaPagamento === 'cheque' && (
         <div className="space-y-3">
           <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-2"><Label>Número do Cheque</Label><Input value={dadosCheque.numero} onChange={(e) => setDadosCheque({...dadosCheque, numero: e.target.value})} placeholder="123456" /></div>
+            <div className="space-y-2"><Label>Nº Cheque</Label><Input value={dadosCheque.numero} onChange={(e) => setDadosCheque({...dadosCheque, numero: e.target.value})} placeholder="123456" /></div>
             <div className="space-y-2"><Label>Banco</Label><Input value={dadosCheque.banco} onChange={(e) => setDadosCheque({...dadosCheque, banco: e.target.value})} placeholder="Ex: 001" /></div>
             <div className="space-y-2"><Label>Agência</Label><Input value={dadosCheque.agencia} onChange={(e) => setDadosCheque({...dadosCheque, agencia: e.target.value})} placeholder="1234" /></div>
           </div>
@@ -422,7 +422,6 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
         </div>
       </Card>
 
-      {/* SEÇÃO DE ANEXOS */}
       <Card className="p-6 space-y-4 bg-gradient-to-br from-slate-50 to-white border-slate-200">
         <div className="flex items-center justify-between">
           <div>
