@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea"; // Importando Textarea
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -11,7 +11,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Save, X, AlertCircle, Upload, Loader2, Search, Factory } from "lucide-react";
+import { 
+  Save, X, AlertCircle, Upload, Loader2, Search, Factory, 
+  CheckCircle, Lock // Adicionado Lock e CheckCircle
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { base44 } from '@/api/base44Client';
@@ -77,9 +80,8 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     cidade: '',
     estado: '',
     complemento: '',
-    // Novos campos Fiscais
-    cnaes_descricao: '', // Lista de CNAEs para visualização
-    tem_st: false // Flag de Substituição Tributária
+    cnaes_descricao: '', 
+    tem_st: false 
   });
 
   const [errors, setErrors] = useState({});
@@ -152,27 +154,22 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
       const data = await response.json();
 
       // --- LÓGICA DE VERIFICAÇÃO ST ---
-      // CNAEs que ativam o ST automaticamente (somente números)
       const cnaesComST = [
-        '4744005', // Comércio varejista de materiais de construção não especificados
-        '4744099', // Comércio varejista de materiais de construção em geral
-        '4672900'  // Comércio atacadista de ferragens e ferramentas
+        '4744005', 
+        '4744099', 
+        '4672900'  
       ];
 
-      // Monta lista com Principal + Secundários
       const todosCnaesDaEmpresa = [
         { codigo: data.cnae_fiscal, descricao: data.cnae_fiscal_descricao },
         ...(data.cnaes_secundarios || [])
       ];
 
-      // Verifica se ALGUM CNAE da empresa está na lista de ST
       const possuiST = todosCnaesDaEmpresa.some(cnae => {
-        // Remove pontuação do código vindo da API para comparar
         const codigoLimpo = String(cnae.codigo).replace(/\D/g, '');
         return cnaesComST.includes(codigoLimpo);
       });
 
-      // Cria um texto legível com todos os CNAEs para salvar no cadastro
       const textoCnaes = todosCnaesDaEmpresa
         .map(c => `${c.codigo} - ${c.descricao}`)
         .join('\n');
@@ -192,9 +189,8 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
         estado: data.uf,
         complemento: data.complemento,
         data_consulta: new Date().toISOString().split('T')[0],
-        // Novos Campos Preenchidos Automaticamente
         cnaes_descricao: textoCnaes,
-        tem_st: possuiST
+        tem_st: possuiST // Define automaticamente e trava
       }));
 
       toast.success(possuiST ? "Dados carregados. ATENÇÃO: Cliente tem ST!" : "Dados carregados com sucesso!", { id: toastId });
@@ -358,7 +354,6 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
             />
           </div>
 
-          {/* Endereço */}
           <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
              <div className="space-y-1 md:col-span-1">
                 <Label htmlFor="cep" className={labelClass}>CEP</Label>
@@ -394,7 +389,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
         </div>
       </div>
 
-      {/* CLASSIFICAÇÃO FISCAL (ST) */}
+      {/* CLASSIFICAÇÃO FISCAL (ST) - BLOQUEADO */}
       <div className="space-y-6">
         <h3 className="text-sm font-medium text-slate-900 border-b pb-2 mb-4 flex items-center gap-2">
           <Factory className="w-4 h-4 text-slate-500" /> Classificação Fiscal
@@ -404,33 +399,31 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
           <div className="p-4 rounded-xl border-2 transition-all duration-300 bg-slate-50 border-slate-200">
             <div className="flex items-center justify-between mb-2">
               <Label className="text-base font-bold text-slate-700">Substituição Tributária (ST)</Label>
-              {/* Botões Visuais tipo "Pílula" */}
-              <div className="flex bg-slate-200 rounded-lg p-1">
-                <button
-                  type="button"
-                  onClick={() => setForm({ ...form, tem_st: false })}
-                  className={cn(
-                    "px-4 py-1.5 rounded-md text-sm font-semibold transition-all",
-                    !form.tem_st ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  )}
-                >
-                  Sem ST
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setForm({ ...form, tem_st: true })}
-                  className={cn(
-                    "px-4 py-1.5 rounded-md text-sm font-semibold transition-all flex items-center gap-2",
-                    form.tem_st ? "bg-red-500 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  )}
-                >
-                  <AlertCircle className="w-4 h-4" />
-                  Com ST
-                </button>
+              
+              {/* STATUS VISUAL TRAVADO */}
+              <div className={cn(
+                "px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 border shadow-sm select-none",
+                form.tem_st 
+                  ? "bg-red-100 text-red-700 border-red-200" 
+                  : "bg-green-100 text-green-700 border-green-200"
+              )}>
+                {form.tem_st ? (
+                  <>
+                    <AlertCircle className="w-4 h-4" />
+                    COM ST (Automático)
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    SEM ST (Automático)
+                  </>
+                )}
+                <Lock className="w-3 h-3 ml-2 opacity-50" />
               </div>
             </div>
             <p className="text-xs text-slate-500 mb-3">
-              Define se os pedidos deste cliente terão cálculo de ST. Preenchido automaticamente via CNAE.
+              O sistema identificou automaticamente se este cliente possui ST com base nos CNAEs. 
+              <span className="font-semibold text-slate-600 ml-1">Não editável manualmente.</span>
             </p>
           </div>
 
@@ -439,7 +432,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
             <Textarea
               value={form.cnaes_descricao}
               readOnly
-              className="bg-slate-100 text-xs font-mono border-slate-200 h-24 resize-none"
+              className="bg-slate-100 text-xs font-mono border-slate-200 h-24 resize-none focus-visible:ring-0"
               placeholder="Os códigos de atividade econômica aparecerão aqui após a consulta..."
             />
           </div>
@@ -449,7 +442,6 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
       {/* Seção Comercial */}
       <div className="space-y-6">
         <h3 className="text-sm font-medium text-slate-900 border-b pb-2 mb-4">Dados Comerciais</h3>
-        {/* ... (Resto do código comercial mantido igual) ... */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-1">
             <Label htmlFor="representante" className={labelClass}>Representante *</Label>
