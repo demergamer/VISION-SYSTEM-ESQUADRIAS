@@ -26,7 +26,13 @@ export default function LiquidarContaModal({ conta, saldoCaixa, cheques, onConfi
   const [formasPagamento, setFormasPagamento] = useState([
     { tipo: 'dinheiro', valor: '', detalhes: '', cheque_id: null, cheques_ids: [] }
   ]);
+  
+  // Busca para seleção unitária (se houver)
   const [searchCheque, setSearchCheque] = useState('');
+  
+  // NOVO: Busca para o Modal de Seleção Múltipla
+  const [modalChequeSearch, setModalChequeSearch] = useState('');
+
   const [observacao, setObservacao] = useState('');
   const [gerando, setGerando] = useState(false);
   const [showSeletorCheques, setShowSeletorCheques] = useState(false);
@@ -39,15 +45,6 @@ export default function LiquidarContaModal({ conta, saldoCaixa, cheques, onConfi
   const valorFinal = valorOriginal + jurosMultaNum - descontoNum;
   const totalPago = formasPagamento.reduce((sum, fp) => sum + (parseFloat(fp.valor) || 0), 0);
   const diferenca = valorFinal - totalPago;
-
-  const chequesDisponiveis = useMemo(() => {
-    return cheques.filter(c => 
-      c?.status === 'normal' &&
-      (c?.numero_cheque?.toLowerCase().includes(searchCheque.toLowerCase()) ||
-       c?.banco?.toLowerCase().includes(searchCheque.toLowerCase()) ||
-       c?.emitente?.toLowerCase().includes(searchCheque.toLowerCase()))
-    );
-  }, [cheques, searchCheque]);
 
   const adicionarFormaPagamento = () => {
     setFormasPagamento([...formasPagamento, { tipo: 'dinheiro', valor: '', detalhes: '', cheque_id: null, cheques_ids: [] }]);
@@ -75,7 +72,10 @@ export default function LiquidarContaModal({ conta, saldoCaixa, cheques, onConfi
 
   const abrirSeletorCheques = (index) => {
     setFormaPagamentoIndex(index);
-    setChequesSelecionados([]);
+    // Se já tiver cheques selecionados nessa forma de pagamento, carrega eles
+    const atuais = formasPagamento[index].cheques_ids || [];
+    setChequesSelecionados(atuais);
+    setModalChequeSearch(''); // Limpa a busca ao abrir
     setShowSeletorCheques(true);
   };
 
@@ -105,15 +105,6 @@ export default function LiquidarContaModal({ conta, saldoCaixa, cheques, onConfi
     setShowSeletorCheques(false);
     setFormaPagamentoIndex(null);
     setChequesSelecionados([]);
-  };
-
-  const selecionarCheque = (index, cheque) => {
-    const novasFormas = [...formasPagamento];
-    novasFormas[index].cheque_id = cheque.id;
-    novasFormas[index].valor = cheque.valor;
-    novasFormas[index].detalhes = `Cheque ${cheque.banco} Nº ${cheque.numero_cheque} - Emitente: ${cheque.emitente}`;
-    setFormasPagamento(novasFormas);
-    setSearchCheque('');
   };
 
   const gerarReciboPDF = async () => {
@@ -200,11 +191,11 @@ export default function LiquidarContaModal({ conta, saldoCaixa, cheques, onConfi
         if (parseFloat(fp.valor) > 0) {
           y += 7;
           let tipoLabel = fp.tipo === 'dinheiro' ? '💵 Dinheiro' :
-                         fp.tipo === 'cheque_terceiro' ? '🎫 Cheque de Terceiro' :
-                         fp.tipo === 'pecas' ? '⚙️ Peças/Permuta' :
-                         fp.tipo === 'pix' ? '🏦 PIX' :
-                         fp.tipo === 'transferencia' ? '🏦 Transferência' :
-                         fp.tipo === 'credito' ? '💳 Cartão Crédito' : fp.tipo;
+                          fp.tipo === 'cheque_terceiro' ? '🎫 Cheque de Terceiro' :
+                          fp.tipo === 'pecas' ? '⚙️ Peças/Permuta' :
+                          fp.tipo === 'pix' ? '🏦 PIX' :
+                          fp.tipo === 'transferencia' ? '🏦 Transferência' :
+                          fp.tipo === 'credito' ? '💳 Cartão Crédito' : fp.tipo;
           
           doc.text(`${idx + 1}. ${tipoLabel}: ${formatCurrency(fp.valor)}`, 20, y);
           if (fp.detalhes) {
@@ -277,7 +268,6 @@ export default function LiquidarContaModal({ conta, saldoCaixa, cheques, onConfi
       if (!confirmar) return;
     }
 
-    // Gerar PDF do recibo
     setGerando(true);
     try {
       const reciboUrl = await gerarReciboPDF();
@@ -300,15 +290,33 @@ export default function LiquidarContaModal({ conta, saldoCaixa, cheques, onConfi
     }
   };
 
+  // --- LÓGICA DE FILTRO DO MODAL ---
   const chequesDisponiveisParaSeletor = useMemo(() => {
-    return cheques.filter(c => c?.status === 'normal');
-  }, [cheques]);
+    // 1. Pega apenas cheques normais
+    let lista = cheques.filter(c => c?.status === 'normal');
+    
+    // 2. Aplica o filtro de busca do modal
+    if (modalChequeSearch) {
+      const term = modalChequeSearch.toLowerCase();
+      lista = lista.filter(c => 
+        c.numero_cheque?.toLowerCase().includes(term) ||
+        c.banco?.toLowerCase().includes(term) ||
+        c.emitente?.toLowerCase().includes(term) ||
+        c.cliente_nome?.toLowerCase().includes(term) ||
+        c.valor?.toString().includes(term)
+      );
+    }
+    
+    return lista;
+  }, [cheques, modalChequeSearch]);
 
   const totalChequesSelecionados = useMemo(() => {
-    return chequesDisponiveisParaSeletor
+    // Calcula o total baseado em TODOS os cheques (mesmo os que não aparecem no filtro atual, mas estão selecionados)
+    // Isso evita que o total mude só porque o usuário filtrou a lista
+    return cheques
       .filter(c => chequesSelecionados.includes(c.id))
       .reduce((sum, c) => sum + (c.valor || 0), 0);
-  }, [chequesDisponiveisParaSeletor, chequesSelecionados]);
+  }, [cheques, chequesSelecionados]);
 
   return (
     <>
@@ -316,8 +324,8 @@ export default function LiquidarContaModal({ conta, saldoCaixa, cheques, onConfi
       {showSeletorCheques && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <Card className="w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
-            {/* Header */}
-            <div className="p-4 border-b bg-white sticky top-0 z-10">
+            {/* Header com Busca */}
+            <div className="p-4 border-b bg-white sticky top-0 z-10 space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="font-bold text-lg">🔍 Selecionar Cheques em Carteira</h3>
                 <Button 
@@ -332,14 +340,26 @@ export default function LiquidarContaModal({ conta, saldoCaixa, cheques, onConfi
                   <X className="w-4 h-4" />
                 </Button>
               </div>
+              
+              {/* Campo de Busca no Modal */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input 
+                  placeholder="Buscar por número, banco, emitente, cliente ou valor..." 
+                  value={modalChequeSearch}
+                  onChange={(e) => setModalChequeSearch(e.target.value)}
+                  className="pl-10 bg-slate-50"
+                  autoFocus
+                />
+              </div>
             </div>
 
             {/* Lista de Cheques */}
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto p-4 bg-slate-50/50">
               {chequesDisponiveisParaSeletor.length === 0 ? (
                 <div className="py-12 text-center text-slate-500">
                   <FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                  <p>Nenhum cheque disponível em carteira</p>
+                  <p>Nenhum cheque encontrado.</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -395,7 +415,7 @@ export default function LiquidarContaModal({ conta, saldoCaixa, cheques, onConfi
             </div>
 
             {/* Footer Sticky com Totais */}
-            <div className="p-4 border-t bg-white sticky bottom-0 z-10">
+            <div className="p-4 border-t bg-white sticky bottom-0 z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
               <div className="space-y-3">
                 <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
                   <div>
