@@ -67,20 +67,33 @@ export default function ClienteDetails({ cliente, stats, creditos, onEdit, onClo
             )}
           </div>
         </div>
+        
+        {/* Lado Direito: Botão Editar + Status */}
         <div className="flex flex-col items-end gap-2">
-          <Badge variant="outline" className={cn(
-            "text-sm px-3 py-1 shadow-sm",
-            isBloqueado 
-              ? "bg-red-50 text-red-600 border-red-200" 
-              : "bg-emerald-50 text-emerald-600 border-emerald-200"
-          )}>
-            {isBloqueado ? 'Bloqueado' : 'Liberado'}
-          </Badge>
-          {cliStats.ativo && (
-            <Badge variant="outline" className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 border-blue-200">
-              Ativo Recente
+          <Button 
+            onClick={onEdit} 
+            variant="outline" 
+            size="sm" 
+            className="h-8 gap-2 text-xs border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-200"
+          >
+            <Edit className="w-3.5 h-3.5" /> Editar
+          </Button>
+
+          <div className="flex gap-2">
+            <Badge variant="outline" className={cn(
+              "text-xs px-2 py-0.5 shadow-sm",
+              isBloqueado 
+                ? "bg-red-50 text-red-600 border-red-200" 
+                : "bg-emerald-50 text-emerald-600 border-emerald-200"
+            )}>
+              {isBloqueado ? 'Bloqueado' : 'Liberado'}
             </Badge>
-          )}
+            {cliStats.ativo && (
+              <Badge variant="outline" className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 border-blue-200">
+                Ativo
+              </Badge>
+            )}
+          </div>
         </div>
       </div>
 
@@ -273,19 +286,15 @@ export default function ClienteDetails({ cliente, stats, creditos, onEdit, onClo
         </Accordion>
       </div>
 
-      {/* Footer Actions */}
+      {/* Footer Actions - SEM BOTÃO EDITAR */}
       <div className="flex justify-end gap-3 pt-4 border-t sticky bottom-0 bg-white z-10">
         <Button variant="outline" onClick={onClose} className="h-10">
           <X className="w-4 h-4 mr-2" />
           Fechar
         </Button>
-        <Button variant="outline" onClick={onViewPedidos} className="h-10">
+        <Button variant="default" onClick={onViewPedidos} className="h-10 bg-slate-800 hover:bg-slate-900 text-white">
           <ShoppingCart className="w-4 h-4 mr-2" />
           Histórico de Pedidos
-        </Button>
-        <Button onClick={onEdit} className="h-10 bg-blue-600 hover:bg-blue-700">
-          <Edit className="w-4 h-4 mr-2" />
-          Editar Cadastro
         </Button>
       </div>
 
