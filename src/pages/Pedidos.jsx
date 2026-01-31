@@ -958,7 +958,7 @@ export default function Pedidos() {
             <TabsContent value="cancelados">
                 {viewMode === 'table' ? (
                     <PedidoTable 
-                        pedidos={filteredPedidos} 
+                        pedidos={processedPedidos} 
                         onEdit={handleEdit} 
                         onView={handleView} 
                         onLiquidar={handleLiquidar} 
@@ -968,7 +968,7 @@ export default function Pedidos() {
                     />
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {filteredPedidos.map(pedido => (
+                        {processedPedidos.map(pedido => (
                             <PedidoGridCard 
                                 key={pedido.id} 
                                 pedido={pedido} 
