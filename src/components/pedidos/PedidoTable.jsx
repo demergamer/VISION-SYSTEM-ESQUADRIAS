@@ -59,7 +59,7 @@ export default function PedidoTable({
     const dias = differenceInDays(now, dataRef);
     const label = pedido.status === 'parcial' ? 'Parcial' : 'Aberto';
     
-    if (dias > 15) { // SÓ FICA VERMELHO SE > 15
+    if (dias > 15) { 
       return <Badge className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200">{label} ({dias}d atraso)</Badge>;
     }
     return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200">{label}</Badge>;
@@ -146,7 +146,7 @@ export default function PedidoTable({
                       )}
                       {onCancelar && (
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-600" onClick={() => onCancelar(pedido)} title="Cancelar">
-                          <X className="w-4 h-4" /> 
+                          <X className="w-4 h-4" />
                         </Button>
                       )}
                     </>
