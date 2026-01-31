@@ -14,20 +14,25 @@ import { motion, AnimatePresence } from "framer-motion";
 import ModalContainer from "@/components/modals/ModalContainer";
 import ChequeDetails from "@/components/cheques/ChequeDetails";
 import LiquidacaoSelfService from "@/components/portais/LiquidacaoSelfService";
+import BorderoDetailsModal from "@/components/portais/BorderoDetailsModal"; // IMPORTADO
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
 
 const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
+const formatNumero = (num) => num ? num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") : '';
+const calcularDiasAtraso = (data) => {
+    const diff = Math.floor((new Date() - new Date(data)) / (1000 * 60 * 60 * 24));
+    return diff > 0 ? diff : 0;
+};
 
-// Componente de Botão de Aba
+// Componente de Botão de Aba (Atualizado para novas cores/ordem)
 const TabButton = ({ active, onClick, icon: Icon, label, count, colorClass, bgActive, borderActive }) => (
   <button 
     onClick={onClick}
-    className={`flex-1 relative overflow-hidden group p-4 rounded-xl transition-all duration-300 border text-left
+    className={`flex-1 relative overflow-hidden group p-3 sm:p-4 rounded-xl transition-all duration-300 border text-left
       ${active 
-        ? `${bgActive} ${borderActive} shadow-sm` 
+        ? `${bgActive} ${borderActive} shadow-sm ring-1 ring-opacity-50` 
         : 'bg-white border-slate-100 hover:border-slate-300 hover:bg-slate-50'
       }`}
   >
@@ -40,7 +45,7 @@ const TabButton = ({ active, onClick, icon: Icon, label, count, colorClass, bgAc
       </span>
     </div>
     <div>
-      <p className={`text-sm font-medium ${active ? 'text-slate-800' : 'text-slate-500'}`}>{label}</p>
+      <p className={`text-xs sm:text-sm font-medium ${active ? 'text-slate-900 font-bold' : 'text-slate-500'}`}>{label}</p>
     </div>
   </button>
 );
@@ -52,15 +57,16 @@ export default function PortalCliente() {
   const [filtros, setFiltros] = useState({ numeroPedido: '', rota: '', dataEntregaInicio: '', dataEntregaFim: '', valorMin: '', valorMax: '' });
   const [filtrosCheques, setFiltrosCheques] = useState({ numeroCheque: '', banco: '', dataVencimentoInicio: '', dataVencimentoFim: '' });
 
-  const [abaPedidos, setAbaPedidos] = useState('aguardando'); 
+  const [abaPedidos, setAbaPedidos] = useState('producao'); // Padrão: Produção
   const [abaCheques, setAbaCheques] = useState('aVencer');
-  
-  // Novo Estado para Sub-aba de Pagos
   const [subAbaPagos, setSubAbaPagos] = useState('borderos');
 
   const [chequeDetalhe, setChequeDetalhe] = useState(null);
   const [showChequeModal, setShowChequeModal] = useState(false);
   const [showLiquidacaoModal, setShowLiquidacaoModal] = useState(false);
+  
+  // Estado para Modal de Borderô
+  const [borderoModal, setBorderoModal] = useState({ open: false, bordero: null });
 
   // Queries
   const { data: user } = useQuery({ queryKey: ['user'], queryFn: () => base44.auth.me() });
@@ -74,7 +80,7 @@ export default function PortalCliente() {
 
   // Filtros e Dados
   const meusPedidos = useMemo(() => {
-    if (!clienteData) return { aguardando: [], aPagar: [], pagos: [], cancelados: [], producao: [] };
+    if (!clienteData) return { producao: [], transito: [], aPagar: [], pagos: [], cancelados: [] };
     
     let list = pedidos.filter(p => p.cliente_codigo === clienteData.codigo);
     
@@ -84,7 +90,8 @@ export default function PortalCliente() {
     
     return {
       producao: list.filter(p => p.status === 'em_producao'),
-      aguardando: list.filter(p => p.status === 'aguardando'),
+      // Renomeado lógica: Aguardando/Em Trânsito ficam juntos na aba "Em Trânsito"
+      transito: list.filter(p => p.status === 'aguardando' || p.status === 'em_transito'),
       aPagar: list.filter(p => p.status === 'aberto' || p.status === 'parcial'),
       pagos: list.filter(p => p.status === 'pago'),
       cancelados: list.filter(p => p.status === 'cancelado')
@@ -93,7 +100,6 @@ export default function PortalCliente() {
 
   const meusBorderos = useMemo(() => {
     if (!clienteData) return [];
-    // Filtra borderôs que tenham o código do cliente
     return borderos.filter(b => b.cliente_codigo === clienteData.codigo);
   }, [borderos, clienteData]);
 
@@ -141,6 +147,15 @@ export default function PortalCliente() {
   const handleSolicitarAcesso = () => {
     const msg = encodeURIComponent(`Olá! Solicito acesso ao Portal. Email: ${user?.email}`);
     window.open(`https://wa.me/5511994931958?text=${msg}`, '_blank');
+  };
+
+  const handleViewBordero = (bordero) => {
+    setBorderoModal({ open: true, bordero });
+  };
+
+  const handleViewPedido = (pedido) => {
+      // Aqui você pode adicionar um modal de detalhes do pedido se quiser, ou expandir a linha
+      console.log("Ver pedido", pedido);
   };
 
   if (!clienteData) {
@@ -199,47 +214,11 @@ export default function PortalCliente() {
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-32 h-32 bg-purple-50 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110" />
             <div className="relative z-10">
-              <div className="flex items-center gap-2 mb-2 text-purple-600"><Clock className="w-5 h-5" /><span className="font-semibold text-sm uppercase tracking-wide">Passivo de Cheques (Semana)</span></div>
+              <div className="flex items-center gap-2 mb-2 text-purple-600"><Clock className="w-5 h-5" /><span className="font-semibold text-sm uppercase tracking-wide">Passivo Cheques (Semana)</span></div>
               <p className="text-3xl font-extrabold text-slate-900 tracking-tight mt-2">{formatCurrency(totais.passivoCheques)}</p>
               <p className="text-slate-400 text-xs mt-2">Vencendo esta semana + Devolvidos</p>
             </div>
           </div>
-        </div>
-
-        {/* 2. EM PRODUÇÃO (Full Width) */}
-        <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
-            <div className="absolute right-0 top-0 h-full w-1/3 bg-white/5 skew-x-12 transform translate-x-10" />
-            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
-                <div className="flex items-center gap-4">
-                    <div className="p-3 bg-white/10 rounded-xl backdrop-blur-sm">
-                        <Factory className="w-8 h-8 text-indigo-300" />
-                    </div>
-                    <div>
-                        <h3 className="text-xl font-bold">Em Produção</h3>
-                        <p className="text-slate-300 text-sm">Acompanhe o status de fabricação dos seus pedidos.</p>
-                    </div>
-                </div>
-                <div className="text-center md:text-right">
-                    <p className="text-3xl font-bold">{meusPedidos.producao.length}</p>
-                    <p className="text-xs text-slate-400 uppercase tracking-wider">Pedidos na Fábrica</p>
-                </div>
-            </div>
-            {/* Lista Resumida Produção */}
-            {meusPedidos.producao.length > 0 && (
-                <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {meusPedidos.producao.slice(0, 3).map(p => (
-                        <div key={p.id} className="bg-white/10 backdrop-blur-sm p-3 rounded-lg border border-white/10 flex justify-between items-center">
-                            <span className="font-mono">#{p.numero_pedido}</span>
-                            <Badge className="bg-indigo-500 hover:bg-indigo-600 border-0">Em Andamento</Badge>
-                        </div>
-                    ))}
-                    {meusPedidos.producao.length > 3 && (
-                        <div className="flex items-center justify-center text-sm text-slate-400">
-                            + {meusPedidos.producao.length - 3} outros...
-                        </div>
-                    )}
-                </div>
-            )}
         </div>
 
         {/* --- SEÇÃO DE PEDIDOS --- */}
@@ -256,38 +235,60 @@ export default function PortalCliente() {
             )}
           </div>
 
-          {/* Abas */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <TabButton active={abaPedidos === 'aguardando'} onClick={() => setAbaPedidos('aguardando')} icon={Package} label="Aguardando Entrega" count={meusPedidos.aguardando.length} colorClass="text-amber-500" bgActive="bg-amber-50" borderActive="border-amber-200" />
-            <TabButton active={abaPedidos === 'aPagar'} onClick={() => setAbaPedidos('aPagar')} icon={Clock} label="A Pagar" count={meusPedidos.aPagar.length} colorClass="text-red-500" bgActive="bg-red-50" borderActive="border-red-200" />
-            <TabButton active={abaPedidos === 'pagos'} onClick={() => setAbaPedidos('pagos')} icon={CheckCircle} label="Pagos" count={meusPedidos.pagos.length} colorClass="text-emerald-500" bgActive="bg-emerald-50" borderActive="border-emerald-200" />
-            <TabButton active={abaPedidos === 'cancelados'} onClick={() => setAbaPedidos('cancelados')} icon={XCircle} label="Cancelados" count={meusPedidos.cancelados.length} colorClass="text-slate-500" bgActive="bg-slate-100" borderActive="border-slate-200" />
+          {/* Abas de Navegação - NOVA ORDEM */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <TabButton 
+              active={abaPedidos === 'producao'} onClick={() => setAbaPedidos('producao')} 
+              icon={Factory} label="Em Produção" count={meusPedidos.producao.length} 
+              colorClass="text-indigo-500" bgActive="bg-indigo-50" borderActive="border-indigo-200" 
+            />
+            <TabButton 
+              active={abaPedidos === 'transito'} onClick={() => setAbaPedidos('transito')} 
+              icon={Truck} label="Em Trânsito" count={meusPedidos.transito.length} 
+              colorClass="text-amber-500" bgActive="bg-amber-50" borderActive="border-amber-200" 
+            />
+            <TabButton 
+              active={abaPedidos === 'aPagar'} onClick={() => setAbaPedidos('aPagar')} 
+              icon={Clock} label="A Pagar" count={meusPedidos.aPagar.length} 
+              colorClass="text-red-500" bgActive="bg-red-50" borderActive="border-red-200" 
+            />
+            <TabButton 
+              active={abaPedidos === 'pagos'} onClick={() => setAbaPedidos('pagos')} 
+              icon={CheckCircle} label="Pagos" count={meusPedidos.pagos.length} 
+              colorClass="text-emerald-500" bgActive="bg-emerald-50" borderActive="border-emerald-200" 
+            />
+            <TabButton 
+              active={abaPedidos === 'cancelados'} onClick={() => setAbaPedidos('cancelados')} 
+              icon={XCircle} label="Cancelados" count={meusPedidos.cancelados.length} 
+              colorClass="text-slate-500" bgActive="bg-slate-100" borderActive="border-slate-200" 
+            />
           </div>
 
           {/* CONTEÚDO DAS ABAS */}
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
             
-            {/* LÓGICA ESPECIAL PARA ABA PAGOS (SUB-SEÇÃO) */}
+            {/* LÓGICA ESPECIAL PARA ABA PAGOS */}
             {abaPedidos === 'pagos' ? (
                 <div className="p-4">
                     <Tabs value={subAbaPagos} onValueChange={setSubAbaPagos} className="w-full">
-                        <TabsList className="bg-slate-100 p-1 rounded-lg w-full sm:w-auto">
+                        <TabsList className="bg-slate-100 p-1 rounded-lg w-full sm:w-auto mb-4">
                             <TabsTrigger value="borderos" className="flex-1 sm:flex-none">📑 Borderôs (Agrupados)</TabsTrigger>
                             <TabsTrigger value="pedidos" className="flex-1 sm:flex-none">📦 Pedidos Individuais</TabsTrigger>
                         </TabsList>
 
-                        <div className="mt-4">
+                        <div className="mt-2">
                             {subAbaPagos === 'borderos' ? (
                                 meusBorderos.length > 0 ? (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                         {meusBorderos.map(b => (
-                                            <div key={b.id} className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-all bg-slate-50/50">
+                                            <div key={b.id} onClick={() => handleViewBordero(b)} className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-all bg-slate-50/50 cursor-pointer group">
                                                 <div className="flex justify-between items-start mb-2">
                                                     <Badge variant="outline" className="font-mono bg-white">#{b.numero_bordero}</Badge>
                                                     <span className="text-xs text-slate-500">{format(new Date(b.created_date), 'dd/MM/yyyy')}</span>
                                                 </div>
                                                 <p className="text-sm text-slate-600 mb-2">{b.pedidos_ids?.length || 0} pedidos vinculados</p>
                                                 <p className="text-lg font-bold text-emerald-600">{formatCurrency(b.valor_total)}</p>
+                                                <div className="mt-3 pt-3 border-t border-slate-100 flex justify-end"><Eye className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" /></div>
                                             </div>
                                         ))}
                                     </div>
@@ -331,7 +332,9 @@ export default function PortalCliente() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {meusPedidos[abaPedidos].length > 0 ? meusPedidos[abaPedidos].map(p => (
+                        {meusPedidos[abaPedidos].length > 0 ? meusPedidos[abaPedidos].map(p => {
+                            const diasAtraso = calcularDiasAtraso(p.data_entrega);
+                            return (
                             <TableRow key={p.id} className="hover:bg-slate-50/50">
                                 <TableCell className="text-sm text-slate-600">
                                     {p.data_entrega ? format(new Date(p.data_entrega), 'dd/MM/yyyy') : '-'}
@@ -347,14 +350,20 @@ export default function PortalCliente() {
                                 <TableCell className="text-center">
                                     <Badge className={cn(
                                         "text-xs",
-                                        p.status === 'aguardando' && "bg-amber-100 text-amber-700",
-                                        p.status === 'cancelado' && "bg-slate-100 text-slate-600"
+                                        abaPedidos === 'producao' && "bg-indigo-100 text-indigo-700",
+                                        abaPedidos === 'transito' && "bg-amber-100 text-amber-700",
+                                        abaPedidos === 'cancelados' && "bg-slate-100 text-slate-600",
+                                        diasAtraso > 0 && abaPedidos === 'aPagar' && "bg-red-100 text-red-700", // Atraso destaque
+                                        diasAtraso === 0 && abaPedidos === 'aPagar' && "bg-blue-50 text-blue-700"
                                     )}>
-                                        {p.status === 'aguardando' ? 'Aguardando' : p.status}
+                                        {diasAtraso > 0 && abaPedidos === 'aPagar' ? `${diasAtraso}d Atraso` : 
+                                         abaPedidos === 'producao' ? 'Em Produção' :
+                                         abaPedidos === 'transito' ? 'Em Trânsito' :
+                                         p.status}
                                     </Badge>
                                 </TableCell>
                             </TableRow>
-                        )) : (
+                        )}) : (
                             <TableRow>
                                 <TableCell colSpan={6} className="h-32 text-center text-slate-400">
                                     Nenhum pedido encontrado nesta categoria.
@@ -419,6 +428,15 @@ export default function PortalCliente() {
       <ModalContainer open={showLiquidacaoModal} onClose={() => setShowLiquidacaoModal(false)} title="Solicitar Liquidação" size="xl">
         <LiquidacaoSelfService pedidos={meusPedidos.aPagar} clienteCodigo={clienteData.codigo} clienteNome={clienteData.nome} onSuccess={() => { setShowLiquidacaoModal(false); toast.success('Solicitação enviada com sucesso!'); }} onCancel={() => setShowLiquidacaoModal(false)} />
       </ModalContainer>
+
+      {/* Modal de Detalhes do Borderô (NOVO) */}
+      <BorderoDetailsModal 
+        open={borderoModal.open} 
+        onClose={() => setBorderoModal({ open: false, bordero: null })} 
+        bordero={borderoModal.bordero} 
+        pedidos={pedidos} // Passando todos os pedidos para o modal filtrar
+      />
+
     </div>
   );
 }
