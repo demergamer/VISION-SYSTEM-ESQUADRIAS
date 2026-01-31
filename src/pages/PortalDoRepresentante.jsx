@@ -10,8 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { 
   Users, ShoppingCart, CreditCard, AlertCircle, 
   Search, Briefcase, LogOut, Loader2, 
-  ChevronDown, ChevronRight, MapPin, Truck, Eye, Wallet, DollarSign,
-  Lock, UserPlus, Edit, FileText, Building2, Mail, Package, CalendarClock
+  ChevronDown, ChevronRight, MapPin, Truck, Eye, Wallet, CalendarClock, DollarSign,
+  Lock, UserPlus, Edit, FileText, Building2, Mail, Package
 } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -19,7 +19,7 @@ import {
 import { format, differenceInDays, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 
-// Componentes Internos (MANTIDOS ORIGINAIS)
+// Componentes Internos
 import ModalContainer from "@/components/modals/ModalContainer";
 import SolicitarNovoCliente from "@/components/portais/SolicitarNovoCliente";
 import LiquidacaoSelfService from "@/components/portais/LiquidacaoSelfService";
@@ -40,7 +40,7 @@ const realizarLogout = () => {
 
 const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
-// --- COMPONENTE: WIDGET DE ESTATÍSTICA (MANTIDO) ---
+// --- COMPONENTE: WIDGET DE ESTATÍSTICA ---
 const StatWidget = ({ title, value, subtitle, icon: Icon, colorClass }) => (
   <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all duration-300">
     <div className="flex justify-between items-start mb-3">
@@ -56,7 +56,7 @@ const StatWidget = ({ title, value, subtitle, icon: Icon, colorClass }) => (
   </div>
 );
 
-// --- COMPONENTE: MODAL DE DETALHES (MANTIDO) ---
+// --- COMPONENTE: MODAL DE DETALHES ---
 const DetailsModal = ({ item, type, open, onOpenChange }) => {
   if (!item) return null;
 
@@ -109,12 +109,11 @@ const DetailsModal = ({ item, type, open, onOpenChange }) => {
   );
 };
 
-// --- COMPONENTE: VISÃO POR PEDIDOS ---
+// --- COMPONENTE: VISÃO POR PEDIDOS (ABA GERAL) ---
 const PedidosView = ({ pedidos, onViewDetails }) => {
   const [activeTab, setActiveTab] = useState('abertos');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Filtros
   const filtrarPorBusca = (lista) => {
     if (!searchTerm) return lista;
     return lista.filter(p => 
@@ -143,7 +142,6 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
 
   return (
     <div className="space-y-4">
-      {/* Barra de Ferramentas */}
       <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between bg-white rounded-2xl p-4 border border-slate-200">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full md:w-auto">
           <TabsList className="bg-slate-100 p-1 rounded-xl h-auto flex-wrap justify-start gap-2">
@@ -162,7 +160,6 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
           </TabsList>
         </Tabs>
 
-        {/* Busca */}
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <Input
@@ -174,20 +171,7 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
         </div>
       </div>
 
-      {/* Conteúdo das Abas */}
-      {activeTab === 'producao' ? (
-        <div className="text-center py-20 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-3xl border-2 border-dashed border-indigo-200">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-indigo-100 mb-4">
-            <Lock className="w-10 h-10 text-indigo-500" />
-          </div>
-          <h3 className="text-lg font-bold text-slate-800 mb-2">🏗️ Setor em Desenvolvimento</h3>
-          <p className="text-sm text-slate-600 max-w-md mx-auto">
-            Integração com o sistema de produção (PCP) em breve.
-            <br />
-            Acompanhe o status dos pedidos em fabricação diretamente aqui.
-          </p>
-        </div>
-      ) : pedidosExibidos.length > 0 ? (
+      {pedidosExibidos.length > 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
           <Table>
             <TableHeader className="bg-slate-50">
@@ -197,7 +181,6 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
                 <TableHead>Cliente</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
                 {activeTab === 'abertos' && <TableHead className="text-right">Saldo</TableHead>}
-                {activeTab === 'liquidados' && <TableHead>Borderô</TableHead>}
                 <TableHead className="text-center">Status</TableHead>
                 <TableHead className="text-center">Ação</TableHead>
               </TableRow>
@@ -207,7 +190,6 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
                 const hoje = new Date();
                 hoje.setHours(0,0,0,0);
                 const diasAtraso = p.data_entrega ? differenceInDays(hoje, parseISO(p.data_entrega)) : 0;
-                // AJUSTE: Atraso apenas se > 15 dias
                 const isAtrasado = (p.status === 'aberto' || p.status === 'parcial') && diasAtraso > 15;
 
                 return (
@@ -225,18 +207,11 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
                         </span>
                       </TableCell>
                     )}
-                    {activeTab === 'liquidados' && (
-                      <TableCell>
-                        {p.bordero_numero ? (
-                          <Badge variant="outline" className="font-mono">#{p.bordero_numero}</Badge>
-                        ) : '-'}
-                      </TableCell>
-                    )}
                     <TableCell className="text-center">
                       <Badge className={cn(
                         "text-xs",
                         p.status === 'pago' && "bg-emerald-100 text-emerald-700 hover:bg-emerald-100",
-                        isAtrasado && "bg-red-100 text-red-700 hover:bg-red-100", // PRIORIDADE PARA ATRASO
+                        isAtrasado && "bg-red-100 text-red-700 hover:bg-red-100",
                         !isAtrasado && p.status === 'aberto' && "bg-blue-100 text-blue-700 hover:bg-blue-100",
                         !isAtrasado && p.status === 'parcial' && "bg-amber-100 text-amber-700 hover:bg-amber-100",
                         (p.status === 'em_transito' || p.status === 'aguardando') && "bg-orange-100 text-orange-700 hover:bg-orange-100"
@@ -249,14 +224,8 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      <Button 
-                        size="sm" 
-                        variant="ghost"
-                        onClick={() => onViewDetails(p, 'pedido')}
-                        className="gap-1"
-                      >
-                        <Eye className="w-4 h-4" />
-                        Ver
+                      <Button size="sm" variant="ghost" onClick={() => onViewDetails(p, 'pedido')} className="gap-1">
+                        <Eye className="w-4 h-4" /> Ver
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -279,44 +248,32 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
 const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolicitarLiquidacao, onViewClientDetails, onEditClient, onInviteClient }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
-  // Cálculos do Cliente
   const totalDevendo = pedidos.reduce((acc, p) => acc + (p.saldo_restante || 0), 0);
   
-  // AJUSTE: Filtro de Atrasados (> 15 dias) para o Cliente
+  // Regra de atraso > 15 dias
   const pedidosAtrasados = pedidos.filter(p => {
     if ((p.status !== 'aberto' && p.status !== 'parcial') || !p.data_entrega) return false;
     const hoje = new Date();
     hoje.setHours(0,0,0,0);
-    return differenceInDays(hoje, parseISO(p.data_entrega)) > 15; // Regra de 15 dias
+    return differenceInDays(hoje, parseISO(p.data_entrega)) > 15; 
   });
   
   const temAtraso = pedidosAtrasados.length > 0;
-
-  // Filtros dos Pedidos
-  const pedidosEmProducao = pedidos.filter(p => p.status === 'em_producao');
-  // Ajuste para não duplicar visualmente (mas manter na lógica se necessário)
-  const pedidosAbertos = pedidos.filter(p => ['aberto', 'parcial'].includes(p.status)); 
   const pedidosEmTransito = pedidos.filter(p => ['em_transito', 'aguardando'].includes(p.status));
-  const pedidosPagos = pedidos.filter(p => p.status === 'pago');
-  const pedidosCancelados = pedidos.filter(p => p.status === 'cancelado');
-
   const chequesAVencer = cheques.filter(c => c.status === 'normal' && new Date(c.data_vencimento) >= new Date());
   const valorChequesAVencer = chequesAVencer.reduce((acc, c) => acc + (c.valor || 0), 0);
   const totalCreditos = creditos.filter(c => c.status === 'disponivel').reduce((acc, c) => acc + (c.valor || 0), 0);
+  
+  // Filtra apenas os pedidos ativos (não pagos/cancelados) para exibir na tabela interna
+  const pedidosAtivos = pedidos.filter(p => !['pago', 'cancelado'].includes(p.status));
 
   return (
     <div className={`mb-4 bg-white rounded-2xl border transition-all duration-300 ${isExpanded ? 'shadow-md border-blue-200 ring-1 ring-blue-100' : 'shadow-sm border-slate-100'}`}>
       
-      {/* CABEÇALHO DO CLIENTE (Clicável) */}
+      {/* CABEÇALHO DO CLIENTE */}
       <div className="p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div 
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-4 cursor-pointer flex-1 hover:opacity-80 transition-opacity"
-        >
-          <div className={cn(
-            "w-12 h-12 rounded-full flex items-center justify-center transition-colors shrink-0",
-            temAtraso ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-600"
-          )}>
+        <div onClick={() => setIsExpanded(!isExpanded)} className="flex items-center gap-4 cursor-pointer flex-1 hover:opacity-80 transition-opacity">
+          <div className={cn("w-12 h-12 rounded-full flex items-center justify-center transition-colors shrink-0", temAtraso ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-600")}>
             {temAtraso ? <AlertCircle className="w-6 h-6" /> : <Users className="w-6 h-6" />}
           </div>
           <div>
@@ -327,47 +284,12 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
             </div>
           </div>
         </div>
-
+        
         <div className="flex items-center gap-2">
-          {!cliente.email && (
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={(e) => { e.stopPropagation(); onInviteClient(cliente); }}
-              className="gap-2 bg-red-600 hover:bg-red-700 animate-pulse"
-            >
-              <Mail className="w-4 h-4" />
-              🚫 CONVIDE AGORA
-            </Button>
-          )}
-
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={(e) => { e.stopPropagation(); onViewClientDetails(cliente); }}
-            className="gap-1"
-          >
-            <Eye className="w-4 h-4" />
-            Ver
-          </Button>
-
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={(e) => { e.stopPropagation(); onEditClient(cliente); }}
-            className="gap-1"
-          >
-            <Edit className="w-4 h-4" />
-            Editar
-          </Button>
-
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setIsExpanded(!isExpanded)}
-          >
-            {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
-          </Button>
+          {!cliente.email && <Button size="sm" variant="destructive" onClick={(e) => {e.stopPropagation(); onInviteClient(cliente)}} className="gap-2 bg-red-600 hover:bg-red-700 animate-pulse"><Mail className="w-4 h-4" /> CONVIDE AGORA</Button>}
+          <Button size="sm" variant="outline" onClick={(e) => {e.stopPropagation(); onViewClientDetails(cliente)}} className="gap-1"><Eye className="w-4 h-4" /> Ver</Button>
+          <Button size="sm" variant="outline" onClick={(e) => {e.stopPropagation(); onEditClient(cliente)}} className="gap-1"><Edit className="w-4 h-4" /> Editar</Button>
+          <Button size="sm" variant="ghost" onClick={() => setIsExpanded(!isExpanded)}>{isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}</Button>
         </div>
       </div>
 
@@ -378,56 +300,83 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
           
           {/* TOTALIZADORES INDIVIDUAIS */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            
-            <div className={cn(
-              "border p-4 rounded-xl flex items-center gap-4",
-              totalDevendo > 0 ? "bg-red-50 border-red-100" : "bg-slate-50 border-slate-100"
-            )}>
-              <div className={cn("p-2 rounded-lg", totalDevendo > 0 ? "bg-red-100" : "bg-white")}>
-                <DollarSign className={cn("w-5 h-5", totalDevendo > 0 ? "text-red-600" : "text-slate-600")} />
-              </div>
-              <div>
-                <p className={cn("text-xs font-bold uppercase", totalDevendo > 0 ? "text-red-600" : "text-slate-500")}>
-                  Saldo Devedor
-                </p>
-                <p className="text-lg font-bold text-slate-800">{formatCurrency(totalDevendo)}</p>
-              </div>
+            <div className={cn("border p-4 rounded-xl flex items-center gap-4", totalDevendo > 0 ? "bg-red-50 border-red-100" : "bg-slate-50 border-slate-100")}>
+              <div className={cn("p-2 rounded-lg", totalDevendo > 0 ? "bg-red-100" : "bg-white")}><DollarSign className={cn("w-5 h-5", totalDevendo > 0 ? "text-red-600" : "text-slate-600")} /></div>
+              <div><p className={cn("text-xs font-bold uppercase", totalDevendo > 0 ? "text-red-600" : "text-slate-500")}>Saldo Devedor</p><p className="text-lg font-bold text-slate-800">{formatCurrency(totalDevendo)}</p></div>
             </div>
-
             <div className="bg-purple-50 border border-purple-100 p-4 rounded-xl flex items-center gap-4">
               <div className="bg-purple-100 p-2 rounded-lg"><CalendarClock className="w-5 h-5 text-purple-600" /></div>
-              <div>
-                <p className="text-xs text-purple-600 font-bold uppercase">Cheques a Vencer</p>
-                <p className="text-lg font-bold text-slate-800">{formatCurrency(valorChequesAVencer)}</p>
-              </div>
+              <div><p className="text-xs text-purple-600 font-bold uppercase">Cheques a Vencer</p><p className="text-lg font-bold text-slate-800">{formatCurrency(valorChequesAVencer)}</p></div>
             </div>
-            
             <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl flex items-center gap-4">
-              <div className="bg-emerald-100 p-2 rounded-lg"><Wallet className="w-5 h-5 text-emerald-600" /></div>
-              <div>
-                <p className="text-xs text-emerald-600 font-bold uppercase">Créditos Disponíveis</p>
-                <p className="text-lg font-bold text-slate-800">{formatCurrency(totalCreditos)}</p>
-              </div>
+               <div className="bg-emerald-100 p-2 rounded-lg"><Wallet className="w-5 h-5 text-emerald-600" /></div>
+               <div><p className="text-xs text-emerald-600 font-bold uppercase">Créditos Disponíveis</p><p className="text-lg font-bold text-slate-800">{formatCurrency(totalCreditos)}</p></div>
             </div>
-
             <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl flex items-center gap-4">
-              <div className="bg-amber-100 p-2 rounded-lg"><Truck className="w-5 h-5 text-amber-600" /></div>
-              <div>
-                <p className="text-xs text-amber-600 font-bold uppercase">Em Trânsito</p>
-                <p className="text-lg font-bold text-slate-800">{pedidosEmTransito.length} <span className="text-xs font-normal text-slate-500">pedidos</span></p>
-              </div>
+               <div className="bg-amber-100 p-2 rounded-lg"><Truck className="w-5 h-5 text-amber-600" /></div>
+               <div><p className="text-xs text-amber-600 font-bold uppercase">Em Trânsito</p><p className="text-lg font-bold text-slate-800">{pedidosEmTransito.length} <span className="text-xs font-normal text-slate-500">pedidos</span></p></div>
             </div>
           </div>
 
+          {/* --- AQUI ESTÁ A LISTA QUE FALTAVA --- */}
+          <div className="mb-4">
+            <h4 className="font-bold text-slate-700 mb-3 flex items-center gap-2">
+              <ShoppingCart className="w-4 h-4 text-blue-500" /> 
+              Pedidos do Cliente
+            </h4>
+            {pedidosAtivos.length > 0 ? (
+              <div className="border border-slate-200 rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader className="bg-slate-50">
+                    <TableRow>
+                      <TableHead>Pedido</TableHead>
+                      <TableHead>Data</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
+                      <TableHead className="text-right">Saldo</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pedidosAtivos.map(p => {
+                      const hoje = new Date();
+                      hoje.setHours(0,0,0,0);
+                      const diasAtraso = p.data_entrega ? differenceInDays(hoje, parseISO(p.data_entrega)) : 0;
+                      const isAtrasado = (p.status === 'aberto' || p.status === 'parcial') && diasAtraso > 15;
+                      
+                      return (
+                        <TableRow key={p.id} className="hover:bg-slate-50/50">
+                          <TableCell className="font-mono">#{p.numero_pedido}</TableCell>
+                          <TableCell>{p.data_entrega ? format(new Date(p.data_entrega), 'dd/MM/yyyy') : '-'}</TableCell>
+                          <TableCell className="text-right text-slate-600">{formatCurrency(p.valor_pedido)}</TableCell>
+                          <TableCell className="text-right font-bold text-slate-800">
+                             <span className={cn(isAtrasado ? "text-red-600" : "text-emerald-600")}>
+                               {formatCurrency(p.saldo_restante || 0)}
+                             </span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge className={cn("text-[10px]", isAtrasado ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700")}>
+                               {isAtrasado ? 'Atrasado' : 'Em Aberto'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                             <Button size="sm" variant="ghost" onClick={() => onViewDetails(p, 'pedido')}><Eye className="w-4 h-4 text-slate-400"/></Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+               <div className="text-center py-6 border border-dashed rounded-lg bg-slate-50">
+                 <p className="text-sm text-slate-500">Nenhum pedido em aberto ou trânsito.</p>
+               </div>
+            )}
+          </div>
+          
           <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button 
-                onClick={() => onSolicitarLiquidacao(cliente)}
-                disabled={pedidos.filter(p => ['aberto', 'parcial', 'aguardando'].includes(p.status)).length === 0}
-                className="bg-emerald-600 hover:bg-emerald-700"
-            >
-                <DollarSign className="w-4 h-4 mr-2" />
-                Solicitar Liquidação
-            </Button>
+            <Button onClick={() => onSolicitarLiquidacao(cliente)} disabled={pedidos.filter(p => ['aberto', 'parcial', 'aguardando'].includes(p.status)).length === 0} className="bg-emerald-600 hover:bg-emerald-700"><DollarSign className="w-4 h-4 mr-2" /> Solicitar Liquidação</Button>
           </div>
         </div>
       )}
@@ -479,13 +428,8 @@ export default function PainelRepresentante() {
   const { data: todosPedidos = [], refetch: refetchPedidos } = useQuery({ queryKey: ['pedidos', representante?.id], queryFn: () => base44.entities.Pedido.list(), enabled: !!representante });
   const { data: todosCheques = [] } = useQuery({ queryKey: ['cheques', representante?.id], queryFn: () => base44.entities.Cheque.list(), enabled: !!representante });
   const { data: todosCreditos = [] } = useQuery({ queryKey: ['creditos', representante?.id], queryFn: () => base44.entities.Credito.list(), enabled: !!representante });
-  const { data: todosBorderos = [] } = useQuery({ 
-    queryKey: ['borderos', representante?.id], 
-    queryFn: () => base44.entities.Bordero.list(), 
-    enabled: !!representante 
-  });
+  const { data: todosBorderos = [] } = useQuery({ queryKey: ['borderos', representante?.id], queryFn: () => base44.entities.Bordero.list(), enabled: !!representante });
 
-  // Meus Pedidos
   const meusPedidos = useMemo(() => {
     if (!representante) return [];
     return todosPedidos.filter(p => p.representante_codigo === representante.codigo);
@@ -507,15 +451,9 @@ export default function PainelRepresentante() {
   const meusClientes = useMemo(() => {
     if (!representante) return [];
     let clientes = todosClientes.filter(c => c.representante_codigo === representante.codigo);
-    
     if (searchTerm) {
-      clientes = clientes.filter(c => 
-        c.nome?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        c.codigo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.regiao?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      clientes = clientes.filter(c => c.nome?.toLowerCase().includes(searchTerm.toLowerCase()) || c.codigo?.toLowerCase().includes(searchTerm.toLowerCase()));
     }
-
     return clientes.map(c => ({
       ...c,
       pedidos: todosPedidos.filter(p => p.cliente_codigo === c.codigo),
@@ -524,217 +462,43 @@ export default function PainelRepresentante() {
     }));
   }, [representante, todosClientes, todosPedidos, todosCheques, todosCreditos, searchTerm]);
 
-  // KPIs COM AJUSTES (15 DIAS E SOMA DE SALDO)
   const stats = useMemo(() => {
     const clientesComVendas30k = meusClientes.filter(c => {
-      const totalVendas = c.pedidos
-        .filter(p => p.status !== 'cancelado')
-        .reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
+      const totalVendas = c.pedidos.filter(p => p.status !== 'cancelado').reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
       return totalVendas > 30000;
     }).length;
-
-    // AJUSTE: Soma do Saldo Restante, não do valor total
-    const totalVendasAbertas = meusPedidos
-      .filter(p => p.status === 'aberto' || p.status === 'parcial')
-      .reduce((sum, p) => sum + (p.saldo_restante !== undefined ? p.saldo_restante : (p.valor_pedido - (p.total_pago || 0))), 0);
-
-    const chequesTotal = todosCheques
-      .filter(c => meusClientes.some(cli => cli.codigo === c.cliente_codigo))
-      .reduce((sum, c) => sum + (c.valor || 0), 0);
-
-    return {
-      totalClientes: meusClientes.length,
-      clientes30k: clientesComVendas30k,
-      vendasAbertas: totalVendasAbertas,
-      carteiraCheques: chequesTotal
-    };
+    const totalVendasAbertas = meusPedidos.filter(p => p.status === 'aberto' || p.status === 'parcial').reduce((sum, p) => sum + (p.saldo_restante !== undefined ? p.saldo_restante : (p.valor_pedido - p.total_pago)), 0);
+    const chequesTotal = todosCheques.filter(c => meusClientes.some(cli => cli.codigo === c.cliente_codigo)).reduce((sum, c) => sum + (c.valor || 0), 0);
+    return { totalClientes: meusClientes.length, clientes30k: clientesComVendas30k, vendasAbertas: totalVendasAbertas, carteiraCheques: chequesTotal };
   }, [meusClientes, meusPedidos, todosCheques]);
 
-  const handleViewDetails = (item, type) => {
-    setDetailsModal({ open: true, item, type });
-  };
+  const handleViewDetails = (item, type) => { setDetailsModal({ open: true, item, type }); };
+  const handleSolicitarLiquidacao = (cliente) => { setClienteParaLiquidacao(cliente); setShowLiquidacaoModal(true); };
+  const handleViewClientDetails = (cliente) => { setClienteDetailsModal({ open: true, cliente }); };
+  const handleEditClient = (cliente) => { setEditClienteModal({ open: true, cliente }); };
+  const handleInviteClient = (cliente) => { setInviteClienteModal({ open: true, cliente }); };
+  const handleViewBordero = (bordero) => { setBorderoModal({ open: true, bordero }); };
 
-  const handleSolicitarLiquidacao = (cliente) => {
-    setClienteParaLiquidacao(cliente);
-    setShowLiquidacaoModal(true);
-  };
-
-  const handleViewClientDetails = (cliente) => {
-    setClienteDetailsModal({ open: true, cliente });
-  };
-
-  const handleEditClient = (cliente) => {
-    setEditClienteModal({ open: true, cliente });
-  };
-
-  const handleInviteClient = (cliente) => {
-    setInviteClienteModal({ open: true, cliente });
-  };
-
-  const handleViewBordero = (bordero) => {
-    setBorderoModal({ open: true, bordero });
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#F2F2F7] flex flex-col items-center justify-center">
-        <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" />
-        <p className="text-slate-500 font-medium">Carregando portal...</p>
-      </div>
-    );
-  }
-
-  if (!user || !representante) {
-    return (
-      <div className="min-h-screen bg-[#F2F2F7] flex items-center justify-center p-6">
-        <Card className="p-8 max-w-md text-center border-amber-200 bg-amber-50">
-          <AlertCircle className="w-12 h-12 text-amber-600 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-slate-800 mb-2">Acesso Restrito</h2>
-          <p className="text-slate-600 mb-4">Email não vinculado a um representante.</p>
-          <div className="flex justify-center gap-3">
-             <Button onClick={() => window.location.reload()} variant="outline" className="bg-white">Recarregar</Button>
-             <Button onClick={realizarLogout} variant="destructive">Sair</Button>
-          </div>
-        </Card>
-      </div>
-    );
-  }
+  if (loading) return <div className="min-h-screen bg-[#F2F2F7] flex flex-col items-center justify-center"><Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" /><p className="text-slate-500 font-medium">Carregando portal...</p></div>;
+  if (!user || !representante) return <div className="min-h-screen bg-[#F2F2F7] flex items-center justify-center p-6"><Card className="p-8 max-w-md text-center border-amber-200 bg-amber-50"><AlertCircle className="w-12 h-12 text-amber-600 mx-auto mb-4" /><h2 className="text-xl font-bold text-slate-800 mb-2">Acesso Restrito</h2><p className="text-slate-600 mb-4">Email não vinculado a um representante.</p><div className="flex justify-center gap-3"><Button onClick={() => window.location.reload()} variant="outline" className="bg-white">Recarregar</Button><Button onClick={realizarLogout} variant="destructive">Sair</Button></div></Card></div>;
 
   return (
     <div className="min-h-screen bg-[#F2F2F7] pb-20 font-sans text-slate-900">
-      
       <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-black/5 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Olá, <span className="text-blue-600">{representante.nome.split(' ')[0]}</span></h1>
-          <p className="text-sm text-slate-500 font-medium">Portal do Representante</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="relative w-full md:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input 
-              placeholder="Buscar Cliente..." 
-              value={searchTerm} 
-              onChange={(e) => setSearchTerm(e.target.value)} 
-              className="pl-10 rounded-full bg-slate-100 border-transparent focus:bg-white transition-all" 
-            />
-          </div>
-          <Button onClick={realizarLogout} variant="ghost" size="icon" className="rounded-full hover:bg-red-50 hover:text-red-600">
-            <LogOut className="w-5 h-5" />
-          </Button>
-        </div>
+        <div><h1 className="text-2xl font-bold tracking-tight text-slate-900">Olá, <span className="text-blue-600">{representante.nome.split(' ')[0]}</span></h1><p className="text-sm text-slate-500 font-medium">Portal do Representante</p></div>
+        <div className="flex items-center gap-3"><div className="relative w-full md:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><Input placeholder="Buscar Cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 rounded-full bg-slate-100 border-transparent focus:bg-white transition-all" /></div><Button onClick={realizarLogout} variant="ghost" size="icon" className="rounded-full hover:bg-red-50 hover:text-red-600"><LogOut className="w-5 h-5" /></Button></div>
       </div>
-
       <div className="max-w-[1600px] mx-auto p-6 md:p-8 space-y-8">
-        
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex flex-wrap gap-3">
-            <Button disabled={true} className="gap-2 bg-slate-300 text-slate-500 cursor-not-allowed opacity-60 shadow-none border-0">
-              <Lock className="w-4 h-4" /> 📋 Orçamento
-            </Button>
-            <Button onClick={() => setShowSolicitarClienteModal(true)} className="gap-2 bg-slate-600 hover:bg-slate-700">
-              <UserPlus className="w-4 h-4" /> 👤 Solicitar Cliente
-            </Button>
-            <Button onClick={() => setShowLiquidacaoGlobalModal(true)} className="gap-2 bg-emerald-600 hover:bg-emerald-700" disabled={meusPedidosAbertos.length === 0}>
-              <DollarSign className="w-4 h-4" /> 💰 Liquidação
-            </Button>
-            <Button onClick={() => setShowAutorizacoesModal(true)} className="gap-2 bg-blue-600 hover:bg-blue-700">
-              <FileText className="w-4 h-4" /> 📋 Minhas Autorizações
-            </Button>
-            <Button onClick={() => setShowComissaoModal(true)} className="gap-2 bg-purple-600 hover:bg-purple-700">
-              <Wallet className="w-4 h-4" /> 📊 Comissão
-            </Button>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-xl p-1 flex gap-1">
-            <Button variant={viewMode === 'clientes' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('clientes')} className={cn("rounded-lg h-9 gap-2", viewMode === 'clientes' && "bg-blue-600 hover:bg-blue-700 text-white shadow-sm")}>
-              <Building2 className="w-4 h-4" /> Clientes
-            </Button>
-            <Button variant={viewMode === 'pedidos' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('pedidos')} className={cn("rounded-lg h-9 gap-2", viewMode === 'pedidos' && "bg-blue-600 hover:bg-blue-700 text-white shadow-sm")}>
-              <Package className="w-4 h-4" /> Pedidos
-            </Button>
-            <Button variant={viewMode === 'borderos' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('borderos')} className={cn("rounded-lg h-9 gap-2", viewMode === 'borderos' && "bg-blue-600 hover:bg-blue-700 text-white shadow-sm")}>
-              <FileText className="w-4 h-4" /> Borderôs
-            </Button>
-          </div>
+          <div className="flex flex-wrap gap-3"><Button disabled={true} className="gap-2 bg-slate-300 text-slate-500 cursor-not-allowed opacity-60 shadow-none border-0"><Lock className="w-4 h-4" /> 📋 Orçamento</Button><Button onClick={() => setShowSolicitarClienteModal(true)} className="gap-2 bg-slate-600 hover:bg-slate-700"><UserPlus className="w-4 h-4" /> 👤 Solicitar Cliente</Button><Button onClick={() => setShowLiquidacaoGlobalModal(true)} className="gap-2 bg-emerald-600 hover:bg-emerald-700" disabled={meusPedidosAbertos.length === 0}><DollarSign className="w-4 h-4" /> 💰 Liquidação</Button><Button onClick={() => setShowAutorizacoesModal(true)} className="gap-2 bg-blue-600 hover:bg-blue-700"><FileText className="w-4 h-4" /> 📋 Minhas Autorizações</Button><Button onClick={() => setShowComissaoModal(true)} className="gap-2 bg-purple-600 hover:bg-purple-700"><Wallet className="w-4 h-4" /> 📊 Comissão</Button></div>
+          <div className="bg-white border border-slate-200 rounded-xl p-1 flex gap-1"><Button variant={viewMode === 'clientes' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('clientes')} className={cn("rounded-lg h-9 gap-2", viewMode === 'clientes' && "bg-blue-600 hover:bg-blue-700 text-white shadow-sm")}><Building2 className="w-4 h-4" /> Clientes</Button><Button variant={viewMode === 'pedidos' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('pedidos')} className={cn("rounded-lg h-9 gap-2", viewMode === 'pedidos' && "bg-blue-600 hover:bg-blue-700 text-white shadow-sm")}><Package className="w-4 h-4" /> Pedidos</Button><Button variant={viewMode === 'borderos' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('borderos')} className={cn("rounded-lg h-9 gap-2", viewMode === 'borderos' && "bg-blue-600 hover:bg-blue-700 text-white shadow-sm")}><FileText className="w-4 h-4" /> Borderôs</Button></div>
         </div>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatWidget title="Clientes na Carteira" value={stats.totalClientes} icon={Users} colorClass="bg-blue-500 shadow-blue-200" />
-          <StatWidget title="Clientes +30k" value={stats.clientes30k} subtitle="VIPs" icon={Briefcase} colorClass="bg-purple-500 shadow-purple-200" />
-          <StatWidget title="Vendas em Aberto" value={formatCurrency(stats.vendasAbertas)} icon={ShoppingCart} colorClass="bg-amber-500 shadow-amber-200" />
-          <StatWidget title="Custódia de Cheques" value={formatCurrency(stats.carteiraCheques)} icon={CreditCard} colorClass="bg-emerald-500 shadow-emerald-200" />
-        </div>
-
-        {viewMode === 'clientes' ? (
-          <div className="space-y-4">
-            <h2 className="text-lg font-bold text-slate-700 ml-2">Carteira de Clientes</h2>
-            {meusClientes.length > 0 ? (
-              meusClientes.map(cliente => (
-                <ClientRow key={cliente.id} cliente={cliente} pedidos={cliente.pedidos} cheques={cliente.cheques} creditos={cliente.creditos} onViewDetails={handleViewDetails} onSolicitarLiquidacao={handleSolicitarLiquidacao} onViewClientDetails={handleViewClientDetails} onEditClient={handleEditClient} onInviteClient={handleInviteClient} />
-              ))
-            ) : (
-              <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200">
-                <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                <p className="text-slate-500 font-medium">Nenhum cliente encontrado.</p>
-              </div>
-            )}
-          </div>
-        ) : viewMode === 'pedidos' ? (
-          <PedidosView pedidos={meusPedidos} onViewDetails={handleViewDetails} />
-        ) : (
-          <div className="space-y-4">
-            <h2 className="text-lg font-bold text-slate-700 ml-2">Borderôs de Liquidação</h2>
-            {meusBorderos.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {meusBorderos.map(bordero => (
-                  <div key={bordero.id} onClick={() => handleViewBordero(bordero)} className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-lg transition-all cursor-pointer group">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="p-2 rounded-lg bg-blue-100 text-blue-600"><FileText className="w-5 h-5" /></div>
-                        <div><p className="text-xs text-slate-500 font-bold uppercase">Borderô</p><p className="text-xl font-bold text-slate-800">#{bordero.numero_bordero}</p></div>
-                      </div>
-                      <Badge variant="outline">{bordero.tipo_liquidacao}</Badge>
-                    </div>
-                    {bordero.cliente_nome && <p className="text-sm font-medium text-slate-700 mb-2">{bordero.cliente_nome}</p>}
-                    <div className="pt-3 border-t border-slate-100">
-                      <div className="flex justify-between items-center"><span className="text-xs text-slate-500">Valor Total</span><span className="text-lg font-bold text-emerald-600">{formatCurrency(bordero.valor_total)}</span></div>
-                      <div className="flex justify-between items-center mt-1"><span className="text-xs text-slate-500">Pedidos</span><span className="text-sm font-medium text-slate-700">{bordero.pedidos_ids?.length || 0}</span></div>
-                      {bordero.created_date && <div className="flex justify-between items-center mt-1"><span className="text-xs text-slate-500">Data</span><span className="text-xs text-slate-600">{format(new Date(bordero.created_date), 'dd/MM/yyyy')}</span></div>}
-                    </div>
-                    <div className="mt-3 pt-3 border-t border-slate-100 flex justify-end"><Eye className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" /></div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200">
-                <FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                <p className="text-slate-500 font-medium">Nenhum borderô encontrado.</p>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"><StatWidget title="Clientes na Carteira" value={stats.totalClientes} icon={Users} colorClass="bg-blue-500 shadow-blue-200" /><StatWidget title="Clientes +30k" value={stats.clientes30k} subtitle="VIPs" icon={Briefcase} colorClass="bg-purple-500 shadow-purple-200" /><StatWidget title="Vendas em Aberto" value={formatCurrency(stats.vendasAbertas)} icon={ShoppingCart} colorClass="bg-amber-500 shadow-amber-200" /><StatWidget title="Custódia de Cheques" value={formatCurrency(stats.carteiraCheques)} icon={CreditCard} colorClass="bg-emerald-500 shadow-emerald-200" /></div>
+        {viewMode === 'clientes' ? (<div className="space-y-4"><h2 className="text-lg font-bold text-slate-700 ml-2">Carteira de Clientes</h2>{meusClientes.length > 0 ? (meusClientes.map(cliente => (<ClientRow key={cliente.id} cliente={cliente} pedidos={cliente.pedidos} cheques={cliente.cheques} creditos={cliente.creditos} onViewDetails={handleViewDetails} onSolicitarLiquidacao={handleSolicitarLiquidacao} onViewClientDetails={handleViewClientDetails} onEditClient={handleEditClient} onInviteClient={handleInviteClient} />))) : (<div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200"><Users className="w-12 h-12 text-slate-300 mx-auto mb-3" /><p className="text-slate-500 font-medium">Nenhum cliente encontrado.</p></div>)}</div>) : viewMode === 'pedidos' ? (<PedidosView pedidos={meusPedidos} onViewDetails={handleViewDetails} />) : (<div className="space-y-4"><h2 className="text-lg font-bold text-slate-700 ml-2">Borderôs de Liquidação</h2>{meusBorderos.length > 0 ? (<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{meusBorderos.map(bordero => (<div key={bordero.id} onClick={() => handleViewBordero(bordero)} className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-lg transition-all cursor-pointer group"><div className="flex items-start justify-between mb-3"><div className="flex items-center gap-2"><div className="p-2 rounded-lg bg-blue-100 text-blue-600"><FileText className="w-5 h-5" /></div><div><p className="text-xs text-slate-500 font-bold uppercase">Borderô</p><p className="text-xl font-bold text-slate-800">#{bordero.numero_bordero}</p></div></div><Badge variant="outline">{bordero.tipo_liquidacao}</Badge></div>{bordero.cliente_nome && <p className="text-sm font-medium text-slate-700 mb-2">{bordero.cliente_nome}</p>}<div className="pt-3 border-t border-slate-100"><div className="flex justify-between items-center"><span className="text-xs text-slate-500">Valor Total</span><span className="text-lg font-bold text-emerald-600">{formatCurrency(bordero.valor_total)}</span></div><div className="flex justify-between items-center mt-1"><span className="text-xs text-slate-500">Pedidos</span><span className="text-sm font-medium text-slate-700">{bordero.pedidos_ids?.length || 0}</span></div>{bordero.created_date && <div className="flex justify-between items-center mt-1"><span className="text-xs text-slate-500">Data</span><span className="text-xs text-slate-600">{format(new Date(bordero.created_date), 'dd/MM/yyyy')}</span></div>}</div><div className="mt-3 pt-3 border-t border-slate-100 flex justify-end"><Eye className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" /></div></div>))}</div>) : (<div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200"><FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" /><p className="text-slate-500 font-medium">Nenhum borderô encontrado.</p></div>)}</div>)}</div>
       <DetailsModal open={detailsModal.open} onOpenChange={(open) => setDetailsModal(prev => ({ ...prev, open }))} item={detailsModal.item} type={detailsModal.type} />
-      
-      <ModalContainer open={showSolicitarClienteModal} onClose={() => setShowSolicitarClienteModal(false)} title="Solicitar Cadastro de Cliente" description="Preencha os dados do novo cliente" size="lg">
-        <SolicitarNovoCliente representanteCodigo={representante?.codigo} onSuccess={() => { setShowSolicitarClienteModal(false); toast.success('Solicitação enviada!'); }} onCancel={() => setShowSolicitarClienteModal(false)} />
-      </ModalContainer>
-
-      <ModalContainer open={showLiquidacaoModal} onClose={() => { setShowLiquidacaoModal(false); setClienteParaLiquidacao(null); }} title="Solicitar Liquidação" description={clienteParaLiquidacao ? `Cliente: ${clienteParaLiquidacao.nome}` : ''} size="xl">
-        {clienteParaLiquidacao && (
-          <LiquidacaoSelfService 
-            pedidos={clienteParaLiquidacao.pedidos.filter(p => ['aberto', 'parcial', 'aguardando'].includes(p.status))} 
-            clienteCodigo={clienteParaLiquidacao.codigo} 
-            clienteNome={clienteParaLiquidacao.nome} 
-            onSuccess={() => { setShowLiquidacaoModal(false); setClienteParaLiquidacao(null); }} 
-            onCancel={() => { setShowLiquidacaoModal(false); setClienteParaLiquidacao(null); }} 
-          />
-        )}
-      </ModalContainer>
-
+      <ModalContainer open={showSolicitarClienteModal} onClose={() => setShowSolicitarClienteModal(false)} title="Solicitar Cadastro de Cliente" description="Preencha os dados do novo cliente" size="lg"><SolicitarNovoCliente representante={representante} onSuccess={() => { setShowSolicitarClienteModal(false); toast.success('Solicitação enviada!'); }} onCancel={() => setShowSolicitarClienteModal(false)} /></ModalContainer>
+      <ModalContainer open={showLiquidacaoModal} onClose={() => { setShowLiquidacaoModal(false); setClienteParaLiquidacao(null); }} title="Solicitar Liquidação" description={clienteParaLiquidacao ? `Cliente: ${clienteParaLiquidacao.nome}` : ''} size="xl">{clienteParaLiquidacao && (<LiquidacaoSelfService pedidos={clienteParaLiquidacao.pedidos.filter(p => ['aberto', 'parcial', 'aguardando'].includes(p.status))} clienteCodigo={clienteParaLiquidacao.codigo} clienteNome={clienteParaLiquidacao.nome} onSuccess={() => { setShowLiquidacaoModal(false); setClienteParaLiquidacao(null); }} onCancel={() => { setShowLiquidacaoModal(false); setClienteParaLiquidacao(null); }} />)}</ModalContainer>
       <NovaLiquidacaoRepresentante open={showLiquidacaoGlobalModal} onClose={() => setShowLiquidacaoGlobalModal(false)} pedidos={meusPedidosAbertos} onSuccess={() => { setShowLiquidacaoGlobalModal(false); refetchPedidos(); }} />
-
       <ClienteDetailsModal cliente={clienteDetailsModal.cliente} pedidos={clienteDetailsModal.cliente ? todosPedidos.filter(p => p.cliente_codigo === clienteDetailsModal.cliente.codigo) : []} cheques={clienteDetailsModal.cliente ? todosCheques.filter(c => c.cliente_codigo === clienteDetailsModal.cliente.codigo) : []} creditos={clienteDetailsModal.cliente ? todosCreditos.filter(c => c.cliente_codigo === clienteDetailsModal.cliente.codigo) : []} open={clienteDetailsModal.open} onClose={() => setClienteDetailsModal({ open: false, cliente: null })} />
       <EditClienteModal cliente={editClienteModal.cliente} open={editClienteModal.open} onClose={() => setEditClienteModal({ open: false, cliente: null })} onSuccess={() => { refetchClientes(); setEditClienteModal({ open: false, cliente: null }); }} />
       <ConviteClienteModal cliente={inviteClienteModal.cliente} open={inviteClienteModal.open} onClose={() => setInviteClienteModal({ open: false, cliente: null })} onSuccess={() => { refetchClientes(); setInviteClienteModal({ open: false, cliente: null }); }} />
@@ -742,7 +506,6 @@ export default function PainelRepresentante() {
       <SolicitarOrcamentoModal open={showOrcamentoModal} onClose={() => setShowOrcamentoModal(false)} clientes={meusClientes} representanteCodigo={representante?.codigo} representanteNome={representante?.nome} />
       <ComissaoModal open={showComissaoModal} onClose={() => setShowComissaoModal(false)} pedidos={meusPedidos} representante={representante} />
       <MinhasAutorizacoesModal open={showAutorizacoesModal} onClose={() => setShowAutorizacoesModal(false)} representanteLogado={representante} pedidosAbertos={meusPedidosAbertos} />
-
     </div>
   );
 }
