@@ -10,7 +10,7 @@ import {
   ShoppingCart, Plus, Search, RefreshCw, DollarSign, AlertTriangle,
   FileText, ArrowLeft, Filter, Upload, Truck, Clock, CheckCircle, XCircle,
   MoreHorizontal, LayoutGrid, List, MapPin, Calendar, Edit, Eye, RotateCcw,
-  SlidersHorizontal, X as XIcon, Loader2, Factory, Split, UserPlus
+  SlidersHorizontal, X as XIcon, Loader2, Factory, Split, UserPlus, AlertCircle
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -83,9 +83,9 @@ const FilterPanel = ({ filters, setFilters, onClear, isOpen }) => {
 };
 
 // --- WIDGETS ---
-const StatWidget = ({ title, value, icon: Icon, color }) => {
-  const colorStyles = { blue: "bg-blue-50 text-blue-600", red: "bg-red-50 text-red-600", yellow: "bg-amber-50 text-amber-600", purple: "bg-purple-50 text-purple-600", emerald: "bg-emerald-50 text-emerald-600", slate: "bg-slate-100 text-slate-600" };
-  return (<div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-start justify-between hover:shadow-md transition-all duration-300"><div><p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{title}</p><h3 className="text-2xl font-bold text-slate-800">{value}</h3></div><div className={`p-3 rounded-xl ${colorStyles[color] || colorStyles.slate}`}><Icon size={20} /></div></div>);
+const StatWidget = ({ title, value, icon: Icon, color, subtext }) => {
+  const colorStyles = { blue: "bg-blue-50 text-blue-600", red: "bg-red-50 text-red-600", yellow: "bg-amber-50 text-amber-600", purple: "bg-purple-50 text-purple-600", emerald: "bg-emerald-50 text-emerald-600", slate: "bg-slate-100 text-slate-600", orange: "bg-orange-50 text-orange-600" };
+  return (<div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-start justify-between hover:shadow-md transition-all duration-300 h-full"><div><p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{title}</p><h3 className="text-2xl font-bold text-slate-800">{value}</h3>{subtext && <p className="text-[10px] text-slate-400 mt-1">{subtext}</p>}</div><div className={`p-3 rounded-xl ${colorStyles[color] || colorStyles.slate}`}><Icon size={20} /></div></div>);
 };
 
 // Componente: Card de Pedido em Grade (Explorer)
@@ -182,20 +182,49 @@ export default function Pedidos() {
   const { data: borderos = [], isLoading: loadingBorderos, refetch: refetchBorderos } = useQuery({ queryKey: ['borderos'], queryFn: () => base44.entities.Bordero.list('-created_date') });
   const { data: liquidacoesPendentes = [], isLoading: loadingAutorizacoes, refetch: refetchAutorizacoes } = useQuery({ queryKey: ['liquidacoesPendentes'], queryFn: () => base44.entities.LiquidacaoPendente.list('-created_date') });
 
-  // --- STATS ---
+  // --- STATS (TOTALIZADORES CORRIGIDOS E EXPANDIDOS) ---
   const stats = useMemo(() => {
-    const transito = pedidos.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado').length;
-    const abertos = pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial').length;
+    // 1. Em Trânsito (Qtd)
+    const transitoCount = pedidos.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado').length;
+    
+    // 2. Abertos (Qtd)
+    const abertosCount = pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial').length;
+    
+    // 3. Total a Receber (R$)
     const totalAReceber = pedidos
         .filter(p => p.status === 'aberto' || p.status === 'parcial')
         .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
-    const autorizacoes = liquidacoesPendentes.filter(lp => lp.status === 'pendente').length;
+    
+    // 4. Autorizações Pendentes
+    const autorizacoesCount = liquidacoesPendentes.filter(lp => lp.status === 'pendente').length;
+
+    // 5. Rotas Ativas (CORREÇÃO: Apenas Pendentes ou Parciais)
+    const rotasAtivasCount = rotas.filter(r => r.status === 'pendente' || r.status === 'parcial').length;
+
+    // 6. [NOVO] Em Atraso > 15 dias (R$)
+    const hoje = new Date();
+    const totalVencido = pedidos
+        .filter(p => {
+            if ((p.status !== 'aberto' && p.status !== 'parcial') || !p.data_entrega) return false;
+            // Considera entregas confirmadas ou que tenham data passada
+            const dias = differenceInDays(hoje, new Date(p.data_entrega));
+            return dias > 15;
+        })
+        .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
+
+    // 7. [NOVO] Valor em Trânsito (R$)
+    const valorEmTransito = pedidos
+        .filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado')
+        .reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
+
     return { 
-        transito, 
-        abertos, 
-        autorizacoes, 
-        rotas: rotas.length,
-        totalAReceber
+        transitoCount, 
+        abertosCount, 
+        autorizacoesCount, 
+        rotasAtivasCount,
+        totalAReceber,
+        totalVencido,
+        valorEmTransito
     };
   }, [pedidos, liquidacoesPendentes, rotas]);
 
@@ -295,31 +324,18 @@ export default function Pedidos() {
     }
   };
   
-  // FUNÇÃO DE ATUALIZAÇÃO TURBINADA
+  // FUNÇÃO ATUALIZADA: Sincronização + Limpeza de Resíduos (Melhorada para float minúsculo)
   const handleRefresh = async () => {
     setRefreshingData(true);
-    setRefreshMessage('Iniciando varredura...');
-    
+    setRefreshMessage('Conectando ao banco de dados...');
     try {
-        setRefreshMessage('🧹 Limpando resíduos financeiros...');
-        let residuosLimpos = 0;
-        try {
-            const responseClean = await base44.functions.invoke('limparResiduos', {});
-            if (responseClean?.data?.success) {
-                residuosLimpos = responseClean.data.pedidos_limpos;
-            }
-        } catch (e) {
-            console.warn("Backend cleaning failed, skipping step.", e);
-        }
-
-        setRefreshMessage('📥 Baixando dados mais recentes...');
         const [latestPedidos, latestRotas, latestClientes] = await Promise.all([
             base44.entities.Pedido.list(),
             base44.entities.RotaImportada.list(),
             base44.entities.Cliente.list()
         ]);
 
-        setRefreshMessage('🔍 Verificando clientes pendentes...');
+        setRefreshMessage('Verificando clientes pendentes...');
         let clientesVinculados = 0;
         const pedidosPendentes = latestPedidos.filter(p => p.cliente_pendente === true);
         
@@ -354,13 +370,31 @@ export default function Pedidos() {
         });
         await Promise.all(promisesClientes.filter(Boolean));
 
-        setRefreshMessage(`🚚 Sincronizando ${latestRotas.length} rotas...`);
-        let routesUpdatedCount = 0;
-        
-        const pedidosAtualizados = latestPedidos;
+        // CORREÇÃO DOS RESÍDUOS: Usando parseFloat e checando > 0.0000001
+        setRefreshMessage('Analisando resíduos financeiros...');
+        let residuosLimpos = 0;
+        const promisesResiduos = latestPedidos
+            .filter(p => {
+                if (p.status !== 'aberto' && p.status !== 'parcial') return false;
+                const saldo = parseFloat(p.saldo_restante) || (parseFloat(p.valor_pedido) - parseFloat(p.total_pago));
+                // Pega qualquer coisa maior que zero (até 0.0000001) e menor ou igual a 0.10
+                return saldo > 0.000000001 && saldo <= 0.10;
+            })
+            .map(p => {
+                residuosLimpos++;
+                return base44.entities.Pedido.update(p.id, { 
+                    status: 'pago', 
+                    saldo_restante: 0, 
+                    total_pago: p.valor_pedido,
+                    outras_informacoes: (p.outras_informacoes || '') + '\n[AUTO] Baixa automática de resíduo < R$ 0,10'
+                });
+            });
+        await Promise.all(promisesResiduos);
 
+        setRefreshMessage(`Sincronizando ${latestRotas.length} rotas de entrega...`);
+        let routesUpdatedCount = 0;
         const updatePromises = latestRotas.map(rota => {
-            const pedidosDaRota = pedidosAtualizados.filter(p => p.rota_importada_id === rota.id);
+            const pedidosDaRota = latestPedidos.filter(p => p.rota_importada_id === rota.id);
             const total = pedidosDaRota.length;
             const confirmados = pedidosDaRota.filter(p => p.confirmado_entrega).length;
             
@@ -380,19 +414,19 @@ export default function Pedidos() {
         });
         await Promise.all(updatePromises.filter(Boolean));
 
-        setRefreshMessage('✅ Finalizando...');
+        setRefreshMessage('Finalizando atualizações...');
         await Promise.all([refetchPedidos(), refetchRotas(), refetchBorderos(), refetchAutorizacoes(), refetchClientes()]);
         
-        let msg = 'Tudo atualizado!';
-        if (residuosLimpos > 0) msg += `\n- ${residuosLimpos} resíduos baixados.`;
-        if (clientesVinculados > 0) msg += `\n- ${clientesVinculados} clientes vinculados automaticamente.`;
-        if (routesUpdatedCount > 0) msg += `\n- ${routesUpdatedCount} rotas sincronizadas.`;
+        let msg = 'Dados atualizados com sucesso!';
+        if (clientesVinculados > 0) msg += `\n👤 ${clientesVinculados} clientes vinculados.`;
+        if (residuosLimpos > 0) msg += `\n🧹 ${residuosLimpos} resíduos baixados.`;
+        if (routesUpdatedCount > 0) msg += `\n🚚 ${routesUpdatedCount} rotas sincronizadas.`;
         
-        toast.success(msg, { duration: 5000 });
+        toast.success(msg);
 
     } catch (error) {
         console.error(error);
-        toast.error('Erro na atualização: ' + error.message);
+        toast.error('Erro ao atualizar dados: ' + error.message);
     } finally {
         setRefreshingData(false);
         setRefreshMessage('Conectando...');
@@ -482,7 +516,6 @@ export default function Pedidos() {
 
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
-  // --- NOVA FUNÇÃO DE APROVAÇÃO (CORRIGIDA E BLINDADA) ---
   const handleAprovarSolicitacao = async (dadosAprovacao) => {
       console.log("Iniciando aprovação com:", dadosAprovacao);
       setIsProcessing(true);
@@ -494,7 +527,6 @@ export default function Pedidos() {
           const valorDevolucao = parseFloat(devolucao) || 0;
           const totalPago = parseFloat(totais.totalPago) || 0;
 
-          // 2. Criar Borderô
           const todosBorderos = await base44.entities.Bordero.list();
           const proximoNumeroBordero = todosBorderos.length > 0 ? Math.max(...todosBorderos.map(b => b.numero_bordero || 0)) + 1 : 1;
 
@@ -514,7 +546,6 @@ export default function Pedidos() {
               liquidado_por: user.email
           });
 
-          // 3. Atualizar Pedidos (Waterfall Logic)
           let devolucaoRestante = valorDevolucao;
           let descontoRestante = valorDesconto;
           let pagamentoRestante = totalPago;
@@ -562,14 +593,12 @@ export default function Pedidos() {
               });
           }
 
-          // 4. Atualizar Solicitação
           await base44.entities.LiquidacaoPendente.update(selectedAutorizacao.id, {
               status: 'aprovado',
               aprovado_por: user.email,
               data_aprovacao: new Date().toISOString()
           });
 
-          // 5. FECHAR MODAL ANTES DE RECARREGAR (Evita Crash de Tela Branca)
           setShowAutorizacaoModal(false);
           setSelectedAutorizacao(null); 
 
@@ -633,21 +662,23 @@ export default function Pedidos() {
             </div>
           </div>
 
-          {/* Widgets */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Widgets Grid Redesenhado */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             <StatWidget title="Total a Receber" value={formatCurrency(stats.totalAReceber)} icon={DollarSign} color="blue" />
-            <StatWidget title="Em Trânsito" value={stats.transito} icon={Truck} color="yellow" />
-            <StatWidget title="Abertos" value={stats.abertos} icon={FileText} color="purple" />
-            <StatWidget title="Rotas Ativas" value={stats.rotas} icon={Truck} color="slate" />
+            <StatWidget title="Em Atraso (+15d)" value={formatCurrency(stats.totalVencido)} icon={AlertCircle} color="red" subtext="Entregue e não pago" />
+            <StatWidget title="Em Trânsito (Qtd)" value={stats.transitoCount} icon={Truck} color="yellow" />
+            <StatWidget title="Valor em Trânsito" value={formatCurrency(stats.valorEmTransito)} icon={Truck} color="orange" />
+            <StatWidget title="Abertos" value={stats.abertosCount} icon={FileText} color="purple" />
+            <StatWidget title="Rotas Pendentes" value={stats.rotasAtivasCount} icon={Truck} color="slate" />
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <TabsList className="bg-slate-100 p-1 rounded-full border border-slate-200 h-auto flex-wrap justify-start">
                     <TabsTrigger value="producao" className="rounded-full gap-2 px-4"><Factory className="w-4 h-4 text-slate-500"/> Em Produção</TabsTrigger>
-                    <TabsTrigger value="transito" className="rounded-full gap-2 px-4"><Truck className="w-4 h-4 text-amber-500"/> Em Trânsito <span className="bg-amber-100 text-amber-700 px-2 rounded-full text-[10px]">{stats.transito}</span></TabsTrigger>
-                    <TabsTrigger value="abertos" className="rounded-full gap-2 px-4"><FileText className="w-4 h-4 text-blue-500"/> Abertos <span className="bg-blue-100 text-blue-700 px-2 rounded-full text-[10px]">{stats.abertos}</span></TabsTrigger>
-                    <TabsTrigger value="autorizacoes" className="rounded-full gap-2 px-4"><Clock className="w-4 h-4 text-orange-500"/> Autorizações {stats.autorizacoes > 0 && <span className="bg-orange-100 text-orange-700 px-2 rounded-full text-[10px]">{stats.autorizacoes}</span>}</TabsTrigger>
+                    <TabsTrigger value="transito" className="rounded-full gap-2 px-4"><Truck className="w-4 h-4 text-amber-500"/> Em Trânsito <span className="bg-amber-100 text-amber-700 px-2 rounded-full text-[10px]">{stats.transitoCount}</span></TabsTrigger>
+                    <TabsTrigger value="abertos" className="rounded-full gap-2 px-4"><FileText className="w-4 h-4 text-blue-500"/> Abertos <span className="bg-blue-100 text-blue-700 px-2 rounded-full text-[10px]">{stats.abertosCount}</span></TabsTrigger>
+                    <TabsTrigger value="autorizacoes" className="rounded-full gap-2 px-4"><Clock className="w-4 h-4 text-orange-500"/> Autorizações {stats.autorizacoesCount > 0 && <span className="bg-orange-100 text-orange-700 px-2 rounded-full text-[10px]">{stats.autorizacoesCount}</span>}</TabsTrigger>
                     <TabsTrigger value="liquidacoes" className="rounded-full gap-2 px-4"><CheckCircle className="w-4 h-4 text-emerald-500"/> Liquidações</TabsTrigger>
                     <TabsTrigger value="cancelados" className="rounded-full gap-2 px-4"><XIcon className="w-4 h-4 text-slate-400"/> Cancelados</TabsTrigger>
                     <div className="w-px h-6 bg-slate-300 mx-1 hidden sm:block" />
@@ -949,7 +980,7 @@ export default function Pedidos() {
                    // 1. Criar Cliente
                    const novoCliente = await base44.entities.Cliente.create(data);
                    
-                   // 2. Buscar TODOS os pedidos pendentes com esse nome
+                   // 2. Buscar TODOS os pedidos pendentes com esse nome (CORREÇÃO DE LÓGICA)
                    const nomeAlvo = pedidoParaCadastro.cliente_nome.trim().toLowerCase();
                    // Filtra todos os pedidos pendentes que tenham o nome similar
                    const pedidosParaVincular = pedidos.filter(p => 
