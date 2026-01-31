@@ -1,188 +1,245 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Wallet, TrendingUp, DollarSign, CheckCircle2, Clock } from "lucide-react";
+import { Wallet, TrendingUp, DollarSign, Clock, CheckCircle2, Search, CalendarDays, ArrowUpRight } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
 export default function ComissaoModal({ open, onClose, pedidos, representante }) {
-  const mesAtual = format(new Date(), 'yyyy-MM');
+  const [activeTab, setActiveTab] = useState('a_receber');
+  const [busca, setBusca] = useState('');
 
-  const comissaoMesAtual = useMemo(() => {
-    const pedidosPagos = pedidos.filter(p => 
+  // --- 1. SEGMENTAÇÃO DOS DADOS ---
+  const dados = useMemo(() => {
+    // A. COMISSÕES LIBERADAS (A RECEBER)
+    // Regra: Pedido está PAGO, mas a comissão ainda NÃO foi paga.
+    // Inclui o mês atual e resíduos de meses anteriores.
+    const liberadas = pedidos.filter(p => 
       p.status === 'pago' && 
-      p.mes_pagamento === mesAtual &&
       !p.comissao_paga
     );
 
-    const totalVendas = pedidosPagos.reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
-    const totalComissao = pedidosPagos.reduce((sum, p) => {
-      const percentual = p.porcentagem_comissao || 5;
-      return sum + (p.valor_pedido * percentual / 100);
-    }, 0);
+    // B. PROJEÇÃO (FUTURO)
+    // Regra: Pedidos em aberto, trânsito ou parciais.
+    // O cliente ainda não pagou, logo a comissão é apenas uma previsão.
+    const futuras = pedidos.filter(p => 
+      ['aberto', 'parcial', 'aguardando', 'em_transito'].includes(p.status)
+    );
+
+    // C. HISTÓRICO (JÁ RECEBIDAS)
+    // Regra: Comissão já foi marcada como paga.
+    const recebidas = pedidos.filter(p => p.comissao_paga === true);
+
+    // Função auxiliar de totais
+    const calcTotal = (lista) => lista.reduce((acc, p) => acc + (p.valor_pedido * (p.porcentagem_comissao || 5) / 100), 0);
+    const calcVendas = (lista) => lista.reduce((acc, p) => acc + (p.valor_pedido || 0), 0);
 
     return {
-      pedidos: pedidosPagos,
-      totalVendas,
-      totalComissao,
-      qtdPedidos: pedidosPagos.length
+      liberadas,
+      totalLiberado: calcTotal(liberadas),
+      vendasLiberadas: calcVendas(liberadas),
+      
+      futuras,
+      totalFuturo: calcTotal(futuras),
+      vendasFuturas: calcVendas(futuras),
+      
+      recebidas,
+      totalRecebido: calcTotal(recebidas),
     };
-  }, [pedidos, mesAtual]);
+  }, [pedidos]);
 
-  const comissoesPendentes = useMemo(() => {
-    return pedidos.filter(p => 
-      p.status === 'pago' && 
-      !p.comissao_paga &&
-      p.mes_pagamento !== mesAtual
+  // --- 2. FILTRAGEM DA TABELA (BUSCA) ---
+  const listaExibida = useMemo(() => {
+    let listaAlvo = [];
+    switch (activeTab) {
+      case 'a_receber': listaAlvo = dados.liberadas; break;
+      case 'futuras': listaAlvo = dados.futuras; break;
+      case 'historico': listaAlvo = dados.recebidas; break;
+      default: listaAlvo = [];
+    }
+
+    if (!busca) return listaAlvo;
+
+    const termo = busca.toLowerCase();
+    return listaAlvo.filter(p => 
+      p.numero_pedido?.toLowerCase().includes(termo) ||
+      p.cliente_nome?.toLowerCase().includes(termo)
     );
-  }, [pedidos, mesAtual]);
+  }, [dados, activeTab, busca]);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-xl">
-            <Wallet className="w-5 h-5 text-emerald-600" />
-            Resumo de Comissões
-          </DialogTitle>
-          <DialogDescription>
-            {representante?.nome} - {format(new Date(), 'MMMM/yyyy')}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-hidden flex flex-col">
-          {/* Cards de Resumo */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 border-b">
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-4">
-              <div className="flex items-center gap-2 text-blue-700 mb-2">
-                <TrendingUp className="w-5 h-5" />
-                <span className="text-xs font-bold uppercase">Total Vendas</span>
-              </div>
-              <p className="text-2xl font-bold text-blue-800">{formatCurrency(comissaoMesAtual.totalVendas)}</p>
-              <p className="text-xs text-blue-600 mt-1">{comissaoMesAtual.qtdPedidos} pedidos</p>
+      <DialogContent className="max-w-5xl max-h-[90vh] h-[90vh] flex flex-col p-0 overflow-hidden">
+        
+        {/* CABEÇALHO */}
+        <DialogHeader className="px-6 py-5 border-b border-slate-100 bg-white">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <DialogTitle className="flex items-center gap-2 text-xl font-bold text-slate-800">
+                <Wallet className="w-6 h-6 text-purple-600" />
+                Painel de Comissões
+              </DialogTitle>
+              <DialogDescription>
+                Resumo financeiro de {representante?.nome}
+              </DialogDescription>
             </div>
-
-            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 rounded-xl p-4">
-              <div className="flex items-center gap-2 text-emerald-700 mb-2">
-                <DollarSign className="w-5 h-5" />
-                <span className="text-xs font-bold uppercase">Comissão</span>
+            
+            {/* CARDS DE RESUMO (Topo) */}
+            <div className="flex gap-4">
+              <div className={cn(
+                "px-4 py-2 rounded-xl border transition-all",
+                activeTab === 'a_receber' ? "bg-emerald-50 border-emerald-200 ring-1 ring-emerald-100" : "bg-slate-50 border-slate-100 opacity-60"
+              )}>
+                <p className="text-[10px] font-bold text-emerald-600 uppercase flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> Disponível
+                </p>
+                <p className="text-xl font-bold text-emerald-700">{formatCurrency(dados.totalLiberado)}</p>
               </div>
-              <p className="text-2xl font-bold text-emerald-800">{formatCurrency(comissaoMesAtual.totalComissao)}</p>
-              <p className="text-xs text-emerald-600 mt-1">Mês atual</p>
-            </div>
 
-            <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-xl p-4">
-              <div className="flex items-center gap-2 text-amber-700 mb-2">
-                <Clock className="w-5 h-5" />
-                <span className="text-xs font-bold uppercase">Pendentes</span>
+              <div className={cn(
+                "px-4 py-2 rounded-xl border transition-all",
+                activeTab === 'futuras' ? "bg-amber-50 border-amber-200 ring-1 ring-amber-100" : "bg-slate-50 border-slate-100 opacity-60"
+              )}>
+                <p className="text-[10px] font-bold text-amber-600 uppercase flex items-center gap-1">
+                  <TrendingUp className="w-3 h-3" /> Projeção
+                </p>
+                <p className="text-xl font-bold text-amber-700">{formatCurrency(dados.totalFuturo)}</p>
               </div>
-              <p className="text-2xl font-bold text-amber-800">{comissoesPendentes.length}</p>
-              <p className="text-xs text-amber-600 mt-1">Pedidos anteriores</p>
             </div>
           </div>
+        </DialogHeader>
 
-          {/* Tabela de Pedidos */}
-          <ScrollArea className="flex-1 p-4">
-            <div className="space-y-6">
-              {/* Pedidos do Mês Atual */}
-              <div>
-                <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                  Pedidos do Mês Atual ({comissaoMesAtual.pedidos.length})
-                </h3>
-                {comissaoMesAtual.pedidos.length > 0 ? (
-                  <div className="border rounded-lg overflow-hidden">
-                    <Table>
-                      <TableHeader className="bg-slate-50">
-                        <TableRow>
-                          <TableHead>Pedido</TableHead>
-                          <TableHead>Cliente</TableHead>
-                          <TableHead>Data Pag.</TableHead>
-                          <TableHead className="text-right">Valor Pedido</TableHead>
-                          <TableHead className="text-center">%</TableHead>
-                          <TableHead className="text-right">Comissão</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {comissaoMesAtual.pedidos.map(p => {
-                          const percentual = p.porcentagem_comissao || 5;
-                          const comissao = p.valor_pedido * percentual / 100;
-                          return (
-                            <TableRow key={p.id}>
-                              <TableCell className="font-mono font-medium">#{p.numero_pedido}</TableCell>
-                              <TableCell>{p.cliente_nome}</TableCell>
-                              <TableCell className="text-sm">
-                                {p.data_pagamento ? format(new Date(p.data_pagamento), 'dd/MM/yyyy') : '-'}
-                              </TableCell>
-                              <TableCell className="text-right text-slate-600">{formatCurrency(p.valor_pedido)}</TableCell>
-                              <TableCell className="text-center">
-                                <Badge variant="outline">{percentual}%</Badge>
-                              </TableCell>
-                              <TableCell className="text-right font-bold text-emerald-600">
-                                {formatCurrency(comissao)}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                ) : (
-                  <div className="text-center py-8 bg-slate-50 rounded-lg border border-dashed border-slate-200">
-                    <p className="text-slate-500">Nenhum pedido pago este mês.</p>
-                  </div>
-                )}
-              </div>
+        {/* CONTROLES E ABAS */}
+        <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex flex-col gap-4">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full md:w-auto">
+                    <TabsList className="bg-white border border-slate-200 p-1 rounded-lg h-auto">
+                        <TabsTrigger value="a_receber" className="gap-2 data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700">
+                            <DollarSign className="w-4 h-4" /> A Receber <Badge className="ml-1 bg-emerald-200 text-emerald-800 hover:bg-emerald-200">{dados.liberadas.length}</Badge>
+                        </TabsTrigger>
+                        <TabsTrigger value="futuras" className="gap-2 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700">
+                            <Clock className="w-4 h-4" /> Futuras (Em Aberto) <Badge className="ml-1 bg-amber-200 text-amber-800 hover:bg-amber-200">{dados.futuras.length}</Badge>
+                        </TabsTrigger>
+                        <TabsTrigger value="historico" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+                            <CalendarDays className="w-4 h-4" /> Histórico Pago
+                        </TabsTrigger>
+                    </TabsList>
+                </Tabs>
 
-              {/* Pedidos Pendentes de Meses Anteriores */}
-              {comissoesPendentes.length > 0 && (
-                <div>
-                  <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
-                    <Clock className="w-5 h-5 text-amber-600" />
-                    Comissões Pendentes ({comissoesPendentes.length})
-                  </h3>
-                  <div className="border rounded-lg overflow-hidden">
-                    <Table>
-                      <TableHeader className="bg-amber-50">
-                        <TableRow>
-                          <TableHead>Pedido</TableHead>
-                          <TableHead>Cliente</TableHead>
-                          <TableHead>Mês Pag.</TableHead>
-                          <TableHead className="text-right">Valor</TableHead>
-                          <TableHead className="text-right">Comissão</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {comissoesPendentes.map(p => {
-                          const percentual = p.porcentagem_comissao || 5;
-                          const comissao = p.valor_pedido * percentual / 100;
-                          return (
-                            <TableRow key={p.id}>
-                              <TableCell className="font-mono font-medium">#{p.numero_pedido}</TableCell>
-                              <TableCell>{p.cliente_nome}</TableCell>
-                              <TableCell>{p.mes_pagamento || '-'}</TableCell>
-                              <TableCell className="text-right text-slate-600">{formatCurrency(p.valor_pedido)}</TableCell>
-                              <TableCell className="text-right font-bold text-amber-600">
-                                {formatCurrency(comissao)}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
+                <div className="relative w-full md:w-64">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Input 
+                        placeholder="Filtrar pedidos..." 
+                        value={busca}
+                        onChange={(e) => setBusca(e.target.value)}
+                        className="pl-9 bg-white border-slate-200 focus:bg-white"
+                    />
                 </div>
-              )}
             </div>
-          </ScrollArea>
+            
+            {/* Aviso de Contexto */}
+            <div className="text-xs text-slate-500 flex items-center gap-2">
+                {activeTab === 'a_receber' && (
+                    <>ℹ️ Exibindo pedidos <b>PAGOS</b> pelo cliente (Mês atual + Atrasados) com comissão pendente.</>
+                )}
+                {activeTab === 'futuras' && (
+                    <>ℹ️ Exibindo pedidos <b>EM ABERTO</b>. Valores sujeitos a alteração até o pagamento.</>
+                )}
+                {activeTab === 'historico' && (
+                    <>ℹ️ Exibindo comissões que <b>JÁ FORAM PAGAS</b> a você.</>
+                )}
+            </div>
         </div>
 
-        <div className="border-t p-4 text-xs text-slate-500 text-center">
-          ℹ️ As comissões são calculadas sobre os pedidos pagos. O fechamento oficial é feito pela administração.
+        {/* TABELA COM SCROLL */}
+        <div className="flex-1 bg-white overflow-hidden flex flex-col">
+            <ScrollArea className="flex-1">
+                <div className="min-w-[800px]"> {/* Garante largura mínima para não quebrar colunas */}
+                    <Table>
+                        <TableHeader className="bg-slate-50 sticky top-0 z-10 shadow-sm">
+                            <TableRow>
+                                <TableHead className="w-[100px]">Pedido</TableHead>
+                                <TableHead>Cliente</TableHead>
+                                <TableHead>
+                                    {activeTab === 'futuras' ? 'Previsão Entrega' : 'Data Pagamento'}
+                                </TableHead>
+                                <TableHead className="text-right">Valor Venda</TableHead>
+                                <TableHead className="text-center">%</TableHead>
+                                <TableHead className="text-right">
+                                    {activeTab === 'historico' ? 'Comissão Paga' : 'Comissão Prevista'}
+                                </TableHead>
+                                <TableHead className="text-center w-[120px]">Status Pedido</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {listaExibida.length > 0 ? listaExibida.map(p => {
+                                const percentual = p.porcentagem_comissao || 5;
+                                const valorComissao = (p.valor_pedido || 0) * percentual / 100;
+                                const dataRef = activeTab === 'futuras' ? p.data_entrega : p.data_pagamento;
+                                
+                                return (
+                                    <TableRow key={p.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100">
+                                        <TableCell className="font-mono font-medium text-slate-700">
+                                            #{p.numero_pedido}
+                                        </TableCell>
+                                        <TableCell className="font-medium text-slate-800">
+                                            {p.cliente_nome}
+                                        </TableCell>
+                                        <TableCell className="text-slate-500 text-sm">
+                                            {dataRef ? format(new Date(dataRef), 'dd/MM/yyyy') : '-'}
+                                        </TableCell>
+                                        <TableCell className="text-right text-slate-600">
+                                            {formatCurrency(p.valor_pedido)}
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                            <Badge variant="secondary" className="font-normal bg-slate-100 text-slate-600">
+                                                {percentual}%
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell className={cn("text-right font-bold", 
+                                            activeTab === 'a_receber' ? "text-emerald-600" : 
+                                            activeTab === 'futuras' ? "text-amber-600" : "text-blue-600"
+                                        )}>
+                                            {formatCurrency(valorComissao)}
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                            <Badge variant="outline" className={cn(
+                                                "text-[10px] font-normal border",
+                                                p.status === 'pago' ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                                                p.status === 'cancelado' ? "bg-slate-50 text-slate-500 border-slate-200" :
+                                                "bg-blue-50 text-blue-700 border-blue-200"
+                                            )}>
+                                                {p.status === 'pago' ? 'Pago' : 
+                                                 p.status === 'cancelado' ? 'Cancelado' : 'Aberto'}
+                                            </Badge>
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            }) : (
+                                <TableRow>
+                                    <TableCell colSpan={7} className="h-32 text-center text-slate-400">
+                                        Nenhum registro encontrado nesta categoria.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </ScrollArea>
         </div>
+
+        {/* RODAPÉ */}
+        <div className="border-t border-slate-200 p-4 bg-slate-50 flex justify-end">
+          <Button variant="outline" onClick={onClose}>Fechar</Button>
+        </div>
+
       </DialogContent>
     </Dialog>
   );
