@@ -11,7 +11,7 @@ import {
   Users, ShoppingCart, CreditCard, AlertCircle, 
   Search, Briefcase, LogOut, Loader2, 
   ChevronDown, ChevronRight, MapPin, Truck, Eye, Wallet, CalendarClock, DollarSign,
-  Lock, UserPlus, Edit, FileText, Building2, Mail, Package
+  Lock, UserPlus, Edit, FileText, Building2, Mail, Package, Factory
 } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -77,7 +77,6 @@ const DetailsModal = ({ item, type, open, onOpenChange }) => {
           </DialogTitle>
           <DialogDescription>{getTitle()}</DialogDescription>
         </DialogHeader>
-        
         <div className="overflow-y-auto flex-1 px-6 pb-6 bg-slate-50 rounded-xl border mx-6" style={{ scrollbarWidth: 'auto', scrollbarColor: '#888 #f1f1f1' }}>
           <div className="space-y-4 pt-4">
             {Object.entries(item).map(([key, value]) => {
@@ -93,7 +92,6 @@ const DetailsModal = ({ item, type, open, onOpenChange }) => {
                 </div>
               )
             })}
-            
             {type === 'pedido' && item.itens && (
               <div className="mt-6">
                 <h4 className="font-bold text-slate-800 mb-2">Itens do Pedido</h4>
@@ -142,6 +140,7 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
 
   return (
     <div className="space-y-4">
+      {/* Barra de Ferramentas */}
       <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between bg-white rounded-2xl p-4 border border-slate-200">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full md:w-auto">
           <TabsList className="bg-slate-100 p-1 rounded-xl h-auto flex-wrap justify-start gap-2">
@@ -159,7 +158,6 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
             </TabsTrigger>
           </TabsList>
         </Tabs>
-
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <Input
@@ -181,6 +179,7 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
                 <TableHead>Cliente</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
                 {activeTab === 'abertos' && <TableHead className="text-right">Saldo</TableHead>}
+                {activeTab === 'liquidados' && <TableHead>Borderô</TableHead>}
                 <TableHead className="text-center">Status</TableHead>
                 <TableHead className="text-center">Ação</TableHead>
               </TableRow>
@@ -207,6 +206,13 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
                         </span>
                       </TableCell>
                     )}
+                    {activeTab === 'liquidados' && (
+                      <TableCell>
+                        {p.bordero_numero ? (
+                          <Badge variant="outline" className="font-mono">#{p.bordero_numero}</Badge>
+                        ) : '-'}
+                      </TableCell>
+                    )}
                     <TableCell className="text-center">
                       <Badge className={cn(
                         "text-xs",
@@ -224,9 +230,7 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      <Button size="sm" variant="ghost" onClick={() => onViewDetails(p, 'pedido')} className="gap-1">
-                        <Eye className="w-4 h-4" /> Ver
-                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => onViewDetails(p, 'pedido')} className="gap-1"><Eye className="w-4 h-4" /> Ver</Button>
                     </TableCell>
                   </TableRow>
                 );
@@ -244,33 +248,114 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
   );
 };
 
-// --- COMPONENTE: LINHA DO CLIENTE EXPANSÍVEL ---
+// --- COMPONENTE: LINHA DO CLIENTE EXPANSÍVEL (ATUALIZADA COM SUBNÍVEIS) ---
 const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolicitarLiquidacao, onViewClientDetails, onEditClient, onInviteClient }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [innerTab, setInnerTab] = useState('abertos');
   
-  const totalDevendo = pedidos.reduce((acc, p) => acc + (p.saldo_restante || 0), 0);
+  // 1. Cálculos de Filtros
+  const hoje = new Date();
+  hoje.setHours(0,0,0,0);
+
+  const pedidosProducao = pedidos.filter(p => p.status === 'em_producao');
+  const pedidosTransito = pedidos.filter(p => ['em_transito', 'aguardando'].includes(p.status));
+  const pedidosPagos = pedidos.filter(p => p.status === 'pago');
   
-  // Regra de atraso > 15 dias
+  // Regra > 15 dias
   const pedidosAtrasados = pedidos.filter(p => {
     if ((p.status !== 'aberto' && p.status !== 'parcial') || !p.data_entrega) return false;
-    const hoje = new Date();
-    hoje.setHours(0,0,0,0);
     return differenceInDays(hoje, parseISO(p.data_entrega)) > 15; 
   });
   
+  // Aberto = Aberto/Parcial E NÃO Atrasado
+  const pedidosAbertos = pedidos.filter(p => 
+    (['aberto', 'parcial'].includes(p.status)) && 
+    !pedidosAtrasados.some(pa => pa.id === p.id)
+  );
+
+  const creditosDisponiveis = creditos.filter(c => c.status === 'disponivel');
+  const chequesDisponiveis = cheques.filter(c => c.status === 'normal');
+
+  // Cálculos Financeiros
+  const totalDevendo = pedidos.reduce((acc, p) => acc + (p.saldo_restante || 0), 0);
   const temAtraso = pedidosAtrasados.length > 0;
-  const pedidosEmTransito = pedidos.filter(p => ['em_transito', 'aguardando'].includes(p.status));
-  const chequesAVencer = cheques.filter(c => c.status === 'normal' && new Date(c.data_vencimento) >= new Date());
-  const valorChequesAVencer = chequesAVencer.reduce((acc, c) => acc + (c.valor || 0), 0);
-  const totalCreditos = creditos.filter(c => c.status === 'disponivel').reduce((acc, c) => acc + (c.valor || 0), 0);
   
-  // Filtra apenas os pedidos ativos (não pagos/cancelados) para exibir na tabela interna
-  const pedidosAtivos = pedidos.filter(p => !['pago', 'cancelado'].includes(p.status));
+  // Função para renderizar tabela condicional
+  const renderTable = () => {
+    let data = [];
+    let type = 'pedido';
+
+    switch(innerTab) {
+        case 'producao': data = pedidosProducao; break;
+        case 'transito': data = pedidosTransito; break;
+        case 'abertos': data = pedidosAbertos; break;
+        case 'atrasados': data = pedidosAtrasados; break;
+        case 'finalizados': data = pedidosPagos; break;
+        case 'creditos': data = creditosDisponiveis; type = 'credito'; break;
+        case 'cheques': data = chequesDisponiveis; type = 'cheque'; break;
+        default: data = [];
+    }
+
+    if (data.length === 0) {
+        return <div className="text-center py-6 text-slate-400 bg-slate-50 rounded-lg border border-dashed">Nenhum item nesta categoria.</div>;
+    }
+
+    return (
+        <div className="rounded-lg border border-slate-200 overflow-hidden">
+            <Table>
+                <TableHeader className="bg-slate-50">
+                    <TableRow>
+                        <TableHead>{type === 'pedido' ? 'Pedido' : type === 'cheque' ? 'Cheque' : 'Ref.'}</TableHead>
+                        <TableHead>Data</TableHead>
+                        <TableHead className="text-right">Valor</TableHead>
+                        {type === 'pedido' && <TableHead className="text-right">Saldo</TableHead>}
+                        <TableHead className="text-center">Status</TableHead>
+                        <TableHead></TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {data.map(item => (
+                        <TableRow key={item.id} className="hover:bg-slate-50/50">
+                            <TableCell className="font-mono">
+                                {type === 'pedido' ? `#${item.numero_pedido}` : 
+                                 type === 'cheque' ? item.numero_cheque : 
+                                 item.referencia}
+                            </TableCell>
+                            <TableCell>
+                                {type === 'pedido' ? (item.data_entrega ? format(new Date(item.data_entrega), 'dd/MM/yy') : '-') : 
+                                 type === 'cheque' ? (item.data_vencimento ? format(new Date(item.data_vencimento), 'dd/MM/yy') : '-') :
+                                 (item.data_emissao ? format(new Date(item.data_emissao), 'dd/MM/yy') : '-')}
+                            </TableCell>
+                            <TableCell className="text-right text-slate-600">
+                                {formatCurrency(type === 'pedido' ? item.valor_pedido : item.valor || item.valor_original)}
+                            </TableCell>
+                            {type === 'pedido' && (
+                                <TableCell className="text-right font-bold text-slate-800">
+                                    {formatCurrency(item.saldo_restante)}
+                                </TableCell>
+                            )}
+                            <TableCell className="text-center">
+                                <Badge variant="outline" className={cn(
+                                    "text-[10px]",
+                                    innerTab === 'atrasados' ? "bg-red-50 text-red-600 border-red-200" : "bg-slate-50 text-slate-600 border-slate-200"
+                                )}>
+                                    {innerTab === 'atrasados' ? 'Atrasado' : item.status}
+                                </Badge>
+                            </TableCell>
+                            <TableCell>
+                                <Button size="sm" variant="ghost" onClick={() => onViewDetails(item, type)}><Eye className="w-4 h-4 text-slate-400"/></Button>
+                            </TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+        </div>
+    );
+  };
 
   return (
     <div className={`mb-4 bg-white rounded-2xl border transition-all duration-300 ${isExpanded ? 'shadow-md border-blue-200 ring-1 ring-blue-100' : 'shadow-sm border-slate-100'}`}>
       
-      {/* CABEÇALHO DO CLIENTE */}
       <div className="p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div onClick={() => setIsExpanded(!isExpanded)} className="flex items-center gap-4 cursor-pointer flex-1 hover:opacity-80 transition-opacity">
           <div className={cn("w-12 h-12 rounded-full flex items-center justify-center transition-colors shrink-0", temAtraso ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-600")}>
@@ -281,6 +366,7 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
             <div className="flex items-center gap-3 text-sm text-slate-500">
               <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {cliente.regiao || 'Sem região'}</span>
               <span className="font-mono bg-slate-100 px-2 rounded text-xs">{cliente.codigo}</span>
+              {totalDevendo > 0 && <span className="text-red-600 font-bold bg-red-50 px-2 rounded text-xs">Devendo: {formatCurrency(totalDevendo)}</span>}
             </div>
           </div>
         </div>
@@ -298,85 +384,24 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
         <div className="px-5 pb-5 animate-in fade-in slide-in-from-top-2 duration-300">
           <div className="h-px w-full bg-slate-100 mb-4" />
           
-          {/* TOTALIZADORES INDIVIDUAIS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            <div className={cn("border p-4 rounded-xl flex items-center gap-4", totalDevendo > 0 ? "bg-red-50 border-red-100" : "bg-slate-50 border-slate-100")}>
-              <div className={cn("p-2 rounded-lg", totalDevendo > 0 ? "bg-red-100" : "bg-white")}><DollarSign className={cn("w-5 h-5", totalDevendo > 0 ? "text-red-600" : "text-slate-600")} /></div>
-              <div><p className={cn("text-xs font-bold uppercase", totalDevendo > 0 ? "text-red-600" : "text-slate-500")}>Saldo Devedor</p><p className="text-lg font-bold text-slate-800">{formatCurrency(totalDevendo)}</p></div>
+          <Tabs value={innerTab} onValueChange={setInnerTab} className="w-full">
+            <TabsList className="bg-slate-100 p-1 rounded-lg h-auto flex-wrap justify-start gap-1 mb-4 w-full">
+                <TabsTrigger value="producao" className="text-xs">🏗️ Produção ({pedidosProducao.length})</TabsTrigger>
+                <TabsTrigger value="transito" className="text-xs">🚚 Trânsito ({pedidosTransito.length})</TabsTrigger>
+                <TabsTrigger value="abertos" className="text-xs">📂 Abertos ({pedidosAbertos.length})</TabsTrigger>
+                <TabsTrigger value="atrasados" className="text-xs text-red-600 data-[state=active]:text-red-700">⚠️ Atrasados ({pedidosAtrasados.length})</TabsTrigger>
+                <TabsTrigger value="finalizados" className="text-xs text-emerald-600">✅ Pagos ({pedidosPagos.length})</TabsTrigger>
+                <TabsTrigger value="creditos" className="text-xs text-emerald-600">💳 Créditos ({creditosDisponiveis.length})</TabsTrigger>
+                <TabsTrigger value="cheques" className="text-xs text-purple-600">💵 Cheques ({chequesDisponiveis.length})</TabsTrigger>
+            </TabsList>
+            
+            <div className="min-h-[100px]">
+                {renderTable()}
             </div>
-            <div className="bg-purple-50 border border-purple-100 p-4 rounded-xl flex items-center gap-4">
-              <div className="bg-purple-100 p-2 rounded-lg"><CalendarClock className="w-5 h-5 text-purple-600" /></div>
-              <div><p className="text-xs text-purple-600 font-bold uppercase">Cheques a Vencer</p><p className="text-lg font-bold text-slate-800">{formatCurrency(valorChequesAVencer)}</p></div>
-            </div>
-            <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl flex items-center gap-4">
-               <div className="bg-emerald-100 p-2 rounded-lg"><Wallet className="w-5 h-5 text-emerald-600" /></div>
-               <div><p className="text-xs text-emerald-600 font-bold uppercase">Créditos Disponíveis</p><p className="text-lg font-bold text-slate-800">{formatCurrency(totalCreditos)}</p></div>
-            </div>
-            <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl flex items-center gap-4">
-               <div className="bg-amber-100 p-2 rounded-lg"><Truck className="w-5 h-5 text-amber-600" /></div>
-               <div><p className="text-xs text-amber-600 font-bold uppercase">Em Trânsito</p><p className="text-lg font-bold text-slate-800">{pedidosEmTransito.length} <span className="text-xs font-normal text-slate-500">pedidos</span></p></div>
-            </div>
-          </div>
+          </Tabs>
 
-          {/* --- AQUI ESTÁ A LISTA QUE FALTAVA --- */}
-          <div className="mb-4">
-            <h4 className="font-bold text-slate-700 mb-3 flex items-center gap-2">
-              <ShoppingCart className="w-4 h-4 text-blue-500" /> 
-              Pedidos do Cliente
-            </h4>
-            {pedidosAtivos.length > 0 ? (
-              <div className="border border-slate-200 rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader className="bg-slate-50">
-                    <TableRow>
-                      <TableHead>Pedido</TableHead>
-                      <TableHead>Data</TableHead>
-                      <TableHead className="text-right">Valor</TableHead>
-                      <TableHead className="text-right">Saldo</TableHead>
-                      <TableHead className="text-center">Status</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pedidosAtivos.map(p => {
-                      const hoje = new Date();
-                      hoje.setHours(0,0,0,0);
-                      const diasAtraso = p.data_entrega ? differenceInDays(hoje, parseISO(p.data_entrega)) : 0;
-                      const isAtrasado = (p.status === 'aberto' || p.status === 'parcial') && diasAtraso > 15;
-                      
-                      return (
-                        <TableRow key={p.id} className="hover:bg-slate-50/50">
-                          <TableCell className="font-mono">#{p.numero_pedido}</TableCell>
-                          <TableCell>{p.data_entrega ? format(new Date(p.data_entrega), 'dd/MM/yyyy') : '-'}</TableCell>
-                          <TableCell className="text-right text-slate-600">{formatCurrency(p.valor_pedido)}</TableCell>
-                          <TableCell className="text-right font-bold text-slate-800">
-                             <span className={cn(isAtrasado ? "text-red-600" : "text-emerald-600")}>
-                               {formatCurrency(p.saldo_restante || 0)}
-                             </span>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Badge className={cn("text-[10px]", isAtrasado ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700")}>
-                               {isAtrasado ? 'Atrasado' : 'Em Aberto'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                             <Button size="sm" variant="ghost" onClick={() => onViewDetails(p, 'pedido')}><Eye className="w-4 h-4 text-slate-400"/></Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            ) : (
-               <div className="text-center py-6 border border-dashed rounded-lg bg-slate-50">
-                 <p className="text-sm text-slate-500">Nenhum pedido em aberto ou trânsito.</p>
-               </div>
-            )}
-          </div>
-          
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button onClick={() => onSolicitarLiquidacao(cliente)} disabled={pedidos.filter(p => ['aberto', 'parcial', 'aguardando'].includes(p.status)).length === 0} className="bg-emerald-600 hover:bg-emerald-700"><DollarSign className="w-4 h-4 mr-2" /> Solicitar Liquidação</Button>
+          <div className="flex justify-end gap-3 pt-4 border-t mt-2">
+            <Button onClick={() => onSolicitarLiquidacao(cliente)} disabled={pedidosAbertos.length === 0 && pedidosAtrasados.length === 0} className="bg-emerald-600 hover:bg-emerald-700"><DollarSign className="w-4 h-4 mr-2" /> Solicitar Liquidação</Button>
           </div>
         </div>
       )}
@@ -428,8 +453,13 @@ export default function PainelRepresentante() {
   const { data: todosPedidos = [], refetch: refetchPedidos } = useQuery({ queryKey: ['pedidos', representante?.id], queryFn: () => base44.entities.Pedido.list(), enabled: !!representante });
   const { data: todosCheques = [] } = useQuery({ queryKey: ['cheques', representante?.id], queryFn: () => base44.entities.Cheque.list(), enabled: !!representante });
   const { data: todosCreditos = [] } = useQuery({ queryKey: ['creditos', representante?.id], queryFn: () => base44.entities.Credito.list(), enabled: !!representante });
-  const { data: todosBorderos = [] } = useQuery({ queryKey: ['borderos', representante?.id], queryFn: () => base44.entities.Bordero.list(), enabled: !!representante });
+  const { data: todosBorderos = [] } = useQuery({ 
+    queryKey: ['borderos', representante?.id], 
+    queryFn: () => base44.entities.Bordero.list(), 
+    enabled: !!representante 
+  });
 
+  // Meus Pedidos
   const meusPedidos = useMemo(() => {
     if (!representante) return [];
     return todosPedidos.filter(p => p.representante_codigo === representante.codigo);
@@ -467,8 +497,12 @@ export default function PainelRepresentante() {
       const totalVendas = c.pedidos.filter(p => p.status !== 'cancelado').reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
       return totalVendas > 30000;
     }).length;
+    
+    // SOMA CORRETA DO SALDO
     const totalVendasAbertas = meusPedidos.filter(p => p.status === 'aberto' || p.status === 'parcial').reduce((sum, p) => sum + (p.saldo_restante !== undefined ? p.saldo_restante : (p.valor_pedido - p.total_pago)), 0);
+    
     const chequesTotal = todosCheques.filter(c => meusClientes.some(cli => cli.codigo === c.cliente_codigo)).reduce((sum, c) => sum + (c.valor || 0), 0);
+    
     return { totalClientes: meusClientes.length, clientes30k: clientesComVendas30k, vendasAbertas: totalVendasAbertas, carteiraCheques: chequesTotal };
   }, [meusClientes, meusPedidos, todosCheques]);
 
