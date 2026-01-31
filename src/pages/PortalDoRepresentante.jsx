@@ -469,17 +469,21 @@ export default function PainelRepresentante() {
   // Meus Pedidos
   const meusPedidos = useMemo(() => {
     if (!representante) return [];
-    return todosPedidos.filter(p => p.representante_codigo === representante.codigo);
+    const safeTodosPedidos = todosPedidos || [];
+    return safeTodosPedidos.filter(p => p.representante_codigo === representante.codigo);
   }, [representante, todosPedidos]);
 
   const meusPedidosAbertos = useMemo(() => {
-    return meusPedidos.filter(p => ['aberto', 'parcial', 'aguardando'].includes(p.status));
+    const safeMeusPedidos = meusPedidos || [];
+    return safeMeusPedidos.filter(p => ['aberto', 'parcial', 'aguardando'].includes(p.status));
   }, [meusPedidos]);
 
   const meusBorderos = useMemo(() => {
     if (!representante) return [];
-    const meusPedidosIds = meusPedidos.map(p => p.id);
-    return todosBorderos.filter(bordero => {
+    const safeMeusPedidos = meusPedidos || [];
+    const safeTodosBorderos = todosBorderos || [];
+    const meusPedidosIds = safeMeusPedidos.map(p => p.id);
+    return safeTodosBorderos.filter(bordero => {
       const pedidosDoBordero = bordero.pedidos_ids || [];
       return pedidosDoBordero.some(pedidoId => meusPedidosIds.includes(pedidoId));
     });
