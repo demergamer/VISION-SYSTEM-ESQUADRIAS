@@ -11,7 +11,7 @@ import {
   Users, ShoppingCart, CreditCard, AlertCircle, 
   Search, Briefcase, LogOut, Loader2, 
   ChevronDown, ChevronRight, MapPin, Truck, Eye, Wallet, DollarSign,
-  Lock, UserPlus, Edit, FileText, Building2, Mail, Package
+  Lock, UserPlus, Edit, FileText, Building2, Mail, Package, CalendarClock
 } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
