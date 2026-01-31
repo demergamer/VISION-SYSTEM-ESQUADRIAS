@@ -15,7 +15,7 @@ import {
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { toast } from "sonner";
-import { format, differenceInDays, parseISO } from "date-fns";
+import { format, differenceInDays, parseISO, isToday, isFuture, isPast } from "date-fns";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator
@@ -101,8 +101,8 @@ const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReve
       case 'cancelado': return <Badge className="bg-slate-100 text-slate-700 border-slate-200">Cancelado</Badge>;
       case 'parcial': return <Badge className="bg-purple-100 text-purple-700 border-purple-200">Parcial</Badge>;
       default:
-        if (diasAtraso > 20) return <Badge className="bg-red-100 text-red-700 border-red-200">Atrasado ({diasAtraso}d)</Badge>;
-        return <Badge className="bg-blue-100 text-blue-700 border-blue-200">Aberto</Badge>;
+        if (diasAtraso > 0) return <Badge className="bg-red-100 text-red-700 border-red-200">Atrasado ({diasAtraso}d)</Badge>;
+        return <Badge className="bg-blue-100 text-blue-700 border-blue-200">Em Dia</Badge>;
     }
   };
   return (
@@ -139,11 +139,15 @@ export default function Pedidos() {
   // --- STATES ---
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('abertos');
+  const [abertosSubTab, setAbertosSubTab] = useState('todos'); // NOVO: Sub-filtro para abertos
   const [viewMode, setViewMode] = useState('table'); 
   const [liquidacaoView, setLiquidacaoView] = useState('bordero'); 
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({ dateStart: '', dateEnd: '', region: '', minValue: '' });
   
+  // Configuração de Ordenação
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [refreshingData, setRefreshingData] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState('Conectando...');
@@ -184,34 +188,28 @@ export default function Pedidos() {
 
   // --- STATS ---
   const stats = useMemo(() => {
-    // 1. Em Trânsito (Qtd)
     const transitoCount = pedidos.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado').length;
-    
-    // 2. Abertos (Qtd)
     const abertosCount = pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial').length;
-    
-    // 3. Total a Receber (R$)
     const totalAReceber = pedidos
         .filter(p => p.status === 'aberto' || p.status === 'parcial')
         .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
-    
-    // 4. Autorizações Pendentes
     const autorizacoesCount = liquidacoesPendentes.filter(lp => lp.status === 'pendente').length;
-
-    // 5. Rotas Ativas (Apenas Pendentes/Parciais)
+    
+    // CORREÇÃO: Rotas Ativas (Apenas Pendentes/Parciais)
     const rotasAtivasCount = rotas.filter(r => r.status === 'pendente' || r.status === 'parcial').length;
 
-    // 6. Em Atraso > 15 dias (R$)
+    // CORREÇÃO: Em Atraso > 15 dias (R$)
     const hoje = new Date();
+    hoje.setHours(0,0,0,0);
     const totalVencido = pedidos
         .filter(p => {
             if ((p.status !== 'aberto' && p.status !== 'parcial') || !p.data_entrega) return false;
-            const dias = differenceInDays(hoje, new Date(p.data_entrega));
-            return dias > 15;
+            const entrega = parseISO(p.data_entrega);
+            return differenceInDays(hoje, entrega) > 15;
         })
         .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
 
-    // 7. Valor em Trânsito (R$)
+    // CORREÇÃO: Valor em Trânsito (R$)
     const valorEmTransito = pedidos
         .filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado')
         .reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
@@ -244,42 +242,85 @@ export default function Pedidos() {
     } 
   });
 
-  // --- FILTROS DE DADOS ---
-  const filteredPedidos = useMemo(() => {
-    let filtered = pedidos;
+  // --- ORDENAÇÃO ---
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    } else if (sortConfig.key === key && sortConfig.direction === 'desc') {
+      setSortConfig({ key: null, direction: null });
+      return;
+    }
+    setSortConfig({ key, direction });
+  };
+
+  // --- FILTROS DE DADOS & ORDENAÇÃO ---
+  const processedPedidos = useMemo(() => {
+    let data = [...pedidos]; // Copia
+
+    // 1. Filtro Principal
     switch (activeTab) {
-      case 'transito': 
-        filtered = filtered.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado'); 
-        break;
-      case 'abertos': 
-        filtered = filtered.filter(p => p.status === 'aberto' || p.status === 'parcial'); 
-        break;
-      case 'liquidacoes': 
-        filtered = filtered.filter(p => p.status === 'pago'); 
-        break;
-      case 'cancelados': 
-        filtered = filtered.filter(p => p.status === 'cancelado'); 
-        break;
+      case 'transito': data = data.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado'); break;
+      case 'abertos': data = data.filter(p => p.status === 'aberto' || p.status === 'parcial'); break;
+      case 'liquidacoes': data = data.filter(p => p.status === 'pago'); break;
+      case 'cancelados': data = data.filter(p => p.status === 'cancelado'); break;
       default: break; 
     }
 
+    // 2. Sub-Filtro (Abertos)
+    if (activeTab === 'abertos') {
+        const hoje = new Date();
+        hoje.setHours(0,0,0,0);
+        if (abertosSubTab === 'em_dia') {
+            data = data.filter(p => p.data_entrega && (isToday(parseISO(p.data_entrega)) || isFuture(parseISO(p.data_entrega))));
+        } else if (abertosSubTab === 'atrasado') {
+            data = data.filter(p => p.data_entrega && isPast(parseISO(p.data_entrega)) && !isToday(parseISO(p.data_entrega)));
+        }
+    }
+
+    // 3. Busca Texto
     if (searchTerm) {
-      filtered = filtered.filter(pedido =>
-        pedido.cliente_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pedido.cliente_codigo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pedido.numero_pedido?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pedido.bordero_numero?.toString().includes(searchTerm)
+      const lower = searchTerm.toLowerCase();
+      data = data.filter(p =>
+        p.cliente_nome?.toLowerCase().includes(lower) ||
+        p.cliente_codigo?.toLowerCase().includes(lower) ||
+        p.numero_pedido?.toLowerCase().includes(lower) ||
+        p.bordero_numero?.toString().includes(lower)
       );
     }
     
+    // 4. Filtros Avançados
     if (showFilters) {
-        if (filters.dateStart) { const start = parseISO(filters.dateStart); filtered = filtered.filter(p => p.data_entrega && new Date(p.data_entrega) >= start); }
-        if (filters.dateEnd) { const end = parseISO(filters.dateEnd); end.setHours(23, 59, 59, 999); filtered = filtered.filter(p => p.data_entrega && new Date(p.data_entrega) <= end); }
-        if (filters.region) { filtered = filtered.filter(p => p.cliente_regiao?.toLowerCase().includes(filters.region.toLowerCase())); }
-        if (filters.minValue) { filtered = filtered.filter(p => (p.valor_pedido || 0) >= parseFloat(filters.minValue)); }
+        if (filters.dateStart) { const start = parseISO(filters.dateStart); data = data.filter(p => p.data_entrega && new Date(p.data_entrega) >= start); }
+        if (filters.dateEnd) { const end = parseISO(filters.dateEnd); end.setHours(23, 59, 59, 999); data = data.filter(p => p.data_entrega && new Date(p.data_entrega) <= end); }
+        if (filters.region) { data = data.filter(p => p.cliente_regiao?.toLowerCase().includes(filters.region.toLowerCase())); }
+        if (filters.minValue) { data = data.filter(p => (p.valor_pedido || 0) >= parseFloat(filters.minValue)); }
     }
-    return filtered;
-  }, [pedidos, activeTab, searchTerm, showFilters, filters]);
+
+    // 5. Ordenação
+    if (sortConfig.key) {
+        data.sort((a, b) => {
+            let valA = a[sortConfig.key];
+            let valB = b[sortConfig.key];
+
+            if (['valor_pedido', 'saldo_restante', 'total_pago'].includes(sortConfig.key)) {
+                valA = parseFloat(valA) || 0;
+                valB = parseFloat(valB) || 0;
+            } else if (['data_entrega'].includes(sortConfig.key)) {
+                valA = valA ? new Date(valA).getTime() : 0;
+                valB = valB ? new Date(valB).getTime() : 0;
+            } else {
+                valA = valA ? valA.toString().toLowerCase() : '';
+                valB = valB ? valB.toString().toLowerCase() : '';
+            }
+
+            if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }
+    return data;
+  }, [pedidos, activeTab, abertosSubTab, searchTerm, showFilters, filters, sortConfig]);
 
   const filteredBorderos = useMemo(() => {
     let filtered = borderos;
@@ -295,15 +336,7 @@ export default function Pedidos() {
 
   // --- HANDLERS ---
   const handleEdit = (pedido) => { setSelectedPedido(pedido); setShowEditModal(true); };
-  const handleView = (pedido) => { 
-      if (pedido.isBordero) {
-          setSelectedPedido(pedido);
-          setShowDetailsModal(true);
-      } else {
-          setSelectedPedido(pedido); 
-          pedido.status === 'pago' ? setShowDetailsModal(true) : setShowEditModal(true);
-      }
-  };
+  const handleView = (pedido) => { if (pedido.isBordero) { setSelectedPedido(pedido); setShowDetailsModal(true); } else { setSelectedPedido(pedido); pedido.status === 'pago' ? setShowDetailsModal(true) : setShowEditModal(true); } };
   const handleLiquidar = (pedido) => { setSelectedPedido(pedido); setShowLiquidarModal(true); };
   const handleCancelar = (pedido) => { setPedidoParaCancelar(pedido); setShowCancelarPedidoModal(true); };
 
@@ -323,7 +356,7 @@ export default function Pedidos() {
     }
   };
   
-  // FUNÇÃO ATUALIZADA: Sincronização + Limpeza de Resíduos (Agora também limpa se Total Pago >= Valor)
+  // FUNÇÃO ATUALIZADA: Sincronização + Limpeza de Resíduos
   const handleRefresh = async () => {
     setRefreshingData(true);
     setRefreshMessage('Conectando ao banco de dados...');
@@ -334,7 +367,6 @@ export default function Pedidos() {
             base44.entities.Cliente.list()
         ]);
 
-        // Auto-Vínculo de Clientes
         setRefreshMessage('Verificando clientes pendentes...');
         let clientesVinculados = 0;
         const pedidosPendentes = latestPedidos.filter(p => p.cliente_pendente === true);
@@ -366,39 +398,28 @@ export default function Pedidos() {
         });
         await Promise.all(promisesClientes.filter(Boolean));
 
-        // CORREÇÃO DOS RESÍDUOS E PAGAMENTOS TOTAIS
         setRefreshMessage('Analisando resíduos e pagamentos...');
         let residuosLimpos = 0;
         const promisesResiduos = latestPedidos
             .filter(p => {
-                // Filtra apenas abertos/parciais
                 if (p.status !== 'aberto' && p.status !== 'parcial') return false;
-                
                 const valorTotal = parseFloat(p.valor_pedido) || 0;
                 const totalPago = parseFloat(p.total_pago) || 0;
                 const saldo = parseFloat(p.saldo_restante) || (valorTotal - totalPago);
-                
-                // CONDIÇÃO 1: Resíduo de centavos
-                const isResiduo = saldo > 0.000000001 && saldo <= 0.10;
-                
-                // CONDIÇÃO 2: Pago Total (ou a maior) mas status não virou
-                const isPagoTotal = totalPago >= valorTotal;
-
-                return isResiduo || isPagoTotal;
+                // Resíduo <= 0.10 ou Pago Totalmente
+                return (saldo > 0.000000001 && saldo <= 0.10) || (totalPago >= valorTotal);
             })
             .map(p => {
                 residuosLimpos++;
                 return base44.entities.Pedido.update(p.id, { 
                     status: 'pago', 
                     saldo_restante: 0, 
-                    // Se foi pago a mais, mantém o pago. Se foi resíduo, "completa" o pagamento.
                     total_pago: (parseFloat(p.total_pago) >= parseFloat(p.valor_pedido)) ? p.total_pago : p.valor_pedido,
-                    outras_informacoes: (p.outras_informacoes || '') + '\n[AUTO] Baixa automática (Resíduo ou Pgto Total) - Varredura'
+                    outras_informacoes: (p.outras_informacoes || '') + '\n[AUTO] Baixa automática - Varredura'
                 });
             });
         await Promise.all(promisesResiduos);
 
-        // Sincronização de Rotas
         setRefreshMessage(`Sincronizando ${latestRotas.length} rotas de entrega...`);
         let routesUpdatedCount = 0;
         const updatePromises = latestRotas.map(rota => {
@@ -716,6 +737,17 @@ export default function Pedidos() {
 
             <FilterPanel isOpen={showFilters} filters={filters} setFilters={setFilters} onClear={() => setFilters({})} />
 
+            {/* --- SUBNÍVEIS PARA ABA ABERTOS --- */}
+            {activeTab === 'abertos' && (
+                <div className="flex justify-center md:justify-start animate-in fade-in slide-in-from-top-1">
+                    <div className="bg-white p-1 rounded-lg border border-slate-200 inline-flex shadow-sm">
+                        <button onClick={() => setAbertosSubTab('todos')} className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-all", abertosSubTab === 'todos' ? "bg-blue-50 text-blue-700 shadow-sm" : "text-slate-600 hover:bg-slate-50")}>Todos</button>
+                        <button onClick={() => setAbertosSubTab('em_dia')} className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-all", abertosSubTab === 'em_dia' ? "bg-emerald-50 text-emerald-700 shadow-sm" : "text-slate-600 hover:bg-slate-50")}>Em Dia</button>
+                        <button onClick={() => setAbertosSubTab('atrasado')} className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-all", abertosSubTab === 'atrasado' ? "bg-red-50 text-red-700 shadow-sm" : "text-slate-600 hover:bg-slate-50")}>Em Atraso</button>
+                    </div>
+                </div>
+            )}
+
             {/* --- CONTEÚDO DAS ABAS --- */}
 
             <TabsContent value="producao">
@@ -892,38 +924,68 @@ export default function Pedidos() {
                 )}
             </TabsContent>
 
-            {['abertos', 'cancelados'].map(tab => (
-                <TabsContent key={tab} value={tab}>
-                    {viewMode === 'table' ? (
-                        <PedidoTable 
-                            pedidos={filteredPedidos} 
-                            onEdit={handleEdit} 
-                            onView={handleView} 
-                            onLiquidar={handleLiquidar} 
-                            onCancelar={handleCancelar} 
-                            onReverter={null}
-                            isLoading={loadingPedidos}
-                        />
-                    ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                            {filteredPedidos.map(pedido => (
-                                <PedidoGridCard 
-                                    key={pedido.id} 
-                                    pedido={pedido} 
-                                    onEdit={handleEdit} 
-                                    onView={handleView} 
-                                    onLiquidar={handleLiquidar} 
-                                    onCancelar={handleCancelar} 
-                                    canDo={canDo} 
-                                />
-                            ))}
-                        </div>
-                    )}
-                </TabsContent>
-            ))}
+            {/* ABERTOS & CANCELADOS */}
+            <TabsContent value="abertos">
+                {viewMode === 'table' ? (
+                    <PedidoTable 
+                        pedidos={processedPedidos} 
+                        onEdit={handleEdit} 
+                        onView={handleView} 
+                        onLiquidar={handleLiquidar} 
+                        onCancelar={handleCancelar} 
+                        onReverter={null}
+                        isLoading={loadingPedidos}
+                        sortConfig={sortConfig} 
+                        onSort={handleSort}     
+                    />
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {processedPedidos.map(pedido => (
+                            <PedidoGridCard 
+                                key={pedido.id} 
+                                pedido={pedido} 
+                                onEdit={handleEdit} 
+                                onView={handleView} 
+                                onLiquidar={handleLiquidar} 
+                                onCancelar={handleCancelar} 
+                                canDo={canDo} 
+                            />
+                        ))}
+                    </div>
+                )}
+            </TabsContent>
+
+            <TabsContent value="cancelados">
+                {viewMode === 'table' ? (
+                    <PedidoTable 
+                        pedidos={filteredPedidos} 
+                        onEdit={handleEdit} 
+                        onView={handleView} 
+                        onLiquidar={handleLiquidar} 
+                        onCancelar={handleCancelar} 
+                        onReverter={null}
+                        isLoading={loadingPedidos}
+                    />
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {filteredPedidos.map(pedido => (
+                            <PedidoGridCard 
+                                key={pedido.id} 
+                                pedido={pedido} 
+                                onEdit={handleEdit} 
+                                onView={handleView} 
+                                onLiquidar={handleLiquidar} 
+                                onCancelar={handleCancelar} 
+                                canDo={canDo} 
+                            />
+                        ))}
+                    </div>
+                )}
+            </TabsContent>
 
           </Tabs>
 
+          {/* ... (MODAIS MANTIDOS SEM ALTERAÇÃO) ... */}
           <ModalContainer open={showImportModal} onClose={() => setShowImportModal(false)} title="Importar Pedidos" size="lg">
             <ImportarPedidos 
                 clientes={clientes} 
@@ -952,7 +1014,6 @@ export default function Pedidos() {
           <ModalContainer open={showDetailsModal} onClose={() => setShowDetailsModal(false)} title="Detalhes" size="xl">
              {selectedPedido?.isBordero ? <BorderoDetails bordero={selectedPedido} pedidos={pedidos} onClose={() => setShowDetailsModal(false)}/> : <PedidoDetails pedido={selectedPedido} onClose={() => setShowDetailsModal(false)} />}
           </ModalContainer>
-          
           <ModalContainer open={showAutorizacaoModal} onClose={() => setShowAutorizacaoModal(false)} title="Aprovar Liquidação" size="xl">
             <AprovarLiquidacaoModal 
                 autorizacao={selectedAutorizacao} 
@@ -974,7 +1035,6 @@ export default function Pedidos() {
                 onAprovar={handleAprovarSolicitacao} 
             />
           </ModalContainer>
-
           <ModalContainer open={showAlterarPortadorModal} onClose={() => setShowAlterarPortadorModal(false)} title="Alterar Portador" size="lg">
              {selectedRota && <AlterarPortadorModal rota={selectedRota} pedidos={pedidos.filter(p => p.rota_importada_id === selectedRota.id)} onSave={() => {setShowAlterarPortadorModal(false); toast.success("Portador alterado");}} onCancel={() => setShowAlterarPortadorModal(false)} />}
           </ModalContainer>
@@ -985,18 +1045,13 @@ export default function Pedidos() {
                onAddRepresentante={() => setShowAddRepresentanteModal(true)}
                onSave={async (data) => {
                  try {
-                   // 1. Criar Cliente
                    const novoCliente = await base44.entities.Cliente.create(data);
-                   
-                   // 2. Buscar TODOS os pedidos pendentes com esse nome (CORREÇÃO DE LÓGICA)
                    const nomeAlvo = pedidoParaCadastro.cliente_nome.trim().toLowerCase();
-                   // Filtra todos os pedidos pendentes que tenham o nome similar
                    const pedidosParaVincular = pedidos.filter(p => 
                      p.cliente_pendente && 
                      (p.cliente_nome.trim().toLowerCase() === nomeAlvo || p.cliente_nome.trim().toLowerCase().includes(nomeAlvo))
                    );
 
-                   // 3. Atualizar todos eles
                    const updatePromises = pedidosParaVincular.map(p => 
                      base44.entities.Pedido.update(p.id, {
                        cliente_codigo: novoCliente.codigo,
