@@ -498,17 +498,17 @@ export default function PainelRepresentante() {
   }, [representante, todosClientes, todosPedidos, todosCheques, todosCreditos, searchTerm]);
 
   const stats = useMemo(() => {
-    const clientesComVendas30k = meusClientes.filter(c => {
-      const totalVendas = c.pedidos.filter(p => p.status !== 'cancelado').reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
+    const clientesComVendas30k = (meusClientes || []).filter(c => {
+      const totalVendas = (c.pedidos || []).filter(p => p.status !== 'cancelado').reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
       return totalVendas > 30000;
     }).length;
     
     // SOMA CORRETA DO SALDO
-    const totalVendasAbertas = meusPedidos.filter(p => p.status === 'aberto' || p.status === 'parcial').reduce((sum, p) => sum + (p.saldo_restante !== undefined ? p.saldo_restante : (p.valor_pedido - p.total_pago)), 0);
+    const totalVendasAbertas = (meusPedidos || []).filter(p => p.status === 'aberto' || p.status === 'parcial').reduce((sum, p) => sum + (p.saldo_restante !== undefined ? p.saldo_restante : (p.valor_pedido - p.total_pago)), 0);
     
-    const chequesTotal = todosCheques.filter(c => meusClientes.some(cli => cli.codigo === c.cliente_codigo)).reduce((sum, c) => sum + (c.valor || 0), 0);
+    const chequesTotal = (todosCheques || []).filter(c => (meusClientes || []).some(cli => cli.codigo === c.cliente_codigo)).reduce((sum, c) => sum + (c.valor || 0), 0);
     
-    return { totalClientes: meusClientes.length, clientes30k: clientesComVendas30k, vendasAbertas: totalVendasAbertas, carteiraCheques: chequesTotal };
+    return { totalClientes: (meusClientes || []).length, clientes30k: clientesComVendas30k, vendasAbertas: totalVendasAbertas, carteiraCheques: chequesTotal };
   }, [meusClientes, meusPedidos, todosCheques]);
 
   const handleViewDetails = (item, type) => { setDetailsModal({ open: true, item, type }); };
