@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { 
   DollarSign, Upload, X, Loader2, CheckCircle, 
   Plus, Trash2, FileText, Image as ImageIcon, Search, Wallet,
-  Maximize2, Minimize2 // Ícones para o botão
+  Maximize2, Minimize2, PanelLeftClose, PanelRightClose
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -65,15 +65,13 @@ export default function NovaLiquidacaoRepresentante({
 
   const clienteSelecionado = useMemo(() => {
     if (selecionados.length === 0) return null;
-    const safePedidos = pedidos || [];
-    const primeiroPedido = safePedidos.find(p => p.id === selecionados[0]);
+    const primeiroPedido = pedidos.find(p => p.id === selecionados[0]);
     return primeiroPedido ? primeiroPedido.cliente_codigo : null;
   }, [selecionados, pedidos]);
 
   const creditosDisponiveis = useMemo(() => {
     if (!clienteSelecionado) return [];
-    const safeTodosCreditos = todosCreditos || [];
-    return safeTodosCreditos.filter(c => 
+    return todosCreditos.filter(c => 
       c.cliente_codigo === clienteSelecionado && 
       c.status === 'disponivel' && 
       (c.valor > 0)
@@ -110,6 +108,10 @@ export default function NovaLiquidacaoRepresentante({
     const totalPagoDinheiro = formasPagamento.reduce((sum, f) => sum + (parseFloat(f.valor) || 0), 0);
     const totalGeralPago = totalPagoDinheiro + totalCreditosUsados;
     
+    // CORREÇÃO LÓGICA:
+    // Diferença = (O que pagou) - (O que devia)
+    // Se Negativo: Faltou pagar (Dívida)
+    // Se Positivo: Pagou a mais (Crédito)
     const diferenca = totalPagoDinheiro - totalAPagar;
     
     return { 
@@ -136,10 +138,9 @@ export default function NovaLiquidacaoRepresentante({
   };
 
   const toggleTodos = () => {
-    const safePedidosFiltrados = pedidosFiltrados || [];
-    if (safePedidosFiltrados.length === 0) return;
-    const clienteAlvo = safePedidosFiltrados[0].cliente_codigo;
-    const pedidosDoCliente = safePedidosFiltrados.filter(p => p.cliente_codigo === clienteAlvo);
+    if (pedidosFiltrados.length === 0) return;
+    const clienteAlvo = pedidosFiltrados[0].cliente_codigo;
+    const pedidosDoCliente = pedidosFiltrados.filter(p => p.cliente_codigo === clienteAlvo);
     if (selecionados.length === pedidosDoCliente.length) setSelecionados([]);
     else setSelecionados(pedidosDoCliente.map(p => p.id));
   };
@@ -179,6 +180,7 @@ export default function NovaLiquidacaoRepresentante({
     setFormasPagamento(novas);
   };
 
+  // --- VALIDAÇÃO E ENVIO CORRIGIDOS ---
   const validarEEnviar = async () => {
     const erros = [];
     if (calculos.totalPagoDinheiro > 0 && arquivos.length === 0) erros.push("⚠️ Faltou o comprovante! Anexe o recibo do pagamento.");
@@ -189,10 +191,12 @@ export default function NovaLiquidacaoRepresentante({
 
     const dif = calculos.diferenca;
 
+    // Cenário: FALTAM R$ (Dívida)
     if (dif < -0.01) {
         if (!window.confirm(`⚠️ PAGAMENTO PARCIAL?\n\nO valor informado é MENOR que o total.\n\nFaltam: ${formatCurrency(Math.abs(dif))}\n\nO saldo restante continuará em aberto.\nDeseja prosseguir?`)) return;
     }
     
+    // Cenário: SOBRAM R$ (Crédito)
     if (dif > 0.01) {
          if (!window.confirm(`💰 GERAR CRÉDITO?\n\nO valor informado é MAIOR que o total.\n\nSobram: ${formatCurrency(dif)}\n\nEsse valor será gerado como CRÉDITO para o cliente.\nDeseja prosseguir?`)) return;
     }
@@ -261,7 +265,7 @@ export default function NovaLiquidacaoRepresentante({
     setFormasPagamento([{ tipo: 'pix', valor: '' }]);
     setObservacao('');
     setArquivos([]);
-    setIsMaximized(false); // Reseta tamanho ao fechar
+    setIsMaximized(false); 
     onClose();
   };
 
@@ -269,11 +273,14 @@ export default function NovaLiquidacaoRepresentante({
     <Dialog open={open} onOpenChange={fechar}>
       <DialogContent 
         className={cn(
-          "p-0 transition-all duration-300 flex flex-col",
-          isMaximized ? "max-w-[95vw] h-[95vh]" : "max-w-4xl max-h-[90vh]"
+          "p-0 transition-all duration-300 flex flex-col gap-0", // Removi gap padrão
+          isMaximized ? "max-w-[98vw] h-[95vh]" : "max-w-4xl max-h-[90vh]"
         )} 
+        // Remove o botão de fechar padrão do Dialog para usarmos o nosso customizado
+        hideCloseButton={true}
       >
-        <DialogHeader className="px-6 py-4 border-b border-slate-100 flex flex-row items-center justify-between space-y-0">
+        {/* CABEÇALHO CUSTOMIZADO */}
+        <DialogHeader className="px-6 py-4 border-b border-slate-100 flex flex-row items-center justify-between space-y-0 bg-white rounded-t-lg">
           <DialogTitle className="text-xl font-bold flex items-center gap-2">
             {modoCorrecao ? 
               `✏️ Corrigir Liquidação #${autorizacaoOriginal?.numero_solicitacao}` : 
@@ -281,21 +288,35 @@ export default function NovaLiquidacaoRepresentante({
             }
           </DialogTitle>
           
-          {/* BOTÃO MAXIMIZAR/MINIMIZAR */}
-          <div className="flex items-center gap-2 mr-6">
+          {/* GRUPO DE BOTÕES DE CONTROLE DA JANELA (ESTILO MAC/WINDOWS) */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+            {/* Botão Maximizar/Restaurar */}
             <Button 
                 variant="ghost" 
                 size="icon" 
                 onClick={() => setIsMaximized(!isMaximized)}
-                className="h-8 w-8 text-slate-500 hover:bg-slate-100"
+                className="h-7 w-7 rounded-md hover:bg-white hover:shadow-sm text-slate-500 transition-all"
                 title={isMaximized ? "Restaurar tamanho" : "Maximizar"}
             >
                 {isMaximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </Button>
+            
+            <div className="w-px h-4 bg-slate-300 mx-0.5" /> {/* Divisor Vertical */}
+
+            {/* Botão Fechar */}
+            <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={fechar}
+                className="h-7 w-7 rounded-md hover:bg-red-100 hover:text-red-600 transition-all text-slate-500"
+                title="Fechar"
+            >
+                <X className="w-4 h-4" />
+            </Button>
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 pb-6 pt-4 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto px-6 pb-6 pt-4 custom-scrollbar bg-slate-50/30">
 
         {/* PASSO 1: SELEÇÃO */}
         {passo === 1 && (
@@ -306,7 +327,7 @@ export default function NovaLiquidacaoRepresentante({
                 placeholder="🔍 Buscar por Cliente ou Nº Pedido..."
                 value={buscaPedido}
                 onChange={(e) => setBuscaPedido(e.target.value)}
-                className="pl-11 pr-4 h-12 text-base border-2 focus:border-blue-400"
+                className="pl-11 pr-4 h-12 text-base border-2 focus:border-blue-400 bg-white"
               />
             </div>
             <div className="flex items-center justify-between">
@@ -317,7 +338,7 @@ export default function NovaLiquidacaoRepresentante({
                 {selecionados.length} pedidos selecionados
               </span>
             </div>
-            <div className="border border-slate-200 rounded-lg divide-y max-h-96 overflow-y-auto">
+            <div className="border border-slate-200 rounded-lg divide-y max-h-96 overflow-y-auto bg-white">
               {pedidosFiltrados.length > 0 ? pedidosFiltrados.map(pedido => (
                 <div key={pedido.id} onClick={() => togglePedido(pedido)} className={cn("p-4 cursor-pointer hover:bg-slate-50 transition-colors flex items-center gap-4", selecionados.includes(pedido.id) && "bg-blue-50")}>
                   <Checkbox checked={selecionados.includes(pedido.id)} />
@@ -348,15 +369,15 @@ export default function NovaLiquidacaoRepresentante({
             <div className="grid grid-cols-2 gap-3">
               <Card className="p-4 bg-blue-50 border-blue-200"><p className="text-xs text-blue-600 font-bold uppercase">Total Original</p><p className="text-2xl font-bold text-blue-700">{formatCurrency(calculos.totalOriginal)}</p></Card>
               <Card className="p-4 bg-amber-50 border-amber-200"><p className="text-xs text-amber-600 font-bold uppercase">Descontos/Devoluções/Créditos</p><p className="text-2xl font-bold text-amber-700">- {formatCurrency(calculos.totalDescontos + calculos.totalCreditosUsados)}</p></Card>
-              <Card className="p-4 bg-slate-50 border-slate-200"><p className="text-xs text-slate-600 font-bold uppercase">Total a Pagar</p><p className="text-2xl font-bold text-slate-800">{formatCurrency(calculos.restante)}</p></Card>
+              <Card className="p-4 bg-slate-50 border-slate-200"><p className="text-xs text-slate-600 font-bold uppercase">Total a Pagar</p><p className="text-2xl font-bold text-slate-800">{formatCurrency(calculos.totalAPagar)}</p></Card>
               <Card className="p-4 bg-emerald-50 border-emerald-200"><p className="text-xs text-emerald-600 font-bold uppercase">Pagamento Informado</p><p className="text-2xl font-bold text-emerald-700">{formatCurrency(calculos.totalPagoDinheiro)}</p></Card>
             </div>
             
-            {/* STATUS DO SALDO */}
+            {/* STATUS DO SALDO (CORRIGIDO) */}
             {Math.abs(calculos.diferenca) > 0.01 && (
                 <Card className={cn("p-4 text-center", calculos.diferenca < 0 ? "bg-red-50 border-red-200" : "bg-indigo-50 border-indigo-200")}>
                     <p className={cn("font-bold text-sm uppercase", calculos.diferenca < 0 ? "text-red-600" : "text-indigo-600")}>
-                        {calculos.diferenca < 0 ? "⚠️ Faltam (Dívida Restante)" : "💰 Sobram (Crédito)"}
+                        {calculos.diferenca < 0 ? "⚠️ Pagamento Parcial (Faltam)" : "💰 Pagamento Excedente (Sobram)"}
                     </p>
                     <p className={cn("text-3xl font-bold", calculos.diferenca < 0 ? "text-red-700" : "text-indigo-700")}>
                         {formatCurrency(Math.abs(calculos.diferenca))}
@@ -383,20 +404,20 @@ export default function NovaLiquidacaoRepresentante({
             <Card className="p-4 bg-amber-50/30 border-amber-200">
               <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><DollarSign className="w-5 h-5 text-amber-600" /> Descontos & Devoluções</h3>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label className="text-sm">Desconto (R$)</Label><Input type="number" step="0.01" value={descontoValor} onChange={(e) => setDescontoValor(e.target.value)} placeholder="0,00" /></div>
-                <div><Label className="text-sm">Devolução (R$)</Label><Input type="number" step="0.01" value={devolucaoValor} onChange={(e) => setDevolucaoValor(e.target.value)} placeholder="0,00" /></div>
+                <div><Label className="text-sm">Desconto (R$)</Label><Input type="number" step="0.01" value={descontoValor} onChange={(e) => setDescontoValor(e.target.value)} placeholder="0,00" className="bg-white" /></div>
+                <div><Label className="text-sm">Devolução (R$)</Label><Input type="number" step="0.01" value={devolucaoValor} onChange={(e) => setDevolucaoValor(e.target.value)} placeholder="0,00" className="bg-white" /></div>
               </div>
-              {parseFloat(devolucaoValor) > 0 && (<div className="mt-2"><Label className="text-sm">Motivo da Devolução *</Label><Textarea value={devolucaoObs} onChange={(e) => setDevolucaoObs(e.target.value)} placeholder="Explique o motivo..." className="h-16 resize-none" /></div>)}
+              {parseFloat(devolucaoValor) > 0 && (<div className="mt-2"><Label className="text-sm">Motivo da Devolução *</Label><Textarea value={devolucaoObs} onChange={(e) => setDevolucaoObs(e.target.value)} placeholder="Explique o motivo..." className="h-16 resize-none bg-white" /></div>)}
             </Card>
 
             {/* PAGAMENTO */}
             <Card className="p-4 bg-emerald-50/30 border-emerald-200">
-              <div className="flex justify-between items-center mb-3"><h3 className="font-bold text-slate-800 flex items-center gap-2"><FileText className="w-5 h-5 text-emerald-600" /> Formas de Pagamento</h3><Button size="sm" variant="outline" onClick={adicionarForma}><Plus className="w-4 h-4 mr-1" /> Adicionar</Button></div>
+              <div className="flex justify-between items-center mb-3"><h3 className="font-bold text-slate-800 flex items-center gap-2"><FileText className="w-5 h-5 text-emerald-600" /> Formas de Pagamento</h3><Button size="sm" variant="outline" onClick={adicionarForma} className="bg-white"><Plus className="w-4 h-4 mr-1" /> Adicionar</Button></div>
               <div className="space-y-2">
                 {formasPagamento.map((forma, idx) => (
                   <div key={idx} className="grid grid-cols-12 gap-2">
                     <select value={forma.tipo} onChange={(e) => atualizarForma(idx, 'tipo', e.target.value)} className="col-span-5 h-10 rounded-lg border border-slate-300 px-3 bg-white text-sm"><option value="pix">PIX</option><option value="dinheiro">Dinheiro</option><option value="transferencia">Transferência</option><option value="cheque">Cheque</option><option value="cartao">Cartão</option></select>
-                    <Input type="number" step="0.01" value={forma.valor} onChange={(e) => atualizarForma(idx, 'valor', e.target.value)} placeholder="Valor" className="col-span-5 h-10" />
+                    <Input type="number" step="0.01" value={forma.valor} onChange={(e) => atualizarForma(idx, 'valor', e.target.value)} placeholder="Valor" className="col-span-5 h-10 bg-white" />
                     {formasPagamento.length > 1 && (<Button size="icon" variant="ghost" onClick={() => removerForma(idx)} className="col-span-2 h-10 text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>)}
                   </div>
                 ))}
@@ -406,28 +427,20 @@ export default function NovaLiquidacaoRepresentante({
             {/* ANEXOS */}
             <div className="space-y-3">
               <Label className="font-bold text-slate-800">Comprovantes de Pagamento *</Label>
-              <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 bg-slate-50 hover:bg-slate-100 transition-colors text-center"><Upload className="w-10 h-10 text-slate-400 mx-auto mb-2" /><p className="text-sm font-medium text-slate-700">Arraste e solte ou clique para selecionar</p><input type="file" multiple accept="image/*,application/pdf" onChange={(e) => fazerUpload(e.target.files)} className="hidden" id="file-input" /><label htmlFor="file-input"><Button type="button" size="sm" variant="outline" className="mt-3 cursor-pointer" asChild><span>Selecionar Arquivos</span></Button></label></div>
-              {arquivos.length > 0 && (<div className="grid grid-cols-3 gap-2">{arquivos.map((url, idx) => (<div key={idx} className="relative group"><img src={url} alt={`Comprovante ${idx + 1}`} className="w-full aspect-square object-cover rounded-lg border-2 border-slate-200" /><Button size="icon" variant="destructive" className="absolute -top-2 -right-2 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100" onClick={() => removerArquivo(idx)}><X className="w-3 h-3" /></Button></div>))}</div>)}
+              <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 bg-white hover:bg-slate-50 transition-colors text-center cursor-pointer relative" onClick={() => document.getElementById('file-input').click()}>
+                <Upload className="w-10 h-10 text-slate-400 mx-auto mb-2" />
+                <p className="text-sm font-medium text-slate-700">Arraste e solte ou clique para selecionar</p>
+                <input type="file" multiple accept="image/*,application/pdf" onChange={(e) => fazerUpload(e.target.files)} className="hidden" id="file-input" />
+              </div>
+              {arquivos.length > 0 && (<div className="grid grid-cols-3 gap-2">{arquivos.map((url, idx) => (<div key={idx} className="relative group"><img src={url} alt={`Comprovante ${idx + 1}`} className="w-full aspect-square object-cover rounded-lg border-2 border-slate-200" /><Button size="icon" variant="destructive" className="absolute -top-2 -right-2 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm" onClick={() => removerArquivo(idx)}><X className="w-3 h-3" /></Button></div>))}</div>)}
               {uploading && <div className="flex items-center justify-center gap-2 text-blue-600"><Loader2 className="w-4 h-4 animate-spin" /><span className="text-sm">Enviando arquivos...</span></div>}
             </div>
 
-            <div><Label className="text-sm">Observações</Label><Textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Informações adicionais..." className="h-20 resize-none" /></div>
+            <div><Label className="text-sm">Observações</Label><Textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Informações adicionais..." className="h-20 resize-none bg-white" /></div>
+
+            <div className="flex justify-between pt-4 border-t"><Button variant="outline" onClick={() => setPasso(1)}>Voltar</Button><div className="flex gap-2"><Button variant="outline" onClick={fechar}>Cancelar</Button><Button onClick={validarEEnviar} disabled={enviando || uploading} className="bg-emerald-600 hover:bg-emerald-700 gap-2">{enviando ? <><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</> : <><CheckCircle className="w-4 h-4" /> FINALIZAR LIQUIDAÇÃO ({arquivos.length} anexos)</>}</Button></div></div>
           </div>
         )}
-        </div>
-
-        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-between">
-          <Button variant="outline" onClick={passo === 1 ? fechar : () => setPasso(1)}>
-            {passo === 1 ? 'Cancelar' : 'Voltar'}
-          </Button>
-          
-          {passo === 1 ? (
-             <Button onClick={avancar} className="bg-blue-600 hover:bg-blue-700">Avançar</Button>
-          ) : (
-             <Button onClick={validarEEnviar} disabled={enviando || uploading} className="bg-emerald-600 hover:bg-emerald-700 gap-2">
-                {enviando ? <><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</> : <><CheckCircle className="w-4 h-4" /> FINALIZAR LIQUIDAÇÃO ({arquivos.length} anexos)</>}
-             </Button>
-          )}
         </div>
       </DialogContent>
     </Dialog>
