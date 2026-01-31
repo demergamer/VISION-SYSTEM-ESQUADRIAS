@@ -253,31 +253,36 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
   const [isExpanded, setIsExpanded] = useState(false);
   const [innerTab, setInnerTab] = useState('abertos');
   
+  // Garantir que os arrays existam
+  const safePedidos = pedidos || [];
+  const safeCheques = cheques || [];
+  const safeCreditos = creditos || [];
+  
   // 1. Cálculos de Filtros
   const hoje = new Date();
   hoje.setHours(0,0,0,0);
 
-  const pedidosProducao = pedidos.filter(p => p.status === 'em_producao');
-  const pedidosTransito = pedidos.filter(p => ['em_transito', 'aguardando'].includes(p.status));
-  const pedidosPagos = pedidos.filter(p => p.status === 'pago');
+  const pedidosProducao = safePedidos.filter(p => p.status === 'em_producao');
+  const pedidosTransito = safePedidos.filter(p => ['em_transito', 'aguardando'].includes(p.status));
+  const pedidosPagos = safePedidos.filter(p => p.status === 'pago');
   
   // Regra > 15 dias
-  const pedidosAtrasados = pedidos.filter(p => {
+  const pedidosAtrasados = safePedidos.filter(p => {
     if ((p.status !== 'aberto' && p.status !== 'parcial') || !p.data_entrega) return false;
     return differenceInDays(hoje, parseISO(p.data_entrega)) > 15; 
   });
   
   // Aberto = Aberto/Parcial E NÃO Atrasado
-  const pedidosAbertos = pedidos.filter(p => 
+  const pedidosAbertos = safePedidos.filter(p => 
     (['aberto', 'parcial'].includes(p.status)) && 
     !pedidosAtrasados.some(pa => pa.id === p.id)
   );
 
-  const creditosDisponiveis = creditos.filter(c => c.status === 'disponivel');
-  const chequesDisponiveis = cheques.filter(c => c.status === 'normal');
+  const creditosDisponiveis = safeCreditos.filter(c => c.status === 'disponivel');
+  const chequesDisponiveis = safeCheques.filter(c => c.status === 'normal');
 
   // Cálculos Financeiros
-  const totalDevendo = pedidos.reduce((acc, p) => acc + (p.saldo_restante || 0), 0);
+  const totalDevendo = safePedidos.reduce((acc, p) => acc + (p.saldo_restante || 0), 0);
   const temAtraso = pedidosAtrasados.length > 0;
   
   // Função para renderizar tabela condicional
