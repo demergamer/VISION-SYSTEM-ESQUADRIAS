@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Loader2, Send, X, Search, CheckCircle, AlertCircle, MapPin, Building, FileText, Upload, Trash2 } from "lucide-react";
+import { Loader2, Send, X, Search, CheckCircle, AlertCircle, MapPin, Building, FileText, Upload, Trash2, Ban } from "lucide-react";
 import { toast } from "sonner";
 import { InputCpfCnpj } from "@/components/ui/input-mask";
 import { cn } from "@/lib/utils";
@@ -22,21 +22,50 @@ export default function SolicitarNovoCliente({ representante, onSuccess, onCance
     tem_st: false, cnaes_descricao: '', limite_credito_sugerido: '', observacao: ''
   });
 
-  // CONSULTA CNPJ (BRASIL API)
+  // --- CONSULTA INTELIGENTE (BASE INTERNA + RECEITA) ---
   const handleConsultarCNPJ = async (cnpjValue) => {
     const cnpjLimpo = cnpjValue.replace(/\D/g, '');
     if (cnpjLimpo.length !== 14) return;
 
     setIsConsulting(true);
-    const toastId = toast.loading("Consultando Receita Federal...");
+    const toastId = toast.loading("Verificando base de dados...");
 
     try {
+      // 1. VERIFICAÇÃO INTERNA (TRAVA DE DUPLICIDADE)
+      // Busca clientes para ver se já existe
+      const clientesExistentes = await base44.entities.Cliente.list();
+      const clienteJaCadastrado = clientesExistentes.find(c => c.cnpj && c.cnpj.replace(/\D/g, '') === cnpjLimpo);
+
+      if (clienteJaCadastrado) {
+        toast.dismiss(toastId);
+        
+        // POP-UP DE ERRO (TOAST CUSTOMIZADO)
+        toast.error("CLIENTE CADASTRADO: SOLICITAÇÃO NEGADA", {
+            description: `Este CNPJ já pertence ao cliente: ${clienteJaCadastrado.nome} (Cód: ${clienteJaCadastrado.codigo}).`,
+            duration: 8000,
+            icon: <Ban className="w-5 h-5 text-red-600" />,
+            style: { 
+                backgroundColor: '#FEF2F2', 
+                border: '1px solid #EF4444', 
+                color: '#991B1B',
+                fontWeight: 'bold'
+            }
+        });
+
+        // Limpa o CNPJ para impedir envio
+        setForm(prev => ({ ...prev, cnpj: '' }));
+        return; 
+      }
+
+      // 2. CONSULTA BRASIL API (Se não existe na base, busca dados)
+      toast.loading("Consultando Receita Federal...", { id: toastId });
+      
       const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`);
-      if (!response.ok) throw new Error('CNPJ não encontrado');
+      if (!response.ok) throw new Error('CNPJ não encontrado na Receita');
       
       const data = await response.json();
       
-      // Regra de ST (Exemplo)
+      // Lógica de ST (Exemplo)
       const cnaesComST = ['4744005', '4744099', '4672900'];
       const todosCnaes = [{ codigo: data.cnae_fiscal, descricao: data.cnae_fiscal_descricao }, ...(data.cnaes_secundarios || [])];
       const possuiST = todosCnaes.some(c => cnaesComST.includes(String(c.codigo).replace(/\D/g, '')));
@@ -59,10 +88,11 @@ export default function SolicitarNovoCliente({ representante, onSuccess, onCance
         cnaes_descricao: resumoCnaes
       }));
 
-      toast.success(possuiST ? "Dados carregados (Com ST)" : "Dados carregados!", { id: toastId });
+      toast.success(possuiST ? "Dados carregados (Com ST)" : "Dados carregados com sucesso!", { id: toastId });
+      
     } catch (error) {
       console.error(error);
-      toast.error("Erro na consulta CNPJ.", { id: toastId });
+      toast.error("Erro na consulta: " + error.message, { id: toastId });
     } finally {
       setIsConsulting(false);
     }
@@ -71,7 +101,10 @@ export default function SolicitarNovoCliente({ representante, onSuccess, onCance
   const handleCnpjChange = (e) => {
     const val = e.target.value;
     setForm({...form, cnpj: val});
-    if(val.replace(/\D/g, '').length === 14) handleConsultarCNPJ(val);
+    // Dispara apenas quando completa 14 dígitos
+    if(val.replace(/\D/g, '').length === 14) {
+        handleConsultarCNPJ(val);
+    }
   };
 
   const handleUploadSerasa = async (e) => {
@@ -88,6 +121,7 @@ export default function SolicitarNovoCliente({ representante, onSuccess, onCance
 
   const handleSubmit = async () => {
     if (!form.nome || !form.telefone) { toast.error('Nome e Telefone são obrigatórios'); return; }
+    if (!form.cnpj) { toast.error('CNPJ é obrigatório para validação'); return; }
 
     setIsSaving(true);
     try {
@@ -98,8 +132,11 @@ export default function SolicitarNovoCliente({ representante, onSuccess, onCance
         solicitante_tipo: 'representante',
         status: 'pendente',
         serasa_file_url: serasaFile,
-        limite_credito_sugerido: parseFloat(form.limite_credito_sugerido) || 0
+        limite_credito_sugerido: parseFloat(form.limite_credito_sugerido) || 0,
+        // Envia info técnica oculta para o admin
+        observacao: `${form.observacao}\n\n[SISTEMA] ST Detectado: ${form.tem_st ? 'SIM' : 'NÃO'}\nCNAEs:\n${form.cnaes_descricao || 'N/A'}`
       });
+      
       toast.success('Solicitação enviada com sucesso!');
       onSuccess();
     } catch (error) {
@@ -121,21 +158,21 @@ export default function SolicitarNovoCliente({ representante, onSuccess, onCance
         </div>
       </div>
 
-      <div className="overflow-y-auto max-h-[60vh] pr-2">
+      <div className="overflow-y-auto max-h-[60vh] pr-2 custom-scrollbar">
         <Accordion type="multiple" defaultValue={['dados', 'endereco']} className="space-y-4">
           
           {/* 1. DADOS CADASTRAIS */}
-          <AccordionItem value="dados" className="border rounded-xl px-4 shadow-sm">
+          <AccordionItem value="dados" className="border rounded-xl px-4 shadow-sm bg-white">
             <AccordionTrigger className="hover:no-underline"><div className="flex gap-2 items-center"><Building className="w-5 h-5 text-blue-600"/> Dados Cadastrais</div></AccordionTrigger>
             <AccordionContent className="pt-2 pb-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2 md:col-span-2">
                         <Label>CNPJ (Busca Automática)</Label>
                         <div className="relative">
-                            <InputCpfCnpj value={form.cnpj} onChange={handleCnpjChange} className={cn(inputClass, "pr-10")} placeholder="Digite para buscar..." />
+                            <InputCpfCnpj value={form.cnpj} onChange={handleCnpjChange} className={cn(inputClass, "pr-10 font-mono font-medium")} placeholder="Digite para buscar..." />
                             {isConsulting && <Loader2 className="absolute right-3 top-2.5 w-5 h-5 animate-spin text-blue-600" />}
                         </div>
-                        {form.tem_st && <p className="text-xs text-orange-600 font-bold">⚠️ Cliente possui ST (Substituição Tributária)</p>}
+                        {form.tem_st && <p className="text-xs text-orange-600 font-bold bg-orange-50 p-2 rounded border border-orange-100 mt-2">⚠️ Cliente com Substituição Tributária (ST)</p>}
                     </div>
                     <div className="space-y-2">
                         <Label>Razão Social *</Label>
@@ -158,7 +195,7 @@ export default function SolicitarNovoCliente({ representante, onSuccess, onCance
           </AccordionItem>
 
           {/* 2. ENDEREÇO */}
-          <AccordionItem value="endereco" className="border rounded-xl px-4 shadow-sm">
+          <AccordionItem value="endereco" className="border rounded-xl px-4 shadow-sm bg-white">
             <AccordionTrigger className="hover:no-underline"><div className="flex gap-2 items-center"><MapPin className="w-5 h-5 text-red-500"/> Endereço</div></AccordionTrigger>
             <AccordionContent className="pt-2 pb-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -166,14 +203,14 @@ export default function SolicitarNovoCliente({ representante, onSuccess, onCance
                     <div className="space-y-2 md:col-span-2"><Label>Endereço</Label><Input value={form.endereco} onChange={e => setForm({...form, endereco: e.target.value})} className={inputClass} /></div>
                     <div className="space-y-2"><Label>Número</Label><Input value={form.numero} onChange={e => setForm({...form, numero: e.target.value})} className={inputClass} /></div>
                     <div className="space-y-2"><Label>Bairro</Label><Input value={form.bairro} onChange={e => setForm({...form, bairro: e.target.value})} className={inputClass} /></div>
-                    <div className="space-y-2"><Label>Cidade/UF</Label><Input value={`${form.cidade}-${form.estado}`} readOnly className={cn(inputClass, "bg-slate-100")} /></div>
+                    <div className="space-y-2"><Label>Cidade/UF</Label><Input value={form.cidade && form.estado ? `${form.cidade}-${form.estado}` : ''} readOnly className={cn(inputClass, "bg-slate-100")} placeholder="Preenchido pelo CNPJ" /></div>
                     <div className="space-y-2 md:col-span-3"><Label>Região de Entrega (Sugestão)</Label><Input value={form.regiao} onChange={e => setForm({...form, regiao: e.target.value})} className={inputClass} placeholder="Ex: ZONA LESTE" /></div>
                 </div>
             </AccordionContent>
           </AccordionItem>
 
           {/* 3. FINANCEIRO E ANEXOS */}
-          <AccordionItem value="financeiro" className="border rounded-xl px-4 shadow-sm">
+          <AccordionItem value="financeiro" className="border rounded-xl px-4 shadow-sm bg-white">
             <AccordionTrigger className="hover:no-underline"><div className="flex gap-2 items-center"><FileText className="w-5 h-5 text-emerald-600"/> Financeiro & Anexos</div></AccordionTrigger>
             <AccordionContent className="pt-2 pb-4">
                 <div className="space-y-4">
@@ -185,14 +222,14 @@ export default function SolicitarNovoCliente({ representante, onSuccess, onCance
                     <div className="space-y-2">
                         <Label>Anexar Serasa/Ficha Cadastral</Label>
                         <div className="flex items-center gap-3">
-                            <label className="cursor-pointer">
+                            <label className="cursor-pointer w-full">
                                 <input type="file" accept=".pdf" className="hidden" onChange={handleUploadSerasa} disabled={uploadingSerasa} />
-                                <div className={cn("flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed transition-all", serasaFile ? "bg-emerald-50 border-emerald-300 text-emerald-700" : "bg-slate-50 border-slate-300 hover:bg-slate-100")}>
+                                <div className={cn("flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed transition-all", serasaFile ? "bg-emerald-50 border-emerald-300 text-emerald-700" : "bg-slate-50 border-slate-300 hover:bg-slate-100")}>
                                     {uploadingSerasa ? <Loader2 className="w-4 h-4 animate-spin"/> : serasaFile ? <CheckCircle className="w-4 h-4"/> : <Upload className="w-4 h-4"/>}
-                                    <span className="text-sm font-medium">{serasaFile ? "Arquivo Anexado" : "Clique para selecionar PDF"}</span>
+                                    <span className="text-sm font-medium">{serasaFile ? "Arquivo Anexado com Sucesso" : "Clique para selecionar PDF"}</span>
                                 </div>
                             </label>
-                            {serasaFile && <Button size="icon" variant="ghost" className="text-red-500" onClick={() => setSerasaFile(null)}><Trash2 className="w-4 h-4"/></Button>}
+                            {serasaFile && <Button size="icon" variant="ghost" className="text-red-500 hover:bg-red-50" onClick={() => setSerasaFile(null)}><Trash2 className="w-4 h-4"/></Button>}
                         </div>
                     </div>
 
@@ -206,9 +243,9 @@ export default function SolicitarNovoCliente({ representante, onSuccess, onCance
         </Accordion>
       </div>
 
-      <div className="flex justify-end gap-3 pt-4 border-t">
+      <div className="flex justify-end gap-3 pt-4 border-t bg-white sticky bottom-0">
         <Button variant="outline" onClick={onCancel} disabled={isSaving}>Cancelar</Button>
-        <Button onClick={handleSubmit} disabled={isSaving} className="bg-blue-600 hover:bg-blue-700 gap-2">
+        <Button onClick={handleSubmit} disabled={isSaving || isConsulting} className="bg-blue-600 hover:bg-blue-700 gap-2 shadow-lg">
           {isSaving ? <Loader2 className="w-4 h-4 animate-spin"/> : <Send className="w-4 h-4"/>} Enviar Solicitação
         </Button>
       </div>
