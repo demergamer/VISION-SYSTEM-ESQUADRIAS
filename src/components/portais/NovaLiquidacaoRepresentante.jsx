@@ -62,10 +62,11 @@ export default function NovaLiquidacaoRepresentante({
 
   // Filtrar Pedidos por Busca
   const pedidosFiltrados = useMemo(() => {
-    if (!buscaPedido.trim()) return pedidos;
+    const safePedidos = pedidos || [];
+    if (!buscaPedido.trim()) return safePedidos;
     
     const termo = buscaPedido.toLowerCase();
-    return pedidos.filter(p => 
+    return safePedidos.filter(p => 
       p.cliente_nome?.toLowerCase().includes(termo) ||
       p.numero_pedido?.toLowerCase().includes(termo) ||
       p.cliente_codigo?.toLowerCase().includes(termo)
@@ -74,7 +75,8 @@ export default function NovaLiquidacaoRepresentante({
 
   // Cálculos
   const calculos = useMemo(() => {
-    const pedidosSelecionados = pedidos.filter(p => selecionados.includes(p.id));
+    const safePedidos = pedidos || [];
+    const pedidosSelecionados = safePedidos.filter(p => selecionados.includes(p.id));
     const totalOriginal = pedidosSelecionados.reduce((sum, p) => sum + (p.saldo_restante || 0), 0);
     
     const desconto = parseFloat(descontoValor) || 0;
@@ -98,7 +100,8 @@ export default function NovaLiquidacaoRepresentante({
   };
 
   const toggleTodos = () => {
-    setSelecionados(prev => prev.length === pedidos.length ? [] : pedidos.map(p => p.id));
+    const safePedidos = pedidos || [];
+    setSelecionados(prev => prev.length === safePedidos.length ? [] : safePedidos.map(p => p.id));
   };
 
   // Avançar para Passo 2
@@ -261,7 +264,8 @@ export default function NovaLiquidacaoRepresentante({
 
     try {
       const user = await base44.auth.me();
-      const pedidosSelecionados = pedidos.filter(p => selecionados.includes(p.id));
+      const safePedidos = pedidos || [];
+      const pedidosSelecionados = safePedidos.filter(p => selecionados.includes(p.id));
 
       // Construir descontos
       const descontosCascata = [];
@@ -381,11 +385,11 @@ export default function NovaLiquidacaoRepresentante({
 
             <div className="flex items-center justify-between">
               <Button size="sm" variant="outline" onClick={toggleTodos}>
-                {selecionados.length === pedidos.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
+                {selecionados.length === (pedidos || []).length ? 'Desmarcar Todos' : 'Selecionar Todos'}
               </Button>
               <span className="text-sm text-slate-600">
-                {selecionados.length} de {pedidos.length} selecionados
-                {buscaPedido && pedidosFiltrados.length !== pedidos.length && (
+                {selecionados.length} de {(pedidos || []).length} selecionados
+                {buscaPedido && pedidosFiltrados.length !== (pedidos || []).length && (
                   <span className="ml-2 text-blue-600">
                     ({pedidosFiltrados.length} exibidos)
                   </span>
