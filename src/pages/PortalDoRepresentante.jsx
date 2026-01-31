@@ -112,6 +112,8 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
   const [activeTab, setActiveTab] = useState('abertos');
   const [searchTerm, setSearchTerm] = useState('');
 
+  const safePedidos = pedidos || [];
+  
   const filtrarPorBusca = (lista) => {
     if (!searchTerm) return lista;
     return lista.filter(p => 
@@ -121,10 +123,10 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
     );
   };
 
-  const pedidosEmProducao = filtrarPorBusca(pedidos.filter(p => p.status === 'em_producao'));
-  const pedidosEmTransito = filtrarPorBusca(pedidos.filter(p => p.status === 'em_transito' || p.status === 'aguardando'));
-  const pedidosAbertos = filtrarPorBusca(pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial'));
-  const pedidosLiquidados = filtrarPorBusca(pedidos.filter(p => p.status === 'pago'));
+  const pedidosEmProducao = filtrarPorBusca(safePedidos.filter(p => p.status === 'em_producao'));
+  const pedidosEmTransito = filtrarPorBusca(safePedidos.filter(p => p.status === 'em_transito' || p.status === 'aguardando'));
+  const pedidosAbertos = filtrarPorBusca(safePedidos.filter(p => p.status === 'aberto' || p.status === 'parcial'));
+  const pedidosLiquidados = filtrarPorBusca(safePedidos.filter(p => p.status === 'pago'));
 
   const getPedidosAtuais = () => {
     switch(activeTab) {
@@ -485,15 +487,20 @@ export default function PainelRepresentante() {
 
   const meusClientes = useMemo(() => {
     if (!representante) return [];
-    let clientes = todosClientes.filter(c => c.representante_codigo === representante.codigo);
+    const safeTodosClientes = todosClientes || [];
+    const safeTodosPedidos = todosPedidos || [];
+    const safeTodosCheques = todosCheques || [];
+    const safeTodosCreditos = todosCreditos || [];
+    
+    let clientes = safeTodosClientes.filter(c => c.representante_codigo === representante.codigo);
     if (searchTerm) {
       clientes = clientes.filter(c => c.nome?.toLowerCase().includes(searchTerm.toLowerCase()) || c.codigo?.toLowerCase().includes(searchTerm.toLowerCase()));
     }
     return clientes.map(c => ({
       ...c,
-      pedidos: todosPedidos.filter(p => p.cliente_codigo === c.codigo),
-      cheques: todosCheques.filter(ch => ch.cliente_codigo === c.codigo),
-      creditos: todosCreditos.filter(cr => cr.cliente_codigo === c.codigo)
+      pedidos: safeTodosPedidos.filter(p => p.cliente_codigo === c.codigo),
+      cheques: safeTodosCheques.filter(ch => ch.cliente_codigo === c.codigo),
+      creditos: safeTodosCreditos.filter(cr => cr.cliente_codigo === c.codigo)
     }));
   }, [representante, todosClientes, todosPedidos, todosCheques, todosCreditos, searchTerm]);
 
