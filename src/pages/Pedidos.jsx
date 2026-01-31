@@ -15,7 +15,7 @@ import {
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { toast } from "sonner";
-import { format, differenceInDays, parseISO, isToday, isFuture, isPast } from "date-fns";
+import { format, differenceInDays, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator
@@ -91,20 +91,29 @@ const StatWidget = ({ title, value, icon: Icon, color, subtext }) => {
 // Componente: Card de Pedido em Grade (Explorer)
 const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReverter, canDo }) => {
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
+  
+  // CORREÇÃO: Badge só fica vermelha se > 15 dias
   const getStatusBadge = (status, dataEntrega) => {
     const now = new Date();
-    const dataRef = dataEntrega ? new Date(dataEntrega) : new Date();
+    // Zera horas para comparação justa de datas
+    now.setHours(0, 0, 0, 0); 
+    
+    const dataRef = dataEntrega ? parseISO(dataEntrega) : new Date();
     const diasAtraso = differenceInDays(now, dataRef);
+    
     switch (status) {
       case 'aguardando': return <Badge className="bg-amber-100 text-amber-700 border-amber-200">Em Trânsito</Badge>;
       case 'pago': return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">Liquidado</Badge>;
       case 'cancelado': return <Badge className="bg-slate-100 text-slate-700 border-slate-200">Cancelado</Badge>;
       case 'parcial': return <Badge className="bg-purple-100 text-purple-700 border-purple-200">Parcial</Badge>;
       default:
-        if (diasAtraso > 0) return <Badge className="bg-red-100 text-red-700 border-red-200">Atrasado ({diasAtraso}d)</Badge>;
-        return <Badge className="bg-blue-100 text-blue-700 border-blue-200">Em Dia</Badge>;
+        // SÓ É ATRASADO SE FOR MAIOR QUE 15 DIAS
+        if (diasAtraso > 15) return <Badge className="bg-red-100 text-red-700 border-red-200">Atrasado ({diasAtraso}d)</Badge>;
+        // Se for entre 1 e 15 dias, é "Aberto" (mas pode mostrar dias se quiser, sem ser vermelho)
+        return <Badge className="bg-blue-100 text-blue-700 border-blue-200">Aberto</Badge>;
     }
   };
+
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-4 hover:shadow-md transition-all flex flex-col gap-3 group relative h-full">
       <div className="flex justify-between items-start">
@@ -194,10 +203,8 @@ export default function Pedidos() {
         .filter(p => p.status === 'aberto' || p.status === 'parcial')
         .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
     const autorizacoesCount = liquidacoesPendentes.filter(lp => lp.status === 'pendente').length;
-    
-    // CORREÇÃO: Rotas Ativas (Apenas Pendentes/Parciais)
     const rotasAtivasCount = rotas.filter(r => r.status === 'pendente' || r.status === 'parcial').length;
-
+    
     // CORREÇÃO: Em Atraso > 15 dias (R$)
     const hoje = new Date();
     hoje.setHours(0,0,0,0);
@@ -205,11 +212,10 @@ export default function Pedidos() {
         .filter(p => {
             if ((p.status !== 'aberto' && p.status !== 'parcial') || !p.data_entrega) return false;
             const entrega = parseISO(p.data_entrega);
-            return differenceInDays(hoje, entrega) > 15; // Mais de 15 dias de atraso
+            return differenceInDays(hoje, entrega) > 15; // Regra de Ouro: > 15 dias
         })
         .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
 
-    // CORREÇÃO: Valor em Trânsito (R$)
     const valorEmTransito = pedidos
         .filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado')
         .reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
@@ -267,14 +273,27 @@ export default function Pedidos() {
       default: break; 
     }
 
-    // 2. Sub-Filtro (Abertos)
+    // 2. Sub-Filtro (CORREÇÃO DE LÓGICA DE DATAS)
     if (activeTab === 'abertos') {
         const hoje = new Date();
         hoje.setHours(0,0,0,0);
+        
         if (abertosSubTab === 'em_dia') {
-            data = data.filter(p => p.data_entrega && (isToday(parseISO(p.data_entrega)) || isFuture(parseISO(p.data_entrega))));
+            // Em dia = Data Futura, Hoje, OU Passado <= 15 dias
+            data = data.filter(p => {
+                if (!p.data_entrega) return true; // Sem data = Em dia (padrão)
+                const entrega = parseISO(p.data_entrega);
+                const diff = differenceInDays(hoje, entrega);
+                return diff <= 15; 
+            });
         } else if (abertosSubTab === 'atrasado') {
-            data = data.filter(p => p.data_entrega && isPast(parseISO(p.data_entrega)) && !isToday(parseISO(p.data_entrega)));
+            // Atrasado = Passado E diferença > 15 dias
+            data = data.filter(p => {
+                if (!p.data_entrega) return false;
+                const entrega = parseISO(p.data_entrega);
+                const diff = differenceInDays(hoje, entrega);
+                return diff > 15;
+            });
         }
     }
 
@@ -356,7 +375,7 @@ export default function Pedidos() {
     }
   };
   
-  // FUNÇÃO ATUALIZADA: Sincronização + Limpeza de Resíduos (Agora também limpa se Total Pago >= Valor)
+  // FUNÇÃO ATUALIZADA: Sincronização + Limpeza de Resíduos
   const handleRefresh = async () => {
     setRefreshingData(true);
     setRefreshMessage('Conectando ao banco de dados...');
@@ -398,34 +417,23 @@ export default function Pedidos() {
         });
         await Promise.all(promisesClientes.filter(Boolean));
 
-        // CORREÇÃO DOS RESÍDUOS E PAGAMENTOS TOTAIS
         setRefreshMessage('Analisando resíduos e pagamentos...');
         let residuosLimpos = 0;
         const promisesResiduos = latestPedidos
             .filter(p => {
-                // Filtra apenas abertos/parciais
                 if (p.status !== 'aberto' && p.status !== 'parcial') return false;
-                
                 const valorTotal = parseFloat(p.valor_pedido) || 0;
                 const totalPago = parseFloat(p.total_pago) || 0;
                 const saldo = parseFloat(p.saldo_restante) || (valorTotal - totalPago);
-                
-                // CONDIÇÃO 1: Resíduo de centavos (incluindo valores muito pequenos)
-                const isResiduo = saldo > 0.000000001 && saldo <= 0.10;
-                
-                // CONDIÇÃO 2: Pago Total (ou a maior) mas status não virou
-                const isPagoTotal = totalPago >= valorTotal;
-
-                return isResiduo || isPagoTotal;
+                return (saldo > 0.000000001 && saldo <= 0.10) || (totalPago >= valorTotal);
             })
             .map(p => {
                 residuosLimpos++;
                 return base44.entities.Pedido.update(p.id, { 
                     status: 'pago', 
                     saldo_restante: 0, 
-                    // Se foi pago a mais, mantém o pago. Se foi resíduo, "completa" o pagamento.
                     total_pago: (parseFloat(p.total_pago) >= parseFloat(p.valor_pedido)) ? p.total_pago : p.valor_pedido,
-                    outras_informacoes: (p.outras_informacoes || '') + '\n[AUTO] Baixa automática (Resíduo ou Pgto Total) - Varredura'
+                    outras_informacoes: (p.outras_informacoes || '') + '\n[AUTO] Baixa automática - Varredura'
                 });
             });
         await Promise.all(promisesResiduos);
@@ -780,7 +788,7 @@ export default function Pedidos() {
 
             <TabsContent value="transito">
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {processedPedidos.length > 0 ? processedPedidos.map(p => (
+                    {filteredPedidos.length > 0 ? filteredPedidos.map(p => (
                         <div key={p.id} className={cn(
                             "border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col gap-3",
                             p.cliente_pendente ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200"
@@ -922,7 +930,7 @@ export default function Pedidos() {
                     </div>
                 ) : (
                     <PedidoTable 
-                        pedidos={processedPedidos} 
+                        pedidos={filteredPedidos} 
                         onEdit={handleEdit} 
                         onView={handleView} 
                         onLiquidar={handleLiquidar} 
@@ -934,37 +942,64 @@ export default function Pedidos() {
                 )}
             </TabsContent>
 
-            {['abertos', 'cancelados'].map(tab => (
-                <TabsContent key={tab} value={tab}>
-                    {viewMode === 'table' ? (
-                        <PedidoTable 
-                            pedidos={processedPedidos} 
-                            onEdit={handleEdit} 
-                            onView={handleView} 
-                            onLiquidar={handleLiquidar} 
-                            onCancelar={handleCancelar} 
-                            onReverter={null}
-                            isLoading={loadingPedidos}
-                            sortConfig={sortConfig} 
-                            onSort={handleSort}     
-                        />
-                    ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                            {processedPedidos.map(pedido => (
-                                <PedidoGridCard 
-                                    key={pedido.id} 
-                                    pedido={pedido} 
-                                    onEdit={handleEdit} 
-                                    onView={handleView} 
-                                    onLiquidar={handleLiquidar} 
-                                    onCancelar={handleCancelar} 
-                                    canDo={canDo} 
-                                />
-                            ))}
-                        </div>
-                    )}
-                </TabsContent>
-            ))}
+            {/* ABERTOS & CANCELADOS */}
+            <TabsContent value="abertos">
+                {viewMode === 'table' ? (
+                    <PedidoTable 
+                        pedidos={processedPedidos} 
+                        onEdit={handleEdit} 
+                        onView={handleView} 
+                        onLiquidar={handleLiquidar} 
+                        onCancelar={handleCancelar} 
+                        onReverter={null}
+                        isLoading={loadingPedidos}
+                        sortConfig={sortConfig} 
+                        onSort={handleSort}     
+                    />
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {processedPedidos.map(pedido => (
+                            <PedidoGridCard 
+                                key={pedido.id} 
+                                pedido={pedido} 
+                                onEdit={handleEdit} 
+                                onView={handleView} 
+                                onLiquidar={handleLiquidar} 
+                                onCancelar={handleCancelar} 
+                                canDo={canDo} 
+                            />
+                        ))}
+                    </div>
+                )}
+            </TabsContent>
+
+            <TabsContent value="cancelados">
+                {viewMode === 'table' ? (
+                    <PedidoTable 
+                        pedidos={filteredPedidos} 
+                        onEdit={handleEdit} 
+                        onView={handleView} 
+                        onLiquidar={handleLiquidar} 
+                        onCancelar={handleCancelar} 
+                        onReverter={null}
+                        isLoading={loadingPedidos}
+                    />
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {filteredPedidos.map(pedido => (
+                            <PedidoGridCard 
+                                key={pedido.id} 
+                                pedido={pedido} 
+                                onEdit={handleEdit} 
+                                onView={handleView} 
+                                onLiquidar={handleLiquidar} 
+                                onCancelar={handleCancelar} 
+                                canDo={canDo} 
+                            />
+                        ))}
+                    </div>
+                )}
+            </TabsContent>
 
           </Tabs>
 
