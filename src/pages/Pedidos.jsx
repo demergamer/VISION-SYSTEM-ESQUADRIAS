@@ -15,7 +15,7 @@ import {
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { toast } from "sonner";
-import { format, differenceInDays, parseISO } from "date-fns";
+import { format, differenceInDays, parseISO, isToday, isFuture, isPast } from "date-fns";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator
@@ -92,12 +92,10 @@ const StatWidget = ({ title, value, icon: Icon, color, subtext }) => {
 const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReverter, canDo }) => {
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
   
-  // CORREÇÃO: Badge só fica vermelha se > 15 dias
+  // LÓGICA DE BADGE CORRIGIDA: SÓ É ATRASO SE > 15 DIAS
   const getStatusBadge = (status, dataEntrega) => {
     const now = new Date();
-    // Zera horas para comparação justa de datas
-    now.setHours(0, 0, 0, 0); 
-    
+    now.setHours(0,0,0,0);
     const dataRef = dataEntrega ? parseISO(dataEntrega) : new Date();
     const diasAtraso = differenceInDays(now, dataRef);
     
@@ -107,9 +105,9 @@ const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReve
       case 'cancelado': return <Badge className="bg-slate-100 text-slate-700 border-slate-200">Cancelado</Badge>;
       case 'parcial': return <Badge className="bg-purple-100 text-purple-700 border-purple-200">Parcial</Badge>;
       default:
-        // SÓ É ATRASADO SE FOR MAIOR QUE 15 DIAS
-        if (diasAtraso > 15) return <Badge className="bg-red-100 text-red-700 border-red-200">Atrasado ({diasAtraso}d)</Badge>;
-        // Se for entre 1 e 15 dias, é "Aberto" (mas pode mostrar dias se quiser, sem ser vermelho)
+        // CORREÇÃO AQUI: > 15
+        if (diasAtraso > 15) return <Badge className="bg-red-100 text-red-700 border-red-200">Atrasado (+{diasAtraso}d)</Badge>;
+        if (diasAtraso > 0) return <Badge className="bg-blue-50 text-blue-700 border-blue-100">Aberto ({diasAtraso}d)</Badge>;
         return <Badge className="bg-blue-100 text-blue-700 border-blue-200">Aberto</Badge>;
     }
   };
@@ -195,26 +193,31 @@ export default function Pedidos() {
   const { data: borderos = [], isLoading: loadingBorderos, refetch: refetchBorderos } = useQuery({ queryKey: ['borderos'], queryFn: () => base44.entities.Bordero.list('-created_date') });
   const { data: liquidacoesPendentes = [], isLoading: loadingAutorizacoes, refetch: refetchAutorizacoes } = useQuery({ queryKey: ['liquidacoesPendentes'], queryFn: () => base44.entities.LiquidacaoPendente.list('-created_date') });
 
-  // --- STATS ---
+  // --- STATS CORRIGIDOS ---
   const stats = useMemo(() => {
     const transitoCount = pedidos.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado').length;
     const abertosCount = pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial').length;
+    
+    // Total a Receber: Soma de TODOS os saldos em aberto (em dia + atrasados)
     const totalAReceber = pedidos
         .filter(p => p.status === 'aberto' || p.status === 'parcial')
         .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
+    
     const autorizacoesCount = liquidacoesPendentes.filter(lp => lp.status === 'pendente').length;
     const rotasAtivasCount = rotas.filter(r => r.status === 'pendente' || r.status === 'parcial').length;
     
-    // CORREÇÃO: Em Atraso > 15 dias (R$)
+    // CORREÇÃO: Em Atraso soma o SALDO, somente se dias > 15
     const hoje = new Date();
     hoje.setHours(0,0,0,0);
+    
     const totalVencido = pedidos
         .filter(p => {
             if ((p.status !== 'aberto' && p.status !== 'parcial') || !p.data_entrega) return false;
             const entrega = parseISO(p.data_entrega);
-            return differenceInDays(hoje, entrega) > 15; // Regra de Ouro: > 15 dias
+            const dias = differenceInDays(hoje, entrega);
+            return dias > 15; // REGRA > 15 DIAS
         })
-        .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
+        .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0); // SOMA O SALDO
 
     const valorEmTransito = pedidos
         .filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado')
@@ -273,7 +276,7 @@ export default function Pedidos() {
       default: break; 
     }
 
-    // 2. Sub-Filtro (CORREÇÃO DE LÓGICA DE DATAS)
+    // 2. Sub-Filtro (CORREÇÃO DE LÓGICA DE DATAS > 15)
     if (activeTab === 'abertos') {
         const hoje = new Date();
         hoje.setHours(0,0,0,0);
@@ -284,7 +287,7 @@ export default function Pedidos() {
                 if (!p.data_entrega) return true; // Sem data = Em dia (padrão)
                 const entrega = parseISO(p.data_entrega);
                 const diff = differenceInDays(hoje, entrega);
-                return diff <= 15; 
+                return diff <= 15; // Tolera até 15 dias
             });
         } else if (abertosSubTab === 'atrasado') {
             // Atrasado = Passado E diferença > 15 dias
@@ -292,7 +295,7 @@ export default function Pedidos() {
                 if (!p.data_entrega) return false;
                 const entrega = parseISO(p.data_entrega);
                 const diff = differenceInDays(hoje, entrega);
-                return diff > 15;
+                return diff > 15; // Só mostra se passar de 15 dias
             });
         }
     }
@@ -375,7 +378,7 @@ export default function Pedidos() {
     }
   };
   
-  // FUNÇÃO ATUALIZADA: Sincronização + Limpeza de Resíduos
+  // FUNÇÃO ATUALIZADA
   const handleRefresh = async () => {
     setRefreshingData(true);
     setRefreshMessage('Conectando ao banco de dados...');
@@ -761,7 +764,7 @@ export default function Pedidos() {
                     <div className="bg-white p-1 rounded-lg border border-slate-200 inline-flex shadow-sm">
                         <button onClick={() => setAbertosSubTab('todos')} className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-all", abertosSubTab === 'todos' ? "bg-blue-50 text-blue-700 shadow-sm" : "text-slate-600 hover:bg-slate-50")}>Todos</button>
                         <button onClick={() => setAbertosSubTab('em_dia')} className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-all", abertosSubTab === 'em_dia' ? "bg-emerald-50 text-emerald-700 shadow-sm" : "text-slate-600 hover:bg-slate-50")}>Em Dia</button>
-                        <button onClick={() => setAbertosSubTab('atrasado')} className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-all", abertosSubTab === 'atrasado' ? "bg-red-50 text-red-700 shadow-sm" : "text-slate-600 hover:bg-slate-50")}>Em Atraso</button>
+                        <button onClick={() => setAbertosSubTab('atrasado')} className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-all", abertosSubTab === 'atrasado' ? "bg-red-50 text-red-700 shadow-sm" : "text-slate-600 hover:bg-slate-50")}>Em Atraso (+15 dias)</button>
                     </div>
                 </div>
             )}
@@ -788,7 +791,7 @@ export default function Pedidos() {
 
             <TabsContent value="transito">
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {processedPedidos.length > 0 ? processedPedidos.map(p => (
+                    {filteredPedidos.length > 0 ? filteredPedidos.map(p => (
                         <div key={p.id} className={cn(
                             "border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col gap-3",
                             p.cliente_pendente ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200"
@@ -930,7 +933,7 @@ export default function Pedidos() {
                     </div>
                 ) : (
                     <PedidoTable 
-                        pedidos={processedPedidos} 
+                        pedidos={filteredPedidos} 
                         onEdit={handleEdit} 
                         onView={handleView} 
                         onLiquidar={handleLiquidar} 
@@ -976,7 +979,7 @@ export default function Pedidos() {
             <TabsContent value="cancelados">
                 {viewMode === 'table' ? (
                     <PedidoTable 
-                        pedidos={processedPedidos} 
+                        pedidos={filteredPedidos} 
                         onEdit={handleEdit} 
                         onView={handleView} 
                         onLiquidar={handleLiquidar} 
@@ -986,7 +989,7 @@ export default function Pedidos() {
                     />
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {processedPedidos.map(pedido => (
+                        {filteredPedidos.map(pedido => (
                             <PedidoGridCard 
                                 key={pedido.id} 
                                 pedido={pedido} 
@@ -1003,6 +1006,7 @@ export default function Pedidos() {
 
           </Tabs>
 
+          {/* ... (Modais mantidos iguais) ... */}
           <ModalContainer open={showImportModal} onClose={() => setShowImportModal(false)} title="Importar Pedidos" size="lg">
             <ImportarPedidos 
                 clientes={clientes} 
