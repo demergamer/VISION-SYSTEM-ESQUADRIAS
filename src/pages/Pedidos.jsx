@@ -139,7 +139,7 @@ export default function Pedidos() {
   // --- STATES ---
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('abertos');
-  const [abertosSubTab, setAbertosSubTab] = useState('todos'); // NOVO: Sub-filtro para abertos
+  const [abertosSubTab, setAbertosSubTab] = useState('todos'); 
   const [viewMode, setViewMode] = useState('table'); 
   const [liquidacaoView, setLiquidacaoView] = useState('bordero'); 
   const [showFilters, setShowFilters] = useState(false);
@@ -205,7 +205,7 @@ export default function Pedidos() {
         .filter(p => {
             if ((p.status !== 'aberto' && p.status !== 'parcial') || !p.data_entrega) return false;
             const entrega = parseISO(p.data_entrega);
-            return differenceInDays(hoje, entrega) > 15;
+            return differenceInDays(hoje, entrega) > 15; // Mais de 15 dias de atraso
         })
         .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
 
@@ -356,7 +356,7 @@ export default function Pedidos() {
     }
   };
   
-  // FUNÇÃO ATUALIZADA: Sincronização + Limpeza de Resíduos
+  // FUNÇÃO ATUALIZADA: Sincronização + Limpeza de Resíduos (Agora também limpa se Total Pago >= Valor)
   const handleRefresh = async () => {
     setRefreshingData(true);
     setRefreshMessage('Conectando ao banco de dados...');
@@ -398,24 +398,34 @@ export default function Pedidos() {
         });
         await Promise.all(promisesClientes.filter(Boolean));
 
+        // CORREÇÃO DOS RESÍDUOS E PAGAMENTOS TOTAIS
         setRefreshMessage('Analisando resíduos e pagamentos...');
         let residuosLimpos = 0;
         const promisesResiduos = latestPedidos
             .filter(p => {
+                // Filtra apenas abertos/parciais
                 if (p.status !== 'aberto' && p.status !== 'parcial') return false;
+                
                 const valorTotal = parseFloat(p.valor_pedido) || 0;
                 const totalPago = parseFloat(p.total_pago) || 0;
                 const saldo = parseFloat(p.saldo_restante) || (valorTotal - totalPago);
-                // Resíduo <= 0.10 ou Pago Totalmente
-                return (saldo > 0.000000001 && saldo <= 0.10) || (totalPago >= valorTotal);
+                
+                // CONDIÇÃO 1: Resíduo de centavos (incluindo valores muito pequenos)
+                const isResiduo = saldo > 0.000000001 && saldo <= 0.10;
+                
+                // CONDIÇÃO 2: Pago Total (ou a maior) mas status não virou
+                const isPagoTotal = totalPago >= valorTotal;
+
+                return isResiduo || isPagoTotal;
             })
             .map(p => {
                 residuosLimpos++;
                 return base44.entities.Pedido.update(p.id, { 
                     status: 'pago', 
                     saldo_restante: 0, 
+                    // Se foi pago a mais, mantém o pago. Se foi resíduo, "completa" o pagamento.
                     total_pago: (parseFloat(p.total_pago) >= parseFloat(p.valor_pedido)) ? p.total_pago : p.valor_pedido,
-                    outras_informacoes: (p.outras_informacoes || '') + '\n[AUTO] Baixa automática - Varredura'
+                    outras_informacoes: (p.outras_informacoes || '') + '\n[AUTO] Baixa automática (Resíduo ou Pgto Total) - Varredura'
                 });
             });
         await Promise.all(promisesResiduos);
@@ -770,7 +780,7 @@ export default function Pedidos() {
 
             <TabsContent value="transito">
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {processedPedidos.length > 0 ? processedPedidos.map(p => (
+                    {filteredPedidos.length > 0 ? filteredPedidos.map(p => (
                         <div key={p.id} className={cn(
                             "border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col gap-3",
                             p.cliente_pendente ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200"
@@ -912,7 +922,7 @@ export default function Pedidos() {
                     </div>
                 ) : (
                     <PedidoTable 
-                        pedidos={processedPedidos} 
+                        pedidos={filteredPedidos} 
                         onEdit={handleEdit} 
                         onView={handleView} 
                         onLiquidar={handleLiquidar} 
@@ -924,68 +934,40 @@ export default function Pedidos() {
                 )}
             </TabsContent>
 
-            {/* ABERTOS & CANCELADOS */}
-            <TabsContent value="abertos">
-                {viewMode === 'table' ? (
-                    <PedidoTable 
-                        pedidos={processedPedidos} 
-                        onEdit={handleEdit} 
-                        onView={handleView} 
-                        onLiquidar={handleLiquidar} 
-                        onCancelar={handleCancelar} 
-                        onReverter={null}
-                        isLoading={loadingPedidos}
-                        sortConfig={sortConfig} 
-                        onSort={handleSort}     
-                    />
-                ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {processedPedidos.map(pedido => (
-                            <PedidoGridCard 
-                                key={pedido.id} 
-                                pedido={pedido} 
-                                onEdit={handleEdit} 
-                                onView={handleView} 
-                                onLiquidar={handleLiquidar} 
-                                onCancelar={handleCancelar} 
-                                canDo={canDo} 
-                            />
-                        ))}
-                    </div>
-                )}
-            </TabsContent>
-
-            <TabsContent value="cancelados">
-                {viewMode === 'table' ? (
-                    <PedidoTable 
-                        pedidos={processedPedidos} 
-                        onEdit={handleEdit} 
-                        onView={handleView} 
-                        onLiquidar={handleLiquidar} 
-                        onCancelar={handleCancelar} 
-                        onReverter={null}
-                        isLoading={loadingPedidos}
-                    />
-                ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {processedPedidos.map(pedido => (
-                            <PedidoGridCard 
-                                key={pedido.id} 
-                                pedido={pedido} 
-                                onEdit={handleEdit} 
-                                onView={handleView} 
-                                onLiquidar={handleLiquidar} 
-                                onCancelar={handleCancelar} 
-                                canDo={canDo} 
-                            />
-                        ))}
-                    </div>
-                )}
-            </TabsContent>
+            {['abertos', 'cancelados'].map(tab => (
+                <TabsContent key={tab} value={tab}>
+                    {viewMode === 'table' ? (
+                        <PedidoTable 
+                            pedidos={processedPedidos} 
+                            onEdit={handleEdit} 
+                            onView={handleView} 
+                            onLiquidar={handleLiquidar} 
+                            onCancelar={handleCancelar} 
+                            onReverter={null}
+                            isLoading={loadingPedidos}
+                            sortConfig={sortConfig} 
+                            onSort={handleSort}     
+                        />
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                            {processedPedidos.map(pedido => (
+                                <PedidoGridCard 
+                                    key={pedido.id} 
+                                    pedido={pedido} 
+                                    onEdit={handleEdit} 
+                                    onView={handleView} 
+                                    onLiquidar={handleLiquidar} 
+                                    onCancelar={handleCancelar} 
+                                    canDo={canDo} 
+                                />
+                            ))}
+                        </div>
+                    )}
+                </TabsContent>
+            ))}
 
           </Tabs>
 
-          {/* ... (MODAIS MANTIDOS SEM ALTERAÇÃO) ... */}
           <ModalContainer open={showImportModal} onClose={() => setShowImportModal(false)} title="Importar Pedidos" size="lg">
             <ImportarPedidos 
                 clientes={clientes} 
@@ -1014,27 +996,7 @@ export default function Pedidos() {
           <ModalContainer open={showDetailsModal} onClose={() => setShowDetailsModal(false)} title="Detalhes" size="xl">
              {selectedPedido?.isBordero ? <BorderoDetails bordero={selectedPedido} pedidos={pedidos} onClose={() => setShowDetailsModal(false)}/> : <PedidoDetails pedido={selectedPedido} onClose={() => setShowDetailsModal(false)} />}
           </ModalContainer>
-          <ModalContainer open={showAutorizacaoModal} onClose={() => setShowAutorizacaoModal(false)} title="Aprovar Liquidação" size="xl">
-            <AprovarLiquidacaoModal 
-                autorizacao={selectedAutorizacao} 
-                todosPedidos={pedidos} 
-                onCancel={() => setShowAutorizacaoModal(false)}
-                isProcessing={isProcessing}
-                onRejeitar={async (motivo) => {
-                    setIsProcessing(true);
-                    try {
-                        await base44.entities.LiquidacaoPendente.update(selectedAutorizacao.id, {
-                            status: 'rejeitado',
-                            motivo_rejeicao: motivo
-                        });
-                        await refetchAutorizacoes();
-                        setShowAutorizacaoModal(false);
-                        toast.success('Solicitação rejeitada.');
-                    } catch(e) { toast.error("Erro ao rejeitar"); } finally { setIsProcessing(false); }
-                }}
-                onAprovar={handleAprovarSolicitacao} 
-            />
-          </ModalContainer>
+          <ModalContainer open={showAutorizacaoModal} onClose={() => setShowAutorizacaoModal(false)} title="Aprovar Liquidação" size="xl"><AprovarLiquidacaoModal autorizacao={selectedAutorizacao} todosPedidos={pedidos} onAprovar={handleAprovarSolicitacao} onRejeitar={async (motivo) => { setIsProcessing(true); try { await base44.entities.LiquidacaoPendente.update(selectedAutorizacao.id, { status: 'rejeitado', motivo_rejeicao: motivo }); await refetchAutorizacoes(); setShowAutorizacaoModal(false); toast.success('Solicitação rejeitada.'); } catch(e) { toast.error("Erro ao rejeitar"); } finally { setIsProcessing(false); } }} onCancel={() => setShowAutorizacaoModal(false)} isProcessing={isProcessing} /></ModalContainer>
           <ModalContainer open={showAlterarPortadorModal} onClose={() => setShowAlterarPortadorModal(false)} title="Alterar Portador" size="lg">
              {selectedRota && <AlterarPortadorModal rota={selectedRota} pedidos={pedidos.filter(p => p.rota_importada_id === selectedRota.id)} onSave={() => {setShowAlterarPortadorModal(false); toast.success("Portador alterado");}} onCancel={() => setShowAlterarPortadorModal(false)} />}
           </ModalContainer>
