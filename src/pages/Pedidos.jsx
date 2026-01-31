@@ -92,7 +92,7 @@ const StatWidget = ({ title, value, icon: Icon, color, subtext }) => {
 const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReverter, canDo }) => {
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
   
-  // LÓGICA DE BADGE CORRIGIDA: SÓ É ATRASO SE > 15 DIAS
+  // CORREÇÃO: Badge só fica vermelha se > 15 dias
   const getStatusBadge = (status, dataEntrega) => {
     const now = new Date();
     now.setHours(0,0,0,0);
@@ -105,9 +105,8 @@ const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReve
       case 'cancelado': return <Badge className="bg-slate-100 text-slate-700 border-slate-200">Cancelado</Badge>;
       case 'parcial': return <Badge className="bg-purple-100 text-purple-700 border-purple-200">Parcial</Badge>;
       default:
-        // CORREÇÃO AQUI: > 15
-        if (diasAtraso > 15) return <Badge className="bg-red-100 text-red-700 border-red-200">Atrasado (+{diasAtraso}d)</Badge>;
-        if (diasAtraso > 0) return <Badge className="bg-blue-50 text-blue-700 border-blue-100">Aberto ({diasAtraso}d)</Badge>;
+        // SÓ É ATRASADO SE FOR MAIOR QUE 15 DIAS
+        if (diasAtraso > 15) return <Badge className="bg-red-100 text-red-700 border-red-200">Atrasado ({diasAtraso}d)</Badge>;
         return <Badge className="bg-blue-100 text-blue-700 border-blue-200">Aberto</Badge>;
     }
   };
@@ -198,7 +197,7 @@ export default function Pedidos() {
     const transitoCount = pedidos.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado').length;
     const abertosCount = pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial').length;
     
-    // Total a Receber: Soma de TODOS os saldos em aberto (em dia + atrasados)
+    // Total a Receber: Soma de TODOS os saldos em aberto
     const totalAReceber = pedidos
         .filter(p => p.status === 'aberto' || p.status === 'parcial')
         .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
@@ -206,18 +205,16 @@ export default function Pedidos() {
     const autorizacoesCount = liquidacoesPendentes.filter(lp => lp.status === 'pendente').length;
     const rotasAtivasCount = rotas.filter(r => r.status === 'pendente' || r.status === 'parcial').length;
     
-    // CORREÇÃO: Em Atraso soma o SALDO, somente se dias > 15
+    // CORREÇÃO: Em Atraso soma o SALDO e só se dias > 15
     const hoje = new Date();
     hoje.setHours(0,0,0,0);
-    
     const totalVencido = pedidos
         .filter(p => {
             if ((p.status !== 'aberto' && p.status !== 'parcial') || !p.data_entrega) return false;
             const entrega = parseISO(p.data_entrega);
-            const dias = differenceInDays(hoje, entrega);
-            return dias > 15; // REGRA > 15 DIAS
+            return differenceInDays(hoje, entrega) > 15;
         })
-        .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0); // SOMA O SALDO
+        .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
 
     const valorEmTransito = pedidos
         .filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado')
@@ -276,26 +273,24 @@ export default function Pedidos() {
       default: break; 
     }
 
-    // 2. Sub-Filtro (CORREÇÃO DE LÓGICA DE DATAS > 15)
+    // 2. Sub-Filtro (CORREÇÃO DE LÓGICA DE DATAS)
     if (activeTab === 'abertos') {
         const hoje = new Date();
         hoje.setHours(0,0,0,0);
         
         if (abertosSubTab === 'em_dia') {
-            // Em dia = Data Futura, Hoje, OU Passado <= 15 dias
             data = data.filter(p => {
-                if (!p.data_entrega) return true; // Sem data = Em dia (padrão)
+                if (!p.data_entrega) return true; // Sem data = Em dia
                 const entrega = parseISO(p.data_entrega);
                 const diff = differenceInDays(hoje, entrega);
                 return diff <= 15; // Tolera até 15 dias
             });
         } else if (abertosSubTab === 'atrasado') {
-            // Atrasado = Passado E diferença > 15 dias
             data = data.filter(p => {
                 if (!p.data_entrega) return false;
                 const entrega = parseISO(p.data_entrega);
                 const diff = differenceInDays(hoje, entrega);
-                return diff > 15; // Só mostra se passar de 15 dias
+                return diff > 15; // Só mostra se > 15 dias
             });
         }
     }
@@ -378,7 +373,7 @@ export default function Pedidos() {
     }
   };
   
-  // FUNÇÃO ATUALIZADA
+  // FUNÇÃO ATUALIZADA: LIMPEZA INTELIGENTE DE RESÍDUOS
   const handleRefresh = async () => {
     setRefreshingData(true);
     setRefreshMessage('Conectando ao banco de dados...');
@@ -420,23 +415,40 @@ export default function Pedidos() {
         });
         await Promise.all(promisesClientes.filter(Boolean));
 
+        // NOVA LÓGICA DE LIMPEZA (INCLUI DESCONTO E ZEROS REAIS)
         setRefreshMessage('Analisando resíduos e pagamentos...');
         let residuosLimpos = 0;
         const promisesResiduos = latestPedidos
             .filter(p => {
+                // Só processa abertos ou parciais
                 if (p.status !== 'aberto' && p.status !== 'parcial') return false;
+                
                 const valorTotal = parseFloat(p.valor_pedido) || 0;
                 const totalPago = parseFloat(p.total_pago) || 0;
-                const saldo = parseFloat(p.saldo_restante) || (valorTotal - totalPago);
-                return (saldo > 0.000000001 && saldo <= 0.10) || (totalPago >= valorTotal);
+                const desconto = parseFloat(p.desconto_dado) || 0;
+                
+                // Saldo Real = Valor - (Pago + Desconto)
+                const saldoReal = valorTotal - (totalPago + desconto);
+                
+                // Se Saldo for insignificante (<= 0.10) ou Negativo (pago a mais), BAIXA
+                return saldoReal <= 0.10;
             })
             .map(p => {
                 residuosLimpos++;
+                const valorTotal = parseFloat(p.valor_pedido) || 0;
+                const totalPago = parseFloat(p.total_pago) || 0;
+                const desconto = parseFloat(p.desconto_dado) || 0;
+                const saldoReal = valorTotal - (totalPago + desconto);
+                
+                // Se for residuo positivo (ex: falta 0.01), somamos no pago.
+                // Se for negativo (desconto ou pago a mais), mantemos o pago original.
+                const novoTotalPago = (saldoReal > 0 && saldoReal <= 0.10) ? (totalPago + saldoReal) : totalPago;
+
                 return base44.entities.Pedido.update(p.id, { 
                     status: 'pago', 
                     saldo_restante: 0, 
-                    total_pago: (parseFloat(p.total_pago) >= parseFloat(p.valor_pedido)) ? p.total_pago : p.valor_pedido,
-                    outras_informacoes: (p.outras_informacoes || '') + '\n[AUTO] Baixa automática - Varredura'
+                    total_pago: novoTotalPago,
+                    outras_informacoes: (p.outras_informacoes || '') + '\n[AUTO] Baixa automática - Varredura Inteligente'
                 });
             });
         await Promise.all(promisesResiduos);
@@ -472,7 +484,7 @@ export default function Pedidos() {
         if (residuosLimpos > 0) msg += `\n🧹 ${residuosLimpos} resíduos baixados.`;
         if (routesUpdatedCount > 0) msg += `\n🚚 ${routesUpdatedCount} rotas sincronizadas.`;
         
-        toast.success(msg);
+        toast.success(msg, { duration: 5000 });
 
     } catch (error) {
         console.error(error);
@@ -791,7 +803,7 @@ export default function Pedidos() {
 
             <TabsContent value="transito">
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {processedPedidos.length > 0 ? processedPedidos.map(p => (
+                    {filteredPedidos.length > 0 ? filteredPedidos.map(p => (
                         <div key={p.id} className={cn(
                             "border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col gap-3",
                             p.cliente_pendente ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200"
@@ -933,7 +945,7 @@ export default function Pedidos() {
                     </div>
                 ) : (
                     <PedidoTable 
-                        pedidos={processedPedidos} 
+                        pedidos={filteredPedidos} 
                         onEdit={handleEdit} 
                         onView={handleView} 
                         onLiquidar={handleLiquidar} 
@@ -979,7 +991,7 @@ export default function Pedidos() {
             <TabsContent value="cancelados">
                 {viewMode === 'table' ? (
                     <PedidoTable 
-                        pedidos={processedPedidos} 
+                        pedidos={filteredPedidos} 
                         onEdit={handleEdit} 
                         onView={handleView} 
                         onLiquidar={handleLiquidar} 
@@ -989,7 +1001,7 @@ export default function Pedidos() {
                     />
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {processedPedidos.map(pedido => (
+                        {filteredPedidos.map(pedido => (
                             <PedidoGridCard 
                                 key={pedido.id} 
                                 pedido={pedido} 
@@ -1006,7 +1018,6 @@ export default function Pedidos() {
 
           </Tabs>
 
-          {/* ... (Modais mantidos iguais) ... */}
           <ModalContainer open={showImportModal} onClose={() => setShowImportModal(false)} title="Importar Pedidos" size="lg">
             <ImportarPedidos 
                 clientes={clientes} 
