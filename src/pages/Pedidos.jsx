@@ -182,7 +182,7 @@ export default function Pedidos() {
   const { data: borderos = [], isLoading: loadingBorderos, refetch: refetchBorderos } = useQuery({ queryKey: ['borderos'], queryFn: () => base44.entities.Bordero.list('-created_date') });
   const { data: liquidacoesPendentes = [], isLoading: loadingAutorizacoes, refetch: refetchAutorizacoes } = useQuery({ queryKey: ['liquidacoesPendentes'], queryFn: () => base44.entities.LiquidacaoPendente.list('-created_date') });
 
-  // --- STATS (TOTALIZADORES CORRIGIDOS E EXPANDIDOS) ---
+  // --- STATS ---
   const stats = useMemo(() => {
     // 1. Em Trânsito (Qtd)
     const transitoCount = pedidos.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado').length;
@@ -198,21 +198,20 @@ export default function Pedidos() {
     // 4. Autorizações Pendentes
     const autorizacoesCount = liquidacoesPendentes.filter(lp => lp.status === 'pendente').length;
 
-    // 5. Rotas Ativas (CORREÇÃO: Apenas Pendentes ou Parciais)
+    // 5. Rotas Ativas (Apenas Pendentes/Parciais)
     const rotasAtivasCount = rotas.filter(r => r.status === 'pendente' || r.status === 'parcial').length;
 
-    // 6. [NOVO] Em Atraso > 15 dias (R$)
+    // 6. Em Atraso > 15 dias (R$)
     const hoje = new Date();
     const totalVencido = pedidos
         .filter(p => {
             if ((p.status !== 'aberto' && p.status !== 'parcial') || !p.data_entrega) return false;
-            // Considera entregas confirmadas ou que tenham data passada
             const dias = differenceInDays(hoje, new Date(p.data_entrega));
             return dias > 15;
         })
         .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
 
-    // 7. [NOVO] Valor em Trânsito (R$)
+    // 7. Valor em Trânsito (R$)
     const valorEmTransito = pedidos
         .filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado')
         .reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
@@ -324,7 +323,7 @@ export default function Pedidos() {
     }
   };
   
-  // FUNÇÃO ATUALIZADA: Sincronização + Limpeza de Resíduos (Melhorada para float minúsculo)
+  // FUNÇÃO ATUALIZADA: Sincronização + Limpeza de Resíduos (Agora também limpa se Total Pago >= Valor)
   const handleRefresh = async () => {
     setRefreshingData(true);
     setRefreshMessage('Conectando ao banco de dados...');
@@ -335,26 +334,23 @@ export default function Pedidos() {
             base44.entities.Cliente.list()
         ]);
 
+        // Auto-Vínculo de Clientes
         setRefreshMessage('Verificando clientes pendentes...');
         let clientesVinculados = 0;
         const pedidosPendentes = latestPedidos.filter(p => p.cliente_pendente === true);
-        
         const mapClientes = new Map();
         latestClientes.forEach(c => mapClientes.set(c.nome.trim().toLowerCase(), c));
 
         const promisesClientes = pedidosPendentes.map(pedido => {
             const nomePedido = pedido.cliente_nome?.trim().toLowerCase();
             if (!nomePedido) return null;
-
             let clienteEncontrado = mapClientes.get(nomePedido);
-            
             if (!clienteEncontrado) {
                 clienteEncontrado = latestClientes.find(c => 
                     c.nome?.trim().toLowerCase().includes(nomePedido) || 
                     nomePedido.includes(c.nome?.trim().toLowerCase())
                 );
             }
-
             if (clienteEncontrado) {
                 clientesVinculados++;
                 return base44.entities.Pedido.update(pedido.id, {
@@ -370,27 +366,39 @@ export default function Pedidos() {
         });
         await Promise.all(promisesClientes.filter(Boolean));
 
-        // CORREÇÃO DOS RESÍDUOS: Usando parseFloat e checando > 0.0000001
-        setRefreshMessage('Analisando resíduos financeiros...');
+        // CORREÇÃO DOS RESÍDUOS E PAGAMENTOS TOTAIS
+        setRefreshMessage('Analisando resíduos e pagamentos...');
         let residuosLimpos = 0;
         const promisesResiduos = latestPedidos
             .filter(p => {
+                // Filtra apenas abertos/parciais
                 if (p.status !== 'aberto' && p.status !== 'parcial') return false;
-                const saldo = parseFloat(p.saldo_restante) || (parseFloat(p.valor_pedido) - parseFloat(p.total_pago));
-                // Pega qualquer coisa maior que zero (até 0.0000001) e menor ou igual a 0.10
-                return saldo > 0.000000001 && saldo <= 0.10;
+                
+                const valorTotal = parseFloat(p.valor_pedido) || 0;
+                const totalPago = parseFloat(p.total_pago) || 0;
+                const saldo = parseFloat(p.saldo_restante) || (valorTotal - totalPago);
+                
+                // CONDIÇÃO 1: Resíduo de centavos
+                const isResiduo = saldo > 0.000000001 && saldo <= 0.10;
+                
+                // CONDIÇÃO 2: Pago Total (ou a maior) mas status não virou
+                const isPagoTotal = totalPago >= valorTotal;
+
+                return isResiduo || isPagoTotal;
             })
             .map(p => {
                 residuosLimpos++;
                 return base44.entities.Pedido.update(p.id, { 
                     status: 'pago', 
                     saldo_restante: 0, 
-                    total_pago: p.valor_pedido,
-                    outras_informacoes: (p.outras_informacoes || '') + '\n[AUTO] Baixa automática de resíduo < R$ 0,10'
+                    // Se foi pago a mais, mantém o pago. Se foi resíduo, "completa" o pagamento.
+                    total_pago: (parseFloat(p.total_pago) >= parseFloat(p.valor_pedido)) ? p.total_pago : p.valor_pedido,
+                    outras_informacoes: (p.outras_informacoes || '') + '\n[AUTO] Baixa automática (Resíduo ou Pgto Total) - Varredura'
                 });
             });
         await Promise.all(promisesResiduos);
 
+        // Sincronização de Rotas
         setRefreshMessage(`Sincronizando ${latestRotas.length} rotas de entrega...`);
         let routesUpdatedCount = 0;
         const updatePromises = latestRotas.map(rota => {
