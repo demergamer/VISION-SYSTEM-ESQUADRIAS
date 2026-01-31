@@ -65,13 +65,15 @@ export default function NovaLiquidacaoRepresentante({
 
   const clienteSelecionado = useMemo(() => {
     if (selecionados.length === 0) return null;
-    const primeiroPedido = pedidos.find(p => p.id === selecionados[0]);
+    const safePedidos = pedidos || [];
+    const primeiroPedido = safePedidos.find(p => p.id === selecionados[0]);
     return primeiroPedido ? primeiroPedido.cliente_codigo : null;
   }, [selecionados, pedidos]);
 
   const creditosDisponiveis = useMemo(() => {
     if (!clienteSelecionado) return [];
-    return todosCreditos.filter(c => 
+    const safeTodosCreditos = todosCreditos || [];
+    return safeTodosCreditos.filter(c => 
       c.cliente_codigo === clienteSelecionado && 
       c.status === 'disponivel' && 
       (c.valor > 0)
@@ -134,9 +136,10 @@ export default function NovaLiquidacaoRepresentante({
   };
 
   const toggleTodos = () => {
-    if (pedidosFiltrados.length === 0) return;
-    const clienteAlvo = pedidosFiltrados[0].cliente_codigo;
-    const pedidosDoCliente = pedidosFiltrados.filter(p => p.cliente_codigo === clienteAlvo);
+    const safePedidosFiltrados = pedidosFiltrados || [];
+    if (safePedidosFiltrados.length === 0) return;
+    const clienteAlvo = safePedidosFiltrados[0].cliente_codigo;
+    const pedidosDoCliente = safePedidosFiltrados.filter(p => p.cliente_codigo === clienteAlvo);
     if (selecionados.length === pedidosDoCliente.length) setSelecionados([]);
     else setSelecionados(pedidosDoCliente.map(p => p.id));
   };
