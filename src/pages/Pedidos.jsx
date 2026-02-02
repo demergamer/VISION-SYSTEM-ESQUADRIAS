@@ -92,7 +92,7 @@ const StatWidget = ({ title, value, icon: Icon, color, subtext }) => {
 const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReverter, canDo }) => {
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
   
-  // CORREÇÃO: Badge só fica vermelha se > 15 dias
+  // CORREÇÃO CRÍTICA: BADGES VISUAIS (SÓ FICA VERMELHO SE > 15 DIAS)
   const getStatusBadge = (status, dataEntrega) => {
     const now = new Date();
     now.setHours(0,0,0,0);
@@ -105,8 +105,7 @@ const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReve
       case 'cancelado': return <Badge className="bg-slate-100 text-slate-700 border-slate-200">Cancelado</Badge>;
       case 'parcial': return <Badge className="bg-purple-100 text-purple-700 border-purple-200">Parcial</Badge>;
       default:
-        // SÓ É ATRASADO SE FOR MAIOR QUE 15 DIAS
-        if (diasAtraso > 15) return <Badge className="bg-red-100 text-red-700 border-red-200">Atrasado ({diasAtraso}d)</Badge>;
+        if (diasAtraso > 15) return <Badge className="bg-red-100 text-red-700 border-red-200">Atrasado (+{diasAtraso}d)</Badge>;
         return <Badge className="bg-blue-100 text-blue-700 border-blue-200">Aberto</Badge>;
     }
   };
@@ -280,17 +279,17 @@ export default function Pedidos() {
         
         if (abertosSubTab === 'em_dia') {
             data = data.filter(p => {
-                if (!p.data_entrega) return true; // Sem data = Em dia
+                if (!p.data_entrega) return true;
                 const entrega = parseISO(p.data_entrega);
                 const diff = differenceInDays(hoje, entrega);
-                return diff <= 15; // Tolera até 15 dias
+                return diff <= 15;
             });
         } else if (abertosSubTab === 'atrasado') {
             data = data.filter(p => {
                 if (!p.data_entrega) return false;
                 const entrega = parseISO(p.data_entrega);
                 const diff = differenceInDays(hoje, entrega);
-                return diff > 15; // Só mostra se > 15 dias
+                return diff > 15;
             });
         }
     }
@@ -420,17 +419,14 @@ export default function Pedidos() {
         let residuosLimpos = 0;
         const promisesResiduos = latestPedidos
             .filter(p => {
-                // Só processa abertos ou parciais
                 if (p.status !== 'aberto' && p.status !== 'parcial') return false;
                 
                 const valorTotal = parseFloat(p.valor_pedido) || 0;
                 const totalPago = parseFloat(p.total_pago) || 0;
                 const desconto = parseFloat(p.desconto_dado) || 0;
                 
-                // Saldo Real = Valor - (Pago + Desconto)
                 const saldoReal = valorTotal - (totalPago + desconto);
                 
-                // Se Saldo for insignificante (<= 0.10) ou Negativo (pago a mais), BAIXA
                 return saldoReal <= 0.10;
             })
             .map(p => {
@@ -440,8 +436,6 @@ export default function Pedidos() {
                 const desconto = parseFloat(p.desconto_dado) || 0;
                 const saldoReal = valorTotal - (totalPago + desconto);
                 
-                // Se for residuo positivo (ex: falta 0.01), somamos no pago.
-                // Se for negativo (desconto ou pago a mais), mantemos o pago original.
                 const novoTotalPago = (saldoReal > 0 && saldoReal <= 0.10) ? (totalPago + saldoReal) : totalPago;
 
                 return base44.entities.Pedido.update(p.id, { 
@@ -578,6 +572,7 @@ export default function Pedidos() {
 
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
+  // --- FUNÇÃO CORRIGIDA: APROVAÇÃO COM GERAÇÃO DE CRÉDITO E PARCIAL ---
   const handleAprovarSolicitacao = async (dadosAprovacao) => {
       console.log("Iniciando aprovação com:", dadosAprovacao);
       setIsProcessing(true);
@@ -585,10 +580,54 @@ export default function Pedidos() {
           const user = await base44.auth.me();
           const { pedidosSelecionados, descontoValor, devolucao, formasPagamento, comprovantes, totais } = dadosAprovacao;
           
+          // 1. Consolidação de Valores
           const valorDesconto = parseFloat(descontoValor) || 0;
           const valorDevolucao = parseFloat(devolucao) || 0;
-          const totalPago = parseFloat(totais.totalPago) || 0;
+          const valorPagoDinheiro = parseFloat(totais.totalPago) || 0; // O que entrou de caixa
+          
+          // Total que está sendo abatido da dívida
+          const totalAbatimento = valorPagoDinheiro + valorDesconto + valorDevolucao;
 
+          // Total da Dívida dos pedidos selecionados
+          const totalDivida = pedidosSelecionados.reduce((sum, p) => {
+              return sum + (p.saldo_restante !== undefined ? parseFloat(p.saldo_restante) : (parseFloat(p.valor_pedido) - parseFloat(p.total_pago || 0)));
+          }, 0);
+
+          // 2. Cálculo do Resultado (Sobra ou Falta)
+          const diferenca = totalAbatimento - totalDivida;
+          let creditoGerado = 0;
+
+          // LÓGICA DE CRÉDITO (SOBRA > 0.01)
+          if (diferenca > 0.01) {
+              creditoGerado = diferenca;
+              
+              // Cria o crédito para o cliente
+              await base44.entities.Credito.create({
+                  cliente_codigo: selectedAutorizacao.cliente_codigo,
+                  cliente_nome: selectedAutorizacao.cliente_nome,
+                  valor: creditoGerado,
+                  valor_original: creditoGerado,
+                  valor_usado: 0,
+                  data_emissao: new Date().toISOString().split('T')[0],
+                  status: 'disponivel',
+                  origem: 'troco_liquidacao',
+                  referencia: `Liq #${selectedAutorizacao.numero_solicitacao}`,
+                  descricao: `Crédito gerado por pagamento excedente na liquidação #${selectedAutorizacao.numero_solicitacao}`
+              });
+
+              toast.success(`💰 Crédito de ${formatCurrency(creditoGerado)} gerado para o cliente!`, {
+                  duration: 6000,
+                  style: { background: '#ECFDF5', color: '#047857', fontWeight: 'bold' }
+              });
+          } 
+          // LÓGICA DE PARCIAL (FALTA > 0.01)
+          else if (diferenca < -0.01) {
+              toast.warning(`⚠️ Pagamento Parcial: Faltam ${formatCurrency(Math.abs(diferenca))}. Os pedidos permanecerão com saldo.`, {
+                  duration: 6000
+              });
+          }
+
+          // 3. Criar Borderô
           const todosBorderos = await base44.entities.Bordero.list();
           const proximoNumeroBordero = todosBorderos.length > 0 ? Math.max(...todosBorderos.map(b => b.numero_bordero || 0)) + 1 : 1;
 
@@ -600,72 +639,64 @@ export default function Pedidos() {
               cliente_codigo: selectedAutorizacao.cliente_codigo,
               cliente_nome: selectedAutorizacao.cliente_nome,
               pedidos_ids: pedidosSelecionados.map(p => p.id),
-              valor_total: totalPago,
+              valor_total: valorPagoDinheiro, // Registra apenas o que entrou de dinheiro
               valor_desconto_aplicado: valorDesconto, 
               forma_pagamento: formasStr,
               comprovantes_urls: comprovantes,
-              observacao: `Sol. #${selectedAutorizacao.numero_solicitacao} | Desc: ${formatCurrency(valorDesconto)} | Dev: ${formatCurrency(valorDevolucao)}`,
+              observacao: `Sol. #${selectedAutorizacao.numero_solicitacao} | Desc: ${formatCurrency(valorDesconto)} | Dev: ${formatCurrency(valorDevolucao)}${creditoGerado > 0 ? ` | Crédito Gerado: ${formatCurrency(creditoGerado)}` : ''}`,
               liquidado_por: user.email
           });
 
-          let devolucaoRestante = valorDevolucao;
-          let descontoRestante = valorDesconto;
-          let pagamentoRestante = totalPago;
-
+          // 4. Baixa Waterfall (Cascata) nos Pedidos
+          let montanteParaDistribuir = Math.min(totalAbatimento, totalDivida);
+          
           for (const pedido of pedidosSelecionados) {
-              const valorPedido = parseFloat(pedido.valor_pedido) || 0;
-              const totalPagoAtual = parseFloat(pedido.total_pago) || 0;
-              const saldoPedido = parseFloat(pedido.saldo_restante) !== undefined ? parseFloat(pedido.saldo_restante) : (valorPedido - totalPagoAtual);
+              if (montanteParaDistribuir <= 0.001) break; 
+
+              const valorTotalPedido = parseFloat(pedido.valor_pedido) || 0;
+              const totalPagoAnterior = parseFloat(pedido.total_pago) || 0;
+              const saldoAtualPedido = pedido.saldo_restante !== undefined ? parseFloat(pedido.saldo_restante) : (valorTotalPedido - totalPagoAnterior);
+
+              const valorAAbater = Math.min(saldoAtualPedido, montanteParaDistribuir);
+              montanteParaDistribuir -= valorAAbater;
               
-              let saldoAtual = saldoPedido;
-              let devolucaoAplicada = 0;
-              let descontoAplicado = 0;
-              let pagamentoAplicado = 0;
-
-              if (devolucaoRestante > 0 && saldoAtual > 0) {
-                  const val = Math.min(saldoAtual, devolucaoRestante);
-                  devolucaoAplicada = val;
-                  saldoAtual -= val;
-                  devolucaoRestante -= val;
-              }
-              if (descontoRestante > 0 && saldoAtual > 0) {
-                  const val = Math.min(saldoAtual, descontoRestante);
-                  descontoAplicado = val;
-                  saldoAtual -= val;
-                  descontoRestante -= val;
-              }
-              if (pagamentoRestante > 0 && saldoAtual > 0) {
-                  const val = Math.min(saldoAtual, pagamentoRestante);
-                  pagamentoAplicado = val;
-                  saldoAtual -= val;
-                  pagamentoRestante -= val;
-              }
-
-              const novoTotalPago = totalPagoAtual + pagamentoAplicado + devolucaoAplicada;
-              const novoSaldo = Math.max(0, saldoAtual);
+              const novoTotalPago = totalPagoAnterior + valorAAbater;
+              const novoSaldo = valorTotalPedido - novoTotalPago;
+              const statusFinal = novoSaldo <= 0.01 ? 'pago' : 'parcial';
+              const saldoFinalGravacao = statusFinal === 'pago' ? 0 : novoSaldo;
 
               await base44.entities.Pedido.update(pedido.id, {
                   total_pago: novoTotalPago,
-                  desconto_dado: (parseFloat(pedido.desconto_dado) || 0) + descontoAplicado,
-                  saldo_restante: novoSaldo,
-                  status: novoSaldo <= 0.01 ? 'pago' : 'parcial',
+                  saldo_restante: saldoFinalGravacao,
+                  status: statusFinal,
                   bordero_numero: proximoNumeroBordero,
+                  data_pagamento: statusFinal === 'pago' ? new Date().toISOString().split('T')[0] : null,
                   outras_informacoes: (pedido.outras_informacoes || '') + 
-                      `\n[${new Date().toLocaleDateString()}] Borderô #${proximoNumeroBordero} (Sol. #${selectedAutorizacao.numero_solicitacao})`
+                      `\n[${new Date().toLocaleDateString()}] Liq. Solicitação #${selectedAutorizacao.numero_solicitacao} | Abatido: ${formatCurrency(valorAAbater)}`
               });
           }
 
+          // 5. Finalizar a Solicitação
           await base44.entities.LiquidacaoPendente.update(selectedAutorizacao.id, {
               status: 'aprovado',
               aprovado_por: user.email,
-              data_aprovacao: new Date().toISOString()
+              data_aprovacao: new Date().toISOString(),
+              observacao: (selectedAutorizacao.observacao || '') + `\n[APROVADO] Borderô ${proximoNumeroBordero}. ${creditoGerado > 0 ? `Crédito gerado: ${formatCurrency(creditoGerado)}` : ''}`
           });
 
           setShowAutorizacaoModal(false);
           setSelectedAutorizacao(null); 
 
-          await Promise.all([refetchPedidos(), refetchBorderos(), refetchAutorizacoes()]);
-          toast.success(`Liquidação #${proximoNumeroBordero} gerada com sucesso!`);
+          await Promise.all([
+              refetchPedidos(), 
+              refetchBorderos(), 
+              refetchAutorizacoes(),
+              queryClient.invalidateQueries({ queryKey: ['creditos'] }) 
+          ]);
+          
+          if (creditoGerado === 0 && diferenca > -0.01) {
+             toast.success(`Liquidação #${proximoNumeroBordero} realizada com sucesso!`);
+          }
 
       } catch (e) {
           console.error("ERRO AO APROVAR:", e);
@@ -803,7 +834,7 @@ export default function Pedidos() {
 
             <TabsContent value="transito">
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {processedPedidos.length > 0 ? processedPedidos.map(p => (
+                    {filteredPedidos.length > 0 ? filteredPedidos.map(p => (
                         <div key={p.id} className={cn(
                             "border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col gap-3",
                             p.cliente_pendente ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200"
@@ -945,7 +976,7 @@ export default function Pedidos() {
                     </div>
                 ) : (
                     <PedidoTable 
-                        pedidos={processedPedidos} 
+                        pedidos={filteredPedidos} 
                         onEdit={handleEdit} 
                         onView={handleView} 
                         onLiquidar={handleLiquidar} 
@@ -991,7 +1022,7 @@ export default function Pedidos() {
             <TabsContent value="cancelados">
                 {viewMode === 'table' ? (
                     <PedidoTable 
-                        pedidos={processedPedidos} 
+                        pedidos={filteredPedidos} 
                         onEdit={handleEdit} 
                         onView={handleView} 
                         onLiquidar={handleLiquidar} 
@@ -1001,7 +1032,7 @@ export default function Pedidos() {
                     />
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {processedPedidos.map(pedido => (
+                        {filteredPedidos.map(pedido => (
                             <PedidoGridCard 
                                 key={pedido.id} 
                                 pedido={pedido} 
