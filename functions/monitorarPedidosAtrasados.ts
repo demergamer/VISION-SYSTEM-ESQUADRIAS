@@ -22,6 +22,10 @@ Deno.serve(async (req) => {
     const usuarios = await base44.asServiceRole.entities.User.list();
     const admins = usuarios.filter(u => u.role === 'admin');
 
+    // Buscar todas as notificações UMA VEZ (otimização crítica)
+    const notificacoesExistentes = await base44.asServiceRole.entities.Notificacao.list();
+    const limite24h = new Date(hoje.getTime() - 24 * 60 * 60 * 1000);
+
     let notificacoesCriadas = 0;
 
     for (const pedido of pedidosAtrasados) {
@@ -30,13 +34,12 @@ Deno.serve(async (req) => {
 
       // Notificar cada admin
       for (const admin of admins) {
-        // Verificar se já existe notificação recente sobre este pedido
-        const notificacoesExistentes = await base44.asServiceRole.entities.Notificacao.list();
+        // Verificar se já existe notificação recente sobre este pedido (filtro em memória)
         const jaNotificado = notificacoesExistentes.some(n => 
           n.entidade_id === pedido.id && 
           n.destinatario_email === admin.email &&
           n.tipo === 'pedido_atrasado' &&
-          new Date(n.created_date) > new Date(hoje.getTime() - 24 * 60 * 60 * 1000) // última 24h
+          new Date(n.created_date) > limite24h
         );
 
         if (!jaNotificado) {
