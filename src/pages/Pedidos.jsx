@@ -834,7 +834,7 @@ export default function Pedidos() {
 
             <TabsContent value="transito">
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {filteredPedidos.length > 0 ? filteredPedidos.map(p => (
+                    {processedPedidos.length > 0 ? processedPedidos.map(p => (
                         <div key={p.id} className={cn(
                             "border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col gap-3",
                             p.cliente_pendente ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200"
@@ -976,7 +976,7 @@ export default function Pedidos() {
                     </div>
                 ) : (
                     <PedidoTable 
-                        pedidos={filteredPedidos} 
+                        pedidos={processedPedidos} 
                         onEdit={handleEdit} 
                         onView={handleView} 
                         onLiquidar={handleLiquidar} 
@@ -1022,7 +1022,7 @@ export default function Pedidos() {
             <TabsContent value="cancelados">
                 {viewMode === 'table' ? (
                     <PedidoTable 
-                        pedidos={filteredPedidos} 
+                        pedidos={processedPedidos} 
                         onEdit={handleEdit} 
                         onView={handleView} 
                         onLiquidar={handleLiquidar} 
@@ -1032,7 +1032,7 @@ export default function Pedidos() {
                     />
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {filteredPedidos.map(pedido => (
+                        {processedPedidos.map(pedido => (
                             <PedidoGridCard 
                                 key={pedido.id} 
                                 pedido={pedido} 
