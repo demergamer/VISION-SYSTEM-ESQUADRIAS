@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { 
   LayoutGrid, List, Filter, Plus, Search, 
   ArrowUpRight, AlertCircle, CheckCircle2, Clock,
-  MoreHorizontal, Wallet, User, ArrowRightLeft
+  MoreHorizontal, Wallet, User, ArrowRightLeft, MapPin
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,9 +29,9 @@ export default function Cheques() {
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // NAVEGAÇÃO: Adicionei sub-abas para Devolvidos para gerenciar o físico
+  // NAVEGAÇÃO
   const [mainTab, setMainTab] = useState('a_compensar');
-  const [subTab, setSubTab] = useState('todos'); // Para devolvidos: 'carteira' vs 'repassados'
+  const [subTab, setSubTab] = useState('todos'); 
 
   const [filters, setFilters] = useState({ dataInicio: '', dataFim: '', banco: 'todos', valorMin: '', valorMax: '' });
   const [showFormModal, setShowFormModal] = useState(false);
@@ -42,7 +42,7 @@ export default function Cheques() {
   const { data: cheques = [], refetch } = useQuery({ queryKey: ['cheques'], queryFn: () => base44.entities.Cheque.list() });
   const { data: clientes = [] } = useQuery({ queryKey: ['clientes'], queryFn: () => base44.entities.Cliente.list() });
 
-  // MAPA DE CLIENTES (Para performance)
+  // MAPA DE CLIENTES
   const mapClientes = useMemo(() => {
       const map = {};
       clientes.forEach(c => map[c.codigo] = c);
@@ -62,6 +62,7 @@ export default function Cheques() {
       );
     }
 
+    // Filtros
     if (filters.banco !== 'todos') lista = lista.filter(c => c.banco === filters.banco);
     if (filters.valorMin) lista = lista.filter(c => c.valor >= parseFloat(filters.valorMin));
     if (filters.valorMax) lista = lista.filter(c => c.valor <= parseFloat(filters.valorMax));
@@ -72,13 +73,16 @@ export default function Cheques() {
     
     // 1. A COMPENSAR (Carteira vs Repassados)
     const emMaos = lista.filter(c => c.status === 'normal');
-    const repassadosACompensar = lista.filter(c => c.status === 'repassado' && c.data_vencimento && isFuture(parseISO(c.data_vencimento)));
+    const repassadosACompensar = lista.filter(c => c.status === 'repassado' && isFuture(parseISO(c.data_vencimento)));
 
-    // 2. DEVOLVIDOS (Carteira vs Repassados)
-    // Se foi devolvido e tem info de repasse, está com terceiro. Se não, está no banco/carteira.
+    // 2. DEVOLVIDOS (AQUI vs NÃO AQUI)
     const devolvidosGeral = lista.filter(c => c.status === 'devolvido');
-    const devolvidosCarteira = devolvidosGeral.filter(c => !c.fornecedor_repassado_nome); // Veio do banco pra nós
-    const devolvidosTerceiros = devolvidosGeral.filter(c => !!c.fornecedor_repassado_nome); // Está com fornecedor
+    
+    // ESTÁ AQUI: Devolvido e SEM registro de fornecedor (veio do nosso banco)
+    const devolvidosAqui = devolvidosGeral.filter(c => !c.fornecedor_repassado_nome); 
+    
+    // NÃO ESTÁ AQUI: Devolvido e COM registro de fornecedor (está com terceiro)
+    const devolvidosNaoAqui = devolvidosGeral.filter(c => !!c.fornecedor_repassado_nome); 
 
     // 3. COMPENSADOS
     const compensados = lista.filter(c => c.status === 'compensado' || c.status === 'pago');
@@ -86,10 +90,10 @@ export default function Cheques() {
     // SELEÇÃO DA LISTA FINAL
     let listaFinal = [];
     if (mainTab === 'a_compensar') {
-        listaFinal = [...emMaos, ...repassadosACompensar]; // Mostra tudo, mas vamos destacar visualmente
+        listaFinal = [...emMaos, ...repassadosACompensar];
     } else if (mainTab === 'devolvidos') {
-        if (subTab === 'carteira') listaFinal = devolvidosCarteira;
-        else if (subTab === 'repassados') listaFinal = devolvidosTerceiros;
+        if (subTab === 'aqui') listaFinal = devolvidosAqui;
+        else if (subTab === 'nao_aqui') listaFinal = devolvidosNaoAqui;
         else listaFinal = devolvidosGeral;
     } else {
         listaFinal = compensados;
@@ -101,12 +105,15 @@ export default function Cheques() {
         emMaos: emMaos.reduce((acc, c) => acc + c.valor, 0),
         repassadosFuturo: repassadosACompensar.reduce((acc, c) => acc + c.valor, 0),
         devolvidosGeral: devolvidosGeral.reduce((acc, c) => acc + c.valor, 0),
-        devolvidosCarteira: devolvidosCarteira.reduce((acc, c) => acc + c.valor, 0),
-        devolvidosTerceiros: devolvidosTerceiros.reduce((acc, c) => acc + c.valor, 0)
+        devolvidosAqui: devolvidosAqui.reduce((acc, c) => acc + c.valor, 0),
+        devolvidosNaoAqui: devolvidosNaoAqui.reduce((acc, c) => acc + c.valor, 0)
       },
       contagem: {
         emMaos: emMaos.length,
-        repassados: repassadosACompensar.length
+        repassados: repassadosACompensar.length,
+        devolvidos: devolvidosGeral.length,
+        devolvidosAqui: devolvidosAqui.length,
+        devolvidosNaoAqui: devolvidosNaoAqui.length
       }
     };
   }, [cheques, searchTerm, filters, mainTab, subTab]);
@@ -130,9 +137,8 @@ export default function Cheques() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
-            {/* KPI Cards Rápidos (SEPARADOS) */}
+            {/* KPI Cards Rápidos */}
             <div className="flex gap-3 overflow-x-auto pb-1 sm:pb-0">
-                {/* 1. EM MÃOS */}
                 <div className="bg-blue-50 border border-blue-100 px-4 py-2 rounded-lg min-w-[150px]">
                     <p className="text-[10px] uppercase font-bold text-blue-600 flex items-center gap-1">
                         <Clock className="w-3 h-3"/> Em Mãos (A Compensar)
@@ -140,7 +146,6 @@ export default function Cheques() {
                     <p className="text-lg font-bold text-blue-900">{formatCurrency(dadosProcessados.totais.emMaos)}</p>
                 </div>
                 
-                {/* 2. REPASSADOS (A COMPENSAR) */}
                 <div className="bg-purple-50 border border-purple-100 px-4 py-2 rounded-lg min-w-[150px]">
                     <p className="text-[10px] uppercase font-bold text-purple-600 flex items-center gap-1">
                         <ArrowRightLeft className="w-3 h-3"/> Repassados (Passivo)
@@ -148,7 +153,6 @@ export default function Cheques() {
                     <p className="text-lg font-bold text-purple-900">{formatCurrency(dadosProcessados.totais.repassadosFuturo)}</p>
                 </div>
 
-                {/* 3. DEVOLVIDOS */}
                 <div className="bg-red-50 border border-red-100 px-4 py-2 rounded-lg min-w-[150px]">
                     <p className="text-[10px] uppercase font-bold text-red-600 flex items-center gap-1">
                         <AlertCircle className="w-3 h-3"/> Total Devolvido
@@ -203,19 +207,52 @@ export default function Cheques() {
             </div>
         </div>
 
-        {/* 3. PAINEL DE FILTROS (Omitido para brevidade, igual ao anterior) */}
-        
+        {/* 3. PAINEL DE FILTROS (REBATÍVEL) */}
+        <AnimatePresence>
+            {showFilters && (
+                <motion.div 
+                    initial={{ height: 0, opacity: 0 }} 
+                    animate={{ height: "auto", opacity: 1 }} 
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                >
+                    <Card className="bg-slate-50 border-slate-200 mb-6">
+                        <div className="p-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+                            {/* Filtros simples - expandir conforme necessidade */}
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase">Banco</label>
+                                <Select value={filters.banco} onValueChange={v => setFilters({...filters, banco: v})}>
+                                    <SelectTrigger className="bg-white"><SelectValue placeholder="Todos" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="todos">Todos</SelectItem>
+                                        <SelectItem value="BRADESCO">Bradesco</SelectItem>
+                                        <SelectItem value="ITAÚ">Itaú</SelectItem>
+                                        {/* ... outros */}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="flex items-end">
+                                <Button variant="ghost" onClick={() => setFilters({ dataInicio: '', dataFim: '', banco: 'todos', valorMin: '', valorMax: '' })} className="w-full text-red-500 hover:text-red-700 hover:bg-red-50">Limpar</Button>
+                            </div>
+                        </div>
+                    </Card>
+                </motion.div>
+            )}
+        </AnimatePresence>
+
         {/* 4. SUB-ABAS PARA DEVOLVIDOS */}
         {mainTab === 'devolvidos' && (
             <div className="flex gap-2 mb-4 overflow-x-auto pb-2 animate-in fade-in slide-in-from-left-2">
                 <Button variant={subTab === 'todos' ? 'default' : 'outline'} onClick={() => setSubTab('todos')} className={cn("rounded-full h-8 text-xs", subTab === 'todos' && "bg-slate-800")}>
                     Todos ({formatCurrency(dadosProcessados.totais.devolvidosGeral)})
                 </Button>
-                <Button variant={subTab === 'carteira' ? 'default' : 'outline'} onClick={() => setSubTab('carteira')} className={cn("rounded-full h-8 text-xs", subTab === 'carteira' && "bg-blue-600 hover:bg-blue-700")}>
-                    🏦 Retirar no Banco/Agência ({formatCurrency(dadosProcessados.totais.devolvidosCarteira)})
+                
+                <Button variant={subTab === 'aqui' ? 'default' : 'outline'} onClick={() => setSubTab('aqui')} className={cn("rounded-full h-8 text-xs", subTab === 'aqui' && "bg-red-600 hover:bg-red-700")}>
+                    🏢 Na Empresa (Está Aqui) ({formatCurrency(dadosProcessados.totais.devolvidosAqui)})
                 </Button>
-                <Button variant={subTab === 'repassados' ? 'default' : 'outline'} onClick={() => setSubTab('repassados')} className={cn("rounded-full h-8 text-xs", subTab === 'repassados' && "bg-purple-600 hover:bg-purple-700")}>
-                    🤝 Com Terceiros (Destrocar) ({formatCurrency(dadosProcessados.totais.devolvidosTerceiros)})
+                
+                <Button variant={subTab === 'nao_aqui' ? 'default' : 'outline'} onClick={() => setSubTab('nao_aqui')} className={cn("rounded-full h-8 text-xs", subTab === 'nao_aqui' && "bg-orange-500 hover:bg-orange-600 text-white")}>
+                    🤝 Com Terceiros (Não está Aqui) ({formatCurrency(dadosProcessados.totais.devolvidosNaoAqui)})
                 </Button>
             </div>
         )}
@@ -230,14 +267,14 @@ export default function Cheques() {
                         <TableHead>Cliente / Representante</TableHead>
                         <TableHead>Vencimento</TableHead>
                         <TableHead className="text-right">Valor</TableHead>
-                        <TableHead className="text-center">Status / Localização</TableHead>
+                        <TableHead className="text-center">Localização / Status</TableHead>
                         <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {dadosProcessados.listaFinal.map(cheque => {
                         const cliente = mapClientes[cheque.cliente_codigo];
-                        const isVencido = cheque.status === 'normal' && cheque.data_vencimento && isPast(parseISO(cheque.data_vencimento));
+                        const isVencido = cheque.status === 'normal' && isPast(parseISO(cheque.data_vencimento));
                         
                         return (
                             <TableRow key={cheque.id} className="group hover:bg-slate-50/80 transition-colors cursor-pointer" onClick={() => handleView(cheque)}>
@@ -257,20 +294,24 @@ export default function Cheques() {
                                 </TableCell>
                                 <TableCell>
                                     <div className={cn("text-sm", isVencido ? "text-red-600 font-bold" : "text-slate-600")}>
-                                        {cheque.data_vencimento ? format(new Date(cheque.data_vencimento), 'dd/MM/yyyy') : '-'}
+                                        {format(new Date(cheque.data_vencimento), 'dd/MM/yyyy')}
                                     </div>
-                                    {isVencido && <span className="text-[10px] text-red-500 uppercase font-bold">Vencido</span>}
                                 </TableCell>
                                 <TableCell className="text-right font-bold text-slate-700">{formatCurrency(cheque.valor)}</TableCell>
                                 <TableCell className="text-center">
-                                    {cheque.status === 'repassado' ? (
-                                        <Badge className="bg-purple-100 text-purple-700 border-purple-200">Repassado</Badge>
-                                    ) : cheque.status === 'devolvido' ? (
+                                    {/* LÓGICA DE BADGE DE LOCALIZAÇÃO */}
+                                    {cheque.status === 'devolvido' ? (
                                         cheque.fornecedor_repassado_nome ? (
-                                            <Badge className="bg-orange-100 text-orange-800 border-orange-200">Com Terceiro</Badge>
+                                            <Badge className="bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-100 flex w-fit mx-auto gap-1">
+                                                <MapPin className="w-3 h-3"/> Com {cheque.fornecedor_repassado_nome.split(' ')[0]}
+                                            </Badge>
                                         ) : (
-                                            <Badge className="bg-red-100 text-red-700 border-red-200">No Banco</Badge>
+                                            <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100 flex w-fit mx-auto gap-1">
+                                                <Building2 className="w-3 h-3"/> Na Empresa/Banco
+                                            </Badge>
                                         )
+                                    ) : cheque.status === 'repassado' ? (
+                                        <Badge className="bg-purple-100 text-purple-700 border-purple-200">Repassado</Badge>
                                     ) : (
                                         <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Em Carteira</Badge>
                                     )}
