@@ -71,7 +71,7 @@ export default function Cheques() {
     
     // 1. A COMPENSAR
     const emMaos = lista.filter(c => c.status === 'normal');
-    const repassadosACompensar = lista.filter(c => c.status === 'repassado' && isFuture(parseISO(c.data_vencimento)));
+    const repassadosACompensar = lista.filter(c => c.status === 'repassado' && c.data_vencimento && isFuture(parseISO(c.data_vencimento)));
 
     // 2. DEVOLVIDOS
     const devolvidosPagos = lista.filter(c => (c.status === 'pago' && c.motivo_devolucao) || (c.status === 'devolvido' && c.data_pagamento));
@@ -81,7 +81,7 @@ export default function Cheques() {
 
     // 3. COMPENSADOS (DIVISÃO POR EMPRESA)
     const depositadosTotal = lista.filter(c => c.status === 'compensado');
-    const repassadosBaixados = lista.filter(c => c.status === 'repassado' && isPast(parseISO(c.data_vencimento)));
+    const repassadosBaixados = lista.filter(c => c.status === 'repassado' && c.data_vencimento && isPast(parseISO(c.data_vencimento)));
 
     // Filtros por Empresa (Baseado no campo destino_deposito ou similar)
     const depJC = depositadosTotal.filter(c => c.destino_deposito === 'J&C ESQUADRIAS');
@@ -118,6 +118,9 @@ export default function Cheques() {
         emMaos: emMaos.reduce((acc, c) => acc + c.valor, 0),
         repassadosFuturo: repassadosACompensar.reduce((acc, c) => acc + c.valor, 0),
         devolvidosGeral: devolvidosPendentes.reduce((acc, c) => acc + c.valor, 0) + devolvidosPagos.reduce((acc, c) => acc + c.valor, 0),
+        devolvidosAqui: devolvidosAqui.reduce((acc, c) => acc + c.valor, 0),
+        devolvidosNaoAqui: devolvidosNaoAqui.reduce((acc, c) => acc + c.valor, 0),
+        devolvidosPagos: devolvidosPagos.reduce((acc, c) => acc + c.valor, 0),
         
         depJC: depJC.reduce((acc, c) => acc + c.valor, 0),
         depBIG: depBIG.reduce((acc, c) => acc + c.valor, 0),
@@ -299,7 +302,7 @@ export default function Cheques() {
                 <TableBody>
                     {dadosProcessados.listaFinal.map(cheque => {
                         const cliente = mapClientes[cheque.cliente_codigo];
-                        const isVencido = cheque.status === 'normal' && isPast(parseISO(cheque.data_vencimento));
+                        const isVencido = cheque.status === 'normal' && cheque.data_vencimento && isPast(parseISO(cheque.data_vencimento));
                         
                         return (
                             <TableRow key={cheque.id} className="group hover:bg-slate-50/80 transition-colors cursor-pointer" onClick={() => handleView(cheque)}>
@@ -318,7 +321,7 @@ export default function Cheques() {
                                 </TableCell>
                                 <TableCell>
                                     <div className={cn("text-sm", isVencido ? "text-red-600 font-bold" : "text-slate-600")}>
-                                        {format(new Date(cheque.data_vencimento), 'dd/MM/yyyy')}
+                                        {cheque.data_vencimento ? format(new Date(cheque.data_vencimento), 'dd/MM/yyyy') : '-'}
                                     </div>
                                 </TableCell>
                                 <TableCell className="text-right font-bold text-slate-700">{formatCurrency(cheque.valor)}</TableCell>
