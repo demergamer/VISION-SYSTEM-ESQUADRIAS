@@ -72,7 +72,7 @@ export default function Cheques() {
     
     // 1. A COMPENSAR (Carteira vs Repassados)
     const emMaos = lista.filter(c => c.status === 'normal');
-    const repassadosACompensar = lista.filter(c => c.status === 'repassado' && isFuture(parseISO(c.data_vencimento)));
+    const repassadosACompensar = lista.filter(c => c.status === 'repassado' && c.data_vencimento && isFuture(parseISO(c.data_vencimento)));
 
     // 2. DEVOLVIDOS (Carteira vs Repassados)
     // Se foi devolvido e tem info de repasse, está com terceiro. Se não, está no banco/carteira.
@@ -237,7 +237,7 @@ export default function Cheques() {
                 <TableBody>
                     {dadosProcessados.listaFinal.map(cheque => {
                         const cliente = mapClientes[cheque.cliente_codigo];
-                        const isVencido = cheque.status === 'normal' && isPast(parseISO(cheque.data_vencimento));
+                        const isVencido = cheque.status === 'normal' && cheque.data_vencimento && isPast(parseISO(cheque.data_vencimento));
                         
                         return (
                             <TableRow key={cheque.id} className="group hover:bg-slate-50/80 transition-colors cursor-pointer" onClick={() => handleView(cheque)}>
@@ -257,7 +257,7 @@ export default function Cheques() {
                                 </TableCell>
                                 <TableCell>
                                     <div className={cn("text-sm", isVencido ? "text-red-600 font-bold" : "text-slate-600")}>
-                                        {format(new Date(cheque.data_vencimento), 'dd/MM/yyyy')}
+                                        {cheque.data_vencimento ? format(new Date(cheque.data_vencimento), 'dd/MM/yyyy') : '-'}
                                     </div>
                                     {isVencido && <span className="text-[10px] text-red-500 uppercase font-bold">Vencido</span>}
                                 </TableCell>
