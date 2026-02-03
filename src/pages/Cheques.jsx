@@ -89,12 +89,12 @@ export default function Cheques() {
     // A COMPENSAR (Carteira)
     const emMaos = lista.filter(c => c.status === 'normal');
     // Repassados que ainda não venceram (teoricamente responsabilidade nossa ainda)
-    const repassadosAtivos = lista.filter(c => c.status === 'repassado' && isFuture(parseISO(c.data_vencimento)));
+    const repassadosAtivos = lista.filter(c => c.status === 'repassado' && c.data_vencimento && isFuture(parseISO(c.data_vencimento)));
 
     // COMPENSADOS (Baixados)
     const depositados = lista.filter(c => c.status === 'compensado');
     // Repassados que já venceram (assumimos compensados no terceiro)
-    const repassadosBaixados = lista.filter(c => c.status === 'repassado' && isPast(parseISO(c.data_vencimento)));
+    const repassadosBaixados = lista.filter(c => c.status === 'repassado' && c.data_vencimento && isPast(parseISO(c.data_vencimento)));
 
     // Seleção da Lista Final baseada na Navegação
     let listaFinal = [];
@@ -348,7 +348,7 @@ export default function Cheques() {
                         </TableHeader>
                         <TableBody>
                             {dadosProcessados.listaFinal.map(cheque => {
-                                const isVencido = cheque.status === 'normal' && isPast(parseISO(cheque.data_vencimento));
+                                const isVencido = cheque.status === 'normal' && cheque.data_vencimento && isPast(parseISO(cheque.data_vencimento));
                                 return (
                                     <TableRow key={cheque.id} className="group hover:bg-slate-50/80 transition-colors cursor-pointer" onClick={() => handleView(cheque)}>
                                         <TableCell onClick={(e) => e.stopPropagation()}><Checkbox checked={selectedIds.includes(cheque.id)} onCheckedChange={() => handleSelectOne(cheque.id)} /></TableCell>
@@ -361,7 +361,7 @@ export default function Cheques() {
                                         <TableCell className="text-right font-bold text-slate-700">{formatCurrency(cheque.valor)}</TableCell>
                                         <TableCell>
                                             <div className={cn("text-sm", isVencido ? "text-red-600 font-bold" : "text-slate-600")}>
-                                                {format(new Date(cheque.data_vencimento), 'dd/MM/yyyy')}
+                                                {cheque.data_vencimento ? format(new Date(cheque.data_vencimento), 'dd/MM/yyyy') : '-'}
                                             </div>
                                             {isVencido && <span className="text-[10px] text-red-500 uppercase font-bold">Vencido</span>}
                                         </TableCell>
@@ -414,7 +414,7 @@ export default function Cheques() {
                                 <div className="border-t border-slate-100 pt-2 mt-2">
                                     <p className="text-sm font-medium text-slate-700 truncate" title={cheque.cliente_nome}>{cheque.cliente_nome}</p>
                                     <div className="flex justify-between items-center mt-1">
-                                        <span className="text-xs text-slate-400 flex items-center gap-1"><Calendar className="w-3 h-3"/> {format(new Date(cheque.data_vencimento), 'dd/MM/yy')}</span>
+                                        <span className="text-xs text-slate-400 flex items-center gap-1"><Calendar className="w-3 h-3"/> {cheque.data_vencimento ? format(new Date(cheque.data_vencimento), 'dd/MM/yy') : '-'}</span>
                                         <ArrowUpRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 transition-colors" />
                                     </div>
                                 </div>
