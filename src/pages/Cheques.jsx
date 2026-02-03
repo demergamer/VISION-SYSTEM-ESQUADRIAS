@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { 
   LayoutGrid, List, Filter, Plus, Search, 
   ArrowUpRight, ArrowDownLeft, AlertCircle, CheckCircle2, Clock,
-  Calendar, DollarSign, Building2, MoreHorizontal, Download
+  Calendar, DollarSign, Building2, MoreHorizontal, Download, CreditCard
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
