@@ -9,13 +9,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { 
   DollarSign, Loader2, Plus, X, Upload, FileText, Trash2, 
-  ShoppingCart, Calculator, ExternalLink, CheckCircle, Wallet
+  ShoppingCart, Calculator, ExternalLink, CheckCircle, Wallet, CreditCard, Banknote
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
+
+// Importação do Modal de Cheque (Conforme solicitado)
+import AdicionarChequeModal from "@/components/pedidos/AdicionarChequeModal";
 
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
@@ -45,6 +48,10 @@ export default function AprovarLiquidacaoModal({
   // Rejeição
   const [modoRejeicao, setModoRejeicao] = useState(false);
   const [motivoRejeicao, setMotivoRejeicao] = useState('');
+
+  // Controle do Modal de Cheque
+  const [showChequeModal, setShowChequeModal] = useState(false);
+  const [activePaymentIndex, setActivePaymentIndex] = useState(null);
 
   // --- QUERY DE CRÉDITOS ---
   const { data: creditosCliente = [] } = useQuery({ 
@@ -90,24 +97,18 @@ export default function AprovarLiquidacaoModal({
         });
       }
       setDescontoReais(descInicial > 0 ? String(descInicial) : '');
-      setCreditosSelecionados(creditosPreSelecionados); // Pré-seleciona se já veio na solicitação
+      setCreditosSelecionados(creditosPreSelecionados); 
       
       setDevolucaoReais(autorizacao.devolucao_valor ? String(autorizacao.devolucao_valor) : '');
 
-      // D. Inicializar Pagamento (Dinheiro/PIX apenas)
-      // Se tiver crédito usado, o valorFinalProposto já considera o desconto do crédito.
-      // Aqui queremos isolar o que é PAGAMENTO NOVO.
+      // D. Inicializar Pagamento
       let valorPagamento = parseFloat(autorizacao.valor_final_proposto) || 0;
-      
-      // Se o valor proposto for muito baixo e não tiver crédito, assume total original (erro comum de preenchimento)
       if (valorPagamento <= 0.01 && creditosPreSelecionados.length === 0) {
          valorPagamento = parseFloat(autorizacao.valor_total_original) || 0;
       }
       
-      // Se veio detalhado na observação, tentar extrair (Opcional, mas ajuda se não tivermos estrutura)
-      // Por enquanto, assume valor total proposto como 'dinheiro' se não vier quebrado
       setFormasPagamento([
-        { tipo: 'dinheiro', valor: String(valorPagamento) }
+        { tipo: 'dinheiro', valor: String(valorPagamento), parcelas: 1 }
       ]);
     }
   }, [autorizacao?.id]); 
@@ -133,31 +134,54 @@ export default function AprovarLiquidacaoModal({
 
     const totalInformado = formasPagamento.reduce((acc, f) => acc + (parseFloat(f.valor) || 0), 0);
     
-    // Diferença Final (Dinheiro - O que sobrou pra pagar)
     const diferenca = totalInformado - totalAPagar;
 
-    return { 
-        totalOriginal, 
-        desconto, 
-        devolucao, 
-        totalCreditos,
-        totalAjustes, 
-        totalAPagar, 
-        totalInformado, 
-        diferenca 
-    };
+    return { totalOriginal, desconto, devolucao, totalCreditos, totalAjustes, totalAPagar, totalInformado, diferenca };
   }, [pedidosSelecionados, descontoReais, devolucaoReais, formasPagamento, creditosSelecionados, creditosCliente]);
 
   // --- 3. AÇÕES (HANDLERS) ---
   
-  const handleAddForma = () => setFormasPagamento([...formasPagamento, { tipo: 'dinheiro', valor: '' }]);
+  const handleAddForma = () => setFormasPagamento([...formasPagamento, { tipo: 'dinheiro', valor: '', parcelas: 1 }]);
   const handleRemoveForma = (index) => { if (formasPagamento.length > 1) setFormasPagamento(formasPagamento.filter((_, i) => i !== index)); };
+  
   const handleUpdateForma = (index, field, value) => {
     setFormasPagamento(current => {
       const novas = [...current];
-      novas[index] = { ...novas[index], [field]: value };
+      // Se mudar para cheque, zera o valor para forçar o preenchimento via modal
+      if (field === 'tipo' && value === 'cheque') {
+          novas[index] = { ...novas[index], [field]: value, valor: '', chequeDetalhes: null };
+      } 
+      // Se mudar para crédito, reseta parcelas
+      else if (field === 'tipo' && value === 'credito') {
+          novas[index] = { ...novas[index], [field]: value, parcelas: 1 };
+      }
+      else {
+          novas[index] = { ...novas[index], [field]: value };
+      }
       return novas;
     });
+  };
+
+  const handleOpenChequeModal = (index) => {
+      setActivePaymentIndex(index);
+      setShowChequeModal(true);
+  };
+
+  const handleSaveCheque = (chequeData) => {
+      if (activePaymentIndex !== null) {
+          setFormasPagamento(current => {
+              const novas = [...current];
+              novas[activePaymentIndex] = {
+                  ...novas[activePaymentIndex],
+                  valor: String(chequeData.valor || 0), // O valor do cheque define o valor do pagamento
+                  chequeDetalhes: chequeData
+              };
+              return novas;
+          });
+          setShowChequeModal(false);
+          setActivePaymentIndex(null);
+          toast.success("Cheque vinculado!");
+      }
   };
 
   const handleToggleCredito = (id) => {
@@ -183,7 +207,13 @@ export default function AprovarLiquidacaoModal({
   const handleAprovarClick = () => {
     if (pedidosSelecionados.length === 0) { toast.error("Nenhum pedido selecionado."); return; }
     
-    // Só exige pagamento > 0 se ainda tiver dívida (pode ter pago tudo com crédito)
+    // Verifica se tem cheque sem detalhes
+    const chequesInvalidos = formasPagamento.some(f => f.tipo === 'cheque' && !f.chequeDetalhes);
+    if (chequesInvalidos) {
+        toast.error("Existem formas de pagamento em Cheque sem dados preenchidos. Clique em 'Preencher Cheque'.");
+        return;
+    }
+
     if (totais.totalAPagar > 0.01 && totais.totalInformado <= 0.01) {
       toast.error("Informe o valor do pagamento para cobrir o saldo.");
       return;
@@ -201,7 +231,7 @@ export default function AprovarLiquidacaoModal({
       descontoTipo: 'reais',
       descontoValor: totais.desconto,
       devolucao: totais.devolucao,
-      creditosIds: creditosSelecionados, // Passa IDs dos créditos usados para o Pai abater
+      creditosIds: creditosSelecionados,
       formasPagamento: formasPagamento.filter(f => parseFloat(f.valor) > 0),
       comprovantes: comprovantes
     };
@@ -260,11 +290,11 @@ export default function AprovarLiquidacaoModal({
         {/* DIREITA: PAGAMENTO & CRÉDITOS */}
         <div className="flex flex-col space-y-4 h-full overflow-y-auto pr-2">
           
-          {/* SEÇÃO DE CRÉDITOS (NOVO) */}
+          {/* CRÉDITOS DISPONÍVEIS */}
           {creditosCliente.length > 0 && (
               <Card className="p-4 bg-indigo-50 border-indigo-200">
                   <h3 className="font-bold text-indigo-800 mb-2 flex items-center gap-2 text-sm">
-                      <Wallet className="w-4 h-4" /> Créditos Disponíveis ({creditosCliente.length})
+                      <Wallet className="w-4 h-4" /> Usar Crédito ({creditosCliente.length})
                   </h3>
                   <div className="space-y-2 max-h-32 overflow-y-auto">
                       {creditosCliente.map(cred => (
@@ -303,23 +333,71 @@ export default function AprovarLiquidacaoModal({
               </div>
             </div>
 
-            <div className="space-y-2 border-t pt-3">
+            <div className="space-y-3 border-t pt-3">
               <div className="flex justify-between items-center mb-1">
-                <Label className="text-xs font-bold text-slate-700">Pagamento (Dinheiro/PIX)</Label>
+                <Label className="text-xs font-bold text-slate-700">Formas de Pagamento</Label>
                 <Button size="sm" variant="ghost" className="h-6 text-xs text-blue-600" onClick={handleAddForma}><Plus className="w-3 h-3 mr-1" /> Add</Button>
               </div>
+              
               {formasPagamento.map((fp, idx) => (
-                <div key={idx} className="flex gap-2">
-                  <Select value={fp.tipo} onValueChange={v => handleUpdateForma(idx, 'tipo', v)}>
-                    <SelectTrigger className="h-8 w-24 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="dinheiro">Dinheiro</SelectItem>
-                      <SelectItem value="pix">PIX</SelectItem>
-                      <SelectItem value="cheque">Cheque</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input type="number" className="h-8 flex-1 text-sm" value={fp.valor} onChange={e => handleUpdateForma(idx, 'valor', e.target.value)} />
-                  {idx > 0 && <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500" onClick={() => handleRemoveForma(idx)}><X className="w-4 h-4" /></Button>}
+                <div key={idx} className="flex flex-col gap-2 p-2 bg-slate-50 rounded-lg border border-slate-100">
+                    <div className="flex gap-2">
+                      <Select value={fp.tipo} onValueChange={v => handleUpdateForma(idx, 'tipo', v)}>
+                        <SelectTrigger className="h-9 w-32 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                          <SelectItem value="pix">PIX</SelectItem>
+                          <SelectItem value="cheque">Cheque</SelectItem>
+                          <SelectItem value="credito">C. Crédito</SelectItem>
+                          <SelectItem value="debito">C. Débito</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      
+                      {/* CAMPO DE VALOR OU BOTÃO DE CHEQUE */}
+                      {fp.tipo === 'cheque' ? (
+                          <div className="flex-1 flex gap-2">
+                              <Button 
+                                variant={fp.chequeDetalhes ? "outline" : "default"} 
+                                className={cn("flex-1 h-9 text-xs", fp.chequeDetalhes && "bg-green-50 text-green-700 border-green-200")}
+                                onClick={() => handleOpenChequeModal(idx)}
+                              >
+                                  {fp.chequeDetalhes 
+                                    ? `${fp.chequeDetalhes.banco} (${formatCurrency(fp.chequeDetalhes.valor)})` 
+                                    : 'Preencher Cheque'}
+                              </Button>
+                              {fp.chequeDetalhes && (
+                                  <div className="hidden"><Input value={fp.valor} readOnly /></div> // Mantém valor escondido p/ cálculo
+                              )}
+                          </div>
+                      ) : (
+                          <Input 
+                            type="number" 
+                            className="h-9 flex-1 text-sm" 
+                            value={fp.valor} 
+                            onChange={e => handleUpdateForma(idx, 'valor', e.target.value)} 
+                            placeholder="Valor"
+                          />
+                      )}
+
+                      {/* BOTÃO REMOVER */}
+                      {idx > 0 && <Button size="icon" variant="ghost" className="h-9 w-9 text-red-500" onClick={() => handleRemoveForma(idx)}><X className="w-4 h-4" /></Button>}
+                    </div>
+
+                    {/* PARCELAMENTO (SÓ PARA CRÉDITO) */}
+                    {fp.tipo === 'credito' && (
+                        <div className="flex items-center gap-2 px-1">
+                            <CreditCard className="w-3 h-3 text-slate-400" />
+                            <Label className="text-[10px] text-slate-500">Parcelas:</Label>
+                            <Select value={String(fp.parcelas)} onValueChange={v => handleUpdateForma(idx, 'parcelas', v)}>
+                                <SelectTrigger className="h-7 w-20 text-xs bg-white"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    {Array.from({length: 18}, (_, i) => i + 1).map(num => (
+                                        <SelectItem key={num} value={String(num)}>{num}x</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
                 </div>
               ))}
             </div>
@@ -378,6 +456,18 @@ export default function AprovarLiquidacaoModal({
           </div>
         )}
       </div>
+
+      {/* MODAL DE CHEQUE INTERNO */}
+      {showChequeModal && (
+          <ModalContainer open={true} onClose={() => setShowChequeModal(false)} title="Adicionar Cheque">
+              <AdicionarChequeModal 
+                  initialData={formasPagamento[activePaymentIndex]?.chequeDetalhes}
+                  clientePreSelecionado={autorizacao.cliente_codigo} // Passa o cliente da liquidação para facilitar
+                  onSave={handleSaveCheque} 
+                  onCancel={() => setShowChequeModal(false)} 
+              />
+          </ModalContainer>
+      )}
     </div>
   );
 }
