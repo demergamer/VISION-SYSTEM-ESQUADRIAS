@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
+import ModalContainer from "@/components/modals/ModalContainer";
 
 // Importação do Modal de Cheque (Conforme solicitado)
 import AdicionarChequeModal from "@/components/pedidos/AdicionarChequeModal";
