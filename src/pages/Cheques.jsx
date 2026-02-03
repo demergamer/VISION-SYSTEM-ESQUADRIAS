@@ -73,7 +73,7 @@ export default function Cheques() {
     
     // 1. A COMPENSAR (Carteira vs Repassados)
     const emMaos = lista.filter(c => c.status === 'normal');
-    const repassadosACompensar = lista.filter(c => c.status === 'repassado' && isFuture(parseISO(c.data_vencimento)));
+    const repassadosACompensar = lista.filter(c => c.status === 'repassado' && c.data_vencimento && isFuture(parseISO(c.data_vencimento)));
 
     // 2. DEVOLVIDOS (AQUI vs NÃO AQUI)
     const devolvidosGeral = lista.filter(c => c.status === 'devolvido');
@@ -274,7 +274,7 @@ export default function Cheques() {
                 <TableBody>
                     {dadosProcessados.listaFinal.map(cheque => {
                         const cliente = mapClientes[cheque.cliente_codigo];
-                        const isVencido = cheque.status === 'normal' && isPast(parseISO(cheque.data_vencimento));
+                        const isVencido = cheque.status === 'normal' && cheque.data_vencimento && isPast(parseISO(cheque.data_vencimento));
                         
                         return (
                             <TableRow key={cheque.id} className="group hover:bg-slate-50/80 transition-colors cursor-pointer" onClick={() => handleView(cheque)}>
@@ -294,7 +294,7 @@ export default function Cheques() {
                                 </TableCell>
                                 <TableCell>
                                     <div className={cn("text-sm", isVencido ? "text-red-600 font-bold" : "text-slate-600")}>
-                                        {format(new Date(cheque.data_vencimento), 'dd/MM/yyyy')}
+                                        {cheque.data_vencimento ? format(new Date(cheque.data_vencimento), 'dd/MM/yyyy') : '-'}
                                     </div>
                                 </TableCell>
                                 <TableCell className="text-right font-bold text-slate-700">{formatCurrency(cheque.valor)}</TableCell>
