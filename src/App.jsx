@@ -3,26 +3,48 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 
-// Componentes de Segurança
-import AuthGuard from '@/components/AuthGuard'; // Verifica apenas se está logado
-import PermissionGuard from '@/components/PermissionGuard'; // Verifica permissões granulares (Admin)
+// --- COMPONENTES DE SEGURANÇA ---
+import AuthGuard from '@/components/AuthGuard';
+import PermissionGuard from '@/components/PermissionGuard';
 
-// Páginas Administrativas (Internas)
+// --- LAYOUTS ---
+import AdminLayout from '@/layouts/AdminLayout';
+import PortalLayout from '@/layouts/PortalLayout';
+
+// --- PÁGINAS (Baseado na sua lista de arquivos) ---
+import Login from '@/pages/Login'; // Assumindo que existe, mesmo não estando na lista (é essencial)
+import Welcome from '@/pages/Welcome';
+import AcessoNegado from '@/pages/AcessoNegado';
 import Dashboard from '@/pages/Dashboard';
-import Pedidos from '@/pages/Pedidos';
-import Cheques from '@/pages/Cheques';
-import Clientes from '@/pages/Clientes';
-import Financeiro from '@/pages/Financeiro';
 
-// Páginas de Portais (Externas)
+// Operacional
+import Pedidos from '@/pages/Pedidos';
+import Orcamentos from '@/pages/Orcamentos';
+import Produtos from '@/pages/Produtos';
+import Clientes from '@/pages/Clientes';
+import Fornecedores from '@/pages/Fornecedores';
+import Representantes from '@/pages/Representantes';
+
+// Financeiro
+import Financeiro from '@/pages/Financeiro';
+import Cheques from '@/pages/Cheques';
+import CaixaDiario from '@/pages/CaixaDiario';
+import Pagamentos from '@/pages/Pagamentos'; // Contas a Pagar
+import Creditos from '@/pages/Creditos';
+import Comissoes from '@/pages/Comissoes';
+import EntradaCaucao from '@/pages/EntradaCaucao';
+import Balanco from '@/pages/Balanco';
+import FormasPagamento from '@/pages/FormasPagamento';
+
+// Administrativo / Sistema
+import Usuarios from '@/pages/Usuarios';
+import Relatorios from '@/pages/Relatorios';
+import Logs from '@/pages/Logs';
+import Cadastro from '@/pages/Cadastro'; // Configurações gerais?
+
+// Portais
 import PortalDoRepresentante from '@/pages/PortalDoRepresentante';
 import PortalCliente from '@/pages/PortalCliente';
-import Login from '@/pages/Login';
-import AcessoNegado from '@/pages/AcessoNegado';
-
-// Layouts
-import AdminLayout from '@/layouts/AdminLayout'; // Menu lateral, Topbar, etc.
-import PortalLayout from '@/layouts/PortalLayout'; // Layout simplificado para portais
 
 export default function App() {
   const { data: user, isLoading } = useQuery({ 
@@ -31,60 +53,63 @@ export default function App() {
     retry: false
   });
 
-  if (isLoading) return <div className="h-screen flex items-center justify-center">Carregando...</div>;
+  if (isLoading) return <div className="h-screen flex items-center justify-center text-slate-500">Carregando sistema...</div>;
 
   return (
     <Router>
       <Routes>
-        {/* ROTA PÚBLICA */}
+        {/* ================================================================= */}
+        {/* 1. ROTAS PÚBLICAS                                                 */}
+        {/* ================================================================= */}
         <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
+        <Route path="/welcome" element={<Welcome />} />
         <Route path="/acesso-negado" element={<AcessoNegado />} />
 
-        {/* --------------------------------------------------------------- */}
-        {/* GRUPO 1: ÁREA ADMINISTRATIVA (COM PERMISSION GUARD)             */}
-        {/* Só entra aqui quem tem role de Admin, Financeiro, Logística, etc */}
-        {/* --------------------------------------------------------------- */}
-        <Route element={<AuthGuard allowedRoles={['admin', 'financeiro', 'logistica', 'comercial']} />}>
+        {/* ================================================================= */}
+        {/* 2. ÁREA ADMINISTRATIVA (PROTEGIDA POR ROLE E PERMISSÃO)           */}
+        {/* ================================================================= */}
+        <Route element={<AuthGuard allowedRoles={['admin', 'financeiro', 'logistica', 'comercial', 'compras']} />}>
           <Route element={<AdminLayout />}>
             
             <Route path="/" element={<Dashboard />} />
             
-            {/* O PermissionGuard verifica permissões finas (ex: 'ver_pedidos') */}
-            <Route path="/pedidos" element={
-              <PermissionGuard setor="Pedidos">
-                <Pedidos />
-              </PermissionGuard>
-            } />
+            {/* OPERACIONAL */}
+            <Route path="/pedidos" element={<PermissionGuard setor="Pedidos"><Pedidos /></PermissionGuard>} />
+            <Route path="/orcamentos" element={<PermissionGuard setor="Orcamentos"><Orcamentos /></PermissionGuard>} />
+            <Route path="/produtos" element={<PermissionGuard setor="Produtos"><Produtos /></PermissionGuard>} />
+            <Route path="/clientes" element={<PermissionGuard setor="Clientes"><Clientes /></PermissionGuard>} />
+            <Route path="/fornecedores" element={<PermissionGuard setor="Fornecedores"><Fornecedores /></PermissionGuard>} />
+            <Route path="/representantes" element={<PermissionGuard setor="Representantes"><Representantes /></PermissionGuard>} />
 
-            <Route path="/cheques" element={
-              <PermissionGuard setor="Cheques">
-                <Cheques />
-              </PermissionGuard>
-            } />
+            {/* FINANCEIRO */}
+            <Route path="/financeiro" element={<PermissionGuard setor="Financeiro"><Financeiro /></PermissionGuard>} />
+            <Route path="/cheques" element={<PermissionGuard setor="Cheques"><Cheques /></PermissionGuard>} />
+            <Route path="/caixa-diario" element={<PermissionGuard setor="Caixa"><CaixaDiario /></PermissionGuard>} />
+            <Route path="/pagamentos" element={<PermissionGuard setor="ContasPagar"><Pagamentos /></PermissionGuard>} />
+            <Route path="/creditos" element={<PermissionGuard setor="Creditos"><Creditos /></PermissionGuard>} />
+            <Route path="/comissoes" element={<PermissionGuard setor="Comissoes"><Comissoes /></PermissionGuard>} />
+            <Route path="/entrada-caucao" element={<PermissionGuard setor="Financeiro"><EntradaCaucao /></PermissionGuard>} />
+            <Route path="/balanco" element={<PermissionGuard setor="Financeiro"><Balanco /></PermissionGuard>} />
+            
+            {/* CONFIGURAÇÕES FINANCEIRAS */}
+            <Route path="/formas-pagamento" element={<PermissionGuard setor="Configuracoes"><FormasPagamento /></PermissionGuard>} />
 
-            <Route path="/clientes" element={
-              <PermissionGuard setor="Clientes">
-                <Clientes />
-              </PermissionGuard>
-            } />
-
-            <Route path="/financeiro" element={
-              <PermissionGuard setor="Financeiro">
-                <Financeiro />
-              </PermissionGuard>
-            } />
+            {/* SISTEMA / ADMIN */}
+            <Route path="/usuarios" element={<PermissionGuard setor="Admin"><Usuarios /></PermissionGuard>} />
+            <Route path="/relatorios" element={<PermissionGuard setor="Relatorios"><Relatorios /></PermissionGuard>} />
+            <Route path="/logs" element={<PermissionGuard setor="Admin"><Logs /></PermissionGuard>} />
+            <Route path="/cadastro" element={<PermissionGuard setor="Cadastros"><Cadastro /></PermissionGuard>} />
 
           </Route>
         </Route>
 
-        {/* --------------------------------------------------------------- */}
-        {/* GRUPO 2: PORTAIS (SEM PERMISSION GUARD)                         */}
-        {/* Aqui não bloqueamos por função granular, apenas pelo tipo de usuário */}
-        {/* --------------------------------------------------------------- */}
+        {/* ================================================================= */}
+        {/* 3. PORTAIS EXTERNOS (SEM BLOQUEIO DE FUNÇÃO)                      */}
+        {/* ================================================================= */}
         
         {/* PORTAL DO REPRESENTANTE */}
         <Route element={<AuthGuard allowedRoles={['representante']} />}>
-          <Route element={<PortalLayout title="Área do Representante" />}>
+          <Route element={<PortalLayout title="Portal do Representante" />}>
             <Route path="/portal-representante" element={<PortalDoRepresentante />} />
           </Route>
         </Route>
@@ -96,13 +121,15 @@ export default function App() {
           </Route>
         </Route>
 
-        {/* Rota Default (Redirecionamento Inteligente) */}
+        {/* ================================================================= */}
+        {/* 4. REDIRECIONAMENTO INTELIGENTE (FALLBACK)                        */}
+        {/* ================================================================= */}
         <Route path="*" element={
           user ? (
-            user.role === 'cliente' ? <Navigate to="/portal-cliente" /> :
-            user.role === 'representante' ? <Navigate to="/portal-representante" /> :
-            <Navigate to="/" />
-          ) : <Navigate to="/login" />
+            user.role === 'cliente' ? <Navigate to="/portal-cliente" replace /> :
+            user.role === 'representante' ? <Navigate to="/portal-representante" replace /> :
+            <Navigate to="/" replace />
+          ) : <Navigate to="/login" replace />
         } />
 
       </Routes>
