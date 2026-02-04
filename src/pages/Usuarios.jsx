@@ -15,7 +15,7 @@ import UsuarioForm from "@/components/usuarios/UsuarioForm";
 import ConvidarUsuarioForm from "@/components/usuarios/ConvidarUsuarioForm";
 import PermissionGuard from "@/components/PermissionGuard";
 // Se você não tiver esse hook usePermissions criado, pode remover a linha abaixo ou criar um mock
-// import { usePermissions } from "@/components/UserNotRegisteredError"; 
+import { usePermissions } from "@/components/hooks/usePermissions"; 
 
 export default function Usuarios() {
   const queryClient = useQueryClient();
