@@ -12,13 +12,13 @@ import { Save, X, ShieldCheck, CheckSquare, Loader2, AlertTriangle } from "lucid
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-// IMPORTANDO DA NOVA CONFIGURAÇÃO
+// Importa configuração de permissões
 import { 
   MODULOS_CONFIG, 
   PERMISSOES_LABELS, 
   PERMISSOES_DESCRICOES, 
   criarPermissoesDefault 
-} from '@/config/permissions';
+} from '@/lib/permissions';
 
 export default function UsuarioForm({ user, currentUser, onSave, onCancel, isLoading }) {
   const [form, setForm] = useState({
