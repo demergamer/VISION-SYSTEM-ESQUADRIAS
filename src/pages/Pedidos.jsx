@@ -42,7 +42,7 @@ import AprovarLiquidacaoModal from "@/components/pedidos/AprovarLiquidacaoModal"
 import DividirRotaModal from "@/components/pedidos/DividirRotaModal";
 import AdicionarRepresentanteModal from "@/components/pedidos/AdicionarRepresentanteModal";
 import PermissionGuard from "@/components/PermissionGuard";
-import { usePermissions } from "@/components/UserNotRegisteredError";
+import { usePermissions } from "@/components/hooks/usePermissions";
 
 // --- PAINEL DE FILTROS ---
 const FilterPanel = ({ filters, setFilters, onClear, isOpen }) => {
