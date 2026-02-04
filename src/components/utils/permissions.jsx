@@ -1,5 +1,3 @@
-// src/config/permissions.js
-
 export const PERMISSOES_LABELS = {
   visualizar: '👁️', adicionar: '➕', editar: '✏️', excluir: '🗑️',
   liquidar: '💰', fechar: '🔒', aprovar: '✅', juntar: '🔗', exportar: '📄'
