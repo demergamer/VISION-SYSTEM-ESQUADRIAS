@@ -1,44 +1,192 @@
+// src/components/utils/permissions.jsx
+
+/**
+ * Ícones para cada tipo de permissão (Exibidos no cabeçalho da tabela)
+ */
 export const PERMISSOES_LABELS = {
-  visualizar: '👁️', adicionar: '➕', editar: '✏️', excluir: '🗑️',
-  liquidar: '💰', fechar: '🔒', aprovar: '✅', juntar: '🔗', exportar: '📄'
+  visualizar: '👁️',
+  adicionar: '➕',
+  editar: '✏️',
+  excluir: '🗑️',
+  
+  // Financeiro / Fluxo
+  liquidar: '💰',
+  fechar: '🔒',
+  aprovar: '✅',
+  cancelar: '🚫', // Diferente de excluir (inativar/estornar)
+  
+  // Dados Sensíveis
+  ver_custo: '💲', // Ver preço de custo/margem
+  ver_total: 'Σ',  // Ver totais financeiros (Dashboard/Relatórios)
+  
+  // Utilitários
+  imprimir: '🖨️',
+  exportar: '📄',
+  enviar: '📧'    // Enviar email/whatsapp
 };
 
+/**
+ * Descrição legível para o tooltip ou legenda
+ */
 export const PERMISSOES_DESCRICOES = {
-  visualizar: 'Ver', adicionar: 'Criar', editar: 'Editar', excluir: 'Excluir',
-  liquidar: 'Liquidar', fechar: 'Fechar', aprovar: 'Aprovar', juntar: 'Juntar', exportar: 'Exportar'
+  visualizar: 'Ver Lista/Detalhes',
+  adicionar: 'Criar Novo',
+  editar: 'Editar Dados',
+  excluir: 'Excluir (Apagar)',
+  liquidar: 'Liquidar/Pagar',
+  fechar: 'Fechar Caixa/Mês',
+  aprovar: 'Aprovar Pedido/Orçamento',
+  cancelar: 'Cancelar (Estornar)',
+  ver_custo: 'Ver Custo e Margem',
+  ver_total: 'Ver Totais Financeiros',
+  imprimir: 'Imprimir/Gerar PDF',
+  exportar: 'Exportar Excel/CSV',
+  enviar: 'Enviar Email/Msg'
 };
 
+/**
+ * Configuração dos Módulos e quais permissões cada um suporta.
+ * IMPORTANTE: O campo 'nome' deve bater EXATAMENTE com as chaves do PAGE_PERMISSIONS no App.jsx.
+ */
 export const MODULOS_CONFIG = [
-  // PRINCIPAL
-  { nome: 'Dashboard', label: '📊 Dashboard', grupo: 'Principal', permissoes: ['visualizar'] },
+  // --- GRUPO: PRINCIPAL ---
+  { 
+    nome: 'Dashboard', 
+    label: '📊 Dashboard', 
+    grupo: 'Principal', 
+    permissoes: ['visualizar', 'ver_total'] 
+  },
   
-  // VENDAS
-  { nome: 'Pedidos', label: '🛒 Pedidos', grupo: 'Vendas', permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'liquidar', 'exportar'] },
-  { nome: 'Orcamentos', label: '📝 Orçamentos', grupo: 'Vendas', permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'aprovar', 'exportar'] },
-  
-  // CADASTROS
-  { nome: 'Clientes', label: '🏢 Clientes', grupo: 'Cadastros', permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'exportar'] },
-  { nome: 'Representantes', label: '👤 Representantes', grupo: 'Cadastros', permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'exportar'] },
-  { nome: 'Fornecedores', label: '🚛 Fornecedores', grupo: 'Cadastros', permissoes: ['visualizar', 'adicionar', 'editar', 'excluir'] },
-  { nome: 'Produtos', label: '📦 Produtos', grupo: 'Cadastros', permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'exportar'] },
-  
-  // FINANCEIRO
-  { nome: 'Financeiro', label: '💰 Financeiro Geral', grupo: 'Financeiro', permissoes: ['visualizar'] },
-  { nome: 'Cheques', label: '🎫 Cheques', grupo: 'Financeiro', permissoes: ['visualizar', 'adicionar', 'editar', 'excluir'] },
-  { nome: 'Pagamentos', label: '💸 Contas a Pagar', grupo: 'Financeiro', permissoes: ['visualizar', 'adicionar', 'editar', 'liquidar'] },
-  { nome: 'Comissoes', label: '💼 Comissões', grupo: 'Financeiro', permissoes: ['visualizar', 'editar', 'fechar'] },
-  { nome: 'Creditos', label: '💵 Créditos', grupo: 'Financeiro', permissoes: ['visualizar', 'adicionar', 'editar', 'excluir'] },
+  // --- GRUPO: VENDAS ---
+  { 
+    nome: 'Pedidos', 
+    label: '🛒 Pedidos', 
+    grupo: 'Vendas', 
+    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'cancelar', 'aprovar', 'imprimir', 'exportar'] 
+  },
+  { 
+    nome: 'Orcamentos', 
+    label: '📝 Orçamentos', 
+    grupo: 'Vendas', 
+    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'aprovar', 'imprimir', 'enviar', 'exportar'] 
+  },
+  { 
+    nome: 'EntradaCaucao', 
+    label: '🤝 Entrada/Caução', 
+    grupo: 'Vendas', 
+    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'imprimir'] 
+  },
 
-  // ADMIN
-  { nome: 'Usuarios', label: '👥 Usuários', grupo: 'Admin', permissoes: ['visualizar', 'adicionar', 'editar', 'excluir'] },
-  { nome: 'Logs', label: '📜 Logs do Sistema', grupo: 'Admin', permissoes: ['visualizar'] }
+  // --- GRUPO: CADASTROS ---
+  { 
+    nome: 'Produtos', 
+    label: '📦 Produtos', 
+    grupo: 'Cadastros', 
+    // 'ver_custo' permite esconder o preço de custo de vendedores
+    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'ver_custo', 'exportar'] 
+  },
+  { 
+    nome: 'Clientes', 
+    label: '🏢 Clientes', 
+    grupo: 'Cadastros', 
+    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'exportar'] 
+  },
+  { 
+    nome: 'Representantes', 
+    label: '👤 Representantes', 
+    grupo: 'Cadastros', 
+    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'exportar'] 
+  },
+  { 
+    nome: 'Fornecedores', 
+    label: '🚛 Fornecedores', 
+    grupo: 'Cadastros', 
+    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir'] 
+  },
+  { 
+    nome: 'FormasPagamento', 
+    label: '💳 Formas Pagto', 
+    grupo: 'Cadastros', 
+    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir'] 
+  },
+  
+  // --- GRUPO: FINANCEIRO ---
+  { 
+    nome: 'Financeiro', 
+    label: '💰 Visão Geral', 
+    grupo: 'Financeiro', 
+    permissoes: ['visualizar', 'ver_total'] 
+  },
+  { 
+    nome: 'Pagamentos', 
+    label: '💸 Contas a Pagar', 
+    grupo: 'Financeiro', 
+    permissoes: ['visualizar', 'adicionar', 'editar', 'liquidar', 'cancelar', 'exportar'] 
+  },
+  { 
+    nome: 'Cheques', 
+    label: '🎫 Cheques', 
+    grupo: 'Financeiro', 
+    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'liquidar', 'exportar'] 
+  },
+  { 
+    nome: 'CaixaDiario', 
+    label: '🏧 Caixa Diário', 
+    grupo: 'Financeiro', 
+    permissoes: ['visualizar', 'adicionar', 'editar', 'fechar', 'exportar'] 
+  },
+  { 
+    nome: 'Comissoes', 
+    label: '💼 Comissões', 
+    grupo: 'Financeiro', 
+    permissoes: ['visualizar', 'editar', 'fechar', 'exportar'] 
+  },
+  { 
+    nome: 'Creditos', 
+    label: '💵 Créditos Clientes', 
+    grupo: 'Financeiro', 
+    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir'] 
+  },
+  
+  // --- GRUPO: ANALYTICS / RELATÓRIOS ---
+  { 
+    nome: 'Relatorios', 
+    label: '📈 Relatórios Gerais', 
+    grupo: 'Analytics', 
+    permissoes: ['visualizar', 'ver_total', 'exportar'] 
+  },
+  { 
+    nome: 'Balanco', 
+    label: '⚖️ Balanço', 
+    grupo: 'Analytics', 
+    permissoes: ['visualizar', 'ver_total', 'exportar'] 
+  },
+
+  // --- GRUPO: ADMINISTRAÇÃO ---
+  { 
+    nome: 'Usuarios', 
+    label: '👥 Usuários', 
+    grupo: 'Admin', 
+    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir'] 
+  },
+  { 
+    nome: 'Logs', 
+    label: '📜 Logs do Sistema', 
+    grupo: 'Admin', 
+    permissoes: ['visualizar'] 
+  }
 ];
 
+/**
+ * Função auxiliar para criar o objeto de permissões inicial (tudo false)
+ */
 export function criarPermissoesDefault() {
   const perms = {};
   MODULOS_CONFIG.forEach(modulo => {
     perms[modulo.nome] = {};
-    modulo.permissoes.forEach(perm => { perms[modulo.nome][perm] = false; });
+    modulo.permissoes.forEach(perm => { 
+      perms[modulo.nome][perm] = false; 
+    });
   });
   return perms;
 }
