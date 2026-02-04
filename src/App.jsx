@@ -7,14 +7,13 @@ import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-d
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import PermissionGuard from "@/components/PermissionGuard"; // Importado
+import PermissionGuard from "@/components/PermissionGuard";
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
 // --- CONFIGURAÇÃO DE SETORES PARA PERMISSION GUARD ---
-// Mapeia o nome da página (chave do PAGES) para o setor no banco de dados
 const PAGE_PERMISSIONS = {
   'Fornecedores': 'Fornecedores',
   'Pedidos': 'Pedidos',
@@ -35,7 +34,7 @@ const PAGE_PERMISSIONS = {
   'FormasPagamento': 'Configuracoes',
 
   // Admin / Sistema
-  'Usuarios': 'Admin',
+  // 'Usuarios': 'Admin',  <--- COMENTEI ESSA LINHA PARA LIBERAR ACESSO TOTAL
   'Relatorios': 'Relatorios',
   'Logs': 'Admin',
   'Cadastro': 'Cadastros',
@@ -48,11 +47,10 @@ const PORTAL_PAGES = [
   'Login', 
   'Welcome', 
   'AcessoNegado',
-  'Representation' // Caso seja uma view externa
+  'Representation'
 ];
 
 const LayoutWrapper = ({ children, currentPageName }) => {
-  // Se for página de portal ou pública, não usa o Layout Admin
   const isPortal = PORTAL_PAGES.includes(currentPageName);
 
   if (Layout && !isPortal) {
@@ -89,7 +87,6 @@ const AuthenticatedApp = () => {
 
   return (
     <Routes>
-      {/* ROTA RAIZ (/) COM REDIRECIONAMENTO INTELIGENTE */}
       <Route path="/" element={
         user.role === 'cliente' ? <Navigate to="/PortalCliente" replace /> :
         user.role === 'representante' ? <Navigate to="/PortalDoRepresentante" replace /> :
@@ -100,11 +97,10 @@ const AuthenticatedApp = () => {
         )
       } />
 
-      {/* GERAÇÃO DINÂMICA DAS ROTAS COM PERMISSION GUARD */}
       {Object.entries(Pages).map(([path, Page]) => {
         const setorPermission = PAGE_PERMISSIONS[path];
         
-        // Envolvemos o componente no PermissionGuard se houver regra definida
+        // Se não tiver setorPermission (como fizemos com Usuarios), renderiza direto
         const PageComponent = setorPermission ? (
           <PermissionGuard setor={setorPermission}>
             <Page />
