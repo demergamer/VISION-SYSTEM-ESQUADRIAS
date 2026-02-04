@@ -30,7 +30,7 @@ import ClienteForm from "@/components/clientes/ClienteForm";
 import ClienteTable from "@/components/clientes/ClienteTable";
 import ClienteDetails from "@/components/clientes/ClienteDetails";
 import PermissionGuard from "@/components/PermissionGuard";
-import { usePermissions } from "@/components/UserNotRegisteredError";
+import { usePermissions } from "@/components/hooks/usePermissions";
 
 // --- MODAL DE ATUALIZAÇÃO EM MASSA (Mantido) ---
 const BulkUpdateModal = ({ isOpen, total, current, currentName, logs }) => {
