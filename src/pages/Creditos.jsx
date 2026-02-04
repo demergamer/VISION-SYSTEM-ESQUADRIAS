@@ -25,7 +25,7 @@ import ModalContainer from "@/components/modals/ModalContainer";
 import CreditoDetails from "@/components/creditos/CreditoDetails";
 import GerarCreditoManual from "@/components/creditos/GerarCreditoManual";
 import PermissionGuard from "@/components/PermissionGuard";
-import { usePermissions } from "@/components/UserNotRegisteredError";
+import { usePermissions } from "@/components/hooks/usePermissions";
 
 export default function Creditos() {
   const queryClient = useQueryClient();
