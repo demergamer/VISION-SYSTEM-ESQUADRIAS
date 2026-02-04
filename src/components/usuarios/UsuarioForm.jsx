@@ -12,13 +12,45 @@ import { Save, X, ShieldCheck, CheckSquare, Loader2, AlertTriangle } from "lucid
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-// IMPORTANDO DA NOVA CONFIGURAÇÃO
-import { 
-  MODULOS_CONFIG, 
-  PERMISSOES_LABELS, 
-  PERMISSOES_DESCRICOES, 
-  criarPermissoesDefault 
-} from '@/config/permissions';
+// Configuração dos Módulos
+const MODULOS_CONFIG = [
+  { nome: 'Dashboard', label: '📊 Dashboard', grupo: 'Principal', permissoes: ['visualizar'] },
+  { nome: 'Pedidos', label: '🛒 Pedidos', grupo: 'Vendas', permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'liquidar', 'exportar'] },
+  { nome: 'Orcamentos', label: '📝 Orçamentos', grupo: 'Vendas', permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'aprovar', 'exportar'] },
+  { nome: 'EntradaCaucao', label: '💰 Entrada/Caução (PORT)', grupo: 'Vendas', permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'exportar'] },
+  { nome: 'Clientes', label: '🏢 Clientes', grupo: 'Cadastros', permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'exportar'] },
+  { nome: 'Representantes', label: '👤 Representantes', grupo: 'Cadastros', permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'exportar'] },
+  { nome: 'Fornecedores', label: '🚛 Fornecedores', grupo: 'Cadastros', permissoes: ['visualizar', 'adicionar', 'editar', 'excluir'] },
+  { nome: 'Produtos', label: '📦 Produtos', grupo: 'Cadastros', permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'exportar'] },
+  { nome: 'FormasPagamento', label: '💳 Formas de Pagamento', grupo: 'Cadastros', permissoes: ['visualizar', 'adicionar', 'editar', 'excluir'] },
+  { nome: 'Cheques', label: '🎫 Cheques', grupo: 'Financeiro', permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'exportar'] },
+  { nome: 'Creditos', label: '💵 Créditos', grupo: 'Financeiro', permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'exportar'] },
+  { nome: 'Pagamentos', label: '💸 Contas a Pagar', grupo: 'Financeiro', permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'liquidar', 'exportar'] },
+  { nome: 'CaixaDiario', label: '💰 Caixa Diário', grupo: 'Financeiro', permissoes: ['visualizar', 'adicionar', 'editar', 'exportar'] },
+  { nome: 'Comissoes', label: '💼 Comissões', grupo: 'Financeiro', permissoes: ['visualizar', 'editar', 'fechar', 'exportar'] },
+  { nome: 'Relatorios', label: '📈 Relatórios', grupo: 'Analytics', permissoes: ['visualizar', 'exportar'] },
+  { nome: 'Balanco', label: '⚖️ Balanço', grupo: 'Analytics', permissoes: ['visualizar', 'exportar'] },
+  { nome: 'Usuarios', label: '👥 Usuários', grupo: 'Admin', permissoes: ['visualizar', 'adicionar', 'editar', 'excluir'] }
+];
+
+const PERMISSOES_LABELS = {
+  visualizar: '👁️', adicionar: '➕', editar: '✏️', excluir: '🗑️',
+  liquidar: '💰', fechar: '🔒', aprovar: '✅', juntar: '🔗', exportar: '📄'
+};
+
+const PERMISSOES_DESCRICOES = {
+  visualizar: 'Ver', adicionar: 'Criar', editar: 'Editar', excluir: 'Excluir',
+  liquidar: 'Liquidar', fechar: 'Fechar', aprovar: 'Aprovar', juntar: 'Juntar', exportar: 'Exportar'
+};
+
+function criarPermissoesDefault() {
+  const perms = {};
+  MODULOS_CONFIG.forEach(modulo => {
+    perms[modulo.nome] = {};
+    modulo.permissoes.forEach(perm => { perms[modulo.nome][perm] = false; });
+  });
+  return perms;
+}
 
 export default function UsuarioForm({ user, currentUser, onSave, onCancel, isLoading }) {
   const [form, setForm] = useState({
