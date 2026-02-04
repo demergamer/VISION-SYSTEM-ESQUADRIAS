@@ -26,7 +26,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { pagesConfig } from './pages.config';
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { usePermissions } from "@/components/UserNotRegisteredError"; // <--- 1. IMPORTANTE: Importar o Hook de Permissões
+import { usePermissions } from "@/components/hooks/usePermissions";
 import {
   DropdownMenu,
   DropdownMenuContent,
