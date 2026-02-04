@@ -3,38 +3,56 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import NavigationTracker from '@/lib/NavigationTracker'
 import { pagesConfig } from './pages.config'
-import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom'; // Adicionado Navigate
+import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-
-// Importar o PermissionGuard que criamos
-import PermissionGuard from "@/components/PermissionGuard";
+import PermissionGuard from "@/components/PermissionGuard"; // Importado
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
-// 1. CONFIGURAÇÃO DE SETORES
-// Mapeie aqui qual página pertence a qual setor para o PermissionGuard.
-// Se a página não estiver aqui, ela será acessível a todos os logados (exceto Portais que têm lógica própria).
+// --- CONFIGURAÇÃO DE SETORES PARA PERMISSION GUARD ---
+// Mapeia o nome da página (chave do PAGES) para o setor no banco de dados
 const PAGE_PERMISSIONS = {
   'Fornecedores': 'Fornecedores',
   'Pedidos': 'Pedidos',
-  'Cheques': 'Cheques',
-  'Financeiro': 'Financeiro',
-  'Clientes': 'Clientes',
+  'Orcamentos': 'Orcamentos',
   'Produtos': 'Produtos',
+  'Clientes': 'Clientes',
+  'Representantes': 'Representantes',
+  
+  // Financeiro
+  'Financeiro': 'Financeiro',
+  'Cheques': 'Cheques',
+  'CaixaDiario': 'Caixa',
+  'Pagamentos': 'ContasPagar',
+  'Creditos': 'Creditos',
+  'Comissoes': 'Comissoes',
+  'EntradaCaucao': 'Financeiro',
+  'Balanco': 'Financeiro',
+  'FormasPagamento': 'Configuracoes',
+
+  // Admin / Sistema
   'Usuarios': 'Admin',
-  // Adicione outras páginas conforme necessário
+  'Relatorios': 'Relatorios',
+  'Logs': 'Admin',
+  'Cadastro': 'Cadastros',
 };
 
-// 2. CONFIGURAÇÃO DE PORTAIS
-// Páginas que NÃO devem ter o Layout administrativo (Sidebar)
-const PORTAL_PAGES = ['PortalCliente', 'PortalDoRepresentante', 'Login', 'Welcome', 'AcessoNegado'];
+// --- PÁGINAS QUE NÃO USAM LAYOUT ADMINISTRATIVO (SIDEBAR) ---
+const PORTAL_PAGES = [
+  'PortalCliente', 
+  'PortalDoRepresentante', 
+  'Login', 
+  'Welcome', 
+  'AcessoNegado',
+  'Representation' // Caso seja uma view externa
+];
 
 const LayoutWrapper = ({ children, currentPageName }) => {
-  // Se for página de portal, não renderiza o Layout (Menu Lateral)
+  // Se for página de portal ou pública, não usa o Layout Admin
   const isPortal = PORTAL_PAGES.includes(currentPageName);
 
   if (Layout && !isPortal) {
@@ -47,34 +65,31 @@ const LayoutWrapper = ({ children, currentPageName }) => {
 const AuthenticatedApp = () => {
   const { user, isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
 
-  // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+      <div className="fixed inset-0 flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+            <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
+            <p className="text-slate-500 font-medium text-sm">Carregando sistema...</p>
+        </div>
       </div>
     );
   }
 
-  // Handle authentication errors
   if (authError) {
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
     } else if (authError.type === 'auth_required') {
-      // Redirect to login automatically
       navigateToLogin();
       return null;
     }
   }
 
-  // Se não tiver user carregado ainda (embora o authError devesse pegar), retorna null
   if (!user) return null;
 
   return (
     <Routes>
-      {/* ROTA RAIZ (DASHBOARD) 
-          Redirecionamento inteligente baseado no cargo (Role)
-      */}
+      {/* ROTA RAIZ (/) COM REDIRECIONAMENTO INTELIGENTE */}
       <Route path="/" element={
         user.role === 'cliente' ? <Navigate to="/PortalCliente" replace /> :
         user.role === 'representante' ? <Navigate to="/PortalDoRepresentante" replace /> :
@@ -85,25 +100,26 @@ const AuthenticatedApp = () => {
         )
       } />
 
-      {/* ROTAS DINÂMICAS (DO CONFIG)
-          Aqui aplicamos o PermissionGuard se a página tiver um setor definido
-      */}
+      {/* GERAÇÃO DINÂMICA DAS ROTAS COM PERMISSION GUARD */}
       {Object.entries(Pages).map(([path, Page]) => {
         const setorPermission = PAGE_PERMISSIONS[path];
         
+        // Envolvemos o componente no PermissionGuard se houver regra definida
+        const PageComponent = setorPermission ? (
+          <PermissionGuard setor={setorPermission}>
+            <Page />
+          </PermissionGuard>
+        ) : (
+          <Page />
+        );
+
         return (
           <Route
             key={path}
             path={`/${path}`}
             element={
               <LayoutWrapper currentPageName={path}>
-                {setorPermission ? (
-                  <PermissionGuard setor={setorPermission}>
-                    <Page />
-                  </PermissionGuard>
-                ) : (
-                  <Page />
-                )}
+                {PageComponent}
               </LayoutWrapper>
             }
           />
