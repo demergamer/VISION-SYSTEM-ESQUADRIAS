@@ -12,7 +12,6 @@ import AdminLayout from '@/layouts/AdminLayout';
 import PortalLayout from '@/layouts/PortalLayout';
 
 // --- PÁGINAS (Baseado na sua lista de arquivos) ---
-import Login from '@/pages/Login'; // Assumindo que existe, mesmo não estando na lista (é essencial)
 import Welcome from '@/pages/Welcome';
 import AcessoNegado from '@/pages/AcessoNegado';
 import Dashboard from '@/pages/Dashboard';
