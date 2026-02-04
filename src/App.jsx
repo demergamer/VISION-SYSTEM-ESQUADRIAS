@@ -8,7 +8,7 @@ import AuthGuard from '@/components/AuthGuard';
 import PermissionGuard from '@/components/PermissionGuard';
 
 // Layout Único
-import AdminLayout from '@/layouts';
+import AdminLayout from '@/layout';
 
 // Páginas Públicas
 import Login from '@/pages/Login';
