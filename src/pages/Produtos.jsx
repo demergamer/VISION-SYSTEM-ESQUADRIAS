@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Package, Search, Plus, Edit, Trash2, ArrowLeft, Save, X, Loader2, Upload, Image as ImageIcon } from "lucide-react";
+import { Package, Search, Plus, Edit, Trash2, ArrowLeft, Save, X, Loader2, Image as ImageIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { toast } from "sonner";
@@ -258,7 +258,8 @@ export default function Produtos() {
   const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
   return (
-    <PermissionGuard setor="CadastroPecas">
+    // CORREÇÃO AQUI: Mudado de "CadastroPecas" para "Produtos"
+    <PermissionGuard setor="Produtos">
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -273,10 +274,13 @@ export default function Produtos() {
                 <p className="text-slate-500 mt-1">Catálogo de produtos e serviços</p>
               </div>
             </div>
-            <Button onClick={() => setShowAddModal(true)} className="gap-2">
-              <Plus className="w-4 h-4" />
-              Novo Produto
-            </Button>
+            {/* ADICIONADO: Bloqueio do botão Novo */}
+            <PermissionGuard setor="Produtos" funcao="adicionar" showBlocked={false}>
+              <Button onClick={() => setShowAddModal(true)} className="gap-2">
+                <Plus className="w-4 h-4" />
+                Novo Produto
+              </Button>
+            </PermissionGuard>
           </div>
 
           <Card className="overflow-hidden">
@@ -328,13 +332,20 @@ export default function Produtos() {
                         )}
                       </div>
                       <div className="flex gap-2 pt-2 border-t">
-                        <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSelectedProduto(produto); setShowEditModal(true); }}>
-                          <Edit className="w-4 h-4 mr-2" />
-                          Editar
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => { setProdutoToDelete(produto); setShowDeleteDialog(true); }} className="text-red-600 hover:text-red-700">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        {/* ADICIONADO: Bloqueio do botão Editar */}
+                        <PermissionGuard setor="Produtos" funcao="editar" showBlocked={false}>
+                            <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSelectedProduto(produto); setShowEditModal(true); }}>
+                            <Edit className="w-4 h-4 mr-2" />
+                            Editar
+                            </Button>
+                        </PermissionGuard>
+                        
+                        {/* ADICIONADO: Bloqueio do botão Excluir */}
+                        <PermissionGuard setor="Produtos" funcao="excluir" showBlocked={false}>
+                            <Button variant="outline" size="sm" onClick={() => { setProdutoToDelete(produto); setShowDeleteDialog(true); }} className="text-red-600 hover:text-red-700">
+                            <Trash2 className="w-4 h-4" />
+                            </Button>
+                        </PermissionGuard>
                       </div>
                     </div>
                   </Card>
