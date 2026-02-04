@@ -18,7 +18,7 @@ import {
   PERMISSOES_LABELS, 
   PERMISSOES_DESCRICOES, 
   criarPermissoesDefault 
-} from '@/components/utils/permissions';
+} from '@/components/utils/permissions.jsx';
 
 export default function UsuarioForm({ user, currentUser, onSave, onCancel, isLoading }) {
   const [form, setForm] = useState({
