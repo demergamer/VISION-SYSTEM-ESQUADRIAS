@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Edit, Eye, Phone, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { usePermissions } from "@/components/UserNotRegisteredError";
+import { usePermissions } from "@/components/hooks/usePermissions";
 
 export default function RepresentanteTable({ 
   representantes, 
