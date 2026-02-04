@@ -8,7 +8,7 @@ import {
   Calendar as CalendarIcon, Settings2, ShieldAlert
 } from "lucide-react";
 import { useAuth } from '@/lib/AuthContext';
-import { usePermissions } from "@/components/UserNotRegisteredError";
+import { usePermissions } from "@/components/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 
 // Componentes Importados
