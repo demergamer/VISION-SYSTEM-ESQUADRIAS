@@ -14,30 +14,34 @@ const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
 // --- CONFIGURAÇÃO DE SETORES PARA PERMISSION GUARD ---
+// CORREÇÃO CRÍTICA: As chaves à direita devem ser IDÊNTICAS ao 'nome' no modulosConfig do UsuarioForm.
 const PAGE_PERMISSIONS = {
-  'Fornecedores': 'Fornecedores',
+  // Operacional
   'Pedidos': 'Pedidos',
   'Orcamentos': 'Orcamentos',
-  'Produtos': 'Produtos',
+  'Produtos': 'Produtos', // Estava certo, mas verifique se seu usuário tem essa flag marcada no banco
   'Clientes': 'Clientes',
+  'Fornecedores': 'Fornecedores',
   'Representantes': 'Representantes',
   
   // Financeiro
-  'Financeiro': 'Financeiro',
+  'Financeiro': 'Financeiro', // Financeiro Geral
   'Cheques': 'Cheques',
-  'CaixaDiario': 'Caixa',
-  'Pagamentos': 'ContasPagar',
+  'CaixaDiario': 'CaixaDiario', // Antes estava 'Caixa' (Errado)
+  'Pagamentos': 'Pagamentos',   // Antes estava 'ContasPagar' (Errado)
   'Creditos': 'Creditos',
   'Comissoes': 'Comissoes',
-  'EntradaCaucao': 'Financeiro',
-  'Balanco': 'Financeiro',
-  'FormasPagamento': 'Configuracoes',
+  
+  // Telas específicas que usam permissões próprias
+  'EntradaCaucao': 'EntradaCaucao', // Antes estava 'Financeiro' (Errado)
+  'Balanco': 'Balanco',             // Antes estava 'Financeiro' (Errado)
+  'FormasPagamento': 'FormasPagamento', // Antes estava 'Configuracoes' (Errado)
 
   // Admin / Sistema
-  // 'Usuarios': 'Admin',  <--- COMENTEI ESSA LINHA PARA LIBERAR ACESSO TOTAL
+  'Usuarios': 'Usuarios', // Antes estava 'Admin' (Errado -> Causava o bloqueio)
   'Relatorios': 'Relatorios',
-  'Logs': 'Admin',
-  'Cadastro': 'Cadastros',
+  'Logs': 'Logs',         // Antes estava 'Admin' (Errado)
+  'Cadastro': 'Usuarios', // Se 'Cadastro' for configs gerais, use 'Usuarios' ou crie um módulo 'Configuracoes'
 };
 
 // --- PÁGINAS QUE NÃO USAM LAYOUT ADMINISTRATIVO (SIDEBAR) ---
@@ -100,7 +104,7 @@ const AuthenticatedApp = () => {
       {Object.entries(Pages).map(([path, Page]) => {
         const setorPermission = PAGE_PERMISSIONS[path];
         
-        // Se não tiver setorPermission (como fizemos com Usuarios), renderiza direto
+        // Se houver permissão mapeada, envolve com o Guard
         const PageComponent = setorPermission ? (
           <PermissionGuard setor={setorPermission}>
             <Page />
