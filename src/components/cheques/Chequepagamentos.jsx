@@ -1,125 +1,114 @@
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { DollarSign, Loader2, CreditCard, Banknote } from "lucide-react";
-import { base44 } from '@/api/base44Client';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Upload, Loader2, FileText, Wallet } from "lucide-react";
 import { toast } from "sonner";
+import { base44 } from '@/api/base44Client';
 
 const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
 export default function ChequePagamentoModal({ isOpen, onClose, cheque, onSave, isProcessing }) {
-  const [pagamento, setPagamento] = useState({ metodo: 'dinheiro', comprovante: null, novoCheque: null });
+  const [pagamentoForm, setPagamentoForm] = useState({
+    valor: cheque ? cheque.valor : '',
+    metodo: 'dinheiro',
+    parcelas: 1,
+    comprovante: null,
+    novoCheque: { numero: '', banco: '', vencimento: '', valor: cheque ? cheque.valor : '' }
+  });
+  const [isUploading, setIsUploading] = useState(false);
 
-  if (!cheque) return null;
-
-  const handleFileUpload = async (file) => {
+  const handleUpload = async (file) => {
+    setIsUploading(true);
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      setPagamento(prev => ({ ...prev, comprovante: file_url }));
-      toast.success("Comprovante enviado!");
+      setPagamentoForm(prev => ({ ...prev, comprovante: file_url }));
+      toast.success("Comprovante anexado!");
     } catch (e) {
-      toast.error("Erro ao enviar arquivo.");
+      toast.error("Erro no upload");
+    } finally {
+      setIsUploading(false);
     }
   };
 
-  const handleSave = () => {
-    if (!pagamento.comprovante && pagamento.metodo !== 'cheque_troca') {
-      toast.error("Anexe o comprovante de pagamento.");
-      return;
-    }
-
-    if (pagamento.metodo === 'cheque_troca' && (!pagamento.novoCheque?.numero || !pagamento.novoCheque?.banco || !pagamento.novoCheque?.valor)) {
-      toast.error("Preencha os dados do novo cheque.");
-      return;
-    }
-
-    onSave(pagamento);
+  const handleConfirm = () => {
+    if (!pagamentoForm.valor) return toast.error("Informe o valor.");
+    onSave(pagamentoForm);
   };
+
+  if (!isOpen || !cheque) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><DollarSign className="w-5 h-5 text-emerald-600" /> Regularizar Cheque Devolvido</DialogTitle>
-          <DialogDescription>Registre o pagamento referente ao cheque devolvido.</DialogDescription>
+          <DialogTitle>Regularizar Cheque Devolvido</DialogTitle>
+          <DialogDescription>
+            Registrar pagamento para o cheque <strong>#{cheque.numero_cheque}</strong> de {cheque.titular}.
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* INFO DO CHEQUE */}
-          <div className="bg-slate-50 border rounded-lg p-4">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="font-bold text-slate-800">Cheque #{cheque.numero_cheque}</p>
-                <p className="text-sm text-slate-600">{cheque.banco} - {cheque.cliente_nome}</p>
-                {cheque.motivo_devolucao && <Badge className="mt-2 bg-red-100 text-red-700 border-red-200">{cheque.motivo_devolucao}</Badge>}
-              </div>
-              <div className="text-right">
-                <p className="text-2xl font-bold text-slate-800">{formatCurrency(cheque.valor)}</p>
-                <p className="text-xs text-slate-500">Valor devolvido</p>
-              </div>
+        <div className="space-y-4 py-2">
+          <Card className="p-3 bg-red-50 border-red-100 flex justify-between items-center">
+             <span className="text-red-800 font-medium">Valor Original</span>
+             <span className="text-red-800 font-bold text-lg">{formatCurrency(cheque.valor)}</span>
+          </Card>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <Label>Valor Pago Agora</Label>
+              <Input type="number" value={pagamentoForm.valor} onChange={(e) => setPagamentoForm({...pagamentoForm, valor: e.target.value})} />
+            </div>
+            <div className="space-y-1">
+              <Label>Forma Pagamento</Label>
+              <Select value={pagamentoForm.metodo} onValueChange={(v) => setPagamentoForm({...pagamentoForm, metodo: v})}>
+                <SelectTrigger><SelectValue/></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                  <SelectItem value="pix">PIX</SelectItem>
+                  <SelectItem value="cartao">Cartão</SelectItem>
+                  <SelectItem value="cheque_troca">Outro Cheque (Troca)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
-          {/* MÉTODO DE PAGAMENTO */}
-          <div className="space-y-2">
-            <Label className="text-sm font-bold text-slate-700">Método de Pagamento</Label>
-            <Select value={pagamento.metodo} onValueChange={(v) => setPagamento({ ...pagamento, metodo: v, novoCheque: v === 'cheque_troca' ? {} : null })}>
-              <SelectTrigger className="bg-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="dinheiro"><div className="flex items-center gap-2"><Banknote className="w-4 h-4" /> Dinheiro</div></SelectItem>
-                <SelectItem value="pix"><div className="flex items-center gap-2"><CreditCard className="w-4 h-4" /> PIX</div></SelectItem>
-                <SelectItem value="transferencia">Transferência Bancária</SelectItem>
-                <SelectItem value="cheque_troca">Troca por Novo Cheque</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {pagamentoForm.metodo === 'cartao' && (
+            <div className="space-y-1">
+              <Label>Parcelas</Label>
+              <Input type="number" value={pagamentoForm.parcelas} onChange={(e) => setPagamentoForm({...pagamentoForm, parcelas: e.target.value})} />
+            </div>
+          )}
 
-          {/* TROCA POR NOVO CHEQUE */}
-          {pagamento.metodo === 'cheque_troca' && (
-            <div className="space-y-3 border-l-4 border-blue-500 pl-4 py-2">
-              <p className="text-sm font-bold text-slate-700">Dados do Novo Cheque</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs text-slate-600">Número do Cheque</Label>
-                  <Input placeholder="Ex: 123456" onChange={(e) => setPagamento({ ...pagamento, novoCheque: { ...pagamento.novoCheque, numero: e.target.value } })} />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-slate-600">Banco</Label>
-                  <Input placeholder="Ex: Itaú" onChange={(e) => setPagamento({ ...pagamento, novoCheque: { ...pagamento.novoCheque, banco: e.target.value } })} />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-slate-600">Valor</Label>
-                  <Input type="number" step="0.01" placeholder="0,00" onChange={(e) => setPagamento({ ...pagamento, novoCheque: { ...pagamento.novoCheque, valor: e.target.value } })} />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-slate-600">Vencimento</Label>
-                  <Input type="date" onChange={(e) => setPagamento({ ...pagamento, novoCheque: { ...pagamento.novoCheque, vencimento: e.target.value } })} />
-                </div>
+          {pagamentoForm.metodo === 'cheque_troca' && (
+            <Card className="p-4 bg-blue-50 border-blue-100">
+              <Label className="mb-2 block font-bold text-blue-800 flex items-center gap-2"><Wallet className="w-4 h-4"/> Novo Cheque</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input placeholder="Banco" onChange={(e) => setPagamentoForm(prev => ({...prev, novoCheque: {...prev.novoCheque, banco: e.target.value}}))} className="bg-white" />
+                <Input placeholder="Número" onChange={(e) => setPagamentoForm(prev => ({...prev, novoCheque: {...prev.novoCheque, numero: e.target.value}}))} className="bg-white" />
+                <Input type="number" placeholder="Valor" value={pagamentoForm.novoCheque.valor} onChange={(e) => setPagamentoForm(prev => ({...prev, novoCheque: {...prev.novoCheque, valor: e.target.value}}))} className="bg-white" />
+                <Input type="date" onChange={(e) => setPagamentoForm(prev => ({...prev, novoCheque: {...prev.novoCheque, vencimento: e.target.value}}))} className="bg-white" />
               </div>
-            </div>
+            </Card>
           )}
 
-          {/* COMPROVANTE */}
-          {pagamento.metodo !== 'cheque_troca' && (
-            <div className="space-y-2">
-              <Label className="text-sm font-bold text-slate-700">Comprovante de Pagamento</Label>
-              <Input type="file" accept="image/*,application/pdf" onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0])} className="bg-white" />
-              {pagamento.comprovante && <Badge className="mt-2 bg-green-100 text-green-700">Comprovante anexado</Badge>}
-            </div>
-          )}
+          <div className="space-y-1">
+            <Label>Comprovante</Label>
+            <Button variant="outline" className="w-full relative" disabled={isUploading}>
+                {isUploading ? <Loader2 className="w-4 h-4 animate-spin"/> : <Upload className="w-4 h-4 mr-2"/>} 
+                {pagamentoForm.comprovante ? 'Alterar Comprovante' : 'Anexar Comprovante'}
+                <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleUpload(e.target.files[0])} />
+            </Button>
+          </div>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={isProcessing}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={isProcessing} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-            {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <DollarSign className="w-4 h-4 mr-2" />}
-            Confirmar Pagamento
+          <Button onClick={handleConfirm} className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isProcessing || isUploading}>
+             {isProcessing ? <Loader2 className="w-4 h-4 animate-spin"/> : 'Confirmar Pagamento'}
           </Button>
         </DialogFooter>
       </DialogContent>
