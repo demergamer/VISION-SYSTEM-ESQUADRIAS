@@ -22,9 +22,6 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
-import { 
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 
 import ModalContainer from "@/components/modals/ModalContainer";
@@ -39,7 +36,6 @@ const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currenc
 function RegistrarDevolucaoModal({ isOpen, onClose, todosCheques, onSave, preSelectedIds }) {
   const [step, setStep] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
-  // Inicia com os IDs que já estavam selecionados na tabela principal
   const [selectedIds, setSelectedIds] = useState(preSelectedIds || []);
   
   // Passo 2: Detalhes
@@ -56,7 +52,7 @@ function RegistrarDevolucaoModal({ isOpen, onClose, todosCheques, onSave, preSel
   });
   const [isUploading, setIsUploading] = useState(false);
 
-  // Filtra cheques válidos para devolução (exclui os já devolvidos ou excluídos)
+  // Filtra cheques válidos para devolução
   const chequesDisponiveis = useMemo(() => {
     return todosCheques.filter(c => 
       c.status !== 'excluido' && 
@@ -92,10 +88,8 @@ function RegistrarDevolucaoModal({ isOpen, onClose, todosCheques, onSave, preSel
   };
 
   const handleFinalizar = () => {
-    // Validação Básica
     const motivosPreenchidos = chequesSelecionados.every(c => devolucaoDetails[c.id]?.motivo);
     if (!motivosPreenchidos) return toast.error("Informe o motivo para todos os cheques selecionados.");
-
     if (pagarAgora && !pagamentoForm.valor) return toast.error("Informe o valor do pagamento.");
 
     const payload = {
@@ -256,7 +250,7 @@ function RegistrarDevolucaoModal({ isOpen, onClose, todosCheques, onSave, preSel
   );
 }
 
-// --- COMPONENTE INTERNO: RESOLVER DUPLICATAS (Mantido) ---
+// --- COMPONENTE INTERNO: RESOLVER DUPLICATAS ---
 function ResolveDuplicatesModal({ duplicateGroups, onResolve, onCancel, isProcessing }) {
   const [selectedKeepers, setSelectedKeepers] = useState({});
   React.useEffect(() => {
@@ -281,7 +275,7 @@ function ResolveDuplicatesModal({ duplicateGroups, onResolve, onCancel, isProces
         <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
         <div className="text-sm text-amber-800">
           <p className="font-bold">Atenção: Cheques Idênticos Detectados</p>
-          <p>O sistema encontrou registros duplicados. Selecione o original para manter.</p>
+          <p>O sistema encontrou registros duplicados. Selecione abaixo qual é o <strong>original</strong> para manter.</p>
         </div>
       </div>
       <div className="max-h-[60vh] overflow-y-auto space-y-6 pr-2">
@@ -325,6 +319,7 @@ export default function Cheques() {
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
+  // NAVEGAÇÃO
   const [mainTab, setMainTab] = useState('a_compensar');
   const [subTab, setSubTab] = useState('em_maos');
 
@@ -355,7 +350,6 @@ export default function Cheques() {
     try {
         const { cheques_ids, detalhes_devolucao, pagamento } = payload;
         
-        // 1. Atualizar Cheques
         const updatePromises = cheques_ids.map(id => {
             const detalhe = detalhes_devolucao[id];
             return base44.entities.Cheque.update(id, {
@@ -368,7 +362,6 @@ export default function Cheques() {
         });
         await Promise.all(updatePromises);
 
-        // 2. Novo Cheque (Troca)
         if (pagamento && pagamento.metodo === 'cheque_troca' && pagamento.novoCheque) {
             await base44.entities.Cheque.create({
                 numero_cheque: pagamento.novoCheque.numero,
@@ -443,15 +436,31 @@ export default function Cheques() {
     else if (mainTab === 'compensados') listaFinal = compensados;
     else if (mainTab === 'excluidos') listaFinal = excluidos;
 
+    const depJC = compensados.filter(c => c.destino_deposito === 'J&C ESQUADRIAS').reduce((a,c)=>a+c.valor,0);
+    const depBIG = compensados.filter(c => c.destino_deposito === 'BIG METAIS').reduce((a,c)=>a+c.valor,0);
+    const depOLIVER = compensados.filter(c => c.destino_deposito === 'OLIVER EXTRUSORA').reduce((a,c)=>a+c.valor,0);
+    const repassadosBaixadosVal = lista.filter(c => c.status === 'repassado' && c.data_vencimento && isPast(parseISO(c.data_vencimento))).reduce((a,c)=>a+c.valor,0);
+
     return { 
         listaFinal, 
         totais: { 
             emMaos: emMaos.reduce((a,c)=>a+c.valor,0), 
             repassados: repassados.reduce((a,c)=>a+c.valor,0),
-            devolvidos: devolvidos.reduce((a,c)=>a+c.valor,0)
+            devolvidos: devolvidos.reduce((a,c)=>a+c.valor,0),
+            depJC, depBIG, depOLIVER, repassadosBaixadosVal,
+            devolvidosAqui: devolvidos.filter(c => !c.fornecedor_repassado_nome).reduce((a,c)=>a+c.valor,0),
+            devolvidosNaoAqui: devolvidos.filter(c => !!c.fornecedor_repassado_nome).reduce((a,c)=>a+c.valor,0),
+            devolvidosPagos: devolvidos.filter(c => c.status_pagamento_devolucao==='pago').reduce((a,c)=>a+c.valor,0)
         } 
     };
   }, [cheques, searchTerm, filters, mainTab, subTab]);
+
+  const handleMainTabChange = (val) => {
+      setMainTab(val);
+      if (val === 'a_compensar') setSubTab('em_maos');
+      else if (val === 'devolvidos') setSubTab('aqui');
+      else if (val === 'compensados') setSubTab('jc');
+  };
 
   const handleEdit = (cheque) => { setSelectedCheque(cheque); setShowFormModal(true); };
   const handleView = (cheque) => { setSelectedCheque(cheque); setShowDetailsModal(true); };
@@ -477,29 +486,17 @@ export default function Cheques() {
               </div>
               <div className="h-8 w-px bg-slate-200 mx-2 hidden sm:block" />
               <div className="flex gap-2">
-                  {/* BOTÃO VERIFICAR DUPLICATAS */}
+                  {/* BOTÃO DEVOLUÇÃO (SUBSTITUI AÇÕES) */}
+                  {canDo('Cheques', 'editar') && (
+                      <Button onClick={() => setShowDevolucaoModal(true)} className="gap-2 border-red-200 text-red-700 bg-white hover:bg-red-50 shadow-sm border">
+                          <AlertTriangle className="w-4 h-4" /> Devolução
+                      </Button>
+                  )}
                   {canDo('Cheques', 'editar') && (
                       <Button variant="outline" onClick={handleCheckDuplicates} className="gap-2 bg-white border-amber-200 text-amber-700 hover:bg-amber-50">
                           <RefreshCw className="w-4 h-4" /> Verificar Duplicatas
                       </Button>
                   )}
-                  {/* BOTÃO AÇÕES (DROPDOWN ATIVADO) */}
-                  <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                          <Button variant="outline" className="gap-2" disabled={selectedIds.length === 0}>
-                              <MoreHorizontal className="w-4 h-4" /> Ações ({selectedIds.length})
-                          </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Ações em Massa</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => setShowDevolucaoModal(true)}>
-                              <AlertTriangle className="w-4 h-4 mr-2 text-red-500" /> Marcar como Devolvido
-                          </DropdownMenuItem>
-                          {/* Adicione outras ações aqui se necessário */}
-                      </DropdownMenuContent>
-                  </DropdownMenu>
-
                   <Button onClick={handleNew} className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"><Plus className="w-4 h-4" /> Novo</Button>
               </div>
             </div>
@@ -509,7 +506,7 @@ export default function Cheques() {
         {/* CONTEÚDO PRINCIPAL */}
         <div className="px-6 py-6 space-y-6 w-full">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
-              <Tabs value={mainTab} onValueChange={(v) => { setMainTab(v); if(v==='a_compensar') setSubTab('em_maos'); }} className="w-full lg:w-auto">
+              <Tabs value={mainTab} onValueChange={handleMainTabChange} className="w-full lg:w-auto">
                   <TabsList className="bg-slate-100 p-1 h-auto flex-wrap">
                       <TabsTrigger value="a_compensar" className="gap-2 px-4 py-2"><Clock className="w-4 h-4" /> A Compensar</TabsTrigger>
                       <TabsTrigger value="devolvidos" className="gap-2 px-4 py-2"><AlertCircle className="w-4 h-4" /> Devolvidos</TabsTrigger>
@@ -520,14 +517,47 @@ export default function Cheques() {
               <div className="flex flex-wrap gap-2 w-full lg:w-auto">
                   <div className="relative flex-1 lg:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><Input placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9"/></div>
                   <Button variant={showFilters ? "secondary" : "outline"} size="icon" onClick={() => setShowFilters(!showFilters)}><Filter className="w-4 h-4" /></Button>
+                  <div className="bg-slate-100 p-1 rounded-lg flex border border-slate-200 shrink-0">
+                      <Button variant="ghost" size="icon" onClick={() => setViewMode('table')} className={cn("h-8 w-8 rounded-md", viewMode === 'table' ? "bg-white shadow-sm" : "text-slate-500")}><List className="w-4 h-4" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => setViewMode('grid')} className={cn("h-8 w-8 rounded-md", viewMode === 'grid' ? "bg-white shadow-sm" : "text-slate-500")}><LayoutGrid className="w-4 h-4" /></Button>
+                  </div>
               </div>
           </div>
 
-          <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+          <AnimatePresence>
+              {showFilters && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                      <Card className="bg-slate-50 border-slate-200 mb-6">
+                          <div className="p-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+                              <div className="space-y-2"><label className="text-xs font-bold text-slate-500 uppercase">Banco</label><Select value={filters.banco} onValueChange={v => setFilters({...filters, banco: v})}><SelectTrigger className="bg-white"><SelectValue placeholder="Todos" /></SelectTrigger><SelectContent><SelectItem value="todos">Todos</SelectItem><SelectItem value="BRADESCO">Bradesco</SelectItem><SelectItem value="ITAÚ">Itaú</SelectItem><SelectItem value="SANTANDER">Santander</SelectItem></SelectContent></Select></div>
+                              <div className="flex items-end"><Button variant="ghost" onClick={() => setFilters({ dataInicio: '', dataFim: '', banco: 'todos', valorMin: '', valorMax: '' })} className="w-full text-red-500 hover:text-red-700 hover:bg-red-50">Limpar</Button></div>
+                          </div>
+                      </Card>
+                  </motion.div>
+              )}
+          </AnimatePresence>
+
+          {/* 4. SUB-ABAS (DINÂMICAS) - RESTAURADO */}
+          <div className="flex gap-2 mb-4 overflow-x-auto pb-2 animate-in fade-in slide-in-from-left-2">
               {mainTab === 'a_compensar' && (
                   <>
-                      <Button variant={subTab === 'em_maos' ? 'default' : 'outline'} onClick={() => setSubTab('em_maos')} className={cn("rounded-full h-8 text-xs", subTab === 'em_maos' && "bg-blue-600 hover:bg-blue-700")}>Em Mãos</Button>
-                      <Button variant={subTab === 'repassados' ? 'default' : 'outline'} onClick={() => setSubTab('repassados')} className={cn("rounded-full h-8 text-xs", subTab === 'repassados' && "bg-purple-600 hover:bg-purple-700")}>Repassados</Button>
+                      <Button variant={subTab === 'em_maos' ? 'default' : 'outline'} onClick={() => setSubTab('em_maos')} className={cn("rounded-full h-8 text-xs", subTab === 'em_maos' && "bg-blue-600 hover:bg-blue-700")}>🏢 Em Carteira ({formatCurrency(dadosProcessados.totais.emMaos)})</Button>
+                      <Button variant={subTab === 'repassados' ? 'default' : 'outline'} onClick={() => setSubTab('repassados')} className={cn("rounded-full h-8 text-xs", subTab === 'repassados' && "bg-purple-600 hover:bg-purple-700")}>🤝 Repassados ({formatCurrency(dadosProcessados.totais.repassadosFuturo)})</Button>
+                  </>
+              )}
+              {mainTab === 'devolvidos' && (
+                  <>
+                      <Button variant={subTab === 'aqui' ? 'default' : 'outline'} onClick={() => setSubTab('aqui')} className={cn("rounded-full h-8 text-xs", subTab === 'aqui' && "bg-red-600 hover:bg-red-700")}>🏦 Na Empresa ({formatCurrency(dadosProcessados.totais.devolvidosAqui)})</Button>
+                      <Button variant={subTab === 'nao_aqui' ? 'default' : 'outline'} onClick={() => setSubTab('nao_aqui')} className={cn("rounded-full h-8 text-xs", subTab === 'nao_aqui' && "bg-orange-500 hover:bg-orange-600 text-white")}>🤝 Com Terceiros ({formatCurrency(dadosProcessados.totais.devolvidosNaoAqui)})</Button>
+                      <Button variant={subTab === 'pagos' ? 'default' : 'outline'} onClick={() => setSubTab('pagos')} className={cn("rounded-full h-8 text-xs", subTab === 'pagos' && "bg-emerald-600 hover:bg-emerald-700")}>✅ Resolvidos ({formatCurrency(dadosProcessados.totais.devolvidosPagos)})</Button>
+                  </>
+              )}
+              {mainTab === 'compensados' && (
+                  <>
+                      <Button variant={subTab === 'jc' ? 'default' : 'outline'} onClick={() => setSubTab('jc')} className={cn("rounded-full h-8 text-xs", subTab === 'jc' && "bg-emerald-600 hover:bg-emerald-700")}><Landmark className="w-3 h-3 mr-1"/> J&C ({formatCurrency(dadosProcessados.totais.depJC)})</Button>
+                      <Button variant={subTab === 'big' ? 'default' : 'outline'} onClick={() => setSubTab('big')} className={cn("rounded-full h-8 text-xs", subTab === 'big' && "bg-emerald-600 hover:bg-emerald-700")}><Landmark className="w-3 h-3 mr-1"/> Big Metais ({formatCurrency(dadosProcessados.totais.depBIG)})</Button>
+                      <Button variant={subTab === 'oliver' ? 'default' : 'outline'} onClick={() => setSubTab('oliver')} className={cn("rounded-full h-8 text-xs", subTab === 'oliver' && "bg-emerald-600 hover:bg-emerald-700")}><Landmark className="w-3 h-3 mr-1"/> Oliver ({formatCurrency(dadosProcessados.totais.depOLIVER)})</Button>
+                      <Button variant={subTab === 'repassados' ? 'default' : 'outline'} onClick={() => setSubTab('repassados')} className={cn("rounded-full h-8 text-xs", subTab === 'repassados' && "bg-indigo-600 hover:bg-indigo-700")}>Baixados Repasse ({formatCurrency(dadosProcessados.totais.repassadosBaixadosVal)})</Button>
                   </>
               )}
           </div>
@@ -538,10 +568,10 @@ export default function Cheques() {
                       <TableRow>
                           <TableHead className="w-[50px]"><Checkbox checked={selectedIds.length > 0 && selectedIds.length === dadosProcessados.listaFinal.length} onCheckedChange={handleSelectAll} /></TableHead>
                           <TableHead>Cheque</TableHead>
-                          <TableHead>Titular / Cliente</TableHead>
+                          <TableHead>Cliente / Representante</TableHead>
                           <TableHead>Vencimento</TableHead>
                           <TableHead className="text-right">Valor</TableHead>
-                          <TableHead className="text-center">Status</TableHead>
+                          <TableHead className="text-center">Status / Localização</TableHead>
                           <TableHead className="text-right">Ações</TableHead>
                       </TableRow>
                   </TableHeader>
@@ -580,7 +610,7 @@ export default function Cheques() {
           {selectedCheque && <ChequeDetails cheque={selectedCheque} clientes={clientes} onEdit={() => { setShowDetailsModal(false); handleEdit(selectedCheque); }} onClose={() => setShowDetailsModal(false)} />}
         </ModalContainer>
 
-        {/* MODAL DE DEVOLUÇÃO (NOVO) */}
+        {/* MODAL DE DEVOLUÇÃO */}
         <RegistrarDevolucaoModal 
             isOpen={showDevolucaoModal} 
             onClose={() => setShowDevolucaoModal(false)}
