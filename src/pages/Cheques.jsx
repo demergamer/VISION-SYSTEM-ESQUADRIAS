@@ -1,375 +1,489 @@
 import React, { useState, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
-import { 
-  LayoutGrid, List, Filter, Plus, Search, 
-  ArrowUpRight, AlertCircle, CheckCircle2, Clock,
-  MoreHorizontal, Wallet, User, ArrowRightLeft, MapPin, Building2, Banknote, Landmark
-} from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Checkbox } from "@/components/ui/checkbox";
-import { format, isPast, isFuture, parseISO } from "date-fns";
-import { motion, AnimatePresence } from "framer-motion";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+  FileSpreadsheet, Search, Plus, Edit, Trash2, ArrowLeft, 
+  Save, X, Loader2, Filter, RefreshCw, AlertTriangle, 
+  CheckCircle, History, AlertCircle, Eye, CornerUpLeft
+} from "lucide-react";
+import { Link } from "react-router-dom";
+import { createPageUrl } from "@/utils";
+import { toast } from "sonner";
+import { format, parseISO, isPast, isToday } from "date-fns";
 import { cn } from "@/lib/utils";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle
+} from "@/components/ui/dialog";
 
+// Componentes internos e Hooks
 import ModalContainer from "@/components/modals/ModalContainer";
-import ChequeForm from "@/components/cheques/ChequeForm";
-import ChequeDetails from "@/components/cheques/ChequeDetails";
+import ChequeForm from "@/components/cheques/ChequeForm"; // Assumindo que você tem este form
+import PermissionGuard from "@/components/PermissionGuard";
+import { usePermissions } from "@/components/hooks/usePermissions";
 
-const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
+// --- COMPONENTE: MODAL DE RESOLUÇÃO DE DUPLICATAS ---
+function ResolveDuplicatesModal({ duplicateGroups, onResolve, onCancel, isProcessing }) {
+  // Estado para armazenar qual ID foi escolhido para MANTER em cada grupo
+  // Formato: { 'chave_do_grupo': 'id_do_cheque_escolhido' }
+  const [selectedKeepers, setSelectedKeepers] = useState({});
 
-export default function Cheques() {
-  const [viewMode, setViewMode] = useState('table');
-  const [showFilters, setShowFilters] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  
-  // NAVEGAÇÃO
-  const [mainTab, setMainTab] = useState('a_compensar');
-  const [subTab, setSubTab] = useState('em_maos');
+  // Inicializa escolhendo automaticamente o primeiro de cada grupo como sugestão
+  React.useEffect(() => {
+    const initialSelections = {};
+    Object.keys(duplicateGroups).forEach(key => {
+      initialSelections[key] = duplicateGroups[key][0].id;
+    });
+    setSelectedKeepers(initialSelections);
+  }, [duplicateGroups]);
 
-  const [filters, setFilters] = useState({ dataInicio: '', dataFim: '', banco: 'todos', valorMin: '', valorMax: '' });
-  const [showFormModal, setShowFormModal] = useState(false);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [selectedCheque, setSelectedCheque] = useState(null);
-  const [selectedIds, setSelectedIds] = useState([]);
-
-  const { data: cheques = [], refetch } = useQuery({ queryKey: ['cheques'], queryFn: () => base44.entities.Cheque.list() });
-  const { data: clientes = [] } = useQuery({ queryKey: ['clientes'], queryFn: () => base44.entities.Cliente.list() });
-
-  const mapClientes = useMemo(() => {
-      const map = {};
-      clientes.forEach(c => map[c.codigo] = c);
-      return map;
-  }, [clientes]);
-
-  const dadosProcessados = useMemo(() => {
-    let lista = cheques;
-
-    if (searchTerm) {
-      const termo = searchTerm.toLowerCase();
-      lista = lista.filter(c => 
-        c.numero_cheque?.toLowerCase().includes(termo) ||
-        c.emitente?.toLowerCase().includes(termo) ||
-        c.cliente_nome?.toLowerCase().includes(termo) ||
-        c.valor?.toString().includes(termo)
-      );
-    }
-
-    if (filters.banco !== 'todos') lista = lista.filter(c => c.banco === filters.banco);
-    if (filters.valorMin) lista = lista.filter(c => c.valor >= parseFloat(filters.valorMin));
-    if (filters.valorMax) lista = lista.filter(c => c.valor <= parseFloat(filters.valorMax));
-    if (filters.dataInicio) lista = lista.filter(c => new Date(c.data_vencimento) >= new Date(filters.dataInicio));
-    if (filters.dataFim) lista = lista.filter(c => new Date(c.data_vencimento) <= new Date(filters.dataFim));
-
-    // --- LÓGICA DE SEPARAÇÃO ---
+  const handleConfirm = () => {
+    // Monta lista de IDs para EXCLUIR (todos que NÃO foram selecionados)
+    const idsToExclude = [];
     
-    // 1. A COMPENSAR
-    const emMaos = lista.filter(c => c.status === 'normal');
-    const repassadosACompensar = lista.filter(c => c.status === 'repassado' && c.data_vencimento && isFuture(parseISO(c.data_vencimento)));
+    Object.keys(duplicateGroups).forEach(key => {
+      const keeperId = selectedKeepers[key];
+      const group = duplicateGroups[key];
+      
+      group.forEach(cheque => {
+        if (cheque.id !== keeperId) {
+          idsToExclude.push(cheque.id);
+        }
+      });
+    });
 
-    // 2. DEVOLVIDOS
-    const devolvidosPagos = lista.filter(c => (c.status === 'pago' && c.motivo_devolucao) || (c.status === 'devolvido' && c.data_pagamento));
-    const devolvidosPendentes = lista.filter(c => c.status === 'devolvido' && !c.data_pagamento);
-    const devolvidosAqui = devolvidosPendentes.filter(c => !c.fornecedor_repassado_nome); 
-    const devolvidosNaoAqui = devolvidosPendentes.filter(c => !!c.fornecedor_repassado_nome); 
-
-    // 3. COMPENSADOS (DIVISÃO POR EMPRESA)
-    const depositadosTotal = lista.filter(c => c.status === 'compensado');
-    const repassadosBaixados = lista.filter(c => c.status === 'repassado' && c.data_vencimento && isPast(parseISO(c.data_vencimento)));
-
-    // Filtros por Empresa (Baseado no campo destino_deposito ou similar)
-    const depJC = depositadosTotal.filter(c => c.destino_deposito === 'J&C ESQUADRIAS');
-    const depBIG = depositadosTotal.filter(c => c.destino_deposito === 'BIG METAIS');
-    const depOLIVER = depositadosTotal.filter(c => c.destino_deposito === 'OLIVER EXTRUSORA');
-    // Caso tenha algum perdido sem classificação
-    const depOutros = depositadosTotal.filter(c => !['J&C ESQUADRIAS', 'BIG METAIS', 'OLIVER EXTRUSORA'].includes(c.destino_deposito));
-
-    // SELEÇÃO DA LISTA FINAL
-    let listaFinal = [];
-    
-    if (mainTab === 'a_compensar') {
-        if (subTab === 'em_maos') listaFinal = emMaos;
-        else if (subTab === 'repassados') listaFinal = repassadosACompensar;
-        else listaFinal = [...emMaos, ...repassadosACompensar];
-    } 
-    else if (mainTab === 'devolvidos') {
-        if (subTab === 'aqui') listaFinal = devolvidosAqui;
-        else if (subTab === 'nao_aqui') listaFinal = devolvidosNaoAqui;
-        else if (subTab === 'pagos') listaFinal = devolvidosPagos;
-        else listaFinal = [...devolvidosPendentes, ...devolvidosPagos];
-    } 
-    else if (mainTab === 'compensados') {
-        if (subTab === 'jc') listaFinal = depJC;
-        else if (subTab === 'big') listaFinal = depBIG;
-        else if (subTab === 'oliver') listaFinal = depOLIVER;
-        else if (subTab === 'repassados') listaFinal = repassadosBaixados;
-        else listaFinal = [...depositadosTotal, ...repassadosBaixados];
-    }
-
-    return {
-      listaFinal,
-      totais: {
-        emMaos: emMaos.reduce((acc, c) => acc + c.valor, 0),
-        repassadosFuturo: repassadosACompensar.reduce((acc, c) => acc + c.valor, 0),
-        devolvidosGeral: devolvidosPendentes.reduce((acc, c) => acc + c.valor, 0) + devolvidosPagos.reduce((acc, c) => acc + c.valor, 0),
-        devolvidosAqui: devolvidosAqui.reduce((acc, c) => acc + c.valor, 0),
-        devolvidosNaoAqui: devolvidosNaoAqui.reduce((acc, c) => acc + c.valor, 0),
-        devolvidosPagos: devolvidosPagos.reduce((acc, c) => acc + c.valor, 0),
-        
-        depJC: depJC.reduce((acc, c) => acc + c.valor, 0),
-        depBIG: depBIG.reduce((acc, c) => acc + c.valor, 0),
-        depOLIVER: depOLIVER.reduce((acc, c) => acc + c.valor, 0),
-        repassadosBaixados: repassadosBaixados.reduce((acc, c) => acc + c.valor, 0)
-      },
-      contagem: {
-        emMaos: emMaos.length,
-        devolvidosGeral: devolvidosPendentes.length + devolvidosPagos.length,
-        depositadosTotal: depositadosTotal.length + repassadosBaixados.length
-      }
-    };
-  }, [cheques, searchTerm, filters, mainTab, subTab]);
-
-  const handleMainTabChange = (val) => {
-      setMainTab(val);
-      if (val === 'a_compensar') setSubTab('em_maos');
-      else if (val === 'devolvidos') setSubTab('aqui'); 
-      else if (val === 'compensados') setSubTab('jc'); // Padrão J&C
+    onResolve(idsToExclude);
   };
 
-  const handleEdit = (cheque) => { setSelectedCheque(cheque); setShowFormModal(true); };
-  const handleView = (cheque) => { setSelectedCheque(cheque); setShowDetailsModal(true); };
-  const handleNew = () => { setSelectedCheque(null); setShowFormModal(true); };
-  const handleSelectAll = (checked) => { if (checked) setSelectedIds(dadosProcessados.listaFinal.map(c => c.id)); else setSelectedIds([]); };
-  const handleSelectOne = (id) => { setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]); };
+  const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-10 w-full">
-      
-      {/* 1. HEADER */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-20 shadow-sm">
-        <div className="flex flex-col xl:flex-row justify-between xl:items-center gap-4 w-full">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
-              <Wallet className="w-6 h-6 text-indigo-600" /> Gestão de Cheques
-            </h1>
-            <p className="text-slate-500 text-sm">Controle de custódia, repasses e devoluções</p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3">
-            {/* KPI Cards */}
-            <div className="flex gap-3 overflow-x-auto pb-1 sm:pb-0">
-                <div className="bg-blue-50 border border-blue-100 px-4 py-2 rounded-lg min-w-[150px]">
-                    <p className="text-[10px] uppercase font-bold text-blue-600 flex items-center gap-1"><Clock className="w-3 h-3"/> Em Mãos</p>
-                    <p className="text-lg font-bold text-blue-900">{formatCurrency(dadosProcessados.totais.emMaos)}</p>
-                </div>
-                
-                <div className="bg-purple-50 border border-purple-100 px-4 py-2 rounded-lg min-w-[150px]">
-                    <p className="text-[10px] uppercase font-bold text-purple-600 flex items-center gap-1"><ArrowRightLeft className="w-3 h-3"/> Repassados (Passivo)</p>
-                    <p className="text-lg font-bold text-purple-900">{formatCurrency(dadosProcessados.totais.repassadosFuturo)}</p>
-                </div>
-
-                <div className="bg-red-50 border border-red-100 px-4 py-2 rounded-lg min-w-[150px]">
-                    <p className="text-[10px] uppercase font-bold text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Total Devolvido</p>
-                    <p className="text-lg font-bold text-red-900">{formatCurrency(dadosProcessados.totais.devolvidosGeral)}</p>
-                </div>
-            </div>
-
-            <div className="h-8 w-px bg-slate-200 mx-2 hidden sm:block" />
-
-            <div className="flex gap-2">
-                <Button variant="outline" className="gap-2" onClick={() => {}} disabled={selectedIds.length === 0}><MoreHorizontal className="w-4 h-4" /> Ações</Button>
-                <Button onClick={handleNew} className="gap-2 bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-200"><Plus className="w-4 h-4" /> Novo</Button>
-            </div>
-          </div>
+    <div className="space-y-6">
+      <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg flex items-start gap-3">
+        <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+        <div className="text-sm text-amber-800">
+          <p className="font-bold">Atenção: Cheques Duplicados Detectados</p>
+          <p>O sistema encontrou registros idênticos (mesmo número, conta e titular). Selecione abaixo qual registro é o <strong>original</strong> para manter. Os outros serão movidos para a aba "Excluídos".</p>
         </div>
       </div>
 
-      <div className="px-6 py-6 space-y-6 w-full">
-        
-        {/* 2. BARRA DE CONTROLE PRINCIPAL */}
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
-            
-            <Tabs value={mainTab} onValueChange={handleMainTabChange} className="w-full lg:w-auto">
-                <TabsList className="bg-slate-100 p-1 h-auto flex-wrap">
-                    <TabsTrigger value="a_compensar" className="gap-2 px-4 py-2 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm">
-                        <Clock className="w-4 h-4" /> A Compensar
-                    </TabsTrigger>
-                    <TabsTrigger value="devolvidos" className="gap-2 px-4 py-2 data-[state=active]:bg-white data-[state=active]:text-red-700 data-[state=active]:shadow-sm">
-                        <AlertCircle className="w-4 h-4" /> Devolvidos
-                    </TabsTrigger>
-                    <TabsTrigger value="compensados" className="gap-2 px-4 py-2 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm">
-                        <CheckCircle2 className="w-4 h-4" /> Compensados
-                    </TabsTrigger>
-                </TabsList>
-            </Tabs>
-
-            <div className="flex flex-wrap gap-2 w-full lg:w-auto">
-                <div className="relative flex-1 lg:w-64">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <Input placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 bg-slate-50 border-slate-200 focus:bg-white transition-all"/>
-                </div>
-                <Button variant={showFilters ? "secondary" : "outline"} size="icon" onClick={() => setShowFilters(!showFilters)} className={cn("shrink-0", showFilters && "bg-slate-200")}><Filter className="w-4 h-4" /></Button>
-                <div className="bg-slate-100 p-1 rounded-lg flex border border-slate-200 shrink-0">
-                    <Button variant="ghost" size="icon" onClick={() => setViewMode('table')} className={cn("h-8 w-8 rounded-md", viewMode === 'table' ? "bg-white shadow-sm" : "text-slate-500")}><List className="w-4 h-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => setViewMode('grid')} className={cn("h-8 w-8 rounded-md", viewMode === 'grid' ? "bg-white shadow-sm" : "text-slate-500")}><LayoutGrid className="w-4 h-4" /></Button>
-                </div>
+      <div className="max-h-[60vh] overflow-y-auto space-y-6 pr-2">
+        {Object.entries(duplicateGroups).map(([key, group], index) => (
+          <Card key={key} className="p-4 border-slate-200 shadow-sm">
+            <div className="flex items-center gap-2 mb-3 border-b pb-2">
+              <span className="bg-slate-100 text-slate-500 text-xs font-bold px-2 py-1 rounded">Grupo #{index + 1}</span>
+              <span className="font-mono text-sm text-slate-700 font-medium">Cheque Nº {group[0].numero_cheque}</span>
+              <span className="text-sm text-slate-500">| {group[0].titular}</span>
+              <span className="ml-auto font-bold text-slate-800">{formatCurrency(group[0].valor)}</span>
             </div>
-        </div>
 
-        {/* 3. PAINEL DE FILTROS */}
-        <AnimatePresence>
-            {showFilters && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                    <Card className="bg-slate-50 border-slate-200 mb-6">
-                        <div className="p-4 grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <div className="space-y-2"><label className="text-xs font-bold text-slate-500 uppercase">Banco</label><Select value={filters.banco} onValueChange={v => setFilters({...filters, banco: v})}><SelectTrigger className="bg-white"><SelectValue placeholder="Todos" /></SelectTrigger><SelectContent><SelectItem value="todos">Todos</SelectItem><SelectItem value="BRADESCO">Bradesco</SelectItem><SelectItem value="ITAÚ">Itaú</SelectItem><SelectItem value="SANTANDER">Santander</SelectItem></SelectContent></Select></div>
-                            <div className="flex items-end"><Button variant="ghost" onClick={() => setFilters({ dataInicio: '', dataFim: '', banco: 'todos', valorMin: '', valorMax: '' })} className="w-full text-red-500 hover:text-red-700 hover:bg-red-50">Limpar</Button></div>
+            <RadioGroup 
+              value={selectedKeepers[key]} 
+              onValueChange={(val) => setSelectedKeepers(prev => ({ ...prev, [key]: val }))}
+              className="space-y-3"
+            >
+              {group.map(cheque => (
+                <div key={cheque.id} className={cn(
+                  "flex items-start space-x-3 p-3 rounded-lg border transition-all cursor-pointer",
+                  selectedKeepers[key] === cheque.id ? "border-green-500 bg-green-50" : "border-slate-200 hover:bg-slate-50"
+                )}>
+                  <RadioGroupItem value={cheque.id} id={cheque.id} className="mt-1" />
+                  <div className="flex-1 cursor-pointer" onClick={() => setSelectedKeepers(prev => ({ ...prev, [key]: cheque.id }))}>
+                    <div className="flex justify-between">
+                      <Label htmlFor={cheque.id} className="font-bold cursor-pointer text-slate-800">
+                        ID: {cheque.id} <span className="font-normal text-slate-500 text-xs">(Criado em: {format(parseISO(cheque.created_date || new Date().toISOString()), 'dd/MM/yy HH:mm')})</span>
+                      </Label>
+                      <Badge variant="outline" className="capitalize">{cheque.status}</Badge>
+                    </div>
+                    
+                    <div className="mt-2 text-xs text-slate-600 grid grid-cols-2 gap-2">
+                        <div>
+                            <span className="font-semibold block text-slate-400">Origem/Uso:</span>
+                            {cheque.pedido_id ? `Pedido #${cheque.pedido_id}` : (cheque.origem || 'Manual')}
                         </div>
-                    </Card>
-                </motion.div>
-            )}
-        </AnimatePresence>
-
-        {/* 4. SUB-ABAS (DINÂMICAS) */}
-        <div className="flex gap-2 mb-4 overflow-x-auto pb-2 animate-in fade-in slide-in-from-left-2">
-            
-            {/* SUB-ABAS: A COMPENSAR */}
-            {mainTab === 'a_compensar' && (
-                <>
-                    <Button variant={subTab === 'em_maos' ? 'default' : 'outline'} onClick={() => setSubTab('em_maos')} className={cn("rounded-full h-8 text-xs", subTab === 'em_maos' && "bg-blue-600 hover:bg-blue-700")}>
-                        🏢 Em Carteira ({formatCurrency(dadosProcessados.totais.emMaos)})
-                    </Button>
-                    <Button variant={subTab === 'repassados' ? 'default' : 'outline'} onClick={() => setSubTab('repassados')} className={cn("rounded-full h-8 text-xs", subTab === 'repassados' && "bg-purple-600 hover:bg-purple-700")}>
-                        🤝 Repassados (Passivo Futuro) ({formatCurrency(dadosProcessados.totais.repassadosFuturo)})
-                    </Button>
-                </>
-            )}
-
-            {/* SUB-ABAS: DEVOLVIDOS */}
-            {mainTab === 'devolvidos' && (
-                <>
-                    <Button variant={subTab === 'aqui' ? 'default' : 'outline'} onClick={() => setSubTab('aqui')} className={cn("rounded-full h-8 text-xs", subTab === 'aqui' && "bg-red-600 hover:bg-red-700")}>
-                        🏦 Na Empresa/Banco ({formatCurrency(dadosProcessados.totais.devolvidosAqui)})
-                    </Button>
-                    <Button variant={subTab === 'nao_aqui' ? 'default' : 'outline'} onClick={() => setSubTab('nao_aqui')} className={cn("rounded-full h-8 text-xs", subTab === 'nao_aqui' && "bg-orange-500 hover:bg-orange-600 text-white")}>
-                        🤝 Com Terceiros ({formatCurrency(dadosProcessados.totais.devolvidosNaoAqui)})
-                    </Button>
-                    <Button variant={subTab === 'pagos' ? 'default' : 'outline'} onClick={() => setSubTab('pagos')} className={cn("rounded-full h-8 text-xs", subTab === 'pagos' && "bg-emerald-600 hover:bg-emerald-700")}>
-                        ✅ Resolvidos / Pagos ({formatCurrency(dadosProcessados.totais.devolvidosPagos)})
-                    </Button>
-                </>
-            )}
-
-            {/* SUB-ABAS: COMPENSADOS (POR EMPRESA) */}
-            {mainTab === 'compensados' && (
-                <>
-                    <Button variant={subTab === 'jc' ? 'default' : 'outline'} onClick={() => setSubTab('jc')} className={cn("rounded-full h-8 text-xs", subTab === 'jc' && "bg-emerald-600 hover:bg-emerald-700")}>
-                        <Landmark className="w-3 h-3 mr-1"/> J&C Esquadrias ({formatCurrency(dadosProcessados.totais.depJC)})
-                    </Button>
-                    <Button variant={subTab === 'big' ? 'default' : 'outline'} onClick={() => setSubTab('big')} className={cn("rounded-full h-8 text-xs", subTab === 'big' && "bg-emerald-600 hover:bg-emerald-700")}>
-                        <Landmark className="w-3 h-3 mr-1"/> Big Metais ({formatCurrency(dadosProcessados.totais.depBIG)})
-                    </Button>
-                    <Button variant={subTab === 'oliver' ? 'default' : 'outline'} onClick={() => setSubTab('oliver')} className={cn("rounded-full h-8 text-xs", subTab === 'oliver' && "bg-emerald-600 hover:bg-emerald-700")}>
-                        <Landmark className="w-3 h-3 mr-1"/> Oliver Extrusora ({formatCurrency(dadosProcessados.totais.depOLIVER)})
-                    </Button>
-                    <Button variant={subTab === 'repassados' ? 'default' : 'outline'} onClick={() => setSubTab('repassados')} className={cn("rounded-full h-8 text-xs", subTab === 'repassados' && "bg-indigo-600 hover:bg-indigo-700")}>
-                        Baixados por Repasse ({formatCurrency(dadosProcessados.totais.repassadosBaixados)})
-                    </Button>
-                </>
-            )}
-        </div>
-
-        {/* 5. TABELA PRINCIPAL */}
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-            <Table>
-                <TableHeader className="bg-slate-50">
-                    <TableRow>
-                        <TableHead className="w-[50px]"><Checkbox checked={selectedIds.length > 0} onCheckedChange={handleSelectAll} /></TableHead>
-                        <TableHead>Cheque</TableHead>
-                        <TableHead>Cliente / Representante</TableHead>
-                        <TableHead>Vencimento</TableHead>
-                        <TableHead className="text-right">Valor</TableHead>
-                        <TableHead className="text-center">Status / Localização</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {dadosProcessados.listaFinal.map(cheque => {
-                        const cliente = mapClientes[cheque.cliente_codigo];
-                        const isVencido = cheque.status === 'normal' && cheque.data_vencimento && isPast(parseISO(cheque.data_vencimento));
-                        
-                        return (
-                            <TableRow key={cheque.id} className="group hover:bg-slate-50/80 transition-colors cursor-pointer" onClick={() => handleView(cheque)}>
-                                <TableCell onClick={(e) => e.stopPropagation()}><Checkbox checked={selectedIds.includes(cheque.id)} onCheckedChange={() => handleSelectOne(cheque.id)} /></TableCell>
-                                <TableCell>
-                                    <div className="font-mono font-bold text-slate-700">#{cheque.numero_cheque}</div>
-                                    <div className="text-xs text-slate-500 uppercase">{cheque.banco}</div>
-                                </TableCell>
-                                <TableCell>
-                                    <div className="font-medium text-slate-800">{cheque.cliente_nome}</div>
-                                    {cliente?.representante_nome && (
-                                        <div className="text-[10px] font-bold text-blue-600 flex items-center gap-1 mt-0.5">
-                                            <User className="w-3 h-3" /> {cliente.representante_nome.split(' ')[0]}
-                                        </div>
-                                    )}
-                                </TableCell>
-                                <TableCell>
-                                    <div className={cn("text-sm", isVencido ? "text-red-600 font-bold" : "text-slate-600")}>
-                                        {cheque.data_vencimento ? format(new Date(cheque.data_vencimento), 'dd/MM/yyyy') : '-'}
-                                    </div>
-                                </TableCell>
-                                <TableCell className="text-right font-bold text-slate-700">{formatCurrency(cheque.valor)}</TableCell>
-                                <TableCell className="text-center">
-                                    {cheque.status === 'compensado' ? (
-                                        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
-                                            {cheque.destino_deposito ? cheque.destino_deposito.split(' ')[0] : 'Compensado'}
-                                        </Badge>
-                                    ) : cheque.status === 'pago' ? (
-                                        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
-                                            <Banknote className="w-3 h-3 mr-1"/> Resolvido (Pago)
-                                        </Badge>
-                                    ) : cheque.status === 'devolvido' ? (
-                                        cheque.fornecedor_repassado_nome ? (
-                                            <Badge className="bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-100 flex w-fit mx-auto gap-1">
-                                                <MapPin className="w-3 h-3"/> Com {cheque.fornecedor_repassado_nome.split(' ')[0]}
-                                            </Badge>
-                                        ) : (
-                                            <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100 flex w-fit mx-auto gap-1">
-                                                <Building2 className="w-3 h-3"/> Na Empresa
-                                            </Badge>
-                                        )
-                                    ) : (
-                                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Em Carteira</Badge>
-                                    )}
-                                </TableCell>
-                                <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                    <Button variant="ghost" size="icon" onClick={() => handleEdit(cheque)}>
-                                        <MoreHorizontal className="w-4 h-4 text-slate-400 hover:text-indigo-600" />
-                                    </Button>
-                                </TableCell>
-                            </TableRow>
-                        );
-                    })}
-                </TableBody>
-            </Table>
-        </div>
+                        <div>
+                            <span className="font-semibold block text-slate-400">Observação:</span>
+                            {cheque.observacao || '-'}
+                        </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </RadioGroup>
+          </Card>
+        ))}
       </div>
 
-      {/* MODAIS */}
-      <ModalContainer open={showFormModal} onClose={() => setShowFormModal(false)} title={selectedCheque ? "Editar Cheque" : "Novo Cheque"}>
-        <ChequeForm cheque={selectedCheque} clientes={clientes} onSave={() => { setShowFormModal(false); refetch(); }} onCancel={() => setShowFormModal(false)} />
-      </ModalContainer>
-
-      <ModalContainer open={showDetailsModal} onClose={() => setShowDetailsModal(false)} title="Detalhes do Cheque">
-        {selectedCheque && <ChequeDetails cheque={selectedCheque} clientes={clientes} onEdit={() => { setShowDetailsModal(false); handleEdit(selectedCheque); }} onClose={() => setShowDetailsModal(false)} />}
-      </ModalContainer>
-
+      <div className="flex justify-end gap-3 pt-4 border-t">
+        <Button variant="outline" onClick={onCancel} disabled={isProcessing}>Cancelar</Button>
+        <Button onClick={handleConfirm} disabled={isProcessing} className="bg-green-600 hover:bg-green-700 text-white">
+          {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+          Confirmar e Resolver
+        </Button>
+      </div>
     </div>
   );
 }
+
+export default function Cheques() {
+  const queryClient = useQueryClient();
+  const { canDo } = usePermissions();
+  
+  // --- STATES ---
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeTab, setActiveTab] = useState('em_maos');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedCheque, setSelectedCheque] = useState(null);
+  
+  // Lógica de Duplicatas
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [duplicateGroups, setDuplicateGroups] = useState({});
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // --- QUERIES ---
+  const { data: cheques = [], isLoading } = useQuery({
+    queryKey: ['cheques'],
+    queryFn: () => base44.entities.Cheque.list()
+  });
+
+  // --- MUTAÇÕES ---
+  const createMutation = useMutation({
+    mutationFn: (data) => base44.entities.Cheque.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cheques'] });
+      setShowAddModal(false);
+      toast.success('Cheque cadastrado!');
+    },
+    onError: () => toast.error('Erro ao cadastrar')
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => base44.entities.Cheque.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cheques'] });
+      setShowEditModal(false);
+      setSelectedCheque(null);
+      toast.success('Cheque atualizado!');
+    },
+    onError: () => toast.error('Erro ao atualizar')
+  });
+
+  // --- LÓGICA DE VERIFICAÇÃO DE DUPLICATAS ---
+  const handleCheckDuplicates = () => {
+    const groups = {};
+    let duplicatesFound = 0;
+
+    // 1. Agrupar Cheques Ativos (Ignora já excluídos ou compensados se quiser, mas aqui vamos olhar 'em_maos' e 'repassado')
+    cheques.forEach(c => {
+      // Ignora excluídos e compensados da verificação para não gerar falso positivo com histórico antigo
+      if (c.status === 'excluido' || c.status === 'compensado' || c.status === 'devolvido') return;
+
+      // Chave Única: Numero + Agencia + Conta + Titular(Primeiro nome) + Vencimento
+      // Normalizamos strings para evitar erros de caixa alta/baixa ou espaços
+      const cleanNumero = c.numero_cheque?.trim();
+      const cleanAgencia = c.agencia?.trim();
+      const cleanConta = c.conta?.trim();
+      const cleanTitular = c.titular?.trim().toLowerCase();
+      const cleanVencimento = c.data_vencimento ? c.data_vencimento.split('T')[0] : ''; // Pega YYYY-MM-DD
+
+      const key = `${cleanNumero}|${cleanAgencia}|${cleanConta}|${cleanVencimento}|${cleanTitular}`;
+
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(c);
+    });
+
+    // 2. Filtrar apenas grupos com mais de 1 item
+    const conflictGroups = {};
+    Object.keys(groups).forEach(key => {
+      if (groups[key].length > 1) {
+        conflictGroups[key] = groups[key];
+        duplicatesFound += groups[key].length;
+      }
+    });
+
+    // 3. Ação
+    if (Object.keys(conflictGroups).length > 0) {
+      setDuplicateGroups(conflictGroups);
+      setShowDuplicateModal(true);
+      toast.warning(`Encontramos ${Object.keys(conflictGroups).length} grupos de cheques idênticos.`);
+    } else {
+      toast.success("Tudo certo! Nenhuma duplicata encontrada nos cheques ativos.", {
+        icon: <CheckCircle className="text-emerald-500" />
+      });
+    }
+  };
+
+  const handleResolveDuplicates = async (idsToExclude) => {
+    setIsProcessing(true);
+    try {
+      // Move para status 'excluido' e adiciona log na observação
+      const promises = idsToExclude.map(id => {
+        const chequeOriginal = cheques.find(c => c.id === id);
+        return base44.entities.Cheque.update(id, {
+          status: 'excluido',
+          observacao: (chequeOriginal.observacao || '') + ' [AUTO] Removido por duplicidade em ' + new Date().toLocaleDateString()
+        });
+      });
+
+      await Promise.all(promises);
+      await queryClient.invalidateQueries({ queryKey: ['cheques'] });
+      
+      setShowDuplicateModal(false);
+      setDuplicateGroups({});
+      toast.success(`${idsToExclude.length} cheques duplicados foram movidos para a aba "Excluídos".`);
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao processar exclusões.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleRestore = async (cheque) => {
+      // Restaura cheque excluído para 'em_maos'
+      if (!confirm("Deseja restaurar este cheque para 'Em Mãos'?")) return;
+      try {
+          await base44.entities.Cheque.update(cheque.id, { status: 'em_maos' });
+          queryClient.invalidateQueries({ queryKey: ['cheques'] });
+          toast.success("Cheque restaurado!");
+      } catch(e) { toast.error("Erro ao restaurar"); }
+  }
+
+  // --- FILTROS DE TABELA ---
+  const filteredCheques = useMemo(() => {
+    let data = cheques;
+    
+    // Filtro por Aba
+    if (activeTab === 'excluidos') {
+        data = data.filter(c => c.status === 'excluido');
+    } else if (activeTab === 'todos') {
+        data = data.filter(c => c.status !== 'excluido');
+    } else {
+        data = data.filter(c => c.status === activeTab);
+    }
+
+    // Busca Texto
+    if (searchTerm) {
+      const lower = searchTerm.toLowerCase();
+      data = data.filter(c => 
+        c.titular?.toLowerCase().includes(lower) ||
+        c.numero_cheque?.includes(lower) ||
+        c.banco?.toLowerCase().includes(lower)
+      );
+    }
+    
+    // Ordenação (Vencimento mais próximo primeiro)
+    return data.sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento));
+  }, [cheques, activeTab, searchTerm]);
+
+  const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
+
+  const getStatusBadge = (status) => {
+      switch(status) {
+          case 'em_maos': return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200">Em Mãos</Badge>;
+          case 'repassado': return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-200">Repassado</Badge>;
+          case 'compensado': return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200">Compensado</Badge>;
+          case 'devolvido': return <Badge className="bg-red-100 text-red-700 hover:bg-red-200">Devolvido</Badge>;
+          case 'excluido': return <Badge variant="outline" className="border-slate-300 text-slate-500 bg-slate-50">Excluído</Badge>;
+          default: return <Badge variant="outline">{status}</Badge>;
+      }
+  };
+
+  return (
+    <PermissionGuard setor="Cheques">
+      <div className="min-h-screen bg-slate-50 p-6">
+        <div className="max-w-7xl mx-auto space-y-6">
+          
+          {/* Header */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <Link to={createPageUrl('Dashboard')}>
+                <Button variant="ghost" size="icon" className="rounded-xl">
+                  <ArrowLeft className="w-5 h-5" />
+                </Button>
+              </Link>
+              <div>
+                <h1 className="text-3xl font-bold text-slate-800">Gestão de Cheques</h1>
+                <p className="text-slate-500 mt-1">Controle de recebíveis e custódia</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+                {/* BOTÃO ATUALIZAR / VERIFICAR DUPLICATAS */}
+                {canDo('Cheques', 'editar') && (
+                    <Button 
+                        variant="outline" 
+                        onClick={handleCheckDuplicates}
+                        className="bg-white border-amber-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800 hover:border-amber-300"
+                        title="Verificar se existem cheques cadastrados duas vezes"
+                    >
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Verificar Duplicatas
+                    </Button>
+                )}
+
+                {canDo('Cheques', 'adicionar') && (
+                    <Button onClick={() => setShowAddModal(true)} className="gap-2 bg-blue-600 hover:bg-blue-700 text-white">
+                        <Plus className="w-4 h-4" />
+                        Novo Cheque
+                    </Button>
+                )}
+            </div>
+          </div>
+
+          <Card className="overflow-hidden shadow-sm border-slate-200">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <div className="p-4 border-b bg-white flex flex-col md:flex-row justify-between items-center gap-4">
+                    <TabsList className="bg-slate-100 p-1">
+                        <TabsTrigger value="em_maos" className="gap-2"><WalletIcon className="w-4 h-4 text-blue-600"/> Em Mãos</TabsTrigger>
+                        <TabsTrigger value="repassado" className="gap-2"><ArrowUpRightIcon className="w-4 h-4 text-amber-600"/> Repassados</TabsTrigger>
+                        <TabsTrigger value="compensado" className="gap-2"><CheckCircle className="w-4 h-4 text-emerald-600"/> Compensados</TabsTrigger>
+                        <TabsTrigger value="devolvido" className="gap-2"><AlertCircle className="w-4 h-4 text-red-600"/> Devolvidos</TabsTrigger>
+                        <div className="w-px h-4 bg-slate-300 mx-1"></div>
+                        <TabsTrigger value="todos">Todos</TabsTrigger>
+                        {/* ABA EXCLUÍDOS */}
+                        {canDo('Cheques', 'excluir') && (
+                            <TabsTrigger value="excluidos" className="gap-2 text-slate-500 data-[state=active]:text-slate-700">
+                                <Trash2 className="w-4 h-4"/> Excluídos
+                            </TabsTrigger>
+                        )}
+                    </TabsList>
+
+                    <div className="relative w-full md:w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <Input 
+                            placeholder="Buscar cheque..." 
+                            value={searchTerm} 
+                            onChange={(e) => setSearchTerm(e.target.value)} 
+                            className="pl-10"
+                        />
+                    </div>
+                </div>
+
+                {/* CONTEÚDO TABELA */}
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 text-slate-600 font-medium border-b">
+                            <tr>
+                                <th className="p-4">Vencimento</th>
+                                <th className="p-4">Titular/Cliente</th>
+                                <th className="p-4">Detalhes (Banco/Num)</th>
+                                <th className="p-4">Status</th>
+                                <th className="p-4 text-right">Valor</th>
+                                <th className="p-4 text-right">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white">
+                            {isLoading ? (
+                                <tr><td colSpan="6" className="p-8 text-center text-slate-500">Carregando cheques...</td></tr>
+                            ) : filteredCheques.length === 0 ? (
+                                <tr><td colSpan="6" className="p-8 text-center text-slate-500">Nenhum cheque encontrado nesta categoria.</td></tr>
+                            ) : (
+                                filteredCheques.map((cheque) => (
+                                    <tr key={cheque.id} className={cn("hover:bg-slate-50 transition-colors", cheque.status === 'excluido' && "opacity-60 bg-slate-50/50")}>
+                                        <td className="p-4">
+                                            <div className="flex flex-col">
+                                                <span className={cn("font-bold", isPast(parseISO(cheque.data_vencimento)) && !isToday(parseISO(cheque.data_vencimento)) && cheque.status === 'em_maos' ? "text-red-600" : "text-slate-700")}>
+                                                    {format(parseISO(cheque.data_vencimento), 'dd/MM/yyyy')}
+                                                </span>
+                                                <span className="text-xs text-slate-400">Emissão: {format(parseISO(cheque.data_emissao), 'dd/MM/yy')}</span>
+                                            </div>
+                                        </td>
+                                        <td className="p-4">
+                                            <p className="font-medium text-slate-800 line-clamp-1" title={cheque.titular}>{cheque.titular}</p>
+                                            <p className="text-xs text-slate-500 line-clamp-1">{cheque.cliente_vinculado || 'Cliente avulso'}</p>
+                                        </td>
+                                        <td className="p-4">
+                                            <div className="text-xs space-y-0.5">
+                                                <p><span className="text-slate-400">Banco:</span> {cheque.banco} ({cheque.agencia})</p>
+                                                <p><span className="text-slate-400">Conta:</span> {cheque.conta}</p>
+                                                <p><span className="text-slate-400">Num:</span> <span className="font-mono text-slate-700 font-bold">{cheque.numero_cheque}</span></p>
+                                            </div>
+                                        </td>
+                                        <td className="p-4">
+                                            {getStatusBadge(cheque.status)}
+                                        </td>
+                                        <td className="p-4 text-right">
+                                            <span className="font-bold text-slate-800 text-base">{formatCurrency(cheque.valor)}</span>
+                                        </td>
+                                        <td className="p-4 text-right">
+                                            <div className="flex justify-end gap-2">
+                                                {/* Ações Específicas para Excluídos */}
+                                                {cheque.status === 'excluido' ? (
+                                                    canDo('Cheques', 'editar') && (
+                                                        <Button variant="ghost" size="sm" onClick={() => handleRestore(cheque)} className="text-emerald-600 hover:bg-emerald-50" title="Restaurar">
+                                                            <CornerUpLeft className="w-4 h-4" />
+                                                        </Button>
+                                                    )
+                                                ) : (
+                                                    // Ações Normais
+                                                    <>
+                                                        {canDo('Cheques', 'editar') && (
+                                                            <Button variant="ghost" size="sm" onClick={() => { setSelectedCheque(cheque); setShowEditModal(true); }}>
+                                                                <Edit className="w-4 h-4 text-blue-600" />
+                                                            </Button>
+                                                        )}
+                                                        {/* Visualização Rápida */}
+                                                        {canDo('Cheques', 'visualizar') && (
+                                                            <Button variant="ghost" size="sm" onClick={() => { setSelectedCheque(cheque); setShowEditModal(true); }}>
+                                                                <Eye className="w-4 h-4 text-slate-400" />
+                                                            </Button>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </Tabs>
+          </Card>
+
+          {/* MODAL DE CADASTRO/EDIÇÃO (ASSUMINDO COMPONENTE EXISTENTE) */}
+          <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Novo Cheque">
+             <ChequeForm onSave={(data) => createMutation.mutate(data)} onCancel={() => setShowAddModal(false)} isLoading={createMutation.isPending} />
+          </ModalContainer>
+
+          <ModalContainer open={showEditModal} onClose={() => {setShowEditModal(false); setSelectedCheque(null);}} title="Editar Cheque">
+             {selectedCheque && (
+                 <ChequeForm cheque={selectedCheque} onSave={(data) => updateMutation.mutate({ id: selectedCheque.id, data })} onCancel={() => {setShowEditModal(false); setSelectedCheque(null);}} isLoading={updateMutation.isPending} />
+             )}
+          </ModalContainer>
+
+          {/* MODAL DE DUPLICATAS */}
+          <Dialog open={showDuplicateModal} onOpenChange={setShowDuplicateModal}>
+            <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+              <DialogHeader>
+                <DialogTitle>Resolver Duplicatas</DialogTitle>
+                <DialogDescription>
+                  Selecione qual registro deve permanecer ativo. Os não selecionados serão movidos para "Excluídos".
+                </DialogDescription>
+              </DialogHeader>
+              
+              <ResolveDuplicatesModal 
+                duplicateGroups={duplicateGroups} 
+                onResolve={handleResolveDuplicates} 
+                onCancel={() => setShowDuplicateModal(false)} 
+                isProcessing={isProcessing}
+              />
+            </DialogContent>
+          </Dialog>
+
+        </div>
+      </div>
+    </PermissionGuard>
+  );
+}
+
+// Icones auxiliares simples caso não existam
+function WalletIcon(props) { return <Wallet {...props} /> }
+function ArrowUpRightIcon(props) { return <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg> }
