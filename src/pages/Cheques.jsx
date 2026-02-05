@@ -5,7 +5,7 @@ import {
   LayoutGrid, List, Filter, Plus, Search, 
   ArrowUpRight, AlertCircle, CheckCircle2, Clock,
   MoreHorizontal, Wallet, User, ArrowRightLeft, MapPin, Building2, Banknote, Landmark,
-  RefreshCw, Trash2, AlertTriangle, CheckCircle, Loader2, Upload, FileText, ChevronRight, X as XIcon, CreditCard
+  RefreshCw, Trash2, AlertTriangle, CheckCircle, Loader2, Upload, FileText, ChevronRight, X as XIcon, CreditCard, DollarSign
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,9 +19,7 @@ import { format, isPast, isFuture, parseISO } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
 import ModalContainer from "@/components/modals/ModalContainer";
@@ -30,286 +28,12 @@ import ChequeDetails from "@/components/cheques/ChequeDetails";
 import PermissionGuard from "@/components/PermissionGuard";
 import { usePermissions } from "@/components/hooks/usePermissions";
 
+// Importação dos Novos Componentes
+import RegistrarDevolucaoModal from "@/components/cheques/Chequesdevolvidos";
+import ResolveDuplicatesModal from "@/components/cheques/Chequeduplicados";
+import ChequePagamentoModal from "@/components/cheques/Chequepagamentos";
+
 const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
-
-// --- COMPONENTE: MODAL DE REGISTRO DE DEVOLUÇÃO (WIZARD) ---
-function RegistrarDevolucaoModal({ isOpen, onClose, todosCheques, onSave, preSelectedIds }) {
-  const [step, setStep] = useState(1);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedIds, setSelectedIds] = useState(preSelectedIds || []);
-  
-  // Passo 2: Detalhes
-  const [devolucaoDetails, setDevolucaoDetails] = useState({}); 
-  
-  // Passo 3: Financeiro
-  const [pagarAgora, setPagarAgora] = useState(false);
-  const [pagamentoForm, setPagamentoForm] = useState({
-    valor: '',
-    metodo: 'dinheiro',
-    parcelas: 1,
-    comprovante: null,
-    novoCheque: { numero: '', banco: '', vencimento: '', valor: '' }
-  });
-  const [isUploading, setIsUploading] = useState(false);
-
-  // Filtra cheques válidos para devolução
-  const chequesDisponiveis = useMemo(() => {
-    return todosCheques.filter(c => 
-      c.status !== 'excluido' && 
-      c.status !== 'devolvido' && 
-      c.status !== 'compensado' &&
-      (c.numero_cheque?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-       c.titular?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       c.valor?.toString().includes(searchTerm))
-    );
-  }, [todosCheques, searchTerm]);
-
-  const chequesSelecionados = useMemo(() => {
-    return todosCheques.filter(c => selectedIds.includes(c.id));
-  }, [todosCheques, selectedIds]);
-
-  const totalDivida = chequesSelecionados.reduce((acc, c) => acc + c.valor, 0);
-
-  const handleUpload = async (file, chequeId) => {
-    setIsUploading(true);
-    try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      if (chequeId) {
-        setDevolucaoDetails(prev => ({ ...prev, [chequeId]: { ...prev[chequeId], file: file_url } }));
-      } else {
-        setPagamentoForm(prev => ({ ...prev, comprovante: file_url }));
-      }
-      toast.success("Arquivo anexado!");
-    } catch (e) {
-      toast.error("Erro no upload");
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleFinalizar = () => {
-    const motivosPreenchidos = chequesSelecionados.every(c => devolucaoDetails[c.id]?.motivo);
-    if (!motivosPreenchidos) return toast.error("Informe o motivo para todos os cheques selecionados.");
-    if (pagarAgora && !pagamentoForm.valor) return toast.error("Informe o valor do pagamento.");
-
-    const payload = {
-      cheques_ids: selectedIds,
-      detalhes_devolucao: devolucaoDetails,
-      pagamento: pagarAgora ? pagamentoForm : null
-    };
-    onSave(payload);
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
-        <DialogHeader>
-          <DialogTitle>Registrar Devolução</DialogTitle>
-          <DialogDescription>Passo {step} de 3</DialogDescription>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-y-auto p-2">
-          {/* PASSO 1: SELEÇÃO */}
-          {step === 1 && (
-            <div className="space-y-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <Input placeholder="Pesquisar cheque para devolver..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
-              </div>
-              <div className="border rounded-md h-[300px] overflow-y-auto">
-                <Table>
-                  <TableHeader><TableRow><TableHead className="w-[50px]"></TableHead><TableHead>Cheque</TableHead><TableHead>Titular</TableHead><TableHead>Valor</TableHead></TableRow></TableHeader>
-                  <TableBody>
-                    {chequesDisponiveis.map(cheque => (
-                      <TableRow key={cheque.id}>
-                        <TableCell>
-                          <Checkbox checked={selectedIds.includes(cheque.id)} onCheckedChange={(checked) => setSelectedIds(prev => checked ? [...prev, cheque.id] : prev.filter(id => id !== cheque.id))} />
-                        </TableCell>
-                        <TableCell>#{cheque.numero_cheque}</TableCell>
-                        <TableCell>{cheque.titular}</TableCell>
-                        <TableCell>{formatCurrency(cheque.valor)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              <p className="text-right text-sm text-slate-500">{selectedIds.length} selecionados</p>
-            </div>
-          )}
-
-          {/* PASSO 2: DETALHES */}
-          {step === 2 && (
-            <div className="space-y-4">
-              {chequesSelecionados.map(cheque => (
-                <Card key={cheque.id} className="p-4 border-slate-200">
-                  <div className="flex justify-between mb-2 font-bold text-slate-700">
-                    <span>Cheque #{cheque.numero_cheque}</span>
-                    <span>{formatCurrency(cheque.valor)}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <Label>Motivo Devolução</Label>
-                      <Select onValueChange={(val) => setDevolucaoDetails(prev => ({...prev, [cheque.id]: {...prev[cheque.id], motivo: val}}))}>
-                        <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="11">11 - Sem Fundos (1ª)</SelectItem>
-                          <SelectItem value="12">12 - Sem Fundos (2ª)</SelectItem>
-                          <SelectItem value="21">21 - Sustado</SelectItem>
-                          <SelectItem value="outros">Outros</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Imagem do Cheque</Label>
-                      <div className="flex gap-2">
-                        <Button variant="outline" className="w-full relative" disabled={isUploading}>
-                          {isUploading ? <Loader2 className="w-4 h-4 animate-spin"/> : <Upload className="w-4 h-4 mr-2"/>} Upload
-                          <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleUpload(e.target.files[0], cheque.id)} />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-
-          {/* PASSO 3: PAGAMENTO */}
-          {step === 3 && (
-            <div className="space-y-4">
-              <Card className="p-4 bg-slate-50 flex justify-between items-center">
-                <Label className="text-base">Lançar Pagamento Agora?</Label>
-                <Switch checked={pagarAgora} onCheckedChange={setPagarAgora} />
-              </Card>
-              
-              {pagarAgora && (
-                <div className="space-y-4 animate-in fade-in">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <Label>Valor Pago</Label>
-                      <Input type="number" value={pagamentoForm.valor} onChange={(e) => setPagamentoForm({...pagamentoForm, valor: e.target.value})} placeholder={totalDivida} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Forma Pagamento</Label>
-                      <Select value={pagamentoForm.metodo} onValueChange={(v) => setPagamentoForm({...pagamentoForm, metodo: v})}>
-                        <SelectTrigger><SelectValue/></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="dinheiro">Dinheiro</SelectItem>
-                          <SelectItem value="pix">PIX</SelectItem>
-                          <SelectItem value="cartao">Cartão</SelectItem>
-                          <SelectItem value="cheque_troca">Outro Cheque</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {pagamentoForm.metodo === 'cartao' && (
-                    <div className="space-y-1">
-                      <Label>Parcelas</Label>
-                      <Input type="number" value={pagamentoForm.parcelas} onChange={(e) => setPagamentoForm({...pagamentoForm, parcelas: e.target.value})} />
-                    </div>
-                  )}
-
-                  {pagamentoForm.metodo === 'cheque_troca' && (
-                    <Card className="p-4 bg-blue-50 border-blue-100">
-                      <Label className="mb-2 block font-bold text-blue-800">Dados do Novo Cheque</Label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Input placeholder="Banco" onChange={(e) => setPagamentoForm(prev => ({...prev, novoCheque: {...prev.novoCheque, banco: e.target.value}}))} />
-                        <Input placeholder="Número" onChange={(e) => setPagamentoForm(prev => ({...prev, novoCheque: {...prev.novoCheque, numero: e.target.value}}))} />
-                        <Input type="number" placeholder="Valor" onChange={(e) => setPagamentoForm(prev => ({...prev, novoCheque: {...prev.novoCheque, valor: e.target.value}}))} />
-                        <Input type="date" onChange={(e) => setPagamentoForm(prev => ({...prev, novoCheque: {...prev.novoCheque, vencimento: e.target.value}}))} />
-                      </div>
-                    </Card>
-                  )}
-
-                  <div className="space-y-1">
-                    <Label>Comprovante</Label>
-                    <Button variant="outline" className="w-full relative">
-                        <Upload className="w-4 h-4 mr-2"/> Anexar Comprovante
-                        <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleUpload(e.target.files[0], null)} />
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <DialogFooter className="mt-4 border-t pt-4">
-          {step > 1 && <Button variant="outline" onClick={() => setStep(step - 1)}>Voltar</Button>}
-          {step < 3 ? (
-            <Button onClick={() => setStep(step + 1)} disabled={selectedIds.length === 0}>Próximo</Button>
-          ) : (
-            <Button onClick={handleFinalizar} className="bg-red-600 hover:bg-red-700 text-white">Concluir Devolução</Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// --- COMPONENTE INTERNO: RESOLVER DUPLICATAS ---
-function ResolveDuplicatesModal({ duplicateGroups, onResolve, onCancel, isProcessing }) {
-  const [selectedKeepers, setSelectedKeepers] = useState({});
-  React.useEffect(() => {
-    const initialSelections = {};
-    Object.keys(duplicateGroups).forEach(key => { initialSelections[key] = duplicateGroups[key][0].id; });
-    setSelectedKeepers(initialSelections);
-  }, [duplicateGroups]);
-
-  const handleConfirm = () => {
-    const idsToExclude = [];
-    Object.keys(duplicateGroups).forEach(key => {
-      const keeperId = selectedKeepers[key];
-      const group = duplicateGroups[key];
-      group.forEach(cheque => { if (cheque.id !== keeperId) idsToExclude.push(cheque.id); });
-    });
-    onResolve(idsToExclude);
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg flex items-start gap-3">
-        <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
-        <div className="text-sm text-amber-800">
-          <p className="font-bold">Atenção: Cheques Idênticos Detectados</p>
-          <p>O sistema encontrou registros duplicados. Selecione abaixo qual é o <strong>original</strong> para manter.</p>
-        </div>
-      </div>
-      <div className="max-h-[60vh] overflow-y-auto space-y-6 pr-2">
-        {Object.entries(duplicateGroups).map(([key, group], index) => (
-          <Card key={key} className="p-4 border-slate-200 shadow-sm">
-            <div className="flex items-center gap-2 mb-3 border-b pb-2 bg-slate-50 -mx-4 -mt-4 px-4 py-2 rounded-t-lg">
-              <span className="bg-white border text-slate-500 text-xs font-bold px-2 py-1 rounded">Grupo #{index + 1}</span>
-              <span className="font-mono text-sm text-slate-700 font-medium">Cheque Nº {group[0].numero_cheque}</span>
-              <span className="ml-auto font-bold text-slate-800">{formatCurrency(group[0].valor)}</span>
-            </div>
-            <RadioGroup value={selectedKeepers[key]} onValueChange={(val) => setSelectedKeepers(prev => ({ ...prev, [key]: val }))} className="space-y-3">
-              {group.map(cheque => (
-                <div key={cheque.id} onClick={() => setSelectedKeepers(prev => ({ ...prev, [key]: cheque.id }))} className={cn("flex items-start space-x-3 p-3 rounded-lg border transition-all cursor-pointer relative", selectedKeepers[key] === cheque.id ? "border-green-500 bg-green-50 ring-1 ring-green-500" : "border-slate-200 hover:bg-slate-50")}>
-                  <RadioGroupItem value={cheque.id} id={cheque.id} className="mt-1" />
-                  <div className="flex-1">
-                    <div className="flex justify-between items-start">
-                      <div><Label className="font-bold cursor-pointer text-slate-800">ID: {cheque.id}</Label><p className="text-xs text-slate-500">Cadastrado: {format(parseISO(cheque.created_date || new Date().toISOString()), 'dd/MM/yyyy')}</p></div>
-                      <Badge variant="outline" className="capitalize bg-white">{cheque.status}</Badge>
-                    </div>
-                  </div>
-                  {selectedKeepers[key] === cheque.id && (<div className="absolute top-2 right-2 text-green-600"><CheckCircle className="w-4 h-4"/></div>)}
-                </div>
-              ))}
-            </RadioGroup>
-          </Card>
-        ))}
-      </div>
-      <div className="flex justify-end gap-3 pt-4 border-t">
-        <Button variant="outline" onClick={onCancel} disabled={isProcessing}>Cancelar</Button>
-        <Button onClick={handleConfirm} disabled={isProcessing} className="bg-green-600 hover:bg-green-700 text-white">{isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />} Resolver</Button>
-      </div>
-    </div>
-  );
-}
 
 export default function Cheques() {
   const queryClient = useQueryClient();
@@ -332,6 +56,9 @@ export default function Cheques() {
   // MODAIS ESPECIAIS
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [showDevolucaoModal, setShowDevolucaoModal] = useState(false);
+  const [showPagamentoModal, setShowPagamentoModal] = useState(false);
+  const [chequeParaPagamento, setChequeParaPagamento] = useState(null);
+
   const [duplicateGroups, setDuplicateGroups] = useState({});
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -344,7 +71,7 @@ export default function Cheques() {
       return map;
   }, [clientes]);
 
-  // --- LÓGICA DE DEVOLUÇÃO ---
+  // --- LÓGICA 1: DEVOLUÇÃO ---
   const handleSaveDevolucao = async (payload) => {
     setIsProcessing(true);
     try {
@@ -384,7 +111,7 @@ export default function Cheques() {
     }
   };
 
-  // --- LÓGICA DE DUPLICATAS ---
+  // --- LÓGICA 2: DUPLICATAS ---
   const handleCheckDuplicates = () => {
     const groups = {};
     const chequesAtivos = cheques.filter(c => c.status === 'normal' || c.status === 'repassado');
@@ -413,6 +140,45 @@ export default function Cheques() {
       setShowDuplicateModal(false);
       toast.success("Resolvido!");
     } catch (e) { toast.error("Erro."); } finally { setIsProcessing(false); }
+  };
+
+  // --- LÓGICA 3: PAGAMENTO POSTERIOR ---
+  const handleOpenPagamento = (cheque) => {
+      setChequeParaPagamento(cheque);
+      setShowPagamentoModal(true);
+  };
+
+  const handleSavePagamentoDevolvido = async (pagamento) => {
+      setIsProcessing(true);
+      try {
+          // Atualiza o cheque original como pago
+          await base44.entities.Cheque.update(chequeParaPagamento.id, {
+              status_pagamento_devolucao: 'pago',
+              data_pagamento_devolucao: new Date().toISOString(),
+              comprovante_pagamento_devolucao: pagamento.comprovante
+          });
+
+          // Se for troca, cria o novo
+          if (pagamento.metodo === 'cheque_troca' && pagamento.novoCheque) {
+              await base44.entities.Cheque.create({
+                  numero_cheque: pagamento.novoCheque.numero,
+                  banco: pagamento.novoCheque.banco,
+                  valor: parseFloat(pagamento.novoCheque.valor),
+                  data_vencimento: pagamento.novoCheque.vencimento,
+                  status: 'em_maos',
+                  origem: 'troca_devolucao_tardia',
+                  observacao: `Regularização do cheque devolvido #${chequeParaPagamento.numero_cheque}`
+              });
+          }
+
+          await refetch();
+          setShowPagamentoModal(false);
+          toast.success("Pagamento registrado!");
+      } catch(e) {
+          toast.error("Erro ao salvar pagamento.");
+      } finally {
+          setIsProcessing(false);
+      }
   };
 
   // --- FILTROS DE TABELA ---
@@ -486,7 +252,7 @@ export default function Cheques() {
               </div>
               <div className="h-8 w-px bg-slate-200 mx-2 hidden sm:block" />
               <div className="flex gap-2">
-                  {/* BOTÃO DEVOLUÇÃO (SUBSTITUI AÇÕES) */}
+                  {/* BOTÕES DE AÇÃO */}
                   {canDo('Cheques', 'editar') && (
                       <Button onClick={() => setShowDevolucaoModal(true)} className="gap-2 border-red-200 text-red-700 bg-white hover:bg-red-50 shadow-sm border">
                           <AlertTriangle className="w-4 h-4" /> Devolução
@@ -537,7 +303,7 @@ export default function Cheques() {
               )}
           </AnimatePresence>
 
-          {/* 4. SUB-ABAS (DINÂMICAS) - RESTAURADO */}
+          {/* SUB-ABAS RESTAURADAS */}
           <div className="flex gap-2 mb-4 overflow-x-auto pb-2 animate-in fade-in slide-in-from-left-2">
               {mainTab === 'a_compensar' && (
                   <>
@@ -562,6 +328,7 @@ export default function Cheques() {
               )}
           </div>
 
+          {/* TABELA */}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
               <Table>
                   <TableHeader className="bg-slate-50">
@@ -582,15 +349,34 @@ export default function Cheques() {
                           dadosProcessados.listaFinal.map(cheque => {
                               const cliente = mapClientes[cheque.cliente_codigo];
                               return (
-                                  <TableRow key={cheque.id} className="group hover:bg-slate-50/80 cursor-pointer" onClick={() => handleView(cheque)}>
+                                  <TableRow key={cheque.id} className="group hover:bg-slate-50/80 transition-colors cursor-pointer" onClick={() => handleView(cheque)}>
                                       <TableCell onClick={(e) => e.stopPropagation()}><Checkbox checked={selectedIds.includes(cheque.id)} onCheckedChange={() => handleSelectOne(cheque.id)} /></TableCell>
                                       <TableCell><div className="font-mono font-bold text-slate-700">#{cheque.numero_cheque}</div><div className="text-xs text-slate-500 uppercase">{cheque.banco}</div></TableCell>
                                       <TableCell><div className="font-medium text-slate-800">{cheque.cliente_nome}</div>{cliente?.representante_nome && <div className="text-[10px] text-blue-600 flex gap-1"><User className="w-3 h-3"/>{cliente.representante_nome.split(' ')[0]}</div>}</TableCell>
                                       <TableCell><div className={cn("text-sm", (cheque.status==='normal' && isPast(parseISO(cheque.data_vencimento))) ? "text-red-600 font-bold" : "text-slate-600")}>{cheque.data_vencimento ? format(parseISO(cheque.data_vencimento), 'dd/MM/yyyy') : '-'}</div></TableCell>
                                       <TableCell className="text-right font-bold text-slate-700">{formatCurrency(cheque.valor)}</TableCell>
-                                      <TableCell className="text-center"><Badge variant="outline" className={cn("capitalize", cheque.status==='devolvido' && "bg-red-100 text-red-700 border-red-200")}>{cheque.status === 'normal' ? 'Em Mãos' : cheque.status}</Badge></TableCell>
+                                      <TableCell className="text-center">
+                                          {cheque.status === 'compensado' ? <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">{cheque.destino_deposito ? cheque.destino_deposito.split(' ')[0] : 'Compensado'}</Badge> :
+                                           cheque.status === 'pago' ? <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">Resolvido</Badge> :
+                                           cheque.status === 'devolvido' ? <Badge className="bg-red-100 text-red-700 border-red-200">Devolvido</Badge> :
+                                           cheque.status === 'excluido' ? <Badge variant="outline" className="border-slate-300 text-slate-400">Excluído</Badge> :
+                                           cheque.status === 'repassado' ? <Badge className="bg-purple-100 text-purple-700 border-purple-200">Repassado</Badge> :
+                                           <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Em Carteira</Badge>}
+                                      </TableCell>
                                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                          {mainTab === 'excluidos' ? <Button variant="ghost" size="icon" onClick={() => handleRestore(cheque.id)}><RefreshCw className="w-4 h-4 text-emerald-600"/></Button> : <Button variant="ghost" size="icon" onClick={() => handleEdit(cheque)}><MoreHorizontal className="w-4 h-4 text-slate-400"/></Button>}
+                                          <div className="flex justify-end gap-1">
+                                              {/* AÇÃO REGULARIZAR (PARA DEVOLVIDOS PENDENTES) */}
+                                              {cheque.status === 'devolvido' && cheque.status_pagamento_devolucao !== 'pago' && (
+                                                  <Button variant="ghost" size="icon" onClick={() => handleOpenPagamento(cheque)} title="Regularizar Pagamento">
+                                                      <DollarSign className="w-4 h-4 text-emerald-600" />
+                                                  </Button>
+                                              )}
+                                              {mainTab === 'excluidos' ? (
+                                                  <Button variant="ghost" size="icon" onClick={() => handleRestore(cheque.id)} title="Restaurar"><RefreshCw className="w-4 h-4 text-emerald-600"/></Button>
+                                              ) : (
+                                                  <Button variant="ghost" size="icon" onClick={() => handleEdit(cheque)}><MoreHorizontal className="w-4 h-4 text-slate-400 hover:text-indigo-600"/></Button>
+                                              )}
+                                          </div>
                                       </TableCell>
                                   </TableRow>
                               )
@@ -610,23 +396,28 @@ export default function Cheques() {
           {selectedCheque && <ChequeDetails cheque={selectedCheque} clientes={clientes} onEdit={() => { setShowDetailsModal(false); handleEdit(selectedCheque); }} onClose={() => setShowDetailsModal(false)} />}
         </ModalContainer>
 
-        {/* MODAL DE DEVOLUÇÃO */}
         <RegistrarDevolucaoModal 
             isOpen={showDevolucaoModal} 
             onClose={() => setShowDevolucaoModal(false)}
             todosCheques={cheques}
             preSelectedIds={selectedIds}
-            clientes={clientes}
             onSave={handleSaveDevolucao}
         />
 
-        {/* MODAL DE DUPLICATAS */}
         <Dialog open={showDuplicateModal} onOpenChange={setShowDuplicateModal}>
           <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-6">
             <DialogHeader><DialogTitle>Resolver Duplicatas</DialogTitle><DialogDescription>Selecione o cheque correto.</DialogDescription></DialogHeader>
             <ResolveDuplicatesModal duplicateGroups={duplicateGroups} onResolve={handleResolveDuplicates} onCancel={() => setShowDuplicateModal(false)} isProcessing={isProcessing} />
           </DialogContent>
         </Dialog>
+
+        <ChequePagamentoModal 
+            isOpen={showPagamentoModal}
+            onClose={() => setShowPagamentoModal(false)}
+            cheque={chequeParaPagamento}
+            onSave={handleSavePagamentoDevolvido}
+            isProcessing={isProcessing}
+        />
 
       </div>
     </PermissionGuard>
