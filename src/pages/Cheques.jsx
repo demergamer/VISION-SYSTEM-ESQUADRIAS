@@ -28,7 +28,7 @@ import ChequeDetails from "@/components/cheques/ChequeDetails";
 import PermissionGuard from "@/components/PermissionGuard";
 import { usePermissions } from "@/components/hooks/usePermissions";
 
-// Componentes Extraídos (Funcionalidades Específicas)
+// Componentes Extraídos
 import RegistrarDevolucaoModal from "@/components/cheques/Chequesdevolvidos";
 import ResolveDuplicatesModal from "@/components/cheques/Chequeduplicados";
 import ChequePagamentoModal from "@/components/cheques/Chequepagamentos";
@@ -44,11 +44,11 @@ export default function Cheques() {
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // --- NAVEGAÇÃO (ABAS) ---
+  // --- NAVEGAÇÃO ---
   const [mainTab, setMainTab] = useState('a_compensar');
   const [subTab, setSubTab] = useState('em_maos');
 
-  // --- FILTROS & SELEÇÃO ---
+  // --- FILTROS ---
   const [filters, setFilters] = useState({ dataInicio: '', dataFim: '', banco: 'todos', valorMin: '', valorMax: '' });
   const [selectedIds, setSelectedIds] = useState([]);
 
@@ -60,9 +60,9 @@ export default function Cheques() {
   const [showPagamentoModal, setShowPagamentoModal] = useState(false);
 
   // --- DADOS TEMPORÁRIOS ---
-  const [selectedCheque, setSelectedCheque] = useState(null); // Para edição/detalhes
-  const [chequeParaPagamento, setChequeParaPagamento] = useState(null); // Para liquidação tardia
-  const [duplicateGroups, setDuplicateGroups] = useState({}); // Para duplicatas
+  const [selectedCheque, setSelectedCheque] = useState(null);
+  const [chequeParaPagamento, setChequeParaPagamento] = useState(null);
+  const [duplicateGroups, setDuplicateGroups] = useState({});
 
   // --- LOADING STATES ---
   const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
@@ -73,12 +73,35 @@ export default function Cheques() {
   const { data: clientes = [] } = useQuery({ queryKey: ['clientes'], queryFn: () => base44.entities.Cliente.list() });
   const { data: representantes = [] } = useQuery({ queryKey: ['representantes'], queryFn: () => base44.entities.Representante.list() });
 
-  // Mapa para acesso rápido a dados do cliente
   const mapClientes = useMemo(() => {
       const map = {};
       clientes.forEach(c => map[c.codigo] = c);
       return map;
   }, [clientes]);
+
+  // ============================================================================================
+  // MUTAÇÕES (CRIAÇÃO E EDIÇÃO PADRÃO) - CORRIGIDO: ESTAVA FALTANDO
+  // ============================================================================================
+  const createMutation = useMutation({
+    mutationFn: (data) => base44.entities.Cheque.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cheques'] });
+      setShowFormModal(false);
+      toast.success('Cheque cadastrado com sucesso!');
+    },
+    onError: (error) => toast.error('Erro ao cadastrar: ' + error.message)
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => base44.entities.Cheque.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cheques'] });
+      setShowFormModal(false);
+      setSelectedCheque(null);
+      toast.success('Cheque atualizado com sucesso!');
+    },
+    onError: (error) => toast.error('Erro ao atualizar: ' + error.message)
+  });
 
   // ============================================================================================
   // LÓGICA 1: DEVOLUÇÃO (WIZARD)
@@ -88,7 +111,6 @@ export default function Cheques() {
     try {
         const { cheques_ids, detalhes_devolucao, pagamento } = payload;
         
-        // 1. Atualizar status dos cheques para 'devolvido'
         const updatePromises = cheques_ids.map(id => {
             const detalhe = detalhes_devolucao[id];
             return base44.entities.Cheque.update(id, {
@@ -96,13 +118,12 @@ export default function Cheques() {
                 motivo_devolucao: detalhe?.motivo || 'outros',
                 foto_devolucao: detalhe?.file || null,
                 data_devolucao: new Date().toISOString().split('T')[0],
-                // Se pagou agora, marca pago. Senão, fica pendente para pagar depois.
                 status_pagamento_devolucao: pagamento ? 'pago' : 'pendente'
             });
         });
         await Promise.all(updatePromises);
 
-        // 2. Criar novos cheques de troca (se houver)
+        // Criar cheques de troca se houver
         if (pagamento && pagamento.metodo === 'cheque_troca' && pagamento.novosCheques && pagamento.novosCheques.length > 0) {
             const createChequePromises = pagamento.novosCheques.map(chequeData => {
                 if(!chequeData.numero || !chequeData.valor) return null;
@@ -114,7 +135,7 @@ export default function Cheques() {
                     valor: parseFloat(chequeData.valor),
                     data_vencimento: chequeData.vencimento,
                     titular: chequeData.emitente || 'Troca',
-                    status: 'em_maos', // Entra como novo cheque ativo
+                    status: 'em_maos',
                     origem: 'troca_devolucao',
                     observacao: `Troca ref. devolução dos cheques: ${cheques_ids.join(', ')}`
                 });
@@ -126,7 +147,6 @@ export default function Cheques() {
         setShowDevolucaoModal(false);
         toast.success("Devolução registrada com sucesso!");
     } catch (e) {
-        console.error(e);
         toast.error("Erro ao registrar devolução: " + e.message);
     } finally {
         setIsProcessing(false);
@@ -137,20 +157,16 @@ export default function Cheques() {
   // LÓGICA 2: DUPLICATAS
   // ============================================================================================
   const handleCheckDuplicates = () => {
-    setIsCheckingDuplicates(true); // Feedback visual
+    setIsCheckingDuplicates(true);
     setTimeout(() => {
         const groups = {};
-        // Verifica apenas cheques ativos (Em Mãos ou Repassados)
         const chequesAtivos = cheques.filter(c => c.status === 'normal' || c.status === 'repassado');
         
         chequesAtivos.forEach(c => {
           const num = c.numero_cheque ? String(c.numero_cheque).trim() : '';
           const cc = c.conta ? String(c.conta).trim() : '';
           const venc = c.data_vencimento ? c.data_vencimento.split('T')[0] : '';
-          const tit = c.titular ? String(c.titular).trim().toLowerCase() : '';
-          
-          // Chave única composta
-          const key = `${num}|${cc}|${venc}|${tit}`;
+          const key = `${num}|${cc}|${venc}`;
           if (!groups[key]) groups[key] = [];
           groups[key].push(c);
         });
@@ -191,13 +207,13 @@ export default function Cheques() {
   const handleSavePagamentoDevolvido = async (pagamento) => {
       setIsProcessing(true);
       try {
-          // Atualiza o cheque original como pago e salva o representante responsável
+          // Atualiza o cheque original como pago
           await base44.entities.Cheque.update(chequeParaPagamento.id, {
               status_pagamento_devolucao: 'pago',
               data_pagamento_devolucao: new Date().toISOString(),
               comprovante_pagamento_devolucao: pagamento.comprovante,
               representante_responsavel: pagamento.representante, 
-              observacao: (chequeParaPagamento.observacao || '') + `\n[${new Date().toLocaleDateString()}] Devolução liquidada por: ${pagamento.representante || 'Escritório'}`
+              observacao: (chequeParaPagamento.observacao || '') + `\n[${new Date().toLocaleDateString()}] Liq. por: ${pagamento.representante || 'Escritório'}`
           });
 
           // Se for troca, cria o novo cheque COMPLETO
@@ -221,15 +237,12 @@ export default function Cheques() {
           toast.success("Pagamento registrado com sucesso!");
       } catch(e) {
           toast.error("Erro ao salvar pagamento.");
-          console.error(e);
       } finally {
           setIsProcessing(false);
       }
   };
 
-  // ============================================================================================
-  // FILTROS E PROCESSAMENTO
-  // ============================================================================================
+  // --- FILTROS DE TABELA ---
   const dadosProcessados = useMemo(() => {
     let lista = cheques;
     if (searchTerm) {
@@ -238,25 +251,25 @@ export default function Cheques() {
     }
     if (filters.banco !== 'todos') lista = lista.filter(c => c.banco === filters.banco);
     
-    // Categorização
+    // Filtros de Status
     const emMaos = lista.filter(c => c.status === 'normal');
     const repassados = lista.filter(c => c.status === 'repassado' && (!c.data_vencimento || isFuture(parseISO(c.data_vencimento))));
     const devolvidos = lista.filter(c => c.status === 'devolvido');
     const compensados = lista.filter(c => c.status === 'compensado');
     const excluidos = lista.filter(c => c.status === 'excluido');
 
-    // Filtro da Tabela Principal
+    // Navegação
     let listaFinal = [];
     if (mainTab === 'a_compensar') listaFinal = subTab === 'em_maos' ? emMaos : repassados;
     else if (mainTab === 'devolvidos') {
         if (subTab === 'aqui') listaFinal = devolvidos.filter(c => !c.fornecedor_repassado_nome);
         else if (subTab === 'nao_aqui') listaFinal = devolvidos.filter(c => !!c.fornecedor_repassado_nome);
-        else if (subTab === 'pagos') listaFinal = lista.filter(c => c.status === 'pago' || (c.status === 'devolvido' && c.status_pagamento_devolucao === 'pago'));
+        else if (subTab === 'pagos') listaFinal = lista.filter(c => c.status_pagamento_devolucao === 'pago');
+        else listaFinal = devolvidos; // Default
     }
     else if (mainTab === 'compensados') listaFinal = compensados;
     else if (mainTab === 'excluidos') listaFinal = excluidos;
 
-    // Totais para KPIs
     const depJC = compensados.filter(c => c.destino_deposito === 'J&C ESQUADRIAS').reduce((a,c)=>a+c.valor,0);
     const depBIG = compensados.filter(c => c.destino_deposito === 'BIG METAIS').reduce((a,c)=>a+c.valor,0);
     const depOLIVER = compensados.filter(c => c.destino_deposito === 'OLIVER EXTRUSORA').reduce((a,c)=>a+c.valor,0);
@@ -307,18 +320,23 @@ export default function Cheques() {
               </div>
               <div className="h-8 w-px bg-slate-200 mx-2 hidden sm:block" />
               <div className="flex gap-2">
-                  {/* BOTÃO DEVOLUÇÃO */}
+                  {/* BOTÕES DE AÇÃO DO TOPO */}
                   {canDo('Cheques', 'editar') && (
                       <Button onClick={() => setShowDevolucaoModal(true)} className="gap-2 border-red-200 text-red-700 bg-white hover:bg-red-50 shadow-sm border transition-all hover:shadow-md">
                           <AlertTriangle className="w-4 h-4" /> Devolução
                       </Button>
                   )}
-                  {/* BOTÃO DUPLICATAS */}
                   {canDo('Cheques', 'editar') && (
-                      <Button variant="outline" onClick={handleCheckDuplicates} disabled={isCheckingDuplicates} className="gap-2 bg-white border-amber-200 text-amber-700 hover:bg-amber-50 min-w-[170px]">
+                      <Button 
+                        variant="outline" 
+                        onClick={handleCheckDuplicates} 
+                        disabled={isCheckingDuplicates}
+                        className="gap-2 bg-white border-amber-200 text-amber-700 hover:bg-amber-50 min-w-[170px]"
+                      >
                           {isCheckingDuplicates ? <><Loader2 className="w-4 h-4 animate-spin" /> Varrendo...</> : <><RefreshCw className="w-4 h-4" /> Verificar Duplicatas</>}
                       </Button>
                   )}
+                  {/* BOTÃO NOVO AGORA FUNCIONA PQ CREATE MUTATION EXISTE */}
                   <Button onClick={handleNew} className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200"><Plus className="w-4 h-4" /> Novo</Button>
               </div>
             </div>
@@ -327,6 +345,7 @@ export default function Cheques() {
 
         {/* CONTEÚDO PRINCIPAL */}
         <div className="px-6 py-6 space-y-6 w-full">
+          {/* ABAS */}
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
               <Tabs value={mainTab} onValueChange={handleMainTabChange} className="w-full lg:w-auto">
                   <TabsList className="bg-slate-100 p-1 h-auto flex-wrap">
@@ -336,9 +355,14 @@ export default function Cheques() {
                       <TabsTrigger value="excluidos" className="gap-2 px-4 py-2"><Trash2 className="w-4 h-4" /> Excluídos</TabsTrigger>
                   </TabsList>
               </Tabs>
+              {/* FILTROS */}
               <div className="flex flex-wrap gap-2 w-full lg:w-auto">
                   <div className="relative flex-1 lg:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><Input placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9"/></div>
                   <Button variant={showFilters ? "secondary" : "outline"} size="icon" onClick={() => setShowFilters(!showFilters)}><Filter className="w-4 h-4" /></Button>
+                  <div className="bg-slate-100 p-1 rounded-lg flex border border-slate-200 shrink-0">
+                      <Button variant="ghost" size="icon" onClick={() => setViewMode('table')} className={cn("h-8 w-8 rounded-md", viewMode === 'table' ? "bg-white shadow-sm" : "text-slate-500")}><List className="w-4 h-4" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => setViewMode('grid')} className={cn("h-8 w-8 rounded-md", viewMode === 'grid' ? "bg-white shadow-sm" : "text-slate-500")}><LayoutGrid className="w-4 h-4" /></Button>
+                  </div>
               </div>
           </div>
 
@@ -355,7 +379,7 @@ export default function Cheques() {
               )}
           </AnimatePresence>
 
-          {/* SUB-ABAS DE NAVEGAÇÃO */}
+          {/* SUB-ABAS */}
           <div className="flex gap-2 mb-4 overflow-x-auto pb-2 animate-in fade-in slide-in-from-left-2">
               {mainTab === 'a_compensar' && (
                   <>
@@ -409,7 +433,7 @@ export default function Cheques() {
                                       <TableCell className="text-right font-bold text-slate-700">{formatCurrency(cheque.valor)}</TableCell>
                                       <TableCell className="text-center">
                                           {cheque.status === 'compensado' ? <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">{cheque.destino_deposito ? cheque.destino_deposito.split(' ')[0] : 'Compensado'}</Badge> :
-                                           cheque.status === 'pago' ? <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">Resolvido</Badge> :
+                                           cheque.status === 'pago' || (cheque.status === 'devolvido' && cheque.status_pagamento_devolucao === 'pago') ? <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">Resolvido</Badge> :
                                            cheque.status === 'devolvido' ? <Badge className="bg-red-100 text-red-700 border-red-200">Devolvido</Badge> :
                                            cheque.status === 'excluido' ? <Badge variant="outline" className="border-slate-300 text-slate-400">Excluído</Badge> :
                                            cheque.status === 'repassado' ? <Badge className="bg-purple-100 text-purple-700 border-purple-200">Repassado</Badge> :
@@ -418,12 +442,12 @@ export default function Cheques() {
                                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                                           <div className="flex justify-end gap-1">
                                               
-                                              {/* BOTÃO LIQUIDAR (NOVO) - APENAS PARA DEVOLVIDOS PENDENTES */}
+                                              {/* BOTÃO LIQUIDAR (CORRIGIDO: COM STOPPROPAGATION) */}
                                               {cheque.status === 'devolvido' && cheque.status_pagamento_devolucao !== 'pago' && (
                                                   <Button 
                                                     variant="ghost" 
                                                     size="icon" 
-                                                    onClick={() => handleOpenPagamento(cheque)} 
+                                                    onClick={(e) => { e.stopPropagation(); handleOpenPagamento(cheque); }} 
                                                     title="Liquidar Devolução Pendente"
                                                     className="hover:bg-emerald-50 text-emerald-600"
                                                   >
@@ -434,7 +458,7 @@ export default function Cheques() {
                                               {mainTab === 'excluidos' ? (
                                                   <Button variant="ghost" size="icon" onClick={() => handleRestore(cheque.id)} title="Restaurar"><RefreshCw className="w-4 h-4 text-emerald-600"/></Button>
                                               ) : (
-                                                  <Button variant="ghost" size="icon" onClick={() => handleEdit(cheque)}><MoreHorizontal className="w-4 h-4 text-slate-400 hover:text-indigo-600"/></Button>
+                                                  <Button variant="ghost" size="icon" onClick={() => { setSelectedCheque(cheque); setShowFormModal(true); }}><MoreHorizontal className="w-4 h-4 text-slate-400 hover:text-indigo-600"/></Button>
                                               )}
                                           </div>
                                       </TableCell>
@@ -447,10 +471,17 @@ export default function Cheques() {
           </div>
         </div>
 
-        {/* --- ÁREA DE MODAIS --- */}
+        {/* MODAIS */}
         
+        {/* MODAL DE CADASTRO/EDIÇÃO (CORRIGIDO: RECEBE createMutation/updateMutation VIA onSave) */}
         <ModalContainer open={showFormModal} onClose={() => setShowFormModal(false)} title={selectedCheque ? "Editar Cheque" : "Novo Cheque"}>
-          <ChequeForm cheque={selectedCheque} clientes={clientes} onSave={() => { setShowFormModal(false); refetch(); }} onCancel={() => setShowFormModal(false)} />
+          <ChequeForm 
+            cheque={selectedCheque} 
+            clientes={clientes} 
+            onSave={(data) => selectedCheque ? updateMutation.mutate({id: selectedCheque.id, data}) : createMutation.mutate(data)} 
+            onCancel={() => setShowFormModal(false)} 
+            isLoading={createMutation.isPending || updateMutation.isPending} 
+          />
         </ModalContainer>
 
         <ModalContainer open={showDetailsModal} onClose={() => setShowDetailsModal(false)} title="Detalhes do Cheque">
@@ -471,7 +502,7 @@ export default function Cheques() {
             cheque={chequeParaPagamento}
             onSave={handleSavePagamentoDevolvido}
             isProcessing={isProcessing}
-            representantes={representantes} // Passando lista de representantes
+            representantes={representantes} // Lista de representantes
         />
 
         <Dialog open={showDuplicateModal} onOpenChange={setShowDuplicateModal}>
