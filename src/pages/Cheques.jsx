@@ -24,17 +24,19 @@ import {
 
 // Componentes internos e Hooks
 import ModalContainer from "@/components/modals/ModalContainer";
-import ChequeForm from "@/components/cheques/ChequeForm"; // Assumindo que você tem este form
+import ChequeForm from "@/components/cheques/ChequeForm"; 
 import PermissionGuard from "@/components/PermissionGuard";
 import { usePermissions } from "@/components/hooks/usePermissions";
 
+// --- COMPONENTE AUXILIAR: ÍCONES ---
+function WalletIcon(props) { return <Wallet {...props} /> }
+function ArrowUpRightIcon(props) { return <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg> }
+
 // --- COMPONENTE: MODAL DE RESOLUÇÃO DE DUPLICATAS ---
 function ResolveDuplicatesModal({ duplicateGroups, onResolve, onCancel, isProcessing }) {
-  // Estado para armazenar qual ID foi escolhido para MANTER em cada grupo
-  // Formato: { 'chave_do_grupo': 'id_do_cheque_escolhido' }
   const [selectedKeepers, setSelectedKeepers] = useState({});
 
-  // Inicializa escolhendo automaticamente o primeiro de cada grupo como sugestão
+  // Pré-seleciona o primeiro de cada grupo
   React.useEffect(() => {
     const initialSelections = {};
     Object.keys(duplicateGroups).forEach(key => {
@@ -44,20 +46,14 @@ function ResolveDuplicatesModal({ duplicateGroups, onResolve, onCancel, isProces
   }, [duplicateGroups]);
 
   const handleConfirm = () => {
-    // Monta lista de IDs para EXCLUIR (todos que NÃO foram selecionados)
     const idsToExclude = [];
-    
     Object.keys(duplicateGroups).forEach(key => {
       const keeperId = selectedKeepers[key];
       const group = duplicateGroups[key];
-      
       group.forEach(cheque => {
-        if (cheque.id !== keeperId) {
-          idsToExclude.push(cheque.id);
-        }
+        if (cheque.id !== keeperId) idsToExclude.push(cheque.id);
       });
     });
-
     onResolve(idsToExclude);
   };
 
@@ -69,7 +65,7 @@ function ResolveDuplicatesModal({ duplicateGroups, onResolve, onCancel, isProces
         <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
         <div className="text-sm text-amber-800">
           <p className="font-bold">Atenção: Cheques Duplicados Detectados</p>
-          <p>O sistema encontrou registros idênticos (mesmo número, conta e titular). Selecione abaixo qual registro é o <strong>original</strong> para manter. Os outros serão movidos para a aba "Excluídos".</p>
+          <p>O sistema encontrou registros idênticos (mesmo número, conta, vencimento e titular). Selecione abaixo qual registro é o <strong>original</strong> para manter. Os outros serão movidos para a aba "Excluídos".</p>
         </div>
       </div>
 
@@ -77,7 +73,7 @@ function ResolveDuplicatesModal({ duplicateGroups, onResolve, onCancel, isProces
         {Object.entries(duplicateGroups).map(([key, group], index) => (
           <Card key={key} className="p-4 border-slate-200 shadow-sm">
             <div className="flex items-center gap-2 mb-3 border-b pb-2">
-              <span className="bg-slate-100 text-slate-500 text-xs font-bold px-2 py-1 rounded">Grupo #{index + 1}</span>
+              <span className="bg-slate-100 text-slate-500 text-xs font-bold px-2 py-1 rounded">Conflito #{index + 1}</span>
               <span className="font-mono text-sm text-slate-700 font-medium">Cheque Nº {group[0].numero_cheque}</span>
               <span className="text-sm text-slate-500">| {group[0].titular}</span>
               <span className="ml-auto font-bold text-slate-800">{formatCurrency(group[0].valor)}</span>
@@ -97,15 +93,15 @@ function ResolveDuplicatesModal({ duplicateGroups, onResolve, onCancel, isProces
                   <div className="flex-1 cursor-pointer" onClick={() => setSelectedKeepers(prev => ({ ...prev, [key]: cheque.id }))}>
                     <div className="flex justify-between">
                       <Label htmlFor={cheque.id} className="font-bold cursor-pointer text-slate-800">
-                        ID: {cheque.id} <span className="font-normal text-slate-500 text-xs">(Criado em: {format(parseISO(cheque.created_date || new Date().toISOString()), 'dd/MM/yy HH:mm')})</span>
+                        ID: {cheque.id} <span className="font-normal text-slate-500 text-xs">(Criado: {format(parseISO(cheque.created_date || new Date().toISOString()), 'dd/MM/yy HH:mm')})</span>
                       </Label>
                       <Badge variant="outline" className="capitalize">{cheque.status}</Badge>
                     </div>
                     
                     <div className="mt-2 text-xs text-slate-600 grid grid-cols-2 gap-2">
                         <div>
-                            <span className="font-semibold block text-slate-400">Origem/Uso:</span>
-                            {cheque.pedido_id ? `Pedido #${cheque.pedido_id}` : (cheque.origem || 'Manual')}
+                            <span className="font-semibold block text-slate-400">Origem:</span>
+                            {cheque.origem || 'Manual'}
                         </div>
                         <div>
                             <span className="font-semibold block text-slate-400">Observação:</span>
@@ -147,10 +143,16 @@ export default function Cheques() {
   const [duplicateGroups, setDuplicateGroups] = useState({});
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // --- QUERIES ---
+  // --- QUERIES (RESTORED CLIENTES FETCH) ---
   const { data: cheques = [], isLoading } = useQuery({
     queryKey: ['cheques'],
     queryFn: () => base44.entities.Cheque.list()
+  });
+
+  // RESTAURADO: Necessário para popular o dropdown de clientes no Form
+  const { data: clientes = [] } = useQuery({
+    queryKey: ['clientes'],
+    queryFn: () => base44.entities.Cliente.list()
   });
 
   // --- MUTAÇÕES ---
@@ -175,31 +177,30 @@ export default function Cheques() {
     onError: () => toast.error('Erro ao atualizar')
   });
 
-  // --- LÓGICA DE VERIFICAÇÃO DE DUPLICATAS ---
+  // --- NOVA FUNÇÃO: VERIFICAÇÃO DE DUPLICATAS ---
   const handleCheckDuplicates = () => {
     const groups = {};
     let duplicatesFound = 0;
 
-    // 1. Agrupar Cheques Ativos (Ignora já excluídos ou compensados se quiser, mas aqui vamos olhar 'em_maos' e 'repassado')
-    cheques.forEach(c => {
-      // Ignora excluídos e compensados da verificação para não gerar falso positivo com histórico antigo
-      if (c.status === 'excluido' || c.status === 'compensado' || c.status === 'devolvido') return;
+    // Varre apenas cheques ativos que importam para o fluxo (Em Mãos e Repassados)
+    // Ignora Compensados, Devolvidos e Excluídos da verificação para evitar falsos positivos com histórico
+    const chequesParaVerificar = cheques.filter(c => c.status === 'em_maos' || c.status === 'repassado');
 
-      // Chave Única: Numero + Agencia + Conta + Titular(Primeiro nome) + Vencimento
-      // Normalizamos strings para evitar erros de caixa alta/baixa ou espaços
-      const cleanNumero = c.numero_cheque?.trim();
-      const cleanAgencia = c.agencia?.trim();
-      const cleanConta = c.conta?.trim();
-      const cleanTitular = c.titular?.trim().toLowerCase();
-      const cleanVencimento = c.data_vencimento ? c.data_vencimento.split('T')[0] : ''; // Pega YYYY-MM-DD
+    chequesParaVerificar.forEach(c => {
+      // Normalização para evitar erros de digitação/espaços
+      const cleanNumero = c.numero_cheque?.toString().trim();
+      const cleanAgencia = c.agencia?.toString().trim();
+      const cleanConta = c.conta?.toString().trim();
+      const cleanTitular = c.titular?.toString().trim().toLowerCase();
+      const cleanVencimento = c.data_vencimento ? c.data_vencimento.split('T')[0] : '';
 
+      // CRITÉRIO DE DUPLICIDADE:
       const key = `${cleanNumero}|${cleanAgencia}|${cleanConta}|${cleanVencimento}|${cleanTitular}`;
 
       if (!groups[key]) groups[key] = [];
       groups[key].push(c);
     });
 
-    // 2. Filtrar apenas grupos com mais de 1 item
     const conflictGroups = {};
     Object.keys(groups).forEach(key => {
       if (groups[key].length > 1) {
@@ -208,13 +209,12 @@ export default function Cheques() {
       }
     });
 
-    // 3. Ação
     if (Object.keys(conflictGroups).length > 0) {
       setDuplicateGroups(conflictGroups);
       setShowDuplicateModal(true);
-      toast.warning(`Encontramos ${Object.keys(conflictGroups).length} grupos de cheques idênticos.`);
+      toast.warning(`Encontramos ${Object.keys(conflictGroups).length} duplicatas.`);
     } else {
-      toast.success("Tudo certo! Nenhuma duplicata encontrada nos cheques ativos.", {
+      toast.success("Tudo certo! Nenhuma duplicata encontrada (Em Mãos/Repassados).", {
         icon: <CheckCircle className="text-emerald-500" />
       });
     }
@@ -223,7 +223,6 @@ export default function Cheques() {
   const handleResolveDuplicates = async (idsToExclude) => {
     setIsProcessing(true);
     try {
-      // Move para status 'excluido' e adiciona log na observação
       const promises = idsToExclude.map(id => {
         const chequeOriginal = cheques.find(c => c.id === id);
         return base44.entities.Cheque.update(id, {
@@ -237,7 +236,7 @@ export default function Cheques() {
       
       setShowDuplicateModal(false);
       setDuplicateGroups({});
-      toast.success(`${idsToExclude.length} cheques duplicados foram movidos para a aba "Excluídos".`);
+      toast.success(`${idsToExclude.length} cheques movidos para a aba Excluídos.`);
     } catch (error) {
       console.error(error);
       toast.error("Erro ao processar exclusões.");
@@ -247,7 +246,6 @@ export default function Cheques() {
   };
 
   const handleRestore = async (cheque) => {
-      // Restaura cheque excluído para 'em_maos'
       if (!confirm("Deseja restaurar este cheque para 'Em Mãos'?")) return;
       try {
           await base44.entities.Cheque.update(cheque.id, { status: 'em_maos' });
@@ -256,11 +254,10 @@ export default function Cheques() {
       } catch(e) { toast.error("Erro ao restaurar"); }
   }
 
-  // --- FILTROS DE TABELA ---
+  // --- FILTROS DE TABELA (MANTENDO LÓGICA ORIGINAL) ---
   const filteredCheques = useMemo(() => {
     let data = cheques;
     
-    // Filtro por Aba
     if (activeTab === 'excluidos') {
         data = data.filter(c => c.status === 'excluido');
     } else if (activeTab === 'todos') {
@@ -269,17 +266,16 @@ export default function Cheques() {
         data = data.filter(c => c.status === activeTab);
     }
 
-    // Busca Texto
     if (searchTerm) {
       const lower = searchTerm.toLowerCase();
       data = data.filter(c => 
         c.titular?.toLowerCase().includes(lower) ||
-        c.numero_cheque?.includes(lower) ||
-        c.banco?.toLowerCase().includes(lower)
+        c.numero_cheque?.toString().includes(lower) ||
+        c.banco?.toLowerCase().includes(lower) ||
+        c.cliente_vinculado?.toLowerCase().includes(lower) // Incluído busca por cliente vinculado
       );
     }
     
-    // Ordenação (Vencimento mais próximo primeiro)
     return data.sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento));
   }, [cheques, activeTab, searchTerm]);
 
@@ -301,7 +297,6 @@ export default function Cheques() {
       <div className="min-h-screen bg-slate-50 p-6">
         <div className="max-w-7xl mx-auto space-y-6">
           
-          {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <Link to={createPageUrl('Dashboard')}>
@@ -315,13 +310,12 @@ export default function Cheques() {
               </div>
             </div>
             <div className="flex gap-2">
-                {/* BOTÃO ATUALIZAR / VERIFICAR DUPLICATAS */}
+                {/* BOTÃO NOVO: VERIFICAR DUPLICATAS */}
                 {canDo('Cheques', 'editar') && (
                     <Button 
                         variant="outline" 
                         onClick={handleCheckDuplicates}
                         className="bg-white border-amber-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800 hover:border-amber-300"
-                        title="Verificar se existem cheques cadastrados duas vezes"
                     >
                         <RefreshCw className="w-4 h-4 mr-2" />
                         Verificar Duplicatas
@@ -347,7 +341,6 @@ export default function Cheques() {
                         <TabsTrigger value="devolvido" className="gap-2"><AlertCircle className="w-4 h-4 text-red-600"/> Devolvidos</TabsTrigger>
                         <div className="w-px h-4 bg-slate-300 mx-1"></div>
                         <TabsTrigger value="todos">Todos</TabsTrigger>
-                        {/* ABA EXCLUÍDOS */}
                         {canDo('Cheques', 'excluir') && (
                             <TabsTrigger value="excluidos" className="gap-2 text-slate-500 data-[state=active]:text-slate-700">
                                 <Trash2 className="w-4 h-4"/> Excluídos
@@ -366,7 +359,6 @@ export default function Cheques() {
                     </div>
                 </div>
 
-                {/* CONTEÚDO TABELA */}
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
                         <thead className="bg-slate-50 text-slate-600 font-medium border-b">
@@ -389,15 +381,18 @@ export default function Cheques() {
                                     <tr key={cheque.id} className={cn("hover:bg-slate-50 transition-colors", cheque.status === 'excluido' && "opacity-60 bg-slate-50/50")}>
                                         <td className="p-4">
                                             <div className="flex flex-col">
-                                                <span className={cn("font-bold", cheque.data_vencimento && isPast(parseISO(cheque.data_vencimento)) && !isToday(parseISO(cheque.data_vencimento)) && cheque.status === 'em_maos' ? "text-red-600" : "text-slate-700")}>
-                                                    {cheque.data_vencimento ? format(parseISO(cheque.data_vencimento), 'dd/MM/yyyy') : '-'}
+                                                <span className={cn("font-bold", isPast(parseISO(cheque.data_vencimento)) && !isToday(parseISO(cheque.data_vencimento)) && cheque.status === 'em_maos' ? "text-red-600" : "text-slate-700")}>
+                                                    {format(parseISO(cheque.data_vencimento), 'dd/MM/yyyy')}
                                                 </span>
-                                                <span className="text-xs text-slate-400">Emissão: {cheque.data_emissao ? format(parseISO(cheque.data_emissao), 'dd/MM/yy') : '-'}</span>
+                                                <span className="text-xs text-slate-400">Emissão: {format(parseISO(cheque.data_emissao), 'dd/MM/yy')}</span>
                                             </div>
                                         </td>
                                         <td className="p-4">
+                                            {/* CORREÇÃO: Mostra Titular e Cliente Vinculado */}
                                             <p className="font-medium text-slate-800 line-clamp-1" title={cheque.titular}>{cheque.titular}</p>
-                                            <p className="text-xs text-slate-500 line-clamp-1">{cheque.cliente_vinculado || 'Cliente avulso'}</p>
+                                            <p className="text-xs text-slate-500 line-clamp-1">
+                                                {cheque.cliente_vinculado ? `Cliente: ${cheque.cliente_vinculado}` : 'Cliente avulso'}
+                                            </p>
                                         </td>
                                         <td className="p-4">
                                             <div className="text-xs space-y-0.5">
@@ -414,7 +409,6 @@ export default function Cheques() {
                                         </td>
                                         <td className="p-4 text-right">
                                             <div className="flex justify-end gap-2">
-                                                {/* Ações Específicas para Excluídos */}
                                                 {cheque.status === 'excluido' ? (
                                                     canDo('Cheques', 'editar') && (
                                                         <Button variant="ghost" size="sm" onClick={() => handleRestore(cheque)} className="text-emerald-600 hover:bg-emerald-50" title="Restaurar">
@@ -422,14 +416,12 @@ export default function Cheques() {
                                                         </Button>
                                                     )
                                                 ) : (
-                                                    // Ações Normais
                                                     <>
                                                         {canDo('Cheques', 'editar') && (
                                                             <Button variant="ghost" size="sm" onClick={() => { setSelectedCheque(cheque); setShowEditModal(true); }}>
                                                                 <Edit className="w-4 h-4 text-blue-600" />
                                                             </Button>
                                                         )}
-                                                        {/* Visualização Rápida */}
                                                         {canDo('Cheques', 'visualizar') && (
                                                             <Button variant="ghost" size="sm" onClick={() => { setSelectedCheque(cheque); setShowEditModal(true); }}>
                                                                 <Eye className="w-4 h-4 text-slate-400" />
@@ -448,18 +440,28 @@ export default function Cheques() {
             </Tabs>
           </Card>
 
-          {/* MODAL DE CADASTRO/EDIÇÃO (ASSUMINDO COMPONENTE EXISTENTE) */}
+          {/* FORMULÁRIO COM CLIENTES RESTAURADOS */}
           <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Novo Cheque">
-             <ChequeForm onSave={(data) => createMutation.mutate(data)} onCancel={() => setShowAddModal(false)} isLoading={createMutation.isPending} />
+             <ChequeForm 
+                clientes={clientes} 
+                onSave={(data) => createMutation.mutate(data)} 
+                onCancel={() => setShowAddModal(false)} 
+                isLoading={createMutation.isPending} 
+             />
           </ModalContainer>
 
           <ModalContainer open={showEditModal} onClose={() => {setShowEditModal(false); setSelectedCheque(null);}} title="Editar Cheque">
              {selectedCheque && (
-                 <ChequeForm cheque={selectedCheque} onSave={(data) => updateMutation.mutate({ id: selectedCheque.id, data })} onCancel={() => {setShowEditModal(false); setSelectedCheque(null);}} isLoading={updateMutation.isPending} />
+                 <ChequeForm 
+                    cheque={selectedCheque} 
+                    clientes={clientes} 
+                    onSave={(data) => updateMutation.mutate({ id: selectedCheque.id, data })} 
+                    onCancel={() => {setShowEditModal(false); setSelectedCheque(null);}} 
+                    isLoading={updateMutation.isPending} 
+                 />
              )}
           </ModalContainer>
 
-          {/* MODAL DE DUPLICATAS */}
           <Dialog open={showDuplicateModal} onOpenChange={setShowDuplicateModal}>
             <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
               <DialogHeader>
@@ -483,7 +485,3 @@ export default function Cheques() {
     </PermissionGuard>
   );
 }
-
-// Icones auxiliares simples caso não existam
-function WalletIcon(props) { return <Wallet {...props} /> }
-function ArrowUpRightIcon(props) { return <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg> }
