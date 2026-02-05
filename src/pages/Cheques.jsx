@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   FileSpreadsheet, Search, Plus, Edit, Trash2, ArrowLeft, 
   Save, X, Loader2, Filter, RefreshCw, AlertTriangle, 
-  CheckCircle, History, AlertCircle, Eye, CornerUpLeft
+  CheckCircle, History, AlertCircle, Eye, CornerUpLeft, Wallet
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
