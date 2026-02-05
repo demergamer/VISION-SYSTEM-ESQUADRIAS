@@ -5,7 +5,7 @@ import {
   LayoutGrid, List, Filter, Plus, Search, 
   ArrowUpRight, AlertCircle, CheckCircle2, Clock,
   MoreHorizontal, Wallet, User, ArrowRightLeft, MapPin, Building2, Banknote, Landmark,
-  RefreshCw, Trash2, AlertTriangle, CheckCircle, Loader2
+  RefreshCw, Trash2, AlertTriangle, CheckCircle, Loader2, CornerUpLeft
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
