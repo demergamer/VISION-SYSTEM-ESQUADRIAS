@@ -381,10 +381,10 @@ export default function Cheques() {
                                     <tr key={cheque.id} className={cn("hover:bg-slate-50 transition-colors", cheque.status === 'excluido' && "opacity-60 bg-slate-50/50")}>
                                         <td className="p-4">
                                             <div className="flex flex-col">
-                                                <span className={cn("font-bold", isPast(parseISO(cheque.data_vencimento)) && !isToday(parseISO(cheque.data_vencimento)) && cheque.status === 'em_maos' ? "text-red-600" : "text-slate-700")}>
-                                                    {format(parseISO(cheque.data_vencimento), 'dd/MM/yyyy')}
+                                                <span className={cn("font-bold", cheque.data_vencimento && isPast(parseISO(cheque.data_vencimento)) && !isToday(parseISO(cheque.data_vencimento)) && cheque.status === 'em_maos' ? "text-red-600" : "text-slate-700")}>
+                                                    {cheque.data_vencimento ? format(parseISO(cheque.data_vencimento), 'dd/MM/yyyy') : '-'}
                                                 </span>
-                                                <span className="text-xs text-slate-400">Emissão: {format(parseISO(cheque.data_emissao), 'dd/MM/yy')}</span>
+                                                <span className="text-xs text-slate-400">Emissão: {cheque.data_emissao ? format(parseISO(cheque.data_emissao), 'dd/MM/yy') : '-'}</span>
                                             </div>
                                         </td>
                                         <td className="p-4">
