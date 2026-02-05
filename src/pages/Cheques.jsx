@@ -5,7 +5,7 @@ import {
   LayoutGrid, List, Filter, Plus, Search, 
   ArrowUpRight, AlertCircle, CheckCircle2, Clock,
   MoreHorizontal, Wallet, User, ArrowRightLeft, MapPin, Building2, Banknote, Landmark,
-  RefreshCw, Trash2, AlertTriangle, CheckCircle, Loader2, Upload, FileText, ChevronRight, X as XIcon, CreditCard, DollarSign
+  RefreshCw, Trash2, AlertTriangle, CheckCircle, Loader2, Upload, FileText, ChevronRight, X as XIcon, CreditCard, DollarSign, CornerUpLeft
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,17 +18,17 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { format, isPast, isFuture, parseISO } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
+// Componentes Internos
 import ModalContainer from "@/components/modals/ModalContainer";
 import ChequeForm from "@/components/cheques/ChequeForm";
 import ChequeDetails from "@/components/cheques/ChequeDetails";
 import PermissionGuard from "@/components/PermissionGuard";
 import { usePermissions } from "@/components/hooks/usePermissions";
 
-// Importação dos Novos Componentes
+// Componentes Extraídos (Funcionalidades Específicas)
 import RegistrarDevolucaoModal from "@/components/cheques/Chequesdevolvidos";
 import ResolveDuplicatesModal from "@/components/cheques/Chequeduplicados";
 import ChequePagamentoModal from "@/components/cheques/Chequepagamentos";
@@ -39,44 +39,56 @@ export default function Cheques() {
   const queryClient = useQueryClient();
   const { canDo } = usePermissions();
   
+  // --- STATES VISUAIS ---
   const [viewMode, setViewMode] = useState('table');
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // NAVEGAÇÃO
+  // --- NAVEGAÇÃO (ABAS) ---
   const [mainTab, setMainTab] = useState('a_compensar');
   const [subTab, setSubTab] = useState('em_maos');
 
+  // --- FILTROS & SELEÇÃO ---
   const [filters, setFilters] = useState({ dataInicio: '', dataFim: '', banco: 'todos', valorMin: '', valorMax: '' });
-  const [showFormModal, setShowFormModal] = useState(false);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [selectedCheque, setSelectedCheque] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
 
-  // MODAIS ESPECIAIS
+  // --- MODAIS ---
+  const [showFormModal, setShowFormModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [showDevolucaoModal, setShowDevolucaoModal] = useState(false);
   const [showPagamentoModal, setShowPagamentoModal] = useState(false);
-  const [chequeParaPagamento, setChequeParaPagamento] = useState(null);
 
-  const [duplicateGroups, setDuplicateGroups] = useState({});
+  // --- DADOS TEMPORÁRIOS ---
+  const [selectedCheque, setSelectedCheque] = useState(null); // Para edição/detalhes
+  const [chequeParaPagamento, setChequeParaPagamento] = useState(null); // Para liquidação tardia
+  const [duplicateGroups, setDuplicateGroups] = useState({}); // Para duplicatas
+
+  // --- LOADING STATES ---
+  const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // --- QUERIES ---
   const { data: cheques = [], refetch } = useQuery({ queryKey: ['cheques'], queryFn: () => base44.entities.Cheque.list() });
   const { data: clientes = [] } = useQuery({ queryKey: ['clientes'], queryFn: () => base44.entities.Cliente.list() });
+  const { data: representantes = [] } = useQuery({ queryKey: ['representantes'], queryFn: () => base44.entities.Representante.list() });
 
+  // Mapa para acesso rápido a dados do cliente
   const mapClientes = useMemo(() => {
       const map = {};
       clientes.forEach(c => map[c.codigo] = c);
       return map;
   }, [clientes]);
 
-  // --- LÓGICA 1: DEVOLUÇÃO ---
+  // ============================================================================================
+  // LÓGICA 1: DEVOLUÇÃO (WIZARD)
+  // ============================================================================================
   const handleSaveDevolucao = async (payload) => {
     setIsProcessing(true);
     try {
         const { cheques_ids, detalhes_devolucao, pagamento } = payload;
         
+        // 1. Atualizar status dos cheques para 'devolvido'
         const updatePromises = cheques_ids.map(id => {
             const detalhe = detalhes_devolucao[id];
             return base44.entities.Cheque.update(id, {
@@ -84,52 +96,78 @@ export default function Cheques() {
                 motivo_devolucao: detalhe?.motivo || 'outros',
                 foto_devolucao: detalhe?.file || null,
                 data_devolucao: new Date().toISOString().split('T')[0],
+                // Se pagou agora, marca pago. Senão, fica pendente para pagar depois.
                 status_pagamento_devolucao: pagamento ? 'pago' : 'pendente'
             });
         });
         await Promise.all(updatePromises);
 
-        if (pagamento && pagamento.metodo === 'cheque_troca' && pagamento.novoCheque) {
-            await base44.entities.Cheque.create({
-                numero_cheque: pagamento.novoCheque.numero,
-                banco: pagamento.novoCheque.banco,
-                valor: parseFloat(pagamento.novoCheque.valor),
-                data_vencimento: pagamento.novoCheque.vencimento,
-                status: 'em_maos',
-                origem: 'troca_devolucao',
-                observacao: `Troca dos devolvidos: ${cheques_ids.join(', ')}`
+        // 2. Criar novos cheques de troca (se houver)
+        if (pagamento && pagamento.metodo === 'cheque_troca' && pagamento.novosCheques && pagamento.novosCheques.length > 0) {
+            const createChequePromises = pagamento.novosCheques.map(chequeData => {
+                if(!chequeData.numero || !chequeData.valor) return null;
+                return base44.entities.Cheque.create({
+                    numero_cheque: chequeData.numero,
+                    banco: chequeData.banco,
+                    agencia: chequeData.agencia,
+                    conta: chequeData.conta,
+                    valor: parseFloat(chequeData.valor),
+                    data_vencimento: chequeData.vencimento,
+                    titular: chequeData.emitente || 'Troca',
+                    status: 'em_maos', // Entra como novo cheque ativo
+                    origem: 'troca_devolucao',
+                    observacao: `Troca ref. devolução dos cheques: ${cheques_ids.join(', ')}`
+                });
             });
+            await Promise.all(createChequePromises.filter(Boolean));
         }
 
         await refetch();
         setShowDevolucaoModal(false);
-        toast.success("Devolução registrada!");
+        toast.success("Devolução registrada com sucesso!");
     } catch (e) {
-        toast.error("Erro ao registrar devolução.");
+        console.error(e);
+        toast.error("Erro ao registrar devolução: " + e.message);
     } finally {
         setIsProcessing(false);
     }
   };
 
-  // --- LÓGICA 2: DUPLICATAS ---
+  // ============================================================================================
+  // LÓGICA 2: DUPLICATAS
+  // ============================================================================================
   const handleCheckDuplicates = () => {
-    const groups = {};
-    const chequesAtivos = cheques.filter(c => c.status === 'normal' || c.status === 'repassado');
-    chequesAtivos.forEach(c => {
-      const num = c.numero_cheque ? String(c.numero_cheque).trim() : '';
-      const cc = c.conta ? String(c.conta).trim() : '';
-      const venc = c.data_vencimento ? c.data_vencimento.split('T')[0] : '';
-      const key = `${num}|${cc}|${venc}`;
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(c);
-    });
-    
-    const conflictGroups = {};
-    let count = 0;
-    Object.keys(groups).forEach(key => { if (groups[key].length > 1) { conflictGroups[key] = groups[key]; count++; } });
+    setIsCheckingDuplicates(true); // Feedback visual
+    setTimeout(() => {
+        const groups = {};
+        // Verifica apenas cheques ativos (Em Mãos ou Repassados)
+        const chequesAtivos = cheques.filter(c => c.status === 'normal' || c.status === 'repassado');
+        
+        chequesAtivos.forEach(c => {
+          const num = c.numero_cheque ? String(c.numero_cheque).trim() : '';
+          const cc = c.conta ? String(c.conta).trim() : '';
+          const venc = c.data_vencimento ? c.data_vencimento.split('T')[0] : '';
+          const tit = c.titular ? String(c.titular).trim().toLowerCase() : '';
+          
+          // Chave única composta
+          const key = `${num}|${cc}|${venc}|${tit}`;
+          if (!groups[key]) groups[key] = [];
+          groups[key].push(c);
+        });
+        
+        const conflictGroups = {};
+        let count = 0;
+        Object.keys(groups).forEach(key => { if (groups[key].length > 1) { conflictGroups[key] = groups[key]; count++; } });
 
-    if (count > 0) { setDuplicateGroups(conflictGroups); setShowDuplicateModal(true); toast.warning(`Encontradas ${count} duplicatas.`); }
-    else { toast.success("Nenhuma duplicata encontrada."); }
+        setIsCheckingDuplicates(false);
+        if (count > 0) { 
+            setDuplicateGroups(conflictGroups); 
+            setShowDuplicateModal(true); 
+            toast.warning(`Encontradas ${count} duplicatas.`); 
+        } else { 
+            toast.success("Varredura concluída! Nenhuma duplicata encontrada."); 
+        }
+    }, 1500);
   };
 
   const handleResolveDuplicates = async (idsToExclude) => {
@@ -139,10 +177,12 @@ export default function Cheques() {
       await refetch();
       setShowDuplicateModal(false);
       toast.success("Resolvido!");
-    } catch (e) { toast.error("Erro."); } finally { setIsProcessing(false); }
+    } catch (e) { toast.error("Erro ao resolver."); } finally { setIsProcessing(false); }
   };
 
-  // --- LÓGICA 3: PAGAMENTO POSTERIOR ---
+  // ============================================================================================
+  // LÓGICA 3: PAGAMENTO TARDIO (LIQUIDAÇÃO)
+  // ============================================================================================
   const handleOpenPagamento = (cheque) => {
       setChequeParaPagamento(cheque);
       setShowPagamentoModal(true);
@@ -151,20 +191,25 @@ export default function Cheques() {
   const handleSavePagamentoDevolvido = async (pagamento) => {
       setIsProcessing(true);
       try {
-          // Atualiza o cheque original como pago
+          // Atualiza o cheque original como pago e salva o representante responsável
           await base44.entities.Cheque.update(chequeParaPagamento.id, {
               status_pagamento_devolucao: 'pago',
               data_pagamento_devolucao: new Date().toISOString(),
-              comprovante_pagamento_devolucao: pagamento.comprovante
+              comprovante_pagamento_devolucao: pagamento.comprovante,
+              representante_responsavel: pagamento.representante, 
+              observacao: (chequeParaPagamento.observacao || '') + `\n[${new Date().toLocaleDateString()}] Devolução liquidada por: ${pagamento.representante || 'Escritório'}`
           });
 
-          // Se for troca, cria o novo
+          // Se for troca, cria o novo cheque COMPLETO
           if (pagamento.metodo === 'cheque_troca' && pagamento.novoCheque) {
               await base44.entities.Cheque.create({
                   numero_cheque: pagamento.novoCheque.numero,
                   banco: pagamento.novoCheque.banco,
+                  agencia: pagamento.novoCheque.agencia,
+                  conta: pagamento.novoCheque.conta,
                   valor: parseFloat(pagamento.novoCheque.valor),
                   data_vencimento: pagamento.novoCheque.vencimento,
+                  titular: pagamento.novoCheque.emitente || 'Troca',
                   status: 'em_maos',
                   origem: 'troca_devolucao_tardia',
                   observacao: `Regularização do cheque devolvido #${chequeParaPagamento.numero_cheque}`
@@ -173,15 +218,18 @@ export default function Cheques() {
 
           await refetch();
           setShowPagamentoModal(false);
-          toast.success("Pagamento registrado!");
+          toast.success("Pagamento registrado com sucesso!");
       } catch(e) {
           toast.error("Erro ao salvar pagamento.");
+          console.error(e);
       } finally {
           setIsProcessing(false);
       }
   };
 
-  // --- FILTROS DE TABELA ---
+  // ============================================================================================
+  // FILTROS E PROCESSAMENTO
+  // ============================================================================================
   const dadosProcessados = useMemo(() => {
     let lista = cheques;
     if (searchTerm) {
@@ -190,18 +238,25 @@ export default function Cheques() {
     }
     if (filters.banco !== 'todos') lista = lista.filter(c => c.banco === filters.banco);
     
+    // Categorização
     const emMaos = lista.filter(c => c.status === 'normal');
     const repassados = lista.filter(c => c.status === 'repassado' && (!c.data_vencimento || isFuture(parseISO(c.data_vencimento))));
-    const devolvidos = lista.filter(c => c.status === 'devolvido' || (c.status === 'pago' && c.motivo_devolucao));
+    const devolvidos = lista.filter(c => c.status === 'devolvido');
     const compensados = lista.filter(c => c.status === 'compensado');
     const excluidos = lista.filter(c => c.status === 'excluido');
 
+    // Filtro da Tabela Principal
     let listaFinal = [];
     if (mainTab === 'a_compensar') listaFinal = subTab === 'em_maos' ? emMaos : repassados;
-    else if (mainTab === 'devolvidos') listaFinal = devolvidos;
+    else if (mainTab === 'devolvidos') {
+        if (subTab === 'aqui') listaFinal = devolvidos.filter(c => !c.fornecedor_repassado_nome);
+        else if (subTab === 'nao_aqui') listaFinal = devolvidos.filter(c => !!c.fornecedor_repassado_nome);
+        else if (subTab === 'pagos') listaFinal = lista.filter(c => c.status === 'pago' || (c.status === 'devolvido' && c.status_pagamento_devolucao === 'pago'));
+    }
     else if (mainTab === 'compensados') listaFinal = compensados;
     else if (mainTab === 'excluidos') listaFinal = excluidos;
 
+    // Totais para KPIs
     const depJC = compensados.filter(c => c.destino_deposito === 'J&C ESQUADRIAS').reduce((a,c)=>a+c.valor,0);
     const depBIG = compensados.filter(c => c.destino_deposito === 'BIG METAIS').reduce((a,c)=>a+c.valor,0);
     const depOLIVER = compensados.filter(c => c.destino_deposito === 'OLIVER EXTRUSORA').reduce((a,c)=>a+c.valor,0);
@@ -216,7 +271,7 @@ export default function Cheques() {
             depJC, depBIG, depOLIVER, repassadosBaixadosVal,
             devolvidosAqui: devolvidos.filter(c => !c.fornecedor_repassado_nome).reduce((a,c)=>a+c.valor,0),
             devolvidosNaoAqui: devolvidos.filter(c => !!c.fornecedor_repassado_nome).reduce((a,c)=>a+c.valor,0),
-            devolvidosPagos: devolvidos.filter(c => c.status_pagamento_devolucao==='pago').reduce((a,c)=>a+c.valor,0)
+            devolvidosPagos: lista.filter(c => c.status_pagamento_devolucao==='pago').reduce((a,c)=>a+c.valor,0)
         } 
     };
   }, [cheques, searchTerm, filters, mainTab, subTab]);
@@ -252,18 +307,19 @@ export default function Cheques() {
               </div>
               <div className="h-8 w-px bg-slate-200 mx-2 hidden sm:block" />
               <div className="flex gap-2">
-                  {/* BOTÕES DE AÇÃO */}
+                  {/* BOTÃO DEVOLUÇÃO */}
                   {canDo('Cheques', 'editar') && (
-                      <Button onClick={() => setShowDevolucaoModal(true)} className="gap-2 border-red-200 text-red-700 bg-white hover:bg-red-50 shadow-sm border">
+                      <Button onClick={() => setShowDevolucaoModal(true)} className="gap-2 border-red-200 text-red-700 bg-white hover:bg-red-50 shadow-sm border transition-all hover:shadow-md">
                           <AlertTriangle className="w-4 h-4" /> Devolução
                       </Button>
                   )}
+                  {/* BOTÃO DUPLICATAS */}
                   {canDo('Cheques', 'editar') && (
-                      <Button variant="outline" onClick={handleCheckDuplicates} className="gap-2 bg-white border-amber-200 text-amber-700 hover:bg-amber-50">
-                          <RefreshCw className="w-4 h-4" /> Verificar Duplicatas
+                      <Button variant="outline" onClick={handleCheckDuplicates} disabled={isCheckingDuplicates} className="gap-2 bg-white border-amber-200 text-amber-700 hover:bg-amber-50 min-w-[170px]">
+                          {isCheckingDuplicates ? <><Loader2 className="w-4 h-4 animate-spin" /> Varrendo...</> : <><RefreshCw className="w-4 h-4" /> Verificar Duplicatas</>}
                       </Button>
                   )}
-                  <Button onClick={handleNew} className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"><Plus className="w-4 h-4" /> Novo</Button>
+                  <Button onClick={handleNew} className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200"><Plus className="w-4 h-4" /> Novo</Button>
               </div>
             </div>
           </div>
@@ -283,10 +339,6 @@ export default function Cheques() {
               <div className="flex flex-wrap gap-2 w-full lg:w-auto">
                   <div className="relative flex-1 lg:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><Input placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9"/></div>
                   <Button variant={showFilters ? "secondary" : "outline"} size="icon" onClick={() => setShowFilters(!showFilters)}><Filter className="w-4 h-4" /></Button>
-                  <div className="bg-slate-100 p-1 rounded-lg flex border border-slate-200 shrink-0">
-                      <Button variant="ghost" size="icon" onClick={() => setViewMode('table')} className={cn("h-8 w-8 rounded-md", viewMode === 'table' ? "bg-white shadow-sm" : "text-slate-500")}><List className="w-4 h-4" /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => setViewMode('grid')} className={cn("h-8 w-8 rounded-md", viewMode === 'grid' ? "bg-white shadow-sm" : "text-slate-500")}><LayoutGrid className="w-4 h-4" /></Button>
-                  </div>
               </div>
           </div>
 
@@ -303,7 +355,7 @@ export default function Cheques() {
               )}
           </AnimatePresence>
 
-          {/* SUB-ABAS RESTAURADAS */}
+          {/* SUB-ABAS DE NAVEGAÇÃO */}
           <div className="flex gap-2 mb-4 overflow-x-auto pb-2 animate-in fade-in slide-in-from-left-2">
               {mainTab === 'a_compensar' && (
                   <>
@@ -365,12 +417,20 @@ export default function Cheques() {
                                       </TableCell>
                                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                                           <div className="flex justify-end gap-1">
-                                              {/* AÇÃO REGULARIZAR (PARA DEVOLVIDOS PENDENTES) */}
+                                              
+                                              {/* BOTÃO LIQUIDAR (NOVO) - APENAS PARA DEVOLVIDOS PENDENTES */}
                                               {cheque.status === 'devolvido' && cheque.status_pagamento_devolucao !== 'pago' && (
-                                                  <Button variant="ghost" size="icon" onClick={() => handleOpenPagamento(cheque)} title="Regularizar Pagamento">
-                                                      <DollarSign className="w-4 h-4 text-emerald-600" />
+                                                  <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    onClick={() => handleOpenPagamento(cheque)} 
+                                                    title="Liquidar Devolução Pendente"
+                                                    className="hover:bg-emerald-50 text-emerald-600"
+                                                  >
+                                                      <DollarSign className="w-4 h-4" />
                                                   </Button>
                                               )}
+
                                               {mainTab === 'excluidos' ? (
                                                   <Button variant="ghost" size="icon" onClick={() => handleRestore(cheque.id)} title="Restaurar"><RefreshCw className="w-4 h-4 text-emerald-600"/></Button>
                                               ) : (
@@ -387,7 +447,8 @@ export default function Cheques() {
           </div>
         </div>
 
-        {/* MODAIS */}
+        {/* --- ÁREA DE MODAIS --- */}
+        
         <ModalContainer open={showFormModal} onClose={() => setShowFormModal(false)} title={selectedCheque ? "Editar Cheque" : "Novo Cheque"}>
           <ChequeForm cheque={selectedCheque} clientes={clientes} onSave={() => { setShowFormModal(false); refetch(); }} onCancel={() => setShowFormModal(false)} />
         </ModalContainer>
@@ -404,20 +465,21 @@ export default function Cheques() {
             onSave={handleSaveDevolucao}
         />
 
-        <Dialog open={showDuplicateModal} onOpenChange={setShowDuplicateModal}>
-          <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-6">
-            <DialogHeader><DialogTitle>Resolver Duplicatas</DialogTitle><DialogDescription>Selecione o cheque correto.</DialogDescription></DialogHeader>
-            <ResolveDuplicatesModal duplicateGroups={duplicateGroups} onResolve={handleResolveDuplicates} onCancel={() => setShowDuplicateModal(false)} isProcessing={isProcessing} />
-          </DialogContent>
-        </Dialog>
-
         <ChequePagamentoModal 
             isOpen={showPagamentoModal}
             onClose={() => setShowPagamentoModal(false)}
             cheque={chequeParaPagamento}
             onSave={handleSavePagamentoDevolvido}
             isProcessing={isProcessing}
+            representantes={representantes} // Passando lista de representantes
         />
+
+        <Dialog open={showDuplicateModal} onOpenChange={setShowDuplicateModal}>
+          <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-6">
+            <DialogHeader><DialogTitle>Resolver Duplicatas</DialogTitle><DialogDescription>Selecione o cheque correto.</DialogDescription></DialogHeader>
+            <ResolveDuplicatesModal duplicateGroups={duplicateGroups} onResolve={handleResolveDuplicates} onCancel={() => setShowDuplicateModal(false)} isProcessing={isProcessing} />
+          </DialogContent>
+        </Dialog>
 
       </div>
     </PermissionGuard>
