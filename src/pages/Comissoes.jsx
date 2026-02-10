@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from '@/api/base44Client';
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button"; 
-import { Wallet, Users, Calendar, DollarSign, FileText, Search, ArrowRight, Download } from "lucide-react";
+import { Wallet, Users, Calendar, DollarSign, FileText, Search, ArrowRight, Download, Loader2 } from "lucide-react";
 import PermissionGuard from "@/components/PermissionGuard";
 import ModalContainer from "@/components/modals/ModalContainer";
 import ComissaoDetalhes from "@/components/comissoes/ComissaoDetalhes";
@@ -15,7 +15,6 @@ import { toast } from 'sonner';
 
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
-// --- CARD REPRESENTANTE (MANTIDO) ---
 const RepresentanteCard = ({ rep, onClick }) => {
   const statusColor = rep.status === 'fechado' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-amber-100 text-amber-700 border-amber-200';
   return (
@@ -29,7 +28,7 @@ const RepresentanteCard = ({ rep, onClick }) => {
         <div className="bg-slate-50 p-2 rounded-lg border border-slate-100"><p className="text-slate-500 text-xs uppercase font-bold">A Pagar</p><p className="text-emerald-600 font-bold text-lg">{formatCurrency(rep.saldoAPagar)}</p></div>
       </div>
       <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center text-xs text-slate-500">
-        <span>{rep.pedidos.length} pedidos elegíveis</span>
+        <span>{rep.pedidos.length} pedidos vinculados</span>
         <span className="group-hover:translate-x-1 transition-transform flex items-center text-blue-600 font-medium">Ver Detalhes <ArrowRight className="w-3 h-3 ml-1" /></span>
       </div>
     </div>
@@ -47,67 +46,60 @@ export default function Comissoes() {
   // Queries
   const { data: pedidos = [] } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list() });
   const { data: representantes = [] } = useQuery({ queryKey: ['representantes'], queryFn: () => base44.entities.Representante.list() });
-  // Carrega TODOS os controles para saber quem sequestrou quem
   const { data: controles = [] } = useQuery({ queryKey: ['comissaoControle'], queryFn: () => base44.entities.ComissaoControle.list() });
 
-  // --- LÓGICA MESTRA DE CÁLCULO ---
+  // --- LÓGICA MESTRA (O IMÃ) ---
   const comissoesPorRepresentante = useMemo(() => {
     const [ano, mes] = mesAnoSelecionado.split('-').map(Number);
     const inicioMes = startOfMonth(new Date(ano, mes - 1));
     const fimMes = endOfMonth(new Date(ano, mes - 1));
     
-    // 1. MAPA DE PEDIDOS SEQUESTRADOS (CRUCIAL)
-    // Identifica pedidos que estão salvos em rascunhos de OUTROS meses
-    const pedidosEmOutrosMeses = {}; // { pedidoId: '2026-02' }
+    // 1. MAPA DE "SEQUESTROS"
+    // Descobre onde cada pedido está "preso" (em qual rascunho de mês ele está)
+    const mapaPedidoParaMes = {}; // { idPedido: '2026-02' }
     
     controles.forEach(c => {
-        if (c.status === 'aberto' && c.referencia !== mesAnoSelecionado && c.pedidos_ajustados) {
+        // Só consideramos rascunhos ABERTOS como "imãs ativos"
+        // Se estiver FECHADO, o pedido já deve ter 'comissao_paga=true' e nem aparece aqui
+        if (c.status === 'aberto' && c.pedidos_ajustados) {
             c.pedidos_ajustados.forEach(p => {
-                pedidosEmOutrosMeses[String(p.pedido_id)] = c.referencia;
+                mapaPedidoParaMes[String(p.pedido_id)] = c.referencia;
             });
         }
     });
 
-    // 2. Controle do Mês Atual
     const controlesDoMesAtual = controles.filter(c => c.referencia === mesAnoSelecionado);
 
-    // 3. Filtragem Inteligente dos Pedidos
-    const pedidosElegiveis = pedidos.filter(p => {
+    // 2. FILTRAGEM UNIFICADA
+    const pedidosDesteMes = pedidos.filter(p => {
         const idStr = String(p.id);
 
-        // A. Se já foi pago (finalizado) em definitivo:
+        // A. Se já pago (Finalizado Definitivo)
         if (p.comissao_paga === true) {
-            // Só mostra se pertence a este mês de referência
             return p.comissao_referencia_paga === mesAnoSelecionado;
         }
 
-        // B. Se não está pago (Status Pedido) e não é comissão paga
+        // B. Se não pago (Status do Pedido)
         if (p.status !== 'pago') return false;
 
-        // C. VERIFICAÇÃO DE SEQUESTRO (Lógica do "Move Automaticamente")
-        
-        // Se este pedido está salvo no rascunho DESTE mês, ele entra (forçado)
-        const estaNoRascunhoDesteMes = controlesDoMesAtual.some(c => 
-            c.representante_codigo === p.representante_codigo && 
-            c.pedidos_ajustados?.some(aj => String(aj.pedido_id) === idStr)
-        );
-        if (estaNoRascunhoDesteMes) return true; // Prioridade total para o rascunho atual
+        // C. REGRA DO IMÃ (Prioridade Máxima)
+        if (mapaPedidoParaMes[idStr]) {
+            // Se está mapeado para ESTE mês selecionado, mostra aqui.
+            // Se está mapeado para OUTRO mês, esconde daqui (foi roubado).
+            return mapaPedidoParaMes[idStr] === mesAnoSelecionado;
+        }
 
-        // Se este pedido está salvo no rascunho de OUTRO mês, ele sai daqui
-        if (pedidosEmOutrosMeses[idStr]) return false; // Está sequestrado por outro mês
-
-        // D. Se não está em nenhum rascunho, usa a DATA NATURAL (Gravity Fallback)
-        // Se eu remover de Janeiro, ele cai aqui e volta pra Fevereiro se a data for Fev.
+        // D. REGRA DA GRAVIDADE (Data Natural)
+        // Se não está em nenhum mapa (ninguém puxou), ele cai no mês da data dele.
         const dataRef = p.data_referencia_comissao ? new Date(p.data_referencia_comissao) : (p.data_pagamento ? new Date(p.data_pagamento) : null);
         if (!dataRef) return false;
         
         return dataRef >= inicioMes && dataRef <= fimMes;
     });
 
-    // 4. Agrupamento (Mantido igual, apenas processando a lista filtrada acima)
+    // 3. AGRUPAMENTO
     const agrupado = {};
 
-    // Função auxiliar para inicializar representante
     const getRepAgrupado = (repCodigo, dadosExtra = {}) => {
         if (!agrupado[repCodigo]) {
             const repOriginal = representantes.find(r => r.codigo === repCodigo);
@@ -132,14 +124,17 @@ export default function Comissoes() {
         return agrupado[repCodigo];
     };
 
-    // Processa a lista final
-    pedidosElegiveis.forEach(pedido => {
+    pedidosDesteMes.forEach(pedido => {
         const repData = getRepAgrupado(pedido.representante_codigo, { nome: pedido.representante_nome });
         
-        // Determina % (Salva > Pedido > Padrão)
+        // Define Percentual: 1. Do Rascunho > 2. Do Pedido > 3. Padrão
         let percentual = pedido.porcentagem_comissao || repData.porcentagem_padrao;
-        const ajusteSalvo = repData.pedidos_ajustados?.find(a => String(a.pedido_id) === String(pedido.id));
-        if (ajusteSalvo) percentual = ajusteSalvo.percentual;
+        
+        // Se existe no rascunho deste mês, usa a % salva
+        if (mapaPedidoParaMes[String(pedido.id)] === mesAnoSelecionado) {
+             const ajuste = repData.pedidos_ajustados?.find(a => String(a.pedido_id) === String(pedido.id));
+             if (ajuste) percentual = ajuste.percentual;
+        }
 
         const valorBase = parseFloat(pedido.total_pago) || 0;
         const valorComissao = (valorBase * percentual) / 100;
@@ -155,7 +150,6 @@ export default function Comissoes() {
         repData.totalComissoes += valorComissao;
     });
 
-    // Saldo Final
     Object.values(agrupado).forEach(rep => {
       rep.saldoAPagar = rep.totalComissoes - rep.vales - rep.outrosDescontos;
     });
@@ -230,12 +224,20 @@ export default function Comissoes() {
         <ModalContainer open={showDetalhes} onClose={() => { setShowDetalhes(false); setRepresentanteSelecionado(null); }} title={`Detalhes - ${representanteSelecionado?.nome || ''}`} description={`Fechamento de ${mesesDisponiveis.find(m => m.value === mesAnoSelecionado)?.label}`} size="xl">
           {representanteSelecionado && (
             <ComissaoDetalhes 
-              key={representanteSelecionado.codigo + mesAnoSelecionado} 
+              key={representanteSelecionado.codigo + mesAnoSelecionado + controles.length} // Force render on data change
               representante={representanteSelecionado}
               mesAno={mesAnoSelecionado}
               pedidosTodos={pedidos}
-              controles={controles} // IMPORTANTE: Passando controles para verificar "sequestros"
-              onClose={() => { setShowDetalhes(false); setRepresentanteSelecionado(null); queryClient.invalidateQueries(['comissaoControle']); }}
+              controles={controles} // Passa TODOS os controles para verificar sequestro
+              onClose={() => { 
+                  setShowDetalhes(false); 
+                  setRepresentanteSelecionado(null); 
+              }}
+              // Função de Callback para forçar o React Query a atualizar tudo
+              onSuccessSave={() => {
+                  queryClient.invalidateQueries(['comissaoControle']);
+                  queryClient.invalidateQueries(['pedidos']);
+              }}
             />
           )}
         </ModalContainer>
