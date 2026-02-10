@@ -9,14 +9,12 @@ import { Wallet, Users, Calendar, DollarSign, FileText, Search, ArrowRight, Down
 import PermissionGuard from "@/components/PermissionGuard";
 import ModalContainer from "@/components/modals/ModalContainer";
 import ComissaoDetalhes from "@/components/comissoes/ComissaoDetalhes";
-// IMPORTANTE: Adicionei subMonths aqui
-import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
-// ... (Componente RepresentanteCard mantém igual) ...
 const RepresentanteCard = ({ rep, onClick }) => {
   const statusColor = rep.status === 'fechado' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-amber-100 text-amber-700 border-amber-200';
   return (
@@ -39,98 +37,139 @@ const RepresentanteCard = ({ rep, onClick }) => {
 
 export default function Comissoes() {
   const queryClient = useQueryClient();
-  
-  // --- LÓGICA DE DATA CORRIGIDA (REGRA DO DIA 10) ---
-  const [mesAnoSelecionado, setMesAnoSelecionado] = useState(() => {
-      const hoje = new Date();
-      // Se hoje for dia 10 ou menos, seleciona o mês passado. Senão, mês atual.
-      if (hoje.getDate() <= 10) {
-          return format(subMonths(hoje, 1), 'yyyy-MM');
-      }
-      return format(hoje, 'yyyy-MM');
-  });
-
+  const hoje = new Date();
+  const [mesAnoSelecionado, setMesAnoSelecionado] = useState(format(hoje, 'yyyy-MM'));
   const [representanteSelecionado, setRepresentanteSelecionado] = useState(null);
   const [showDetalhes, setShowDetalhes] = useState(false);
   const [buscaRepresentante, setBuscaRepresentante] = useState('');
 
-  // ... (RESTO DO CÓDIGO PERMANECE IDÊNTICO AO ANTERIOR) ...
-  // ... Queries, useMemo de cálculo, renderização ...
-  // Vou omitir para não ficar gigante, mas é só manter a lógica de cálculo que te passei na resposta anterior.
-  
-  // Apenas garantindo que o resto do código use 'mesAnoSelecionado' que agora inicia correto.
-  
+  // Queries
   const { data: pedidos = [] } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list() });
   const { data: representantes = [] } = useQuery({ queryKey: ['representantes'], queryFn: () => base44.entities.Representante.list() });
   const { data: controles = [] } = useQuery({ queryKey: ['comissaoControle'], queryFn: () => base44.entities.ComissaoControle.list() });
 
-  // ... (Copie a lógica do comissoesPorRepresentante da resposta anterior aqui) ...
+  // --- LÓGICA MESTRA ---
   const comissoesPorRepresentante = useMemo(() => {
     const [ano, mes] = mesAnoSelecionado.split('-').map(Number);
     const inicioMes = startOfMonth(new Date(ano, mes - 1));
     const fimMes = endOfMonth(new Date(ano, mes - 1));
     
-    // ... (mesma lógica de Imã + Gravidade que já validamos) ...
-    // Só estou abreviando aqui, use o código completo da resposta anterior para este bloco
+    // 1. MAPA DE "SEQUESTROS" (Pedidos em rascunhos de outros meses)
     const mapaPedidoParaMes = {}; 
     controles.forEach(c => {
         if (c.status === 'aberto' && c.pedidos_ajustados) {
-            c.pedidos_ajustados.forEach(p => { mapaPedidoParaMes[String(p.pedido_id)] = c.referencia; });
+            c.pedidos_ajustados.forEach(p => {
+                mapaPedidoParaMes[String(p.pedido_id)] = c.referencia;
+            });
         }
     });
+
     const controlesDoMesAtual = controles.filter(c => c.referencia === mesAnoSelecionado);
+
+    // 2. FILTRAGEM UNIFICADA (Imã + Gravidade)
     const pedidosDesteMes = pedidos.filter(p => {
         const idStr = String(p.id);
         if (p.comissao_paga === true) return p.comissao_referencia_paga === mesAnoSelecionado;
         if (p.status !== 'pago') return false;
+
+        // Regra do Imã
         if (mapaPedidoParaMes[idStr]) return mapaPedidoParaMes[idStr] === mesAnoSelecionado;
+
+        // Regra da Gravidade (Data Natural)
         const dataRef = p.data_referencia_comissao ? new Date(p.data_referencia_comissao) : (p.data_pagamento ? new Date(p.data_pagamento) : null);
         if (!dataRef) return false;
+        
         return dataRef >= inicioMes && dataRef <= fimMes;
     });
+
     const agrupado = {};
+
+    // 3. INICIALIZAÇÃO OBRIGATÓRIA DE TODOS OS REPRESENTANTES
+    // Garante que todos apareçam, mesmo com 0 vendas
     representantes.forEach(rep => {
         const controle = controlesDoMesAtual.find(c => c.representante_codigo === rep.codigo);
         agrupado[rep.codigo] = {
-            codigo: rep.codigo, nome: rep.nome, chave_pix: rep.chave_pix || '', porcentagem_padrao: rep.porcentagem_comissao || 5,
-            pedidos: [], totalVendas: 0, totalComissoes: 0,
-            vales: controle ? controle.vales : 0, outrosDescontos: controle ? controle.outros_descontos : 0, observacoes: controle ? controle.observacao : '',
-            status: controle ? controle.status : 'aberto', controleId: controle?.id, pedidos_ajustados: controle?.pedidos_ajustados || []
+            codigo: rep.codigo,
+            nome: rep.nome,
+            chave_pix: rep.chave_pix || '',
+            porcentagem_padrao: rep.porcentagem_comissao || 5,
+            pedidos: [],
+            totalVendas: 0,
+            totalComissoes: 0,
+            vales: controle ? controle.vales : 0,
+            outrosDescontos: controle ? controle.outros_descontos : 0,
+            observacoes: controle ? controle.observacao : '',
+            status: controle ? controle.status : 'aberto',
+            controleId: controle?.id,
+            pedidos_ajustados: controle?.pedidos_ajustados || []
         };
     });
+
+    // Função auxiliar (Atualizada para não sobrescrever, apenas buscar)
     const getRepAgrupado = (repCodigo, dadosExtra = {}) => {
         if (!agrupado[repCodigo]) {
+            // Caso raro: Representante no pedido mas excluído do cadastro ou código diferente
+            // Cria entrada "on the fly" se não foi inicializado acima
             const controle = controlesDoMesAtual.find(c => c.representante_codigo === repCodigo);
             agrupado[repCodigo] = {
-                codigo: repCodigo, nome: dadosExtra.nome || 'Desconhecido', chave_pix: '', porcentagem_padrao: 5,
-                pedidos: [], totalVendas: 0, totalComissoes: 0,
-                vales: controle ? controle.vales : 0, outrosDescontos: controle ? controle.outros_descontos : 0, observacoes: controle ? controle.observacao : '',
-                status: controle ? controle.status : 'aberto', controleId: controle?.id, pedidos_ajustados: controle?.pedidos_ajustados || []
+                codigo: repCodigo,
+                nome: dadosExtra.nome || 'Desconhecido',
+                chave_pix: '',
+                porcentagem_padrao: 5,
+                pedidos: [],
+                totalVendas: 0,
+                totalComissoes: 0,
+                vales: controle ? controle.vales : 0,
+                outrosDescontos: controle ? controle.outros_descontos : 0,
+                observacoes: controle ? controle.observacao : '',
+                status: controle ? controle.status : 'aberto',
+                controleId: controle?.id,
+                pedidos_ajustados: controle?.pedidos_ajustados || []
             };
         }
         return agrupado[repCodigo];
     };
+
+    // 4. DISTRIBUIÇÃO DOS PEDIDOS
     pedidosDesteMes.forEach(pedido => {
         const repData = getRepAgrupado(pedido.representante_codigo, { nome: pedido.representante_nome });
+        
         let percentual = pedido.porcentagem_comissao || repData.porcentagem_padrao;
         if (mapaPedidoParaMes[String(pedido.id)] === mesAnoSelecionado) {
              const ajuste = repData.pedidos_ajustados?.find(a => String(a.pedido_id) === String(pedido.id));
              if (ajuste) percentual = ajuste.percentual;
         }
+
         const valorBase = parseFloat(pedido.total_pago) || 0;
         const valorComissao = (valorBase * percentual) / 100;
-        repData.pedidos.push({ ...pedido, valorBaseComissao: valorBase, percentualComissao: percentual, valorComissao });
+
+        repData.pedidos.push({
+            ...pedido,
+            valorBaseComissao: valorBase,
+            percentualComissao: percentual,
+            valorComissao
+        });
+
         repData.totalVendas += valorBase;
         repData.totalComissoes += valorComissao;
     });
-    Object.values(agrupado).forEach(rep => { rep.saldoAPagar = rep.totalComissoes - rep.vales - rep.outrosDescontos; });
+
+    // 5. CÁLCULO FINAL DE SALDO
+    Object.values(agrupado).forEach(rep => {
+      rep.saldoAPagar = rep.totalComissoes - rep.vales - rep.outrosDescontos;
+    });
+
     return Object.values(agrupado);
   }, [pedidos, mesAnoSelecionado, representantes, controles]);
 
   const handleGerarRelatorioGeral = async () => {
     try {
       toast.loading('Gerando relatório...');
-      const response = await base44.functions.invoke('gerarRelatorioComissoes', { tipo: 'geral', mes_ano: mesAnoSelecionado, representantes: comissoesPorRepresentante });
+      const response = await base44.functions.invoke('gerarRelatorioComissoes', {
+        tipo: 'geral',
+        mes_ano: mesAnoSelecionado,
+        representantes: comissoesPorRepresentante
+      });
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = `Comissoes-Geral-${mesAnoSelecionado}.pdf`; document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url); a.remove();
