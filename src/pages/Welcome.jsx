@@ -80,9 +80,14 @@ export default function Welcome() {
         className="text-center z-10 mb-8 relative"
       >
         <img 
-          src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/fa98a5f2b_LOGOJCFUNDOTRANSPARENTE-Copia.png"
+          src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/d0ec91d59_Gemini_Generated_Image_9b7i6p9b7i6p9b7i.png"
+          alt="J&C Vision"
+          className="w-48 md:w-64 h-auto mx-auto mb-4 drop-shadow-2xl"
+        />
+        <img 
+          src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/936ba5dbe_logo_JCEsquadrias.png"
           alt="J&C Esquadrias"
-          className="w-48 md:w-64 h-auto mx-auto mb-6 drop-shadow-2xl"
+          className="w-40 md:w-48 h-auto mx-auto mb-6 drop-shadow-2xl"
         />
         
         <h1 className="text-white text-3xl md:text-4xl font-extrabold tracking-tight drop-shadow-lg">
