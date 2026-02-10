@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
-  DollarSign, Save, Lock, Trash2, Download, RefreshCw, Plus, Search, AlertCircle, X 
+  DollarSign, Save, Lock, Trash2, Download, RefreshCw, Plus, Search, AlertTriangle, X
 } from "lucide-react";
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -14,6 +14,7 @@ import { base44 } from '@/api/base44Client';
 import ModalContainer from "@/components/modals/ModalContainer";
 
 export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, onClose }) {
+  // Estado local dos dados
   const [pedidosEditaveis, setPedidosEditaveis] = useState(representante.pedidos || []);
   const [vales, setVales] = useState(representante.vales || 0);
   const [outrosDescontos, setOutrosDescontos] = useState(representante.outrosDescontos || 0);
@@ -22,7 +23,10 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
   const [isFechado, setIsFechado] = useState(representante.status === 'fechado');
   const [loading, setLoading] = useState(false);
   
-  // Estado para o modal de adicionar (Antecipação)
+  // Estado para controle de ID (para saber se cria ou atualiza o rascunho)
+  const [controleId, setControleId] = useState(representante.controleId);
+
+  // Modal de Adicionar
   const [showAddModal, setShowAddModal] = useState(false);
   const [buscaPedidoAdd, setBuscaPedidoAdd] = useState('');
 
@@ -30,36 +34,32 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
 
   // Totais em tempo real
   const totais = useMemo(() => {
-    const totalVendas = pedidosEditaveis.reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
-    const totalComissoes = pedidosEditaveis.reduce((sum, p) => sum + (p.valorComissao || 0), 0);
+    const totalVendas = pedidosEditaveis.reduce((sum, p) => sum + (parseFloat(p.valor_pedido) || 0), 0);
+    const totalComissoes = pedidosEditaveis.reduce((sum, p) => sum + (parseFloat(p.valorComissao) || 0), 0);
     const saldoFinal = totalComissoes - parseFloat(vales || 0) - parseFloat(outrosDescontos || 0);
     return { totalVendas, totalComissoes, saldoFinal };
   }, [pedidosEditaveis, vales, outrosDescontos]);
 
-  // --- LÓGICA CORRIGIDA: BUSCAR PEDIDOS DISPONÍVEIS ---
+  // --- LÓGICA CORRIGIDA: PEDIDOS DISPONÍVEIS (ANTECIPAÇÃO) ---
   const pedidosDisponiveisParaAdicao = useMemo(() => {
       if (!pedidosTodos) return [];
       
-      // Código do representante atual (convertido para string para segurança)
-      const repCodigoAtual = String(representante.codigo);
+      const repCodigoAtual = String(representante.rep.codigo);
 
       return pedidosTodos.filter(p => {
-          // 1. Deve pertencer ao representante
+          // 1. Filtro Básico: Mesmo representante e estar PAGO
           if (String(p.representante_codigo) !== repCodigoAtual) return false;
-
-          // 2. Deve estar PAGO (Regra de ouro: Só paga comissão se recebeu)
           if (p.status !== 'pago') return false;
 
-          // 3. A comissão NÃO pode ter sido paga ainda
-          // Verifica se é false, null ou undefined
+          // 2. REGRA DE OURO: A comissão não pode ter sido paga ainda
+          // Verifica explicitamente se é true. Se for false, null ou undefined, pode pagar.
           if (p.comissao_paga === true) return false;
 
-          // 4. Não pode estar na lista que já estamos editando agora
-          // (Evita adicionar o mesmo pedido duas vezes na tela)
+          // 3. Não pode estar na lista que já estamos vendo agora (evita duplicação visual)
           const jaNaLista = pedidosEditaveis.some(pe => pe.id === p.id);
           if (jaNaLista) return false;
 
-          // 5. Filtro de busca do modal
+          // 4. Filtro de Texto (Busca no Modal)
           if (buscaPedidoAdd) {
               const termo = buscaPedidoAdd.toLowerCase();
               return (
@@ -72,7 +72,7 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
       });
   }, [pedidosTodos, representante, pedidosEditaveis, buscaPedidoAdd]);
 
-  // --- FUNÇÕES DE MANIPULAÇÃO ---
+  // --- HANDLERS ---
 
   const handleEditarPercentual = (pedidoId, novoPercentual) => {
     setPedidosEditaveis(prev => prev.map(p => {
@@ -94,16 +94,15 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
           percentualComissao: pct,
           valorComissao: (p.valor_pedido * pct) / 100
       })));
-      toast.success(`Todos os pedidos atualizados para ${pct}%`);
+      toast.success(`Aplicado ${pct}% em todos os pedidos.`);
   };
 
   const handleRemoverPedido = (pedidoId) => {
       setPedidosEditaveis(prev => prev.filter(p => p.id !== pedidoId));
-      toast.info("Pedido removido desta lista (mas continua no sistema).");
   };
 
   const handleAdicionarPedidoManual = (pedido) => {
-      const percentual = pedido.porcentagem_comissao || 5;
+      const percentual = pedido.porcentagem_comissao || representante.rep.porcentagem_padrao || 5;
       const novoItem = {
           ...pedido,
           percentualComissao: percentual,
@@ -115,8 +114,7 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
       toast.success(`Pedido #${pedido.numero_pedido} adicionado!`);
   };
 
-  // --- FINALIZAÇÃO E SALVAMENTO ---
-
+  // --- SALVAR RASCUNHO ---
   const handleSaveDraft = async () => {
       setLoading(true);
       try {
@@ -127,42 +125,52 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
 
           const payload = {
               referencia: mesAno,
-              representante_codigo: representante.codigo,
-              representante_nome: representante.nome,
+              representante_codigo: String(representante.rep.codigo),
+              representante_nome: representante.rep.nome,
               vales: parseFloat(vales),
               outros_descontos: parseFloat(outrosDescontos),
               observacao: observacoes,
               pedidos_ajustados: pedidosAjustados,
-              status: 'aberto'
+              status: 'aberto',
+              total_pago: totais.saldoFinal
           };
 
-          if (representante.controleId) {
-              await base44.entities.ComissaoControle.update(representante.controleId, payload);
+          if (controleId) {
+              await base44.entities.ComissaoControle.update(controleId, payload);
+              toast.success("Alterações salvas no rascunho!");
           } else {
-              await base44.entities.ComissaoControle.create(payload);
+              const novo = await base44.entities.ComissaoControle.create(payload);
+              setControleId(novo.id); // Atualiza ID para próximos saves
+              toast.success("Rascunho criado com sucesso!");
           }
-          
-          toast.success("Rascunho salvo!");
       } catch (error) {
-          toast.error("Erro ao salvar.");
+          console.error(error);
+          toast.error("Erro ao salvar: " + error.message);
       } finally {
           setLoading(false);
       }
   };
 
+  // --- FINALIZAR ---
   const handleFinalize = async () => {
-      if (!confirm("Tem certeza? Ao finalizar, os pedidos serão marcados como PAGOS e não aparecerão nos próximos meses.")) return;
-      setLoading(true);
+      // Trava de PIX
+      if (!representante.rep.chave_pix) {
+          toast.error("Impossível finalizar: Representante sem Chave PIX cadastrada.");
+          return;
+      }
+
+      if (!confirm("Deseja realmente finalizar? Isso gerará o Contas a Pagar e bloqueará edições.")) return;
       
+      setLoading(true);
       try {
           const dataHoje = new Date().toISOString();
 
-          // 1. Salvar ou Atualizar o Controle de Comissão (Histórico)
+          // 1. Salva o controle como FECHADO
           const pedidosData = pedidosEditaveis.map(p => ({ pedido_id: p.id, percentual: p.percentualComissao }));
-          const payloadControle = {
+          const payload = {
               referencia: mesAno,
-              representante_codigo: representante.codigo,
-              representante_nome: representante.nome,
+              representante_codigo: String(representante.rep.codigo),
+              representante_nome: representante.rep.nome,
               vales: parseFloat(vales),
               outros_descontos: parseFloat(outrosDescontos),
               observacao: observacoes,
@@ -172,23 +180,21 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
               total_pago: totais.saldoFinal
           };
 
-          let fechamentoId = representante.controleId;
-          if (fechamentoId) {
-              await base44.entities.ComissaoControle.update(fechamentoId, payloadControle);
+          let idFinal = controleId;
+          if (idFinal) {
+              await base44.entities.ComissaoControle.update(idFinal, payload);
           } else {
-              const novo = await base44.entities.ComissaoControle.create(payloadControle);
-              fechamentoId = novo.id;
+              const novo = await base44.entities.ComissaoControle.create(payload);
+              idFinal = novo.id;
           }
 
-          // 2. ATUALIZAR OS PEDIDOS (TRAVA DE SEGURANÇA)
-          // Isso impede que eles apareçam em fevereiro, março, etc.
+          // 2. Atualiza Pedidos (Trava para não pagar de novo)
+          // Define comissao_paga = true e vincula ao ID do fechamento
           const updatePromises = pedidosEditaveis.map(p => 
              base44.entities.Pedido.update(p.id, { 
                  comissao_paga: true,
-                 comissao_fechamento_id: fechamentoId, // Vincula ao fechamento
-                 comissao_data_baixa: dataHoje,
-                 comissao_percentual_final: p.percentualComissao,
-                 comissao_valor_final: p.valorComissao
+                 comissao_fechamento_id: idFinal,
+                 comissao_referencia_paga: mesAno 
              })
           );
           await Promise.all(updatePromises);
@@ -199,7 +205,7 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
 
       } catch (error) {
           console.error(error);
-          toast.error("Erro crítico ao finalizar. Tente novamente.");
+          toast.error("Erro ao finalizar.");
       } finally {
           setLoading(false);
       }
@@ -208,14 +214,14 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
   return (
     <div className="space-y-6">
       
-      {/* CARD DE FERRAMENTAS */}
+      {/* HEADER DE FERRAMENTAS (Se aberto) */}
       {!isFechado && (
           <Card className="p-4 bg-blue-50 border-blue-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-100 rounded-full"><RefreshCw className="w-4 h-4 text-blue-600"/></div>
                   <div>
-                      <h4 className="font-bold text-sm text-blue-900">Ações em Massa</h4>
-                      <p className="text-xs text-blue-700">Alterar % de todos os pedidos da lista.</p>
+                      <h4 className="font-bold text-sm text-blue-900">Alteração em Massa</h4>
+                      <p className="text-xs text-blue-700">Defina uma % única para todos os pedidos da lista.</p>
                   </div>
               </div>
               <div className="flex items-center gap-2">
@@ -251,7 +257,7 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
         </div>
       </Card>
 
-      {/* BOTÃO ADICIONAR PEDIDO (MANUAL) */}
+      {/* BOTÃO ADICIONAR PEDIDO */}
       {!isFechado && (
           <div className="flex justify-end">
               <Button onClick={() => setShowAddModal(true)} variant="outline" className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50">
@@ -308,7 +314,7 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
                                         size="icon" 
                                         className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50"
                                         onClick={() => handleRemoverPedido(pedido.id)}
-                                        title="Remover deste fechamento (não apaga o pedido)"
+                                        title="Remover deste mês"
                                     >
                                         <Trash2 className="w-4 h-4" />
                                     </Button>
@@ -336,15 +342,33 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
           </div>
       </div>
 
+      {/* ALERTA PIX (Se não tiver chave e não estiver fechado) */}
+      {!isFechado && !representante.rep.chave_pix && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center gap-3 text-amber-800">
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+              <div>
+                  <p className="font-bold text-sm">Chave PIX não cadastrada</p>
+                  <p className="text-xs">Cadastre a chave PIX do representante antes de fechar a comissão.</p>
+              </div>
+          </div>
+      )}
+
       {/* FOOTER AÇÕES */}
       <div className="flex items-center justify-end gap-3 pt-4 border-t mt-4">
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
           {!isFechado && (
               <>
+                {/* BOTÃO SALVAR AGORA FUNCIONA */}
                 <Button onClick={handleSaveDraft} disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
                     <Save className="w-4 h-4"/> Salvar Alterações
                 </Button>
-                <Button onClick={handleFinalize} disabled={loading} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+                {/* BOTÃO FINALIZAR COM TRAVA DE PIX */}
+                <Button 
+                    onClick={handleFinalize} 
+                    disabled={loading || !representante.rep.chave_pix} 
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={!representante.rep.chave_pix ? "Necessário chave PIX" : "Finalizar"}
+                >
                     <Lock className="w-4 h-4"/> Finalizar Fechamento
                 </Button>
               </>
@@ -359,7 +383,7 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
         open={showAddModal} 
         onClose={() => setShowAddModal(false)}
         title="Adicionar Pedido Avulso"
-        description={`Pedidos pagos do representante ${representante.nome} ainda não comissionados.`}
+        description="Selecione pedidos pagos deste representante que ainda não foram comissionados."
         size="lg"
       >
           <div className="space-y-4">
@@ -377,7 +401,7 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
                       <TableHeader><TableRow><TableHead>Pedido</TableHead><TableHead>Cliente</TableHead><TableHead>Data Pgto</TableHead><TableHead>Valor</TableHead><TableHead></TableHead></TableRow></TableHeader>
                       <TableBody>
                           {pedidosDisponiveisParaAdicao.length === 0 ? (
-                              <TableRow><TableCell colSpan={5} className="text-center py-8 text-slate-500">Nenhum pedido disponível encontrado.</TableCell></TableRow>
+                              <TableRow><TableCell colSpan={5} className="text-center py-8 text-slate-500">Nenhum pedido disponível para adicionar.</TableCell></TableRow>
                           ) : (
                               pedidosDisponiveisParaAdicao.map(p => (
                                   <TableRow key={p.id}>
