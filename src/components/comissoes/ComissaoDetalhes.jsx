@@ -6,15 +6,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
-  DollarSign, Save, Lock, Trash2, Download, RefreshCw, Plus, Search, AlertCircle
+  DollarSign, Save, Lock, Trash2, Download, RefreshCw, Plus, Search, AlertCircle, X 
 } from "lucide-react";
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import ModalContainer from "@/components/modals/ModalContainer";
 
-export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, onClose }) { // Recebendo pedidosTodos
-  const [pedidosEditaveis, setPedidosEditaveis] = useState(representante.pedidos);
+export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, onClose }) {
+  const [pedidosEditaveis, setPedidosEditaveis] = useState(representante.pedidos || []);
   const [vales, setVales] = useState(representante.vales || 0);
   const [outrosDescontos, setOutrosDescontos] = useState(representante.outrosDescontos || 0);
   const [observacoes, setObservacoes] = useState(representante.observacoes || '');
@@ -22,13 +22,13 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
   const [isFechado, setIsFechado] = useState(representante.status === 'fechado');
   const [loading, setLoading] = useState(false);
   
-  // Estado para o modal de adicionar
+  // Estado para o modal de adicionar (Antecipação)
   const [showAddModal, setShowAddModal] = useState(false);
   const [buscaPedidoAdd, setBuscaPedidoAdd] = useState('');
 
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
-  // Totais calculados em tempo real
+  // Totais em tempo real
   const totais = useMemo(() => {
     const totalVendas = pedidosEditaveis.reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
     const totalComissoes = pedidosEditaveis.reduce((sum, p) => sum + (p.valorComissao || 0), 0);
@@ -36,7 +36,43 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
     return { totalVendas, totalComissoes, saldoFinal };
   }, [pedidosEditaveis, vales, outrosDescontos]);
 
-  // --- FUNÇÕES DE EDIÇÃO ---
+  // --- LÓGICA CORRIGIDA: BUSCAR PEDIDOS DISPONÍVEIS ---
+  const pedidosDisponiveisParaAdicao = useMemo(() => {
+      if (!pedidosTodos) return [];
+      
+      // Código do representante atual (convertido para string para segurança)
+      const repCodigoAtual = String(representante.rep.codigo);
+
+      return pedidosTodos.filter(p => {
+          // 1. Deve pertencer ao representante
+          if (String(p.representante_codigo) !== repCodigoAtual) return false;
+
+          // 2. Deve estar PAGO (Regra de ouro: Só paga comissão se recebeu)
+          if (p.status !== 'pago') return false;
+
+          // 3. A comissão NÃO pode ter sido paga ainda
+          // Verifica se é false, null ou undefined
+          if (p.comissao_paga === true) return false;
+
+          // 4. Não pode estar na lista que já estamos editando agora
+          // (Evita adicionar o mesmo pedido duas vezes na tela)
+          const jaNaLista = pedidosEditaveis.some(pe => pe.id === p.id);
+          if (jaNaLista) return false;
+
+          // 5. Filtro de busca do modal
+          if (buscaPedidoAdd) {
+              const termo = buscaPedidoAdd.toLowerCase();
+              return (
+                  p.numero_pedido?.toLowerCase().includes(termo) || 
+                  p.cliente_nome?.toLowerCase().includes(termo)
+              );
+          }
+
+          return true;
+      });
+  }, [pedidosTodos, representante, pedidosEditaveis, buscaPedidoAdd]);
+
+  // --- FUNÇÕES DE MANIPULAÇÃO ---
 
   const handleEditarPercentual = (pedidoId, novoPercentual) => {
     setPedidosEditaveis(prev => prev.map(p => {
@@ -61,41 +97,26 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
       toast.success(`Todos os pedidos atualizados para ${pct}%`);
   };
 
-  // --- FUNÇÕES DE ADICIONAR/REMOVER PEDIDOS (MANUAL) ---
-
   const handleRemoverPedido = (pedidoId) => {
-      // Apenas remove da lista visual/rascunho. Não apaga do banco.
       setPedidosEditaveis(prev => prev.filter(p => p.id !== pedidoId));
-      toast.info("Pedido removido da lista de comissão.");
+      toast.info("Pedido removido desta lista (mas continua no sistema).");
   };
 
   const handleAdicionarPedidoManual = (pedido) => {
-      // Adiciona o pedido à lista atual
-      const percentual = pedido.porcentagem_comissao || representante.porcentagem_padrao || 5;
+      const percentual = pedido.porcentagem_comissao || representante.rep.porcentagem_padrao || 5;
       const novoItem = {
           ...pedido,
           percentualComissao: percentual,
-          valorComissao: (pedido.valor_pedido * percentual) / 100
+          valorComissao: (pedido.valor_pedido * percentual) / 100,
+          adicionado_manualmente: true // Flag visual se quiser usar
       };
       
       setPedidosEditaveis(prev => [...prev, novoItem]);
-      setShowAddModal(false);
+      // Não fecha o modal para permitir adicionar vários
       toast.success(`Pedido #${pedido.numero_pedido} adicionado!`);
   };
 
-  // Filtra pedidos que PODEM ser adicionados (mesmo representante, não pagos, não estão na lista atual)
-  const pedidosDisponiveisParaAdicao = useMemo(() => {
-      if (!pedidosTodos) return [];
-      return pedidosTodos.filter(p => 
-          p.representante_codigo === representante.rep.codigo && // Mesmo representante
-          p.status === 'pago' && // Tem que estar pago
-          !p.comissao_paga && // Comissão não paga
-          !pedidosEditaveis.some(pe => pe.id === p.id) && // Não está na lista atual
-          (p.numero_pedido?.includes(buscaPedidoAdd) || p.cliente_nome?.toLowerCase().includes(buscaPedidoAdd.toLowerCase()))
-      );
-  }, [pedidosTodos, representante, pedidosEditaveis, buscaPedidoAdd]);
-
-  // --- PERSISTÊNCIA ---
+  // --- FINALIZAÇÃO E SALVAMENTO ---
 
   const handleSaveDraft = async () => {
       setLoading(true);
@@ -122,7 +143,7 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
               await base44.entities.ComissaoControle.create(payload);
           }
           
-          toast.success("Rascunho salvo com sucesso!");
+          toast.success("Rascunho salvo!");
       } catch (error) {
           toast.error("Erro ao salvar.");
       } finally {
@@ -131,43 +152,55 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
   };
 
   const handleFinalize = async () => {
-      if (!confirm("Confirmar fechamento?")) return;
+      if (!confirm("Tem certeza? Ao finalizar, os pedidos serão marcados como PAGOS e não aparecerão nos próximos meses.")) return;
       setLoading(true);
+      
       try {
-          // Salva o fechamento definitivo
-          const pedidosAjustados = pedidosEditaveis.map(p => ({ pedido_id: p.id, percentual: p.percentualComissao }));
-          const payload = {
+          const dataHoje = new Date().toISOString();
+
+          // 1. Salvar ou Atualizar o Controle de Comissão (Histórico)
+          const pedidosData = pedidosEditaveis.map(p => ({ pedido_id: p.id, percentual: p.percentualComissao }));
+          const payloadControle = {
               referencia: mesAno,
               representante_codigo: representante.rep.codigo,
               representante_nome: representante.rep.nome,
               vales: parseFloat(vales),
               outros_descontos: parseFloat(outrosDescontos),
               observacao: observacoes,
-              pedidos_ajustados: pedidosAjustados,
+              pedidos_ajustados: pedidosData,
               status: 'fechado',
-              data_fechamento: new Date().toISOString()
+              data_fechamento: dataHoje,
+              total_pago: totais.saldoFinal
           };
 
-          if (representante.controleId) {
-              await base44.entities.ComissaoControle.update(representante.controleId, payload);
+          let fechamentoId = representante.controleId;
+          if (fechamentoId) {
+              await base44.entities.ComissaoControle.update(fechamentoId, payloadControle);
           } else {
-              await base44.entities.ComissaoControle.create(payload);
+              const novo = await base44.entities.ComissaoControle.create(payloadControle);
+              fechamentoId = novo.id;
           }
 
-          // Atualiza os pedidos no banco para marcar como comissão paga
+          // 2. ATUALIZAR OS PEDIDOS (TRAVA DE SEGURANÇA)
+          // Isso impede que eles apareçam em fevereiro, março, etc.
           const updatePromises = pedidosEditaveis.map(p => 
              base44.entities.Pedido.update(p.id, { 
                  comissao_paga: true,
-                 comissao_referencia: mesAno 
+                 comissao_fechamento_id: fechamentoId, // Vincula ao fechamento
+                 comissao_data_baixa: dataHoje,
+                 comissao_percentual_final: p.percentualComissao,
+                 comissao_valor_final: p.valorComissao
              })
           );
           await Promise.all(updatePromises);
 
           setIsFechado(true);
-          toast.success("Comissão fechada!");
-          setTimeout(onClose, 1000);
+          toast.success("Comissão finalizada com sucesso!");
+          setTimeout(onClose, 1500);
+
       } catch (error) {
-          toast.error("Erro ao finalizar.");
+          console.error(error);
+          toast.error("Erro crítico ao finalizar. Tente novamente.");
       } finally {
           setLoading(false);
       }
@@ -176,14 +209,14 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
   return (
     <div className="space-y-6">
       
-      {/* FERRAMENTAS DE TOPO (Alteração em Massa) */}
+      {/* CARD DE FERRAMENTAS */}
       {!isFechado && (
           <Card className="p-4 bg-blue-50 border-blue-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-100 rounded-full"><RefreshCw className="w-4 h-4 text-blue-600"/></div>
                   <div>
-                      <h4 className="font-bold text-sm text-blue-900">Alteração em Massa</h4>
-                      <p className="text-xs text-blue-700">Aplique uma % única para a lista abaixo.</p>
+                      <h4 className="font-bold text-sm text-blue-900">Ações em Massa</h4>
+                      <p className="text-xs text-blue-700">Alterar % de todos os pedidos da lista.</p>
                   </div>
               </div>
               <div className="flex items-center gap-2">
@@ -194,7 +227,8 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
                     value={bulkPercent}
                     onChange={(e) => setBulkPercent(e.target.value)}
                   />
-                  <Button size="sm" onClick={handleBulkChange} className="bg-blue-600 hover:bg-blue-700 text-white h-9">Aplicar a Todos</Button>
+                  <span className="font-bold text-blue-800 text-sm">%</span>
+                  <Button size="sm" onClick={handleBulkChange} className="bg-blue-600 hover:bg-blue-700 text-white h-9">Aplicar</Button>
               </div>
           </Card>
       )}
@@ -222,7 +256,7 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
       {!isFechado && (
           <div className="flex justify-end">
               <Button onClick={() => setShowAddModal(true)} variant="outline" className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50">
-                  <Plus className="w-4 h-4"/> Adicionar Pedido (Adiantar)
+                  <Plus className="w-4 h-4"/> Adicionar Pedido (Antecipar)
               </Button>
           </div>
       )}
@@ -242,45 +276,48 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {pedidosEditaveis.map(pedido => (
-                    <TableRow key={pedido.id}>
-                        <TableCell className="font-medium text-slate-700">#{pedido.numero_pedido}</TableCell>
-                        <TableCell className="text-xs text-slate-500">{new Date(pedido.data_pagamento).toLocaleDateString()}</TableCell>
-                        <TableCell className="text-sm text-slate-600">{pedido.cliente_nome}</TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(pedido.valor_pedido)}</TableCell>
-                        <TableCell className="text-center p-2">
-                            {isFechado ? (
-                                <Badge variant="outline">{pedido.percentualComissao}%</Badge>
-                            ) : (
-                                <div className="flex justify-center items-center gap-1">
-                                    <Input 
-                                        type="number" 
-                                        className="h-8 w-16 text-center px-1" 
-                                        value={pedido.percentualComissao} 
-                                        onChange={(e) => handleEditarPercentual(pedido.id, e.target.value)}
-                                    />
-                                    <span className="text-xs text-slate-400">%</span>
-                                </div>
-                            )}
-                        </TableCell>
-                        <TableCell className="text-right font-bold text-emerald-600">{formatCurrency(pedido.valorComissao)}</TableCell>
-                        
-                        {/* AÇÃO REMOVER */}
-                        {!isFechado && (
-                            <TableCell>
-                                <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50"
-                                    onClick={() => handleRemoverPedido(pedido.id)}
-                                    title="Remover deste fechamento"
-                                >
-                                    <Trash2 className="w-4 h-4" />
-                                </Button>
+                {pedidosEditaveis.length === 0 ? (
+                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-slate-400">Nenhum pedido nesta lista.</TableCell></TableRow>
+                ) : (
+                    pedidosEditaveis.map(pedido => (
+                        <TableRow key={pedido.id}>
+                            <TableCell className="font-medium text-slate-700">#{pedido.numero_pedido}</TableCell>
+                            <TableCell className="text-xs text-slate-500">{new Date(pedido.data_pagamento).toLocaleDateString()}</TableCell>
+                            <TableCell className="text-sm text-slate-600">{pedido.cliente_nome}</TableCell>
+                            <TableCell className="text-right font-medium">{formatCurrency(pedido.valor_pedido)}</TableCell>
+                            <TableCell className="text-center p-2">
+                                {isFechado ? (
+                                    <Badge variant="outline">{pedido.percentualComissao}%</Badge>
+                                ) : (
+                                    <div className="flex justify-center items-center gap-1">
+                                        <Input 
+                                            type="number" 
+                                            className="h-8 w-16 text-center px-1" 
+                                            value={pedido.percentualComissao} 
+                                            onChange={(e) => handleEditarPercentual(pedido.id, e.target.value)}
+                                        />
+                                        <span className="text-xs text-slate-400">%</span>
+                                    </div>
+                                )}
                             </TableCell>
-                        )}
-                    </TableRow>
-                ))}
+                            <TableCell className="text-right font-bold text-emerald-600">{formatCurrency(pedido.valorComissao)}</TableCell>
+                            
+                            {!isFechado && (
+                                <TableCell>
+                                    <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50"
+                                        onClick={() => handleRemoverPedido(pedido.id)}
+                                        title="Remover deste fechamento (não apaga o pedido)"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                </TableCell>
+                            )}
+                        </TableRow>
+                    ))
+                )}
             </TableBody>
         </Table>
       </div>
@@ -313,6 +350,9 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
                 </Button>
               </>
           )}
+          {isFechado && (
+              <Button variant="outline" className="gap-2"><Download className="w-4 h-4"/> Baixar PDF</Button>
+          )}
       </div>
 
       {/* MODAL PARA ADICIONAR PEDIDO MANUALMENTE */}
@@ -320,7 +360,7 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
         open={showAddModal} 
         onClose={() => setShowAddModal(false)}
         title="Adicionar Pedido Avulso"
-        description="Selecione pedidos pagos deste representante que não estão na lista."
+        description={`Pedidos pagos do representante ${representante.rep.nome} ainda não comissionados.`}
         size="lg"
       >
           <div className="space-y-4">
@@ -335,25 +375,30 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
               </div>
               <div className="max-h-[300px] overflow-y-auto border rounded-md">
                   <Table>
-                      <TableHeader><TableRow><TableHead>Pedido</TableHead><TableHead>Cliente</TableHead><TableHead>Valor</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                      <TableHeader><TableRow><TableHead>Pedido</TableHead><TableHead>Cliente</TableHead><TableHead>Data Pgto</TableHead><TableHead>Valor</TableHead><TableHead></TableHead></TableRow></TableHeader>
                       <TableBody>
-                          {pedidosDisponiveisParaAdicao.map(p => (
-                              <TableRow key={p.id}>
-                                  <TableCell>#{p.numero_pedido}</TableCell>
-                                  <TableCell>{p.cliente_nome}</TableCell>
-                                  <TableCell>{formatCurrency(p.valor_pedido)}</TableCell>
-                                  <TableCell>
-                                      <Button size="sm" variant="ghost" onClick={() => handleAdicionarPedidoManual(p)}>
-                                          <Plus className="w-4 h-4 text-emerald-600"/>
-                                      </Button>
-                                  </TableCell>
-                              </TableRow>
-                          ))}
-                          {pedidosDisponiveisParaAdicao.length === 0 && (
-                              <TableRow><TableCell colSpan={4} className="text-center py-8 text-slate-500">Nenhum pedido disponível encontrado.</TableCell></TableRow>
+                          {pedidosDisponiveisParaAdicao.length === 0 ? (
+                              <TableRow><TableCell colSpan={5} className="text-center py-8 text-slate-500">Nenhum pedido disponível encontrado.</TableCell></TableRow>
+                          ) : (
+                              pedidosDisponiveisParaAdicao.map(p => (
+                                  <TableRow key={p.id}>
+                                      <TableCell>#{p.numero_pedido}</TableCell>
+                                      <TableCell>{p.cliente_nome}</TableCell>
+                                      <TableCell className="text-xs">{p.data_pagamento ? new Date(p.data_pagamento).toLocaleDateString() : '-'}</TableCell>
+                                      <TableCell>{formatCurrency(p.valor_pedido)}</TableCell>
+                                      <TableCell>
+                                          <Button size="sm" variant="ghost" className="hover:bg-emerald-50 text-emerald-600" onClick={() => handleAdicionarPedidoManual(p)}>
+                                              <Plus className="w-4 h-4"/> Adicionar
+                                          </Button>
+                                      </TableCell>
+                                  </TableRow>
+                              ))
                           )}
                       </TableBody>
                   </Table>
+              </div>
+              <div className="flex justify-end">
+                  <Button variant="outline" onClick={() => setShowAddModal(false)}>Fechar</Button>
               </div>
           </div>
       </ModalContainer>
