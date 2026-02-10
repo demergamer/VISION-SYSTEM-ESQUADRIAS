@@ -1,21 +1,19 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from '@/api/base44Client';
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Wallet, Users, Calendar, TrendingUp, DollarSign, FileText, Download, Search, ArrowRight } from "lucide-react";
+import { Wallet, Users, Calendar, DollarSign, FileText, Search, ArrowRight } from "lucide-react";
 import PermissionGuard from "@/components/PermissionGuard";
 import ModalContainer from "@/components/modals/ModalContainer";
 import ComissaoDetalhes from "@/components/comissoes/ComissaoDetalhes";
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { toast } from 'sonner';
 
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
-// --- COMPONENTE CARD DE REPRESENTANTE (VISUAL NOVO) ---
+// --- CARD DE REPRESENTANTE ---
 const RepresentanteCard = ({ rep, onClick }) => {
   const statusColor = rep.status === 'fechado' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-amber-100 text-amber-700 border-amber-200';
   
@@ -68,7 +66,7 @@ export default function Comissoes() {
   // --- QUERIES ---
   const { data: pedidos = [] } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list() });
   const { data: representantes = [] } = useQuery({ queryKey: ['representantes'], queryFn: () => base44.entities.Representante.list() });
-  // Query para buscar os "Controles de Comissão" (Rascunhos/Fechamentos)
+  // IMPORTANTE: Garantir que esta entidade existe no banco
   const { data: controles = [] } = useQuery({ queryKey: ['comissaoControle'], queryFn: () => base44.entities.ComissaoControle.list() });
 
   // --- LÓGICA DE CÁLCULO ---
@@ -76,44 +74,29 @@ export default function Comissoes() {
     const [ano, mes] = mesAnoSelecionado.split('-').map(Number);
     const inicioMes = startOfMonth(new Date(ano, mes - 1));
     const fimMes = endOfMonth(new Date(ano, mes - 1));
-    const mesAtual = format(hoje, 'yyyy-MM');
-    const ehMesFuturo = mesAnoSelecionado > mesAtual;
-
+    
     // Filtra controles deste mês
     const controlesDoMes = controles.filter(c => c.referencia === mesAnoSelecionado);
 
-    let pedidosElegiveis;
-
-    if (ehMesFuturo) {
-      // PREVISÃO (Mesma lógica anterior)
-      pedidosElegiveis = pedidos.filter(p => {
-        if (p.data_referencia_comissao) {
-          const dataRef = new Date(p.data_referencia_comissao);
-          return dataRef >= inicioMes && dataRef <= fimMes;
+    // 1. Filtra Pedidos Elegíveis (Pagos no período OU Antecipados)
+    const pedidosElegiveis = pedidos.filter(p => {
+        // Se já tem comissão paga, verificamos se pertence a ESTE fechamento específico
+        if (p.comissao_paga === true) {
+            // Se o pedido foi marcado como pago neste mês/ano, ele DEVE aparecer para consulta
+            return p.comissao_referencia_paga === mesAnoSelecionado;
         }
-        if ((p.status === 'aberto' || p.status === 'parcial') && p.data_entrega) {
-          const dataEntrega = new Date(p.data_entrega);
-          return dataEntrega >= inicioMes && dataEntrega <= fimMes;
-        }
-        return false;
-      });
-    } else {
-      // REAL (Pedidos Pagos)
-      pedidosElegiveis = pedidos.filter(p => {
-        // Se já tem comissão paga, só entra se for deste fechamento específico (para visualização)
-        // Mas a lógica padrão é excluir pagos. 
-        if (p.comissao_paga === true && p.comissao_mes_ano_pago !== mesAnoSelecionado) return false;
         
-        if (p.status !== 'pago' || (p.saldo_restante && p.saldo_restante > 0)) return false;
+        // Se não está pago, ignora
+        if (p.status !== 'pago') return false;
 
-        const dataReferencia = p.data_referencia_comissao || p.data_pagamento;
-        if (!dataReferencia) return false;
-        const dataRef = new Date(dataReferencia);
-        return dataRef >= inicioMes && dataRef <= fimMes;
-      });
-    }
+        // Verifica data do pagamento (regra padrão)
+        const dataPagamento = p.data_pagamento ? new Date(p.data_pagamento) : null;
+        if (!dataPagamento) return false;
+        
+        return dataPagamento >= inicioMes && dataPagamento <= fimMes;
+    });
 
-    // Agrupamento
+    // 2. Agrupamento
     const agrupado = {};
     
     pedidosElegiveis.forEach(pedido => {
@@ -121,63 +104,64 @@ export default function Comissoes() {
       if (!repCodigo) return;
 
       if (!agrupado[repCodigo]) {
-        const rep = representantes.find(r => r.codigo === repCodigo);
-        // Busca se tem controle salvo (Rascunho ou Fechado)
+        const repOriginal = representantes.find(r => r.codigo === repCodigo);
         const controle = controlesDoMes.find(c => c.representante_codigo === repCodigo);
 
         agrupado[repCodigo] = {
+          // Normaliza os dados para o componente filho não se perder
           codigo: repCodigo,
-          nome: rep?.nome || pedido.representante_nome || 'Desconhecido',
-          chave_pix: rep?.chave_pix || '',
+          nome: repOriginal?.nome || pedido.representante_nome || 'Desconhecido',
+          chave_pix: repOriginal?.chave_pix || '', // Garante que a chave PIX venha do cadastro original
+          porcentagem_padrao: repOriginal?.porcentagem_comissao || 5,
+          
           pedidos: [],
           totalVendas: 0,
           totalComissoes: 0,
-          // Se tiver controle, usa os valores dele. Se não, zero.
+          
+          // Dados do Controle (Rascunho)
           vales: controle ? controle.vales : 0,
           outrosDescontos: controle ? controle.outros_descontos : 0,
           observacoes: controle ? controle.observacao : '',
           status: controle ? controle.status : 'aberto',
-          controleId: controle?.id, // ID para update
-          controleDados: controle // Guarda o objeto todo para usar os ajustes de %
+          controleId: controle?.id,
+          pedidos_ajustados: controle?.pedidos_ajustados || []
         };
       }
 
-      // Cálculo individual do pedido
-      const valorPedido = pedido.valor_pedido || 0;
-      let percentual = pedido.porcentagem_comissao || 5;
-
-      // Se houver ajuste salvo no controle para este pedido, usa ele
-      if (agrupado[repCodigo].controleDados?.pedidos_ajustados) {
-          const ajuste = agrupado[repCodigo].controleDados.pedidos_ajustados.find(a => a.pedido_id === pedido.id);
-          if (ajuste) percentual = ajuste.percentual;
+      const valorPedido = parseFloat(pedido.valor_pedido) || 0;
+      
+      // Define a %: 1º Verifica se tem ajuste salvo, 2º Usa a do pedido, 3º Usa a padrão do Rep
+      let percentual = pedido.porcentagem_comissao || agrupado[repCodigo].porcentagem_padrao;
+      
+      // Sobrescreve com o que foi salvo no rascunho, se houver
+      const ajusteSalvo = agrupado[repCodigo].pedidos_ajustados.find(a => a.pedido_id === pedido.id);
+      if (ajusteSalvo) {
+          percentual = ajusteSalvo.percentual;
       }
 
       const valorComissao = (valorPedido * percentual) / 100;
 
       agrupado[repCodigo].pedidos.push({
         ...pedido,
-        percentualComissao: percentual, // Percentual Efetivo
+        percentualComissao: percentual,
         valorComissao
       });
+      
       agrupado[repCodigo].totalVendas += valorPedido;
       agrupado[repCodigo].totalComissoes += valorComissao;
     });
 
+    // Calcula saldo final
     Object.values(agrupado).forEach(rep => {
       rep.saldoAPagar = rep.totalComissoes - rep.vales - rep.outrosDescontos;
     });
 
     return Object.values(agrupado);
-  }, [pedidos, mesAnoSelecionado, representantes, controles, hoje]);
+  }, [pedidos, mesAnoSelecionado, representantes, controles]);
 
-  // Filtros de UI
   const mesesDisponiveis = useMemo(() => {
     const meses = [];
-    for (let i = 3; i > 0; i--) { // 3 meses futuro
-      const data = new Date(); data.setMonth(data.getMonth() + i);
-      meses.push({ value: format(data, 'yyyy-MM'), label: '📊 ' + format(data, 'MMMM yyyy', { locale: ptBR }) + ' (Previsão)' });
-    }
-    for (let i = 0; i < 12; i++) { // 12 meses passado
+    for (let i = 0; i < 12; i++) {
       const data = new Date(); data.setMonth(data.getMonth() - i);
       meses.push({ value: format(data, 'yyyy-MM'), label: format(data, 'MMMM yyyy', { locale: ptBR }) });
     }
@@ -190,7 +174,6 @@ export default function Comissoes() {
     return comissoesPorRepresentante.filter(rep => rep.nome.toLowerCase().includes(busca) || rep.codigo.toLowerCase().includes(busca));
   }, [comissoesPorRepresentante, buscaRepresentante]);
 
-  // Totais Gerais
   const totalGeralVendas = comissoesPorRepresentante.reduce((sum, r) => sum + r.totalVendas, 0);
   const totalGeralComissoes = comissoesPorRepresentante.reduce((sum, r) => sum + r.totalComissoes, 0);
   const totalGeralAPagar = comissoesPorRepresentante.reduce((sum, r) => sum + r.saldoAPagar, 0);
@@ -199,25 +182,25 @@ export default function Comissoes() {
     <PermissionGuard setor="Comissoes">
       <div className="space-y-8 p-6 bg-[#F8FAFC] min-h-screen">
         
-        {/* HEADER & FILTROS */}
+        {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold text-slate-800">Comissões</h1>
-            <p className="text-slate-500">Gestão de fechamentos e pagamentos</p>
+            <p className="text-slate-500">Fechamento mensal e gestão de pagamentos</p>
           </div>
           <div className="flex items-center gap-3 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
              <Calendar className="w-5 h-5 text-slate-400 ml-2" />
              <select 
                value={mesAnoSelecionado} 
                onChange={(e) => setMesAnoSelecionado(e.target.value)} 
-               className="bg-transparent border-none text-sm font-bold text-slate-700 focus:ring-0 cursor-pointer outline-none"
+               className="bg-transparent border-none text-sm font-bold text-slate-700 focus:ring-0 cursor-pointer outline-none uppercase"
              >
                 {mesesDisponiveis.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
              </select>
           </div>
         </div>
 
-        {/* RESUMO GERAL */}
+        {/* CARDS TOTAIS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
            <Card className="p-6 bg-emerald-50 border-emerald-100 flex flex-col justify-center shadow-sm">
               <p className="text-emerald-600 font-bold text-xs uppercase flex items-center gap-2"><DollarSign className="w-4 h-4"/> Total Vendas</p>
@@ -233,13 +216,13 @@ export default function Comissoes() {
            </Card>
         </div>
 
-        {/* LISTA DE REPRESENTANTES */}
+        {/* LISTA */}
         <div className="space-y-4">
             <div className="flex justify-between items-center">
                 <h2 className="text-lg font-bold text-slate-700 flex items-center gap-2"><Users className="w-5 h-5"/> Por Representante</h2>
                 <div className="relative w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <Input placeholder="Buscar..." value={buscaRepresentante} onChange={e => setBuscaRepresentante(e.target.value)} className="pl-9 bg-white" />
+                    <Input placeholder="Buscar representante..." value={buscaRepresentante} onChange={e => setBuscaRepresentante(e.target.value)} className="pl-9 bg-white" />
                 </div>
             </div>
 
@@ -262,7 +245,7 @@ export default function Comissoes() {
             </div>
         </div>
 
-        {/* MODAL DETALHES */}
+        {/* MODAL DETALHES - IMPORTANTE: A KEY FORÇA O REACT A RECARREGAR O MODAL QUANDO MUDA O REP */}
         <ModalContainer
           open={showDetalhes}
           onClose={() => { setShowDetalhes(false); setRepresentanteSelecionado(null); }}
@@ -272,6 +255,7 @@ export default function Comissoes() {
         >
           {representanteSelecionado && (
             <ComissaoDetalhes 
+              key={representanteSelecionado.codigo} // <--- ESTA É A CORREÇÃO DE OURO PARA O ERRO DE NÃO ATUALIZAR
               representante={representanteSelecionado}
               mesAno={mesAnoSelecionado}
               pedidosTodos={pedidos}
