@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import ModalContainer from "@/components/modals/ModalContainer";
 
-export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, onClose }) {
+export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, controles, onClose }) {
   const [pedidosEditaveis, setPedidosEditaveis] = useState(representante.pedidos || []);
   const [vales, setVales] = useState(representante.vales || 0);
   const [outrosDescontos, setOutrosDescontos] = useState(representante.outrosDescontos || 0);
@@ -26,7 +26,7 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
 
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
-  // Totais: Usam valorBaseComissao (que é o total_pago)
+  // Totais
   const totais = useMemo(() => {
     const totalVendas = pedidosEditaveis.reduce((sum, p) => sum + (parseFloat(p.valorBaseComissao) || 0), 0);
     const totalComissoes = pedidosEditaveis.reduce((sum, p) => sum + (parseFloat(p.valorComissao) || 0), 0);
@@ -34,83 +34,70 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
     return { totalVendas, totalComissoes, saldoFinal };
   }, [pedidosEditaveis, vales, outrosDescontos]);
 
-  // --- FILTROS (Antecipação) ---
+  // --- FILTRO DE ADIÇÃO (O PULO DO GATO 2) ---
   const pedidosDisponiveisParaAdicao = useMemo(() => {
       if (!pedidosTodos) return [];
       const codigoAtual = String(representante.codigo);
+
+      // IDs que estão em rascunhos de OUTROS meses (Sequestrados)
+      const idsEmOutrosMeses = new Set();
+      if (controles) {
+          controles.forEach(c => {
+              if (c.status === 'aberto' && c.referencia !== mesAno && c.representante_codigo === codigoAtual) {
+                  c.pedidos_ajustados?.forEach(p => idsEmOutrosMeses.add(String(p.pedido_id)));
+              }
+          });
+      }
+
       return pedidosTodos.filter(p => {
           if (String(p.representante_codigo) !== codigoAtual) return false;
-          if (p.status !== 'pago') return false; // Regra: Só pagos
-          if (p.comissao_paga === true) return false; // Regra: Ainda não pagos
-          if (pedidosEditaveis.some(pe => pe.id === p.id)) return false; // Não duplicar visualmente
+          if (p.status !== 'pago') return false; 
+          if (p.comissao_paga === true) return false;
+          
+          // Se já está na lista atual visualmente, não mostra
+          if (pedidosEditaveis.some(pe => pe.id === p.id)) return false;
+
+          // Se está em outro rascunho, não mostra (já está "usado" lá)
+          if (idsEmOutrosMeses.has(String(p.id))) return false;
+
           if (buscaPedidoAdd) {
               const t = buscaPedidoAdd.toLowerCase();
               return p.numero_pedido?.toLowerCase().includes(t) || p.cliente_nome?.toLowerCase().includes(t);
           }
           return true;
       });
-  }, [pedidosTodos, representante, pedidosEditaveis, buscaPedidoAdd]);
+  }, [pedidosTodos, representante, pedidosEditaveis, buscaPedidoAdd, controles, mesAno]);
 
   // --- HANDLERS ---
   const handleEditarPercentual = (pedidoId, novoPercentual) => {
     const pct = parseFloat(novoPercentual) || 0;
-    setPedidosEditaveis(prev => prev.map(p => p.id === pedidoId ? { 
-        ...p, 
-        percentualComissao: pct, 
-        valorComissao: (parseFloat(p.valorBaseComissao) * pct) / 100 
-    } : p));
+    setPedidosEditaveis(prev => prev.map(p => p.id === pedidoId ? { ...p, percentualComissao: pct, valorComissao: (parseFloat(p.valorBaseComissao) * pct) / 100 } : p));
   };
 
   const handleBulkChange = () => {
       const pct = parseFloat(bulkPercent);
       if (isNaN(pct)) return;
-      setPedidosEditaveis(prev => prev.map(p => ({ 
-          ...p, 
-          percentualComissao: pct, 
-          valorComissao: (parseFloat(p.valorBaseComissao) * pct) / 100 
-      })));
+      setPedidosEditaveis(prev => prev.map(p => ({ ...p, percentualComissao: pct, valorComissao: (parseFloat(p.valorBaseComissao) * pct) / 100 })));
       toast.success(`Aplicado ${pct}%!`);
   };
 
-  const handleRemoverPedido = (id) => setPedidosEditaveis(prev => prev.filter(p => p.id !== id));
+  const handleRemoverPedido = (id) => {
+      // Ao remover, ele sai da lista. Quando salvar, sai do rascunho.
+      // O 'Comissoes.jsx' vai ver que não está mais no rascunho e usará a data natural.
+      setPedidosEditaveis(prev => prev.filter(p => p.id !== id));
+      toast.info("Pedido removido desta lista.");
+  };
 
   const handleAdicionarPedidoManual = (pedido) => {
       const pct = pedido.porcentagem_comissao || representante.porcentagem_padrao || 5;
-      const valorBase = parseFloat(pedido.total_pago) || 0; // BASE É O TOTAL PAGO
+      const valorBase = parseFloat(pedido.total_pago) || 0;
       setPedidosEditaveis(prev => [...prev, { 
           ...pedido, 
           valorBaseComissao: valorBase, 
           percentualComissao: pct, 
           valorComissao: (valorBase * pct) / 100 
       }]);
-      toast.success('Adicionado à lista!');
-  };
-
-  const handleGerarPDF = async () => {
-      setGeneratingPdf(true);
-      try {
-          toast.loading("Gerando PDF...");
-          const dadosParaPDF = {
-              ...representante,
-              pedidos: pedidosEditaveis,
-              vales: parseFloat(vales),
-              outrosDescontos: parseFloat(outrosDescontos),
-              observacoes: observacoes,
-              totalVendas: totais.totalVendas, 
-              totalComissoes: totais.totalComissoes,
-              saldoAPagar: totais.saldoFinal,
-              status: isFechado ? 'fechado' : 'aberto'
-          };
-          const response = await base44.functions.invoke('gerarRelatorioComissoes', {
-              tipo: 'analitico',
-              mes_ano: mesAno,
-              representante: dadosParaPDF
-          });
-          const blob = new Blob([response.data], { type: 'application/pdf' });
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a'); a.href = url; a.download = `Comissao-${representante.nome}-${mesAno}.pdf`; document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url); a.remove();
-          toast.dismiss(); toast.success("PDF gerado!");
-      } catch (error) { toast.dismiss(); toast.error("Erro ao gerar PDF."); } finally { setGeneratingPdf(false); }
+      toast.success('Pedido adicionado! Salve para confirmar.');
   };
 
   const handleSaveDraft = async () => {
@@ -132,13 +119,40 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
           };
           if (controleId) await base44.entities.ComissaoControle.update(controleId, payload);
           else { const res = await base44.entities.ComissaoControle.create(payload); if(res?.id) setControleId(res.id); }
-          toast.success("Salvo com sucesso!");
+          toast.success("Rascunho salvo!");
       } catch (error) { toast.error("Erro ao salvar."); } finally { setLoading(false); }
+  };
+
+  const handleGerarPDF = async () => {
+      setGeneratingPdf(true);
+      try {
+          toast.loading("Gerando PDF...");
+          const dadosParaPDF = {
+              ...representante,
+              pedidos: pedidosEditaveis,
+              vales: parseFloat(vales),
+              outrosDescontos: parseFloat(outrosDescontos),
+              observacoes: observacoes,
+              totalVendas: totais.totalVendas,
+              totalComissoes: totais.totalComissoes,
+              saldoAPagar: totais.saldoFinal,
+              status: isFechado ? 'fechado' : 'aberto'
+          };
+          const response = await base44.functions.invoke('gerarRelatorioComissoes', {
+              tipo: 'analitico',
+              mes_ano: mesAno,
+              representante: dadosParaPDF
+          });
+          const blob = new Blob([response.data], { type: 'application/pdf' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a'); a.href = url; a.download = `Comissao-${representante.nome}-${mesAno}.pdf`; document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url); a.remove();
+          toast.dismiss(); toast.success("PDF gerado!");
+      } catch (error) { toast.dismiss(); toast.error("Erro ao gerar PDF."); } finally { setGeneratingPdf(false); }
   };
 
   const handleFinalize = async () => {
       if (!representante.chave_pix) return toast.error("Sem Chave PIX.");
-      if (!confirm("Finalizar? Pedidos serão marcados como pagos e removidos de futuros cálculos.")) return;
+      if (!confirm("Finalizar?")) return;
       setLoading(true);
       try {
           const payload = {
@@ -196,6 +210,7 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
                     <TableHead>Pedido</TableHead>
                     <TableHead>Data Pgto</TableHead>
                     <TableHead>Cliente</TableHead>
+                    <TableHead className="text-right">Valor Venda</TableHead>
                     <TableHead className="text-right text-blue-600">Base Calc. (Pago)</TableHead>
                     <TableHead className="text-center w-[120px]">% Com.</TableHead>
                     <TableHead className="text-right">Comissão</TableHead>
@@ -203,12 +218,13 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {pedidosEditaveis.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center py-8 text-slate-400">Nenhum pedido.</TableCell></TableRow> : 
+                {pedidosEditaveis.length === 0 ? <TableRow><TableCell colSpan={8} className="text-center py-8 text-slate-400">Nenhum pedido.</TableCell></TableRow> : 
                     pedidosEditaveis.map(p => (
                         <TableRow key={p.id}>
                             <TableCell className="font-medium text-slate-700">#{p.numero_pedido}</TableCell>
                             <TableCell className="text-xs text-slate-500">{new Date(p.data_pagamento).toLocaleDateString()}</TableCell>
                             <TableCell className="text-sm text-slate-600">{p.cliente_nome}</TableCell>
+                            <TableCell className="text-right text-slate-400 text-xs">{formatCurrency(p.valor_pedido)}</TableCell>
                             <TableCell className="text-right font-medium text-blue-700">{formatCurrency(p.valorBaseComissao)}</TableCell>
                             <TableCell className="text-center p-2">
                                 {isFechado ? <Badge variant="outline">{p.percentualComissao}%</Badge> : <div className="flex justify-center items-center gap-1"><Input type="number" className="h-8 w-16 text-center px-1" value={p.percentualComissao} onChange={(e) => handleEditarPercentual(p.id, e.target.value)}/><span className="text-xs text-slate-400">%</span></div>}
