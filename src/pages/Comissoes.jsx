@@ -274,6 +274,7 @@ export default function Comissoes() {
             <ComissaoDetalhes 
               representante={representanteSelecionado}
               mesAno={mesAnoSelecionado}
+              pedidosTodos={pedidos}
               onClose={() => {
                 setShowDetalhes(false);
                 setRepresentanteSelecionado(null);

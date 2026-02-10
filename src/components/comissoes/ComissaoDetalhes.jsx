@@ -41,7 +41,7 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
       if (!pedidosTodos) return [];
       
       // Código do representante atual (convertido para string para segurança)
-      const repCodigoAtual = String(representante.rep.codigo);
+      const repCodigoAtual = String(representante.codigo);
 
       return pedidosTodos.filter(p => {
           // 1. Deve pertencer ao representante
@@ -103,16 +103,15 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
   };
 
   const handleAdicionarPedidoManual = (pedido) => {
-      const percentual = pedido.porcentagem_comissao || representante.rep.porcentagem_padrao || 5;
+      const percentual = pedido.porcentagem_comissao || 5;
       const novoItem = {
           ...pedido,
           percentualComissao: percentual,
           valorComissao: (pedido.valor_pedido * percentual) / 100,
-          adicionado_manualmente: true // Flag visual se quiser usar
+          adicionado_manualmente: true
       };
       
       setPedidosEditaveis(prev => [...prev, novoItem]);
-      // Não fecha o modal para permitir adicionar vários
       toast.success(`Pedido #${pedido.numero_pedido} adicionado!`);
   };
 
@@ -128,8 +127,8 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
 
           const payload = {
               referencia: mesAno,
-              representante_codigo: representante.rep.codigo,
-              representante_nome: representante.rep.nome,
+              representante_codigo: representante.codigo,
+              representante_nome: representante.nome,
               vales: parseFloat(vales),
               outros_descontos: parseFloat(outrosDescontos),
               observacao: observacoes,
@@ -162,8 +161,8 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
           const pedidosData = pedidosEditaveis.map(p => ({ pedido_id: p.id, percentual: p.percentualComissao }));
           const payloadControle = {
               referencia: mesAno,
-              representante_codigo: representante.rep.codigo,
-              representante_nome: representante.rep.nome,
+              representante_codigo: representante.codigo,
+              representante_nome: representante.nome,
               vales: parseFloat(vales),
               outros_descontos: parseFloat(outrosDescontos),
               observacao: observacoes,
@@ -360,7 +359,7 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
         open={showAddModal} 
         onClose={() => setShowAddModal(false)}
         title="Adicionar Pedido Avulso"
-        description={`Pedidos pagos do representante ${representante.rep.nome} ainda não comissionados.`}
+        description={`Pedidos pagos do representante ${representante.nome} ainda não comissionados.`}
         size="lg"
       >
           <div className="space-y-4">
