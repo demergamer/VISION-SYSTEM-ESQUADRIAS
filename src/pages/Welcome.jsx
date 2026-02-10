@@ -63,14 +63,14 @@ export default function Welcome() {
           {/* --- ÁREA DAS LOGOS LADO A LADO --- */}
           <div className="flex flex-row items-center justify-center gap-6 mb-6">
             
-            {/* Logo 1: J&C Vision */}
+            {/* Logo 1: J&C Vision (Link Atualizado) */}
             <img 
               src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png"
               alt="J&C Vision"
               className="w-28 md:w-36 h-auto drop-shadow-md hover:scale-105 transition-transform duration-300"
             />
 
-            {/* Separador Vertical (Opcional, para estilo) */}
+            {/* Separador Vertical */}
             <div className="h-12 w-px bg-slate-300 dark:bg-slate-700 opacity-50"></div>
             
             {/* Logo 2: J&C Esquadrias */}
@@ -118,7 +118,7 @@ export default function Welcome() {
           />
         </div>
 
-        {/* RODAPÉ */}
+        {/* RODAPÉ ATUALIZADO */}
         <motion.div 
           initial={{ opacity: 0 }} 
           animate={{ opacity: 1 }} 
@@ -126,7 +126,7 @@ export default function Welcome() {
           className="mt-10 text-center"
         >
           <p className="text-slate-400 dark:text-slate-600 text-[10px] font-bold tracking-widest uppercase">
-            J&C Esquadrias &copy; {new Date().getFullYear()}
+            Vision System &copy; {new Date().getFullYear()}
           </p>
         </motion.div>
 
