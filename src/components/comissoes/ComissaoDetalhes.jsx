@@ -6,20 +6,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
-  DollarSign, Percent, Save, Lock, Trash2, Download, AlertCircle, RefreshCw
+  DollarSign, Save, Lock, Trash2, Download, RefreshCw, Plus, Search, AlertCircle
 } from "lucide-react";
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
+import ModalContainer from "@/components/modals/ModalContainer";
 
-export default function ComissaoDetalhes({ representante, mesAno, onClose }) {
+export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, onClose }) { // Recebendo pedidosTodos
   const [pedidosEditaveis, setPedidosEditaveis] = useState(representante.pedidos);
   const [vales, setVales] = useState(representante.vales || 0);
   const [outrosDescontos, setOutrosDescontos] = useState(representante.outrosDescontos || 0);
   const [observacoes, setObservacoes] = useState(representante.observacoes || '');
-  const [bulkPercent, setBulkPercent] = useState(''); // Estado para alteração em massa
+  const [bulkPercent, setBulkPercent] = useState(''); 
   const [isFechado, setIsFechado] = useState(representante.status === 'fechado');
   const [loading, setLoading] = useState(false);
+  
+  // Estado para o modal de adicionar
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [buscaPedidoAdd, setBuscaPedidoAdd] = useState('');
 
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
@@ -31,7 +36,8 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose }) {
     return { totalVendas, totalComissoes, saldoFinal };
   }, [pedidosEditaveis, vales, outrosDescontos]);
 
-  // Handler: Alterar % de um pedido
+  // --- FUNÇÕES DE EDIÇÃO ---
+
   const handleEditarPercentual = (pedidoId, novoPercentual) => {
     setPedidosEditaveis(prev => prev.map(p => {
       if (p.id === pedidoId) {
@@ -42,7 +48,6 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose }) {
     }));
   };
 
-  // Handler: Alteração em Massa
   const handleBulkChange = () => {
       if (!bulkPercent) return;
       const pct = parseFloat(bulkPercent);
@@ -56,7 +61,42 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose }) {
       toast.success(`Todos os pedidos atualizados para ${pct}%`);
   };
 
-  // Handler: Salvar Rascunho (Botão Azul)
+  // --- FUNÇÕES DE ADICIONAR/REMOVER PEDIDOS (MANUAL) ---
+
+  const handleRemoverPedido = (pedidoId) => {
+      // Apenas remove da lista visual/rascunho. Não apaga do banco.
+      setPedidosEditaveis(prev => prev.filter(p => p.id !== pedidoId));
+      toast.info("Pedido removido da lista de comissão.");
+  };
+
+  const handleAdicionarPedidoManual = (pedido) => {
+      // Adiciona o pedido à lista atual
+      const percentual = pedido.porcentagem_comissao || representante.porcentagem_padrao || 5;
+      const novoItem = {
+          ...pedido,
+          percentualComissao: percentual,
+          valorComissao: (pedido.valor_pedido * percentual) / 100
+      };
+      
+      setPedidosEditaveis(prev => [...prev, novoItem]);
+      setShowAddModal(false);
+      toast.success(`Pedido #${pedido.numero_pedido} adicionado!`);
+  };
+
+  // Filtra pedidos que PODEM ser adicionados (mesmo representante, não pagos, não estão na lista atual)
+  const pedidosDisponiveisParaAdicao = useMemo(() => {
+      if (!pedidosTodos) return [];
+      return pedidosTodos.filter(p => 
+          p.representante_codigo === representante.rep.codigo && // Mesmo representante
+          p.status === 'pago' && // Tem que estar pago
+          !p.comissao_paga && // Comissão não paga
+          !pedidosEditaveis.some(pe => pe.id === p.id) && // Não está na lista atual
+          (p.numero_pedido?.includes(buscaPedidoAdd) || p.cliente_nome?.toLowerCase().includes(buscaPedidoAdd.toLowerCase()))
+      );
+  }, [pedidosTodos, representante, pedidosEditaveis, buscaPedidoAdd]);
+
+  // --- PERSISTÊNCIA ---
+
   const handleSaveDraft = async () => {
       setLoading(true);
       try {
@@ -67,13 +107,13 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose }) {
 
           const payload = {
               referencia: mesAno,
-              representante_codigo: representante.codigo,
-              representante_nome: representante.nome,
+              representante_codigo: representante.rep.codigo,
+              representante_nome: representante.rep.nome,
               vales: parseFloat(vales),
               outros_descontos: parseFloat(outrosDescontos),
               observacao: observacoes,
               pedidos_ajustados: pedidosAjustados,
-              status: 'aberto' // Mantém aberto
+              status: 'aberto'
           };
 
           if (representante.controleId) {
@@ -82,7 +122,7 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose }) {
               await base44.entities.ComissaoControle.create(payload);
           }
           
-          toast.success("Alterações salvas com sucesso!");
+          toast.success("Rascunho salvo com sucesso!");
       } catch (error) {
           toast.error("Erro ao salvar.");
       } finally {
@@ -90,16 +130,16 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose }) {
       }
   };
 
-  // Handler: Finalizar Fechamento (Botão Verde)
   const handleFinalize = async () => {
-      if (!confirm("Confirmar fechamento? Isso pode gerar contas a pagar.")) return;
+      if (!confirm("Confirmar fechamento?")) return;
       setLoading(true);
       try {
+          // Salva o fechamento definitivo
           const pedidosAjustados = pedidosEditaveis.map(p => ({ pedido_id: p.id, percentual: p.percentualComissao }));
           const payload = {
               referencia: mesAno,
-              representante_codigo: representante.codigo,
-              representante_nome: representante.nome,
+              representante_codigo: representante.rep.codigo,
+              representante_nome: representante.rep.nome,
               vales: parseFloat(vales),
               outros_descontos: parseFloat(outrosDescontos),
               observacao: observacoes,
@@ -114,8 +154,15 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose }) {
               await base44.entities.ComissaoControle.create(payload);
           }
 
-          // AQUI VOCÊ PODERIA GERAR O PDF E SALVAR O LINK, SE JÁ TIVER A FUNÇÃO NO BACKEND
-          
+          // Atualiza os pedidos no banco para marcar como comissão paga
+          const updatePromises = pedidosEditaveis.map(p => 
+             base44.entities.Pedido.update(p.id, { 
+                 comissao_paga: true,
+                 comissao_referencia: mesAno 
+             })
+          );
+          await Promise.all(updatePromises);
+
           setIsFechado(true);
           toast.success("Comissão fechada!");
           setTimeout(onClose, 1000);
@@ -129,14 +176,14 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose }) {
   return (
     <div className="space-y-6">
       
-      {/* CARD DE FERRAMENTAS EM MASSA (Só se estiver aberto) */}
+      {/* FERRAMENTAS DE TOPO (Alteração em Massa) */}
       {!isFechado && (
           <Card className="p-4 bg-blue-50 border-blue-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-100 rounded-full"><RefreshCw className="w-4 h-4 text-blue-600"/></div>
                   <div>
                       <h4 className="font-bold text-sm text-blue-900">Alteração em Massa</h4>
-                      <p className="text-xs text-blue-700">Aplique uma porcentagem única para todos os pedidos.</p>
+                      <p className="text-xs text-blue-700">Aplique uma % única para a lista abaixo.</p>
                   </div>
               </div>
               <div className="flex items-center gap-2">
@@ -147,8 +194,7 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose }) {
                     value={bulkPercent}
                     onChange={(e) => setBulkPercent(e.target.value)}
                   />
-                  <span className="font-bold text-blue-800 text-sm">%</span>
-                  <Button size="sm" onClick={handleBulkChange} className="bg-blue-600 hover:bg-blue-700 text-white h-9">Aplicar</Button>
+                  <Button size="sm" onClick={handleBulkChange} className="bg-blue-600 hover:bg-blue-700 text-white h-9">Aplicar a Todos</Button>
               </div>
           </Card>
       )}
@@ -158,7 +204,6 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose }) {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           <div><p className="text-xs text-slate-500 uppercase font-bold mb-1">Total Vendas</p><p className="font-bold text-emerald-600 text-xl">{formatCurrency(totais.totalVendas)}</p></div>
           <div><p className="text-xs text-slate-500 uppercase font-bold mb-1">Total Comissões</p><p className="font-bold text-blue-600 text-xl">{formatCurrency(totais.totalComissoes)}</p></div>
-          
           <div>
             <p className="text-xs text-slate-500 uppercase font-bold mb-1">(-) Vales / Adiant.</p>
             <div className="relative">
@@ -166,7 +211,6 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose }) {
                 <Input type="number" className="pl-8 h-9 font-bold text-red-600" value={vales} onChange={(e) => setVales(e.target.value)} disabled={isFechado}/>
             </div>
           </div>
-          
           <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-100">
             <p className="text-xs text-emerald-700 uppercase font-bold mb-1">Saldo a Pagar</p>
             <p className="font-bold text-emerald-800 text-2xl">{formatCurrency(totais.saldoFinal)}</p>
@@ -174,24 +218,34 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose }) {
         </div>
       </Card>
 
+      {/* BOTÃO ADICIONAR PEDIDO (MANUAL) */}
+      {!isFechado && (
+          <div className="flex justify-end">
+              <Button onClick={() => setShowAddModal(true)} variant="outline" className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50">
+                  <Plus className="w-4 h-4"/> Adicionar Pedido (Adiantar)
+              </Button>
+          </div>
+      )}
+
       {/* TABELA DE PEDIDOS */}
       <div className="border rounded-xl overflow-hidden bg-white shadow-sm">
         <Table>
             <TableHeader className="bg-slate-50">
                 <TableRow>
-                    <TableHead className="w-[100px]">Data</TableHead>
                     <TableHead>Pedido</TableHead>
+                    <TableHead>Data Pgto</TableHead>
                     <TableHead>Cliente</TableHead>
                     <TableHead className="text-right">Valor Venda</TableHead>
                     <TableHead className="text-center w-[120px]">% Com.</TableHead>
                     <TableHead className="text-right">Comissão</TableHead>
+                    {!isFechado && <TableHead className="w-[50px]"></TableHead>}
                 </TableRow>
             </TableHeader>
             <TableBody>
                 {pedidosEditaveis.map(pedido => (
                     <TableRow key={pedido.id}>
+                        <TableCell className="font-medium text-slate-700">#{pedido.numero_pedido}</TableCell>
                         <TableCell className="text-xs text-slate-500">{new Date(pedido.data_pagamento).toLocaleDateString()}</TableCell>
-                        <TableCell className="font-medium">#{pedido.numero_pedido}</TableCell>
                         <TableCell className="text-sm text-slate-600">{pedido.cliente_nome}</TableCell>
                         <TableCell className="text-right font-medium">{formatCurrency(pedido.valor_pedido)}</TableCell>
                         <TableCell className="text-center p-2">
@@ -210,13 +264,28 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose }) {
                             )}
                         </TableCell>
                         <TableCell className="text-right font-bold text-emerald-600">{formatCurrency(pedido.valorComissao)}</TableCell>
+                        
+                        {/* AÇÃO REMOVER */}
+                        {!isFechado && (
+                            <TableCell>
+                                <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50"
+                                    onClick={() => handleRemoverPedido(pedido.id)}
+                                    title="Remover deste fechamento"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </Button>
+                            </TableCell>
+                        )}
                     </TableRow>
                 ))}
             </TableBody>
         </Table>
       </div>
 
-      {/* DESCONTOS E OBS */}
+      {/* OUTROS DESCONTOS E OBSERVAÇÕES */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
               <label className="text-sm font-bold text-slate-700">Outros Descontos</label>
@@ -231,10 +300,9 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose }) {
           </div>
       </div>
 
-      {/* FOOTER DE AÇÕES */}
+      {/* FOOTER AÇÕES */}
       <div className="flex items-center justify-end gap-3 pt-4 border-t mt-4">
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          
           {!isFechado && (
               <>
                 <Button onClick={handleSaveDraft} disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
@@ -245,13 +313,51 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose }) {
                 </Button>
               </>
           )}
-          
-          {isFechado && (
-              <Button variant="outline" className="gap-2">
-                  <Download className="w-4 h-4"/> Baixar PDF
-              </Button>
-          )}
       </div>
+
+      {/* MODAL PARA ADICIONAR PEDIDO MANUALMENTE */}
+      <ModalContainer 
+        open={showAddModal} 
+        onClose={() => setShowAddModal(false)}
+        title="Adicionar Pedido Avulso"
+        description="Selecione pedidos pagos deste representante que não estão na lista."
+        size="lg"
+      >
+          <div className="space-y-4">
+              <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Input 
+                    placeholder="Buscar pedido ou cliente..." 
+                    value={buscaPedidoAdd} 
+                    onChange={(e) => setBuscaPedidoAdd(e.target.value)} 
+                    className="pl-9"
+                  />
+              </div>
+              <div className="max-h-[300px] overflow-y-auto border rounded-md">
+                  <Table>
+                      <TableHeader><TableRow><TableHead>Pedido</TableHead><TableHead>Cliente</TableHead><TableHead>Valor</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                      <TableBody>
+                          {pedidosDisponiveisParaAdicao.map(p => (
+                              <TableRow key={p.id}>
+                                  <TableCell>#{p.numero_pedido}</TableCell>
+                                  <TableCell>{p.cliente_nome}</TableCell>
+                                  <TableCell>{formatCurrency(p.valor_pedido)}</TableCell>
+                                  <TableCell>
+                                      <Button size="sm" variant="ghost" onClick={() => handleAdicionarPedidoManual(p)}>
+                                          <Plus className="w-4 h-4 text-emerald-600"/>
+                                      </Button>
+                                  </TableCell>
+                              </TableRow>
+                          ))}
+                          {pedidosDisponiveisParaAdicao.length === 0 && (
+                              <TableRow><TableCell colSpan={4} className="text-center py-8 text-slate-500">Nenhum pedido disponível encontrado.</TableCell></TableRow>
+                          )}
+                      </TableBody>
+                  </Table>
+              </div>
+          </div>
+      </ModalContainer>
+
     </div>
   );
 }
