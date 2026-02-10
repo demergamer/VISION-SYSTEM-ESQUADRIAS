@@ -7,6 +7,7 @@ export default function Welcome() {
   const navigate = useNavigate();
   const [showNotification, setShowNotification] = useState(false);
 
+  // --- Navegação via React Router (Rápida e sem recarregar) ---
   const handleCliente = () => navigate('/PortalCliente');
   const handleAdmin = () => navigate('/Dashboard');
   const handleRepresentante = () => navigate('/PortalDoRepresentante');
@@ -26,7 +27,7 @@ export default function Welcome() {
                  rounded-xl shadow-sm hover:shadow-md hover:border-yellow-400/50 
                  transition-all duration-300 relative overflow-hidden"
     >
-      {/* Efeito Hover Sutil */}
+      {/* Efeito Hover Sutil e Leve */}
       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 pointer-events-none" />
 
       <div className="flex items-center gap-4 relative z-10">
@@ -43,44 +44,52 @@ export default function Welcome() {
   );
 
   return (
+    // Container principal com cores para tema claro e escuro
     <div className="min-h-screen w-full flex flex-col items-center justify-center p-6 relative overflow-hidden bg-slate-50 dark:bg-slate-950">
       
-      {/* --- FUNDO LEVE (CSS PURO) --- */}
-      {/* Gradiente de fundo fixo e performático */}
+      {/* --- FUNDO LEVE (CSS PURO - Sem animações pesadas) --- */}
       <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-100 via-slate-50 to-white dark:from-slate-900 dark:via-slate-950 dark:to-black opacity-80" />
-      
-      {/* Elementos decorativos estáticos */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-400/10 blur-3xl" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-yellow-400/10 blur-3xl" />
+      {/* Luzes estáticas leves */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-400/10 blur-3xl dark:bg-blue-600/10" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-yellow-400/10 blur-3xl dark:bg-yellow-600/10" />
 
       {/* --- CONTEÚDO PRINCIPAL --- */}
       <div className="relative z-10 w-full max-w-md flex flex-col items-center">
         
-        {/* LOGOS E TÍTULO */}
+        {/* ÁREA DAS LOGOS */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.6, ease: "easeOut" }}
-          className="text-center mb-10 flex flex-col items-center"
+          className="text-center mb-8 flex flex-col items-center"
         >
-          {/* Logo Principal (J&C Vision) */}
+          {/* 1. Logo J&C VISION (Olho) */}
+          {/* VERIFIQUE SE ESTA URL ESTÁ FUNCIONANDO. Se quebrar, gere um novo link público no Supabase */}
           <img 
             src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/f70ce9703_image_113f55.png"
             alt="J&C Vision"
-            className="w-48 md:w-56 h-auto mb-6 drop-shadow-xl hover:scale-105 transition-transform duration-500"
+            className="w-32 md:w-40 h-auto mb-2 drop-shadow-md"
           />
           
-          <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white mt-4">
-            <span className="text-yellow-500 drop-shadow-sm">J&C</span> <span className="text-blue-900 dark:text-blue-100">Vision</span>
+          {/* 2. Logo J&C ESQUADRIAS (Brasão) */}
+          <img 
+            src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/fa98a5f2b_LOGOJCFUNDOTRANSPARENTE-Copia.png"
+            alt="J&C Esquadrias"
+            className="w-40 md:w-48 h-auto mb-4 drop-shadow-md"
+          />
+          
+          {/* Títulos */}
+          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+            J&C Esquadrias
           </h1>
           
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-2 font-medium tracking-wide">
-            Inteligência em Gestão e Vendas
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 font-medium tracking-wide">
+            Selecione seu perfil de acesso
           </p>
         </motion.div>
 
         {/* BOTÕES DE ACESSO */}
-        <div className="w-full flex flex-col gap-1">
+        <div className="w-full flex flex-col gap-2">
           <AccessButton 
             title="Área do Cliente" 
             subtitle="Acompanhe seus pedidos e entregas" 
@@ -111,31 +120,14 @@ export default function Welcome() {
           initial={{ opacity: 0 }} 
           animate={{ opacity: 1 }} 
           transition={{ delay: 0.8 }}
-          className="mt-12 text-center"
+          className="mt-10 text-center"
         >
           <p className="text-slate-400 dark:text-slate-600 text-[10px] font-bold tracking-widest uppercase">
-            J&C Esquadrias de Alumínio &copy; {new Date().getFullYear()}
+            Powered by J&C Vision &copy; {new Date().getFullYear()}
           </p>
-          <div className="w-12 h-1 bg-yellow-400 mx-auto mt-2 rounded-full opacity-50" />
         </motion.div>
 
       </div>
-
-      {/* NOTIFICAÇÃO (OPCIONAL) */}
-      <AnimatePresence>
-        {showNotification && (
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="absolute bottom-10 bg-slate-800 text-white px-6 py-3 rounded-full flex items-center gap-3 shadow-2xl z-50 border border-slate-700"
-          >
-            <Lock size={16} className="text-yellow-400" />
-            <span className="text-sm font-medium">Acesso restrito. Em desenvolvimento.</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
     </div>
   );
 }
