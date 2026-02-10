@@ -5,13 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DollarSign, Save, Lock, Trash2, Download, RefreshCw, Plus, Search, AlertTriangle, FileText, Loader2 } from "lucide-react";
+import { DollarSign, Save, Lock, Trash2, Download, RefreshCw, Plus, Search, AlertTriangle, FileText, Loader2, ArrowLeftRight } from "lucide-react";
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import ModalContainer from "@/components/modals/ModalContainer";
 
-export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, controles, onClose }) {
+export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, controles, onClose, onSuccessSave }) {
   const [pedidosEditaveis, setPedidosEditaveis] = useState(representante.pedidos || []);
   const [vales, setVales] = useState(representante.vales || 0);
   const [outrosDescontos, setOutrosDescontos] = useState(representante.outrosDescontos || 0);
@@ -26,7 +26,6 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
 
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
-  // Totais
   const totais = useMemo(() => {
     const totalVendas = pedidosEditaveis.reduce((sum, p) => sum + (parseFloat(p.valorBaseComissao) || 0), 0);
     const totalComissoes = pedidosEditaveis.reduce((sum, p) => sum + (parseFloat(p.valorComissao) || 0), 0);
@@ -34,17 +33,17 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
     return { totalVendas, totalComissoes, saldoFinal };
   }, [pedidosEditaveis, vales, outrosDescontos]);
 
-  // --- FILTRO DE ADIÇÃO (O PULO DO GATO 2) ---
+  // --- FILTRO DE ADIÇÃO (VISÃO DE TUDO) ---
   const pedidosDisponiveisParaAdicao = useMemo(() => {
       if (!pedidosTodos) return [];
       const codigoAtual = String(representante.codigo);
 
-      // IDs que estão em rascunhos de OUTROS meses (Sequestrados)
-      const idsEmOutrosMeses = new Set();
+      // Mapeia onde cada pedido está atualmente
+      const mapaPedidos = {};
       if (controles) {
           controles.forEach(c => {
               if (c.status === 'aberto' && c.referencia !== mesAno && c.representante_codigo === codigoAtual) {
-                  c.pedidos_ajustados?.forEach(p => idsEmOutrosMeses.add(String(p.pedido_id)));
+                  c.pedidos_ajustados?.forEach(p => mapaPedidos[String(p.pedido_id)] = c.referencia);
               }
           });
       }
@@ -52,18 +51,18 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
       return pedidosTodos.filter(p => {
           if (String(p.representante_codigo) !== codigoAtual) return false;
           if (p.status !== 'pago') return false; 
-          if (p.comissao_paga === true) return false;
+          if (p.comissao_paga === true) return false; // Se já foi pago em definitivo, sai.
           
-          // Se já está na lista atual visualmente, não mostra
-          if (pedidosEditaveis.some(pe => pe.id === p.id)) return false;
-
-          // Se está em outro rascunho, não mostra (já está "usado" lá)
-          if (idsEmOutrosMeses.has(String(p.id))) return false;
+          if (pedidosEditaveis.some(pe => pe.id === p.id)) return false; // Já está na lista atual
 
           if (buscaPedidoAdd) {
               const t = buscaPedidoAdd.toLowerCase();
               return p.numero_pedido?.toLowerCase().includes(t) || p.cliente_nome?.toLowerCase().includes(t);
           }
+          
+          // Adiciona metadado para saber se está em outro mês
+          p.mes_atual_rascunho = mapaPedidos[String(p.id)];
+          
           return true;
       });
   }, [pedidosTodos, representante, pedidosEditaveis, buscaPedidoAdd, controles, mesAno]);
@@ -82,10 +81,8 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
   };
 
   const handleRemoverPedido = (id) => {
-      // Ao remover, ele sai da lista. Quando salvar, sai do rascunho.
-      // O 'Comissoes.jsx' vai ver que não está mais no rascunho e usará a data natural.
       setPedidosEditaveis(prev => prev.filter(p => p.id !== id));
-      toast.info("Pedido removido desta lista.");
+      toast.info("Removido (ficará disponível na data natural ou outros meses após salvar).");
   };
 
   const handleAdicionarPedidoManual = (pedido) => {
@@ -95,14 +92,41 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
           ...pedido, 
           valorBaseComissao: valorBase, 
           percentualComissao: pct, 
-          valorComissao: (valorBase * pct) / 100 
+          valorComissao: (valorBase * pct) / 100,
+          // Flag para saber que precisamos remover do outro mês se ele tiver dono
+          veio_de_outro_mes: pedido.mes_atual_rascunho
       }]);
-      toast.success('Pedido adicionado! Salve para confirmar.');
+      toast.success('Adicionado! (Salve para confirmar a transferência)');
   };
 
+  // --- SALVAR RASCUNHO (COM ROUBO DE PEDIDOS) ---
   const handleSaveDraft = async () => {
       setLoading(true);
       try {
+          // 1. Limpeza de outros rascunhos ("Roubo")
+          // Identifica pedidos que vieram de outros meses
+          const pedidosRoubados = pedidosEditaveis.filter(p => p.veio_de_outro_mes);
+          
+          if (pedidosRoubados.length > 0 && controles) {
+              const idsRoubados = pedidosRoubados.map(p => String(p.id));
+              
+              // Para cada controle aberto de outro mês
+              const controlesAfetados = controles.filter(c => c.status === 'aberto' && c.referencia !== mesAno && c.representante_codigo === String(representante.codigo));
+              
+              for (const controleOutro of controlesAfetados) {
+                  // Filtra para manter apenas o que NÃO foi roubado
+                  const novaLista = controleOutro.pedidos_ajustados.filter(p => !idsRoubados.includes(String(p.pedido_id)));
+                  
+                  // Se houve mudança, atualiza o outro controle
+                  if (novaLista.length !== controleOutro.pedidos_ajustados.length) {
+                      await base44.entities.ComissaoControle.update(controleOutro.id, {
+                          pedidos_ajustados: novaLista
+                      });
+                  }
+              }
+          }
+
+          // 2. Salvar o rascunho atual
           const payload = {
               referencia: String(mesAno),
               representante_codigo: String(representante.codigo),
@@ -117,10 +141,21 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
                   percentual: parseFloat(p.percentualComissao || 0)
               }))
           };
-          if (controleId) await base44.entities.ComissaoControle.update(controleId, payload);
-          else { const res = await base44.entities.ComissaoControle.create(payload); if(res?.id) setControleId(res.id); }
-          toast.success("Rascunho salvo!");
-      } catch (error) { toast.error("Erro ao salvar."); } finally { setLoading(false); }
+
+          if (controleId) {
+              await base44.entities.ComissaoControle.update(controleId, payload);
+          } else {
+              const res = await base44.entities.ComissaoControle.create(payload);
+              if (res && res.id) setControleId(res.id);
+          }
+          
+          toast.success("Salvo! Dados atualizados.");
+          if (onSuccessSave) onSuccessSave(); // Chama refresh no pai
+      } catch (error) {
+          toast.error("Erro ao salvar: " + error.message);
+      } finally {
+          setLoading(false);
+      }
   };
 
   const handleGerarPDF = async () => {
@@ -138,11 +173,7 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
               saldoAPagar: totais.saldoFinal,
               status: isFechado ? 'fechado' : 'aberto'
           };
-          const response = await base44.functions.invoke('gerarRelatorioComissoes', {
-              tipo: 'analitico',
-              mes_ano: mesAno,
-              representante: dadosParaPDF
-          });
+          const response = await base44.functions.invoke('gerarRelatorioComissoes', { tipo: 'analitico', mes_ano: mesAno, representante: dadosParaPDF });
           const blob = new Blob([response.data], { type: 'application/pdf' });
           const url = window.URL.createObjectURL(blob);
           const a = document.createElement('a'); a.href = url; a.download = `Comissao-${representante.nome}-${mesAno}.pdf`; document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url); a.remove();
@@ -155,6 +186,19 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
       if (!confirm("Finalizar?")) return;
       setLoading(true);
       try {
+          // Mesma lógica de limpeza de roubo antes de finalizar
+          const pedidosRoubados = pedidosEditaveis.filter(p => p.veio_de_outro_mes);
+          if (pedidosRoubados.length > 0 && controles) {
+              const idsRoubados = pedidosRoubados.map(p => String(p.id));
+              const controlesAfetados = controles.filter(c => c.status === 'aberto' && c.referencia !== mesAno && c.representante_codigo === String(representante.codigo));
+              for (const controleOutro of controlesAfetados) {
+                  const novaLista = controleOutro.pedidos_ajustados.filter(p => !idsRoubados.includes(String(p.pedido_id)));
+                  if (novaLista.length !== controleOutro.pedidos_ajustados.length) {
+                      await base44.entities.ComissaoControle.update(controleOutro.id, { pedidos_ajustados: novaLista });
+                  }
+              }
+          }
+
           const payload = {
               referencia: String(mesAno),
               representante_codigo: String(representante.codigo),
@@ -179,7 +223,9 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
                  comissao_valor_base: parseFloat(p.valorBaseComissao)
              })
           ));
-          setIsFechado(true); toast.success("Finalizado!"); setTimeout(onClose, 1500);
+          setIsFechado(true); toast.success("Finalizado!"); 
+          if (onSuccessSave) onSuccessSave();
+          setTimeout(onClose, 1500);
       } catch (error) { toast.error("Erro."); } finally { setLoading(false); }
   };
 
@@ -201,7 +247,7 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
         </div>
       </Card>
 
-      {!isFechado && <div className="flex justify-end"><Button onClick={() => setShowAddModal(true)} variant="outline" className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"><Plus className="w-4 h-4"/> Adicionar Pedido (Antecipar)</Button></div>}
+      {!isFechado && <div className="flex justify-end"><Button onClick={() => setShowAddModal(true)} variant="outline" className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"><Plus className="w-4 h-4"/> Adicionar Pedido (Antecipar/Mover)</Button></div>}
 
       <div className="border rounded-xl overflow-hidden bg-white shadow-sm">
         <Table>
@@ -210,7 +256,6 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
                     <TableHead>Pedido</TableHead>
                     <TableHead>Data Pgto</TableHead>
                     <TableHead>Cliente</TableHead>
-                    <TableHead className="text-right">Valor Venda</TableHead>
                     <TableHead className="text-right text-blue-600">Base Calc. (Pago)</TableHead>
                     <TableHead className="text-center w-[120px]">% Com.</TableHead>
                     <TableHead className="text-right">Comissão</TableHead>
@@ -224,7 +269,6 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
                             <TableCell className="font-medium text-slate-700">#{p.numero_pedido}</TableCell>
                             <TableCell className="text-xs text-slate-500">{new Date(p.data_pagamento).toLocaleDateString()}</TableCell>
                             <TableCell className="text-sm text-slate-600">{p.cliente_nome}</TableCell>
-                            <TableCell className="text-right text-slate-400 text-xs">{formatCurrency(p.valor_pedido)}</TableCell>
                             <TableCell className="text-right font-medium text-blue-700">{formatCurrency(p.valorBaseComissao)}</TableCell>
                             <TableCell className="text-center p-2">
                                 {isFechado ? <Badge variant="outline">{p.percentualComissao}%</Badge> : <div className="flex justify-center items-center gap-1"><Input type="number" className="h-8 w-16 text-center px-1" value={p.percentualComissao} onChange={(e) => handleEditarPercentual(p.id, e.target.value)}/><span className="text-xs text-slate-400">%</span></div>}
@@ -259,7 +303,7 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
           )}
       </div>
 
-      <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Adicionar Pedido Avulso" description="Pedidos pagos não comissionados." size="lg">
+      <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Adicionar Pedido Avulso" description="Pedidos pagos disponíveis." size="lg">
           <div className="space-y-4">
               <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><Input placeholder="Buscar..." value={buscaPedidoAdd} onChange={(e) => setBuscaPedidoAdd(e.target.value)} className="pl-9"/></div>
               <div className="max-h-[300px] overflow-y-auto border rounded-md">
@@ -270,10 +314,17 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
                               pedidosDisponiveisParaAdicao.map(p => (
                                   <TableRow key={p.id}>
                                       <TableCell>#{p.numero_pedido}</TableCell>
-                                      <TableCell>{p.cliente_nome}</TableCell>
+                                      <TableCell>
+                                          <div>{p.cliente_nome}</div>
+                                          {p.mes_atual_rascunho && <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-200 mt-1">Em {p.mes_atual_rascunho}</Badge>}
+                                      </TableCell>
                                       <TableCell className="text-xs">{p.data_pagamento ? new Date(p.data_pagamento).toLocaleDateString() : '-'}</TableCell>
                                       <TableCell className="font-bold text-emerald-600">{formatCurrency(p.total_pago)}</TableCell>
-                                      <TableCell><Button size="sm" variant="ghost" className="hover:bg-emerald-50 text-emerald-600" onClick={() => handleAdicionarPedidoManual(p)}><Plus className="w-4 h-4"/> Adicionar</Button></TableCell>
+                                      <TableCell>
+                                          <Button size="sm" variant="ghost" className="hover:bg-emerald-50 text-emerald-600" onClick={() => handleAdicionarPedidoManual(p)}>
+                                              {p.mes_atual_rascunho ? <ArrowLeftRight className="w-4 h-4 text-amber-600"/> : <Plus className="w-4 h-4"/>}
+                                          </Button>
+                                      </TableCell>
                                   </TableRow>
                               ))
                           }
