@@ -4,12 +4,14 @@ import { base44 } from '@/api/base44Client';
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Wallet, Users, Calendar, DollarSign, FileText, Search, ArrowRight, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button"; // Garanta que Button está importado
+import { Wallet, Users, Calendar, DollarSign, FileText, Search, ArrowRight, Download } from "lucide-react";
 import PermissionGuard from "@/components/PermissionGuard";
 import ModalContainer from "@/components/modals/ModalContainer";
 import ComissaoDetalhes from "@/components/comissoes/ComissaoDetalhes";
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { toast } from 'sonner';
 
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
@@ -68,7 +70,7 @@ export default function Comissoes() {
   const { data: representantes = [] } = useQuery({ queryKey: ['representantes'], queryFn: () => base44.entities.Representante.list() });
   const { data: controles = [] } = useQuery({ queryKey: ['comissaoControle'], queryFn: () => base44.entities.ComissaoControle.list() });
 
-  // --- LÓGICA DE CÁLCULO (O CORAÇÃO DO SISTEMA) ---
+  // --- LÓGICA DE CÁLCULO ---
   const comissoesPorRepresentante = useMemo(() => {
     const [ano, mes] = mesAnoSelecionado.split('-').map(Number);
     const inicioMes = startOfMonth(new Date(ano, mes - 1));
@@ -76,29 +78,19 @@ export default function Comissoes() {
     const mesAtual = format(hoje, 'yyyy-MM');
     const ehMesFuturo = mesAnoSelecionado > mesAtual;
 
-    // Filtra controles deste mês (Rascunhos ou Fechados)
     const controlesDoMes = controles.filter(c => c.referencia === mesAnoSelecionado);
 
-    // 1. Filtragem Inicial: Pedidos que "Naturalmente" pertencem ao mês (Data Pagamento)
+    // 1. Filtragem Inicial
     const pedidosDoMes = pedidos.filter(p => {
-        // Se já está pago e fechado em definitivo NESTE mês:
-        if (p.comissao_paga === true) {
-            return p.comissao_referencia_paga === mesAnoSelecionado;
-        }
-        
-        // Se não está pago, e não é previsão futura, ignora
+        if (p.comissao_paga === true) return p.comissao_referencia_paga === mesAnoSelecionado;
         if (p.status !== 'pago' && !ehMesFuturo) return false;
-
-        // Verifica data
         const dataRef = p.data_referencia_comissao ? new Date(p.data_referencia_comissao) : (p.data_pagamento ? new Date(p.data_pagamento) : null);
         if (!dataRef) return false;
-        
         return dataRef >= inicioMes && dataRef <= fimMes;
     });
 
     const agrupado = {};
 
-    // Função auxiliar para inicializar ou recuperar representante no agrupamento
     const getRepAgrupado = (repCodigo, dadosExtra = {}) => {
         if (!agrupado[repCodigo]) {
             const repOriginal = representantes.find(r => r.codigo === repCodigo);
@@ -112,7 +104,6 @@ export default function Comissoes() {
                 pedidos: [],
                 totalVendas: 0,
                 totalComissoes: 0,
-                // Dados do Controle (Rascunho)
                 vales: controle ? controle.vales : 0,
                 outrosDescontos: controle ? controle.outros_descontos : 0,
                 observacoes: controle ? controle.observacao : '',
@@ -124,22 +115,13 @@ export default function Comissoes() {
         return agrupado[repCodigo];
     };
 
-    // Função auxiliar para adicionar/processar um pedido na lista
     const processarPedido = (pedido, percentualForcado = null) => {
         const repData = getRepAgrupado(pedido.representante_codigo, { nome: pedido.representante_nome });
-        
-        // Evita duplicidade visual se o pedido já foi processado
         if (repData.pedidos.some(p => p.id === pedido.id)) return;
 
         const valorPedido = parseFloat(pedido.valor_pedido) || 0;
         
-        // Definição da Porcentagem:
-        // 1. Forçado (vem do loop do rascunho)
-        // 2. Salvo no rascunho (pedidos_ajustados)
-        // 3. Do pedido original
-        // 4. Padrão do representante
         let percentual = percentualForcado;
-        
         if (percentual === null) {
             const ajusteSalvo = repData.pedidos_ajustados?.find(a => String(a.pedido_id) === String(pedido.id));
             if (ajusteSalvo) percentual = ajusteSalvo.percentual;
@@ -158,32 +140,53 @@ export default function Comissoes() {
         repData.totalComissoes += valorComissao;
     };
 
-    // PASSO A: Processar pedidos naturais do mês
     pedidosDoMes.forEach(p => processarPedido(p));
 
-    // PASSO B: Processar pedidos "forçados" (Antecipados/Salvos no Rascunho)
-    // Isso resolve o problema de pedidos de outros meses não aparecerem
     controlesDoMes.forEach(controle => {
         if (controle.pedidos_ajustados && Array.isArray(controle.pedidos_ajustados)) {
             controle.pedidos_ajustados.forEach(ajuste => {
-                // Busca o pedido na lista global (pode ser de qualquer mês)
                 const pedidoOriginal = pedidos.find(p => String(p.id) === String(ajuste.pedido_id));
-                
                 if (pedidoOriginal) {
-                    // Força a inclusão dele na lista deste mês, usando a % salva
                     processarPedido(pedidoOriginal, ajuste.percentual);
                 }
             });
         }
     });
 
-    // Finaliza cálculos
     Object.values(agrupado).forEach(rep => {
       rep.saldoAPagar = rep.totalComissoes - rep.vales - rep.outrosDescontos;
     });
 
     return Object.values(agrupado);
   }, [pedidos, mesAnoSelecionado, representantes, controles, hoje]);
+
+  // --- FUNÇÃO RESTAURADA: GERAR RELATÓRIO GERAL ---
+  const handleGerarRelatorioGeral = async () => {
+    try {
+      toast.loading('Gerando relatório geral...');
+      const response = await base44.functions.invoke('gerarRelatorioComissoes', {
+        tipo: 'geral',
+        mes_ano: mesAnoSelecionado,
+        representantes: comissoesPorRepresentante
+      });
+
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Comissoes-Geral-${mesAnoSelecionado}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+      
+      toast.dismiss();
+      toast.success('Relatório geral gerado!');
+    } catch (error) {
+      toast.dismiss();
+      toast.error('Erro ao gerar relatório');
+    }
+  };
 
   // Filtros de UI
   const mesesDisponiveis = useMemo(() => {
@@ -213,21 +216,34 @@ export default function Comissoes() {
     <PermissionGuard setor="Comissoes">
       <div className="space-y-8 p-6 bg-[#F8FAFC] min-h-screen">
         
-        {/* HEADER & FILTROS */}
+        {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold text-slate-800">Comissões</h1>
             <p className="text-slate-500">Gestão de fechamentos e pagamentos</p>
           </div>
-          <div className="flex items-center gap-3 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
-             <Calendar className="w-5 h-5 text-slate-400 ml-2" />
-             <select 
-               value={mesAnoSelecionado} 
-               onChange={(e) => setMesAnoSelecionado(e.target.value)} 
-               className="bg-transparent border-none text-sm font-bold text-slate-700 focus:ring-0 cursor-pointer outline-none uppercase"
-             >
-                {mesesDisponiveis.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-             </select>
+          
+          <div className="flex items-center gap-3">
+              {/* BOTÃO RESTAURADO AQUI */}
+              <Button 
+                onClick={handleGerarRelatorioGeral}
+                className="gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-sm"
+                disabled={comissoesPorRepresentante.length === 0}
+              >
+                <Download className="w-4 h-4" />
+                Relatório Geral (PIX)
+              </Button>
+
+              <div className="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
+                <Calendar className="w-5 h-5 text-slate-400 ml-2" />
+                <select 
+                  value={mesAnoSelecionado} 
+                  onChange={(e) => setMesAnoSelecionado(e.target.value)} 
+                  className="bg-transparent border-none text-sm font-bold text-slate-700 focus:ring-0 cursor-pointer outline-none uppercase"
+                >
+                    {mesesDisponiveis.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                </select>
+              </div>
           </div>
         </div>
 
@@ -276,7 +292,7 @@ export default function Comissoes() {
             </div>
         </div>
 
-        {/* MODAL DETALHES - IMPORTANTE: KEY ÚNICA */}
+        {/* MODAL DETALHES */}
         <ModalContainer
           open={showDetalhes}
           onClose={() => { setShowDetalhes(false); setRepresentanteSelecionado(null); }}
@@ -286,7 +302,7 @@ export default function Comissoes() {
         >
           {representanteSelecionado && (
             <ComissaoDetalhes 
-              key={representanteSelecionado.codigo + mesAnoSelecionado} // Garante reload ao mudar rep ou mês
+              key={representanteSelecionado.codigo + mesAnoSelecionado} 
               representante={representanteSelecionado}
               mesAno={mesAnoSelecionado}
               pedidosTodos={pedidos}
