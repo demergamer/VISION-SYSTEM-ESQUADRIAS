@@ -7,18 +7,19 @@ export default function Welcome() {
   const navigate = useNavigate();
   const [showNotification, setShowNotification] = useState(false);
 
-  // --- Lógica de Navegação ---
+  // --- Lógica de Navegação (CORRIGIDA) ---
+  // Agora usa o roteamento interno do React, muito mais rápido
   
   const handleCliente = () => {
-    window.location.href = 'https://gestor-financeiro-pro-8984498a.base44.app/PortalCliente';
+    navigate('/PortalCliente');
   };
 
   const handleAdmin = () => {
-    window.location.href = 'https://gestor-financeiro-pro-8984498a.base44.app/Dashboard';
+    navigate('/Dashboard');
   };
 
   const handleRepresentante = () => {
-    window.location.href = 'https://gestor-financeiro-pro-8984498a.base44.app/PortalDoRepresentante';
+    navigate('/PortalDoRepresentante');
   };
 
   // --- Componente de Botão Premium ---
