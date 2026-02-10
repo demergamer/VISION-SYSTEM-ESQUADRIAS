@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from '@/api/base44Client';
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button"; 
-import { Wallet, Users, Calendar, DollarSign, FileText, Search, ArrowRight, Download, Loader2 } from "lucide-react";
+import { Wallet, Users, Calendar, DollarSign, FileText, Search, ArrowRight, Download } from "lucide-react";
 import PermissionGuard from "@/components/PermissionGuard";
 import ModalContainer from "@/components/modals/ModalContainer";
 import ComissaoDetalhes from "@/components/comissoes/ComissaoDetalhes";
@@ -48,19 +48,15 @@ export default function Comissoes() {
   const { data: representantes = [] } = useQuery({ queryKey: ['representantes'], queryFn: () => base44.entities.Representante.list() });
   const { data: controles = [] } = useQuery({ queryKey: ['comissaoControle'], queryFn: () => base44.entities.ComissaoControle.list() });
 
-  // --- LÓGICA MESTRA (O IMÃ) ---
+  // --- LÓGICA MESTRA ---
   const comissoesPorRepresentante = useMemo(() => {
     const [ano, mes] = mesAnoSelecionado.split('-').map(Number);
     const inicioMes = startOfMonth(new Date(ano, mes - 1));
     const fimMes = endOfMonth(new Date(ano, mes - 1));
     
-    // 1. MAPA DE "SEQUESTROS"
-    // Descobre onde cada pedido está "preso" (em qual rascunho de mês ele está)
-    const mapaPedidoParaMes = {}; // { idPedido: '2026-02' }
-    
+    // 1. MAPA DE "SEQUESTROS" (Pedidos em rascunhos de outros meses)
+    const mapaPedidoParaMes = {}; 
     controles.forEach(c => {
-        // Só consideramos rascunhos ABERTOS como "imãs ativos"
-        // Se estiver FECHADO, o pedido já deve ter 'comissao_paga=true' e nem aparece aqui
         if (c.status === 'aberto' && c.pedidos_ajustados) {
             c.pedidos_ajustados.forEach(p => {
                 mapaPedidoParaMes[String(p.pedido_id)] = c.referencia;
@@ -70,46 +66,56 @@ export default function Comissoes() {
 
     const controlesDoMesAtual = controles.filter(c => c.referencia === mesAnoSelecionado);
 
-    // 2. FILTRAGEM UNIFICADA
+    // 2. FILTRAGEM UNIFICADA (Imã + Gravidade)
     const pedidosDesteMes = pedidos.filter(p => {
         const idStr = String(p.id);
-
-        // A. Se já pago (Finalizado Definitivo)
-        if (p.comissao_paga === true) {
-            return p.comissao_referencia_paga === mesAnoSelecionado;
-        }
-
-        // B. Se não pago (Status do Pedido)
+        if (p.comissao_paga === true) return p.comissao_referencia_paga === mesAnoSelecionado;
         if (p.status !== 'pago') return false;
 
-        // C. REGRA DO IMÃ (Prioridade Máxima)
-        if (mapaPedidoParaMes[idStr]) {
-            // Se está mapeado para ESTE mês selecionado, mostra aqui.
-            // Se está mapeado para OUTRO mês, esconde daqui (foi roubado).
-            return mapaPedidoParaMes[idStr] === mesAnoSelecionado;
-        }
+        // Regra do Imã
+        if (mapaPedidoParaMes[idStr]) return mapaPedidoParaMes[idStr] === mesAnoSelecionado;
 
-        // D. REGRA DA GRAVIDADE (Data Natural)
-        // Se não está em nenhum mapa (ninguém puxou), ele cai no mês da data dele.
+        // Regra da Gravidade (Data Natural)
         const dataRef = p.data_referencia_comissao ? new Date(p.data_referencia_comissao) : (p.data_pagamento ? new Date(p.data_pagamento) : null);
         if (!dataRef) return false;
         
         return dataRef >= inicioMes && dataRef <= fimMes;
     });
 
-    // 3. AGRUPAMENTO
     const agrupado = {};
 
+    // 3. INICIALIZAÇÃO OBRIGATÓRIA DE TODOS OS REPRESENTANTES
+    // Garante que todos apareçam, mesmo com 0 vendas
+    representantes.forEach(rep => {
+        const controle = controlesDoMesAtual.find(c => c.representante_codigo === rep.codigo);
+        agrupado[rep.codigo] = {
+            codigo: rep.codigo,
+            nome: rep.nome,
+            chave_pix: rep.chave_pix || '',
+            porcentagem_padrao: rep.porcentagem_comissao || 5,
+            pedidos: [],
+            totalVendas: 0,
+            totalComissoes: 0,
+            vales: controle ? controle.vales : 0,
+            outrosDescontos: controle ? controle.outros_descontos : 0,
+            observacoes: controle ? controle.observacao : '',
+            status: controle ? controle.status : 'aberto',
+            controleId: controle?.id,
+            pedidos_ajustados: controle?.pedidos_ajustados || []
+        };
+    });
+
+    // Função auxiliar (Atualizada para não sobrescrever, apenas buscar)
     const getRepAgrupado = (repCodigo, dadosExtra = {}) => {
         if (!agrupado[repCodigo]) {
-            const repOriginal = representantes.find(r => r.codigo === repCodigo);
+            // Caso raro: Representante no pedido mas excluído do cadastro ou código diferente
+            // Cria entrada "on the fly" se não foi inicializado acima
             const controle = controlesDoMesAtual.find(c => c.representante_codigo === repCodigo);
-
             agrupado[repCodigo] = {
                 codigo: repCodigo,
-                nome: repOriginal?.nome || dadosExtra.nome || 'Desconhecido',
-                chave_pix: repOriginal?.chave_pix || '',
-                porcentagem_padrao: repOriginal?.porcentagem_comissao || 5,
+                nome: dadosExtra.nome || 'Desconhecido',
+                chave_pix: '',
+                porcentagem_padrao: 5,
                 pedidos: [],
                 totalVendas: 0,
                 totalComissoes: 0,
@@ -124,13 +130,11 @@ export default function Comissoes() {
         return agrupado[repCodigo];
     };
 
+    // 4. DISTRIBUIÇÃO DOS PEDIDOS
     pedidosDesteMes.forEach(pedido => {
         const repData = getRepAgrupado(pedido.representante_codigo, { nome: pedido.representante_nome });
         
-        // Define Percentual: 1. Do Rascunho > 2. Do Pedido > 3. Padrão
         let percentual = pedido.porcentagem_comissao || repData.porcentagem_padrao;
-        
-        // Se existe no rascunho deste mês, usa a % salva
         if (mapaPedidoParaMes[String(pedido.id)] === mesAnoSelecionado) {
              const ajuste = repData.pedidos_ajustados?.find(a => String(a.pedido_id) === String(pedido.id));
              if (ajuste) percentual = ajuste.percentual;
@@ -150,6 +154,7 @@ export default function Comissoes() {
         repData.totalComissoes += valorComissao;
     });
 
+    // 5. CÁLCULO FINAL DE SALDO
     Object.values(agrupado).forEach(rep => {
       rep.saldoAPagar = rep.totalComissoes - rep.vales - rep.outrosDescontos;
     });
@@ -217,23 +222,19 @@ export default function Comissoes() {
                 {representantesFiltrados.map((rep) => (
                     <RepresentanteCard key={rep.codigo} rep={rep} onClick={() => { setRepresentanteSelecionado(rep); setShowDetalhes(true); }} />
                 ))}
-                {representantesFiltrados.length === 0 && <div className="col-span-full py-16 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-200">Nenhuma comissão encontrada.</div>}
+                {representantesFiltrados.length === 0 && <div className="col-span-full py-16 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-200">Nenhum representante encontrado.</div>}
             </div>
         </div>
 
         <ModalContainer open={showDetalhes} onClose={() => { setShowDetalhes(false); setRepresentanteSelecionado(null); }} title={`Detalhes - ${representanteSelecionado?.nome || ''}`} description={`Fechamento de ${mesesDisponiveis.find(m => m.value === mesAnoSelecionado)?.label}`} size="xl">
           {representanteSelecionado && (
             <ComissaoDetalhes 
-              key={representanteSelecionado.codigo + mesAnoSelecionado + controles.length} // Force render on data change
+              key={representanteSelecionado.codigo + mesAnoSelecionado + controles.length} 
               representante={representanteSelecionado}
               mesAno={mesAnoSelecionado}
               pedidosTodos={pedidos}
-              controles={controles} // Passa TODOS os controles para verificar sequestro
-              onClose={() => { 
-                  setShowDetalhes(false); 
-                  setRepresentanteSelecionado(null); 
-              }}
-              // Função de Callback para forçar o React Query a atualizar tudo
+              controles={controles} 
+              onClose={() => { setShowDetalhes(false); setRepresentanteSelecionado(null); }}
               onSuccessSave={() => {
                   queryClient.invalidateQueries(['comissaoControle']);
                   queryClient.invalidateQueries(['pedidos']);
