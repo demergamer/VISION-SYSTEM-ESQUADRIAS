@@ -65,7 +65,7 @@ export default function Welcome() {
             
             {/* Logo 1: J&C Vision */}
             <img 
-              src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/f70ce9703_image_113f55.png"
+              src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png"
               alt="J&C Vision"
               className="w-28 md:w-36 h-auto drop-shadow-md hover:scale-105 transition-transform duration-300"
             />
