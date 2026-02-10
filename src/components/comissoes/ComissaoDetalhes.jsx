@@ -44,7 +44,7 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
   const pedidosDisponiveisParaAdicao = useMemo(() => {
       if (!pedidosTodos) return [];
       
-      const repCodigoAtual = String(representante.rep.codigo);
+      const repCodigoAtual = String(representante.codigo);
 
       return pedidosTodos.filter(p => {
           // 1. Filtro Básico: Mesmo representante e estar PAGO
@@ -102,7 +102,7 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
   };
 
   const handleAdicionarPedidoManual = (pedido) => {
-      const percentual = pedido.porcentagem_comissao || representante.rep.porcentagem_padrao || 5;
+      const percentual = pedido.porcentagem_comissao || 5;
       const novoItem = {
           ...pedido,
           percentualComissao: percentual,
@@ -125,8 +125,8 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
 
           const payload = {
               referencia: mesAno,
-              representante_codigo: String(representante.rep.codigo),
-              representante_nome: representante.rep.nome,
+              representante_codigo: String(representante.codigo),
+              representante_nome: representante.nome,
               vales: parseFloat(vales),
               outros_descontos: parseFloat(outrosDescontos),
               observacao: observacoes,
@@ -154,7 +154,7 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
   // --- FINALIZAR ---
   const handleFinalize = async () => {
       // Trava de PIX
-      if (!representante.rep.chave_pix) {
+      if (!representante.chave_pix) {
           toast.error("Impossível finalizar: Representante sem Chave PIX cadastrada.");
           return;
       }
@@ -169,8 +169,8 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
           const pedidosData = pedidosEditaveis.map(p => ({ pedido_id: p.id, percentual: p.percentualComissao }));
           const payload = {
               referencia: mesAno,
-              representante_codigo: String(representante.rep.codigo),
-              representante_nome: representante.rep.nome,
+              representante_codigo: String(representante.codigo),
+              representante_nome: representante.nome,
               vales: parseFloat(vales),
               outros_descontos: parseFloat(outrosDescontos),
               observacao: observacoes,
@@ -343,7 +343,7 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
       </div>
 
       {/* ALERTA PIX (Se não tiver chave e não estiver fechado) */}
-      {!isFechado && !representante.rep.chave_pix && (
+      {!isFechado && !representante.chave_pix && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center gap-3 text-amber-800">
               <AlertTriangle className="w-5 h-5 text-amber-600" />
               <div>
@@ -365,9 +365,9 @@ export default function ComissaoDetalhes({ representante, mesAno, pedidosTodos, 
                 {/* BOTÃO FINALIZAR COM TRAVA DE PIX */}
                 <Button 
                     onClick={handleFinalize} 
-                    disabled={loading || !representante.rep.chave_pix} 
+                    disabled={loading || !representante.chave_pix} 
                     className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={!representante.rep.chave_pix ? "Necessário chave PIX" : "Finalizar"}
+                    title={!representante.chave_pix ? "Necessário chave PIX" : "Finalizar"}
                 >
                     <Lock className="w-4 h-4"/> Finalizar Fechamento
                 </Button>
