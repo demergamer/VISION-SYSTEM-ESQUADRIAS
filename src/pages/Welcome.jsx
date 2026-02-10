@@ -7,12 +7,12 @@ export default function Welcome() {
   const navigate = useNavigate();
   const [showNotification, setShowNotification] = useState(false);
 
-  // --- Navegação via React Router ---
+  // --- Navegação ---
   const handleCliente = () => navigate('/PortalCliente');
   const handleAdmin = () => navigate('/Dashboard');
   const handleRepresentante = () => navigate('/PortalDoRepresentante');
 
-  // --- Componente de Botão Otimizado ---
+  // --- Botão Otimizado ---
   const AccessButton = ({ title, subtitle, icon: Icon, onClick, delay }) => (
     <motion.button
       initial={{ opacity: 0, y: 10 }}
@@ -45,7 +45,7 @@ export default function Welcome() {
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center p-6 relative overflow-hidden bg-slate-50 dark:bg-slate-950">
       
-      {/* --- FUNDO LEVE --- */}
+      {/* --- FUNDO LEVE (Estático para performance) --- */}
       <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-100 via-slate-50 to-white dark:from-slate-900 dark:via-slate-950 dark:to-black opacity-80" />
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-400/10 blur-3xl dark:bg-blue-600/10" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-yellow-400/10 blur-3xl dark:bg-yellow-600/10" />
@@ -53,46 +53,53 @@ export default function Welcome() {
       {/* --- CONTEÚDO PRINCIPAL --- */}
       <div className="relative z-10 w-full max-w-md flex flex-col items-center">
         
-        {/* LOGOS E TÍTULO */}
+        {/* CABEÇALHO (LOGOS + TEXTO) */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.6, ease: "easeOut" }}
-          className="text-center mb-8 flex flex-col items-center"
+          className="w-full flex flex-col items-center justify-center mb-10"
         >
-          {/* --- ÁREA DAS LOGOS LADO A LADO --- */}
-          <div className="flex flex-row items-center justify-center gap-6 mb-6">
+          {/* CONTAINER DAS LOGOS LADO A LADO */}
+          {/* Ajustei para alinhar pelo centro vertical e horizontal do container */}
+          <div className="flex items-center justify-center gap-8 mb-6 w-full">
             
-            {/* Logo 1: J&C Vision (Link Atualizado) */}
-            <img 
-              src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png"
-              alt="J&C Vision"
-              className="w-28 md:w-36 h-auto drop-shadow-md hover:scale-105 transition-transform duration-300"
-            />
+            {/* Logo 1: Vision (Ajustado pela altura h-24 para equilibrar) */}
+            <div className="flex items-center justify-center">
+               <img 
+                 src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png"
+                 alt="J&C Vision"
+                 className="h-24 md:h-28 w-auto object-contain drop-shadow-md hover:scale-105 transition-transform duration-300"
+               />
+            </div>
 
-            {/* Separador Vertical */}
-            <div className="h-12 w-px bg-slate-300 dark:bg-slate-700 opacity-50"></div>
+            {/* Separador Vertical Fino e Centralizado */}
+            <div className="h-16 w-[1px] bg-slate-300 dark:bg-slate-700 opacity-60 rounded-full"></div>
             
-            {/* Logo 2: J&C Esquadrias */}
-            <img 
-              src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/fa98a5f2b_LOGOJCFUNDOTRANSPARENTE-Copia.png"
-              alt="J&C Esquadrias"
-              className="w-32 md:w-40 h-auto drop-shadow-md hover:scale-105 transition-transform duration-300"
-            />
+            {/* Logo 2: Esquadrias (Ajustado pela altura h-20, pois ela é mais larga) */}
+            <div className="flex items-center justify-center">
+               <img 
+                 src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/fa98a5f2b_LOGOJCFUNDOTRANSPARENTE-Copia.png"
+                 alt="J&C Esquadrias"
+                 className="h-20 md:h-24 w-auto object-contain drop-shadow-md hover:scale-105 transition-transform duration-300"
+               />
+            </div>
           </div>
           
-          {/* Títulos */}
-          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-            <span className="text-blue-900 dark:text-blue-100">J&C</span> Vision
-          </h1>
-          
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 font-medium tracking-wide">
-            Selecione seu perfil de acesso
-          </p>
+          {/* TÍTULO CENTRALIZADO */}
+          <div className="text-center space-y-1">
+            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+              <span className="text-blue-900 dark:text-blue-100">J&C</span> Vision
+            </h1>
+            
+            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium tracking-wide">
+              Selecione seu perfil de acesso
+            </p>
+          </div>
         </motion.div>
 
         {/* BOTÕES DE ACESSO */}
-        <div className="w-full flex flex-col gap-2">
+        <div className="w-full flex flex-col gap-3">
           <AccessButton 
             title="Área do Cliente" 
             subtitle="Acompanhe seus pedidos e entregas" 
@@ -118,21 +125,21 @@ export default function Welcome() {
           />
         </div>
 
-        {/* RODAPÉ ATUALIZADO */}
+        {/* RODAPÉ */}
         <motion.div 
           initial={{ opacity: 0 }} 
           animate={{ opacity: 1 }} 
           transition={{ delay: 0.8 }}
-          className="mt-10 text-center"
+          className="mt-12 text-center"
         >
-          <p className="text-slate-400 dark:text-slate-600 text-[10px] font-bold tracking-widest uppercase">
+          <p className="text-slate-400 dark:text-slate-600 text-[10px] font-bold tracking-[0.2em] uppercase">
             Vision System &copy; {new Date().getFullYear()}
           </p>
         </motion.div>
 
       </div>
 
-      {/* NOTIFICAÇÃO (MANTIDA) */}
+      {/* NOTIFICAÇÃO FLUTUANTE */}
       <AnimatePresence>
         {showNotification && (
           <motion.div
