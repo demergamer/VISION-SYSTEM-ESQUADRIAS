@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
-  DollarSign, Save, Lock, Trash2, Download, RefreshCw, Plus, Search, AlertCircle, X, Loader2
+  DollarSign, Save, Lock, Trash2, Download, RefreshCw, Plus, Search, AlertCircle, X, Loader2, AlertTriangle
 } from "lucide-react";
 import { format } from 'date-fns';
 import { toast } from 'sonner';
