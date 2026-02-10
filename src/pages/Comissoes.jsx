@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button"; 
 import { Wallet, Users, Calendar, DollarSign, FileText, Search, ArrowRight, Download } from "lucide-react";
 import PermissionGuard from "@/components/PermissionGuard";
 import ModalContainer from "@/components/modals/ModalContainer";
@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
+// --- CARD REPRESENTANTE (MANTIDO) ---
 const RepresentanteCard = ({ rep, onClick }) => {
   const statusColor = rep.status === 'fechado' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-amber-100 text-amber-700 border-amber-200';
   return (
@@ -24,7 +25,7 @@ const RepresentanteCard = ({ rep, onClick }) => {
         <Badge variant="outline" className={statusColor}>{rep.status === 'fechado' ? 'Fechado' : 'Aberto'}</Badge>
       </div>
       <div className="grid grid-cols-2 gap-4 text-sm">
-        <div className="bg-slate-50 p-2 rounded-lg border border-slate-100"><p className="text-slate-500 text-xs uppercase font-bold">Base Vendas (Pagas)</p><p className="text-slate-700 font-bold">{formatCurrency(rep.totalVendas)}</p></div>
+        <div className="bg-slate-50 p-2 rounded-lg border border-slate-100"><p className="text-slate-500 text-xs uppercase font-bold">Vendas (Base)</p><p className="text-slate-700 font-bold">{formatCurrency(rep.totalVendas)}</p></div>
         <div className="bg-slate-50 p-2 rounded-lg border border-slate-100"><p className="text-slate-500 text-xs uppercase font-bold">A Pagar</p><p className="text-emerald-600 font-bold text-lg">{formatCurrency(rep.saldoAPagar)}</p></div>
       </div>
       <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center text-xs text-slate-500">
@@ -43,40 +44,74 @@ export default function Comissoes() {
   const [showDetalhes, setShowDetalhes] = useState(false);
   const [buscaRepresentante, setBuscaRepresentante] = useState('');
 
+  // Queries
   const { data: pedidos = [] } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list() });
   const { data: representantes = [] } = useQuery({ queryKey: ['representantes'], queryFn: () => base44.entities.Representante.list() });
+  // Carrega TODOS os controles para saber quem sequestrou quem
   const { data: controles = [] } = useQuery({ queryKey: ['comissaoControle'], queryFn: () => base44.entities.ComissaoControle.list() });
 
-  // --- LÓGICA DE CÁLCULO ---
+  // --- LÓGICA MESTRA DE CÁLCULO ---
   const comissoesPorRepresentante = useMemo(() => {
     const [ano, mes] = mesAnoSelecionado.split('-').map(Number);
     const inicioMes = startOfMonth(new Date(ano, mes - 1));
     const fimMes = endOfMonth(new Date(ano, mes - 1));
-    const mesAtual = format(hoje, 'yyyy-MM');
-    const ehMesFuturo = mesAnoSelecionado > mesAtual;
+    
+    // 1. MAPA DE PEDIDOS SEQUESTRADOS (CRUCIAL)
+    // Identifica pedidos que estão salvos em rascunhos de OUTROS meses
+    const pedidosEmOutrosMeses = {}; // { pedidoId: '2026-02' }
+    
+    controles.forEach(c => {
+        if (c.status === 'aberto' && c.referencia !== mesAnoSelecionado && c.pedidos_ajustados) {
+            c.pedidos_ajustados.forEach(p => {
+                pedidosEmOutrosMeses[String(p.pedido_id)] = c.referencia;
+            });
+        }
+    });
 
-    // Filtra Rascunhos/Fechamentos deste mês
-    const controlesDoMes = controles.filter(c => c.referencia === mesAnoSelecionado);
+    // 2. Controle do Mês Atual
+    const controlesDoMesAtual = controles.filter(c => c.referencia === mesAnoSelecionado);
 
-    // 1. Pedidos do Mês (Data Pagamento)
-    const pedidosDoMes = pedidos.filter(p => {
-        // Se já está pago e fechado em definitivo NESTE mês:
-        if (p.comissao_paga === true) return p.comissao_referencia_paga === mesAnoSelecionado;
+    // 3. Filtragem Inteligente dos Pedidos
+    const pedidosElegiveis = pedidos.filter(p => {
+        const idStr = String(p.id);
+
+        // A. Se já foi pago (finalizado) em definitivo:
+        if (p.comissao_paga === true) {
+            // Só mostra se pertence a este mês de referência
+            return p.comissao_referencia_paga === mesAnoSelecionado;
+        }
+
+        // B. Se não está pago (Status Pedido) e não é comissão paga
+        if (p.status !== 'pago') return false;
+
+        // C. VERIFICAÇÃO DE SEQUESTRO (Lógica do "Move Automaticamente")
         
-        // Se não está pago, e não é previsão, ignora
-        if (p.status !== 'pago' && !ehMesFuturo) return false;
+        // Se este pedido está salvo no rascunho DESTE mês, ele entra (forçado)
+        const estaNoRascunhoDesteMes = controlesDoMesAtual.some(c => 
+            c.representante_codigo === p.representante_codigo && 
+            c.pedidos_ajustados?.some(aj => String(aj.pedido_id) === idStr)
+        );
+        if (estaNoRascunhoDesteMes) return true; // Prioridade total para o rascunho atual
 
+        // Se este pedido está salvo no rascunho de OUTRO mês, ele sai daqui
+        if (pedidosEmOutrosMeses[idStr]) return false; // Está sequestrado por outro mês
+
+        // D. Se não está em nenhum rascunho, usa a DATA NATURAL (Gravity Fallback)
+        // Se eu remover de Janeiro, ele cai aqui e volta pra Fevereiro se a data for Fev.
         const dataRef = p.data_referencia_comissao ? new Date(p.data_referencia_comissao) : (p.data_pagamento ? new Date(p.data_pagamento) : null);
         if (!dataRef) return false;
+        
         return dataRef >= inicioMes && dataRef <= fimMes;
     });
 
+    // 4. Agrupamento (Mantido igual, apenas processando a lista filtrada acima)
     const agrupado = {};
 
+    // Função auxiliar para inicializar representante
     const getRepAgrupado = (repCodigo, dadosExtra = {}) => {
         if (!agrupado[repCodigo]) {
             const repOriginal = representantes.find(r => r.codigo === repCodigo);
-            const controle = controlesDoMes.find(c => c.representante_codigo === repCodigo);
+            const controle = controlesDoMesAtual.find(c => c.representante_codigo === repCodigo);
 
             agrupado[repCodigo] = {
                 codigo: repCodigo,
@@ -97,57 +132,36 @@ export default function Comissoes() {
         return agrupado[repCodigo];
     };
 
-    const processarPedido = (pedido, percentualForcado = null) => {
+    // Processa a lista final
+    pedidosElegiveis.forEach(pedido => {
         const repData = getRepAgrupado(pedido.representante_codigo, { nome: pedido.representante_nome });
         
-        // Evita duplicidade se o pedido já foi processado
-        if (repData.pedidos.some(p => p.id === pedido.id)) return;
+        // Determina % (Salva > Pedido > Padrão)
+        let percentual = pedido.porcentagem_comissao || repData.porcentagem_padrao;
+        const ajusteSalvo = repData.pedidos_ajustados?.find(a => String(a.pedido_id) === String(pedido.id));
+        if (ajusteSalvo) percentual = ajusteSalvo.percentual;
 
-        // IMPORTANTE: Base de cálculo é o TOTAL PAGO
-        const valorBase = parseFloat(pedido.total_pago) || 0; 
-        
-        let percentual = percentualForcado;
-        if (percentual === null) {
-            // Verifica se tem ajuste salvo no rascunho
-            const ajusteSalvo = repData.pedidos_ajustados?.find(a => String(a.pedido_id) === String(pedido.id));
-            if (ajusteSalvo) percentual = ajusteSalvo.percentual;
-            else percentual = pedido.porcentagem_comissao || repData.porcentagem_padrao;
-        }
-
+        const valorBase = parseFloat(pedido.total_pago) || 0;
         const valorComissao = (valorBase * percentual) / 100;
 
         repData.pedidos.push({
             ...pedido,
-            valorBaseComissao: valorBase, // Guarda a base usada para exibir na tabela
+            valorBaseComissao: valorBase,
             percentualComissao: percentual,
             valorComissao
         });
 
         repData.totalVendas += valorBase;
         repData.totalComissoes += valorComissao;
-    };
-
-    // Processa pedidos naturais do mês
-    pedidosDoMes.forEach(p => processarPedido(p));
-
-    // Processa pedidos "estrangeiros" (de outros meses) salvos no rascunho
-    controlesDoMes.forEach(controle => {
-        if (controle.pedidos_ajustados && Array.isArray(controle.pedidos_ajustados)) {
-            controle.pedidos_ajustados.forEach(ajuste => {
-                const pedidoOriginal = pedidos.find(p => String(p.id) === String(ajuste.pedido_id));
-                if (pedidoOriginal) {
-                    processarPedido(pedidoOriginal, ajuste.percentual);
-                }
-            });
-        }
     });
 
+    // Saldo Final
     Object.values(agrupado).forEach(rep => {
       rep.saldoAPagar = rep.totalComissoes - rep.vales - rep.outrosDescontos;
     });
 
     return Object.values(agrupado);
-  }, [pedidos, mesAnoSelecionado, representantes, controles, hoje]);
+  }, [pedidos, mesAnoSelecionado, representantes, controles]);
 
   const handleGerarRelatorioGeral = async () => {
     try {
@@ -220,6 +234,7 @@ export default function Comissoes() {
               representante={representanteSelecionado}
               mesAno={mesAnoSelecionado}
               pedidosTodos={pedidos}
+              controles={controles} // IMPORTANTE: Passando controles para verificar "sequestros"
               onClose={() => { setShowDetalhes(false); setRepresentanteSelecionado(null); queryClient.invalidateQueries(['comissaoControle']); }}
             />
           )}
