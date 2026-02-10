@@ -80,7 +80,7 @@ export default function Welcome() {
         className="text-center z-10 mb-8 relative"
       >
         <img 
-          src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/d0ec91d59_Gemini_Generated_Image_9b7i6p9b7i6p9b7i.png"
+          src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png"
           alt="J&C Vision"
           className="w-48 md:w-64 h-auto mx-auto mb-4 drop-shadow-2xl"
         />
