@@ -45,10 +45,34 @@ export default function Welcome() {
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center p-6 relative overflow-hidden bg-slate-50 dark:bg-slate-950">
       
-      {/* --- FUNDO LEVE --- */}
+      {/* --- ESTILOS CSS INJETADOS (Para performance máxima) --- */}
+      <style>{`
+        @keyframes breathe {
+          0%, 100% { transform: scale(1); opacity: 0.3; }
+          50% { transform: scale(1.2); opacity: 0.6; }
+        }
+        @keyframes drift {
+          0% { transform: translate(0, 0); }
+          50% { transform: translate(10px, -10px); }
+          100% { transform: translate(0, 0); }
+        }
+        .breathe-animation {
+          animation: breathe 8s ease-in-out infinite, drift 10s ease-in-out infinite;
+          will-change: transform, opacity; /* Dica para o navegador usar a GPU */
+        }
+        .breathe-delay {
+          animation-delay: 1s; /* Descompasso para ficar orgânico */
+        }
+      `}</style>
+
+      {/* --- FUNDO ANIMADO LEVE (Respirando) --- */}
       <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-100 via-slate-50 to-white dark:from-slate-900 dark:via-slate-950 dark:to-black opacity-80" />
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-400/10 blur-3xl dark:bg-blue-600/10" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-yellow-400/10 blur-3xl dark:bg-yellow-600/10" />
+      
+      {/* Bolha Azul (Canto Superior Esquerdo) */}
+      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-blue-500/20 blur-[100px] breathe-animation pointer-events-none" />
+      
+      {/* Bolha Amarela (Canto Inferior Direito) */}
+      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-yellow-500/20 blur-[100px] breathe-animation breathe-delay pointer-events-none" />
 
       {/* --- CONTEÚDO PRINCIPAL --- */}
       <div className="relative z-10 w-full max-w-md flex flex-col items-center">
@@ -120,7 +144,7 @@ export default function Welcome() {
           </div>
         </motion.div>
 
-        {/* BOTÕES DE ACESSO (CORRIGIDO: 'items-center' adicionado para centralizar) */}
+        {/* BOTÕES DE ACESSO */}
         <div className="w-full flex flex-col gap-3 items-center">
           <AccessButton 
             title="Área do Cliente" 
