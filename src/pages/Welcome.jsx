@@ -1,54 +1,49 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Briefcase, ChevronRight, ChevronLeft, Lock } from 'lucide-react';
+import { User, Briefcase, ChevronRight, ChevronLeft } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DAS EMPRESAS ---
 const COMPANIES = [
   {
     id: 'jc',
     name: 'J&C Esquadrias',
+    desc: 'Portas e Janelas', // Nova descrição
     logo: 'https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/936ba5dbe_logo_JCEsquadrias.png',
-    color: 'bg-yellow-500', // Cor de destaque (opcional)
   },
   {
     id: 'inovalum',
     name: 'Inovalum',
+    desc: 'Perfis e Acessórios', // Nova descrição
     logo: 'https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/386f33ec8_INOVALUMTRANSPARENTECOMBORDA.png',
-    color: 'bg-blue-500',
-    scale: 1.4 // Ajuste específico para esta logo
+    scale: 1.4 
   },
   {
     id: 'oliver',
     name: 'Oliver Extrusora',
+    desc: 'Perfis', // Nova descrição
     logo: 'https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/6dba430e9_LOGOOLIVERTRANSPARENTECOMBORDA.png',
-    color: 'bg-slate-700',
   }
 ];
 
 export default function Welcome() {
   const navigate = useNavigate();
-  const [selectedCompany, setSelectedCompany] = useState(null); // null = visão geral, 'id' = selecionada
+  const [selectedCompany, setSelectedCompany] = useState(null); 
 
   // --- AÇÕES ---
   const handleCompanyClick = (companyId) => {
     if (selectedCompany === companyId) {
-      // LÓGICA DO ADMIN: Se clicar na logo que JÁ está selecionada -> Vai para Admin
-      navigate('/Dashboard');
+      navigate('/Dashboard'); // Admin access
     } else {
-      // Seleciona a empresa e inicia a animação
       setSelectedCompany(companyId);
     }
   };
 
-  const handleBack = () => {
-    setSelectedCompany(null); // Volta para a visão geral
-  };
-
+  const handleBack = () => setSelectedCompany(null);
   const handleCliente = () => navigate('/PortalCliente');
   const handleRepresentante = () => navigate('/PortalDoRepresentante');
 
-  // --- COMPONENTE DE BOTÃO (Reutilizável) ---
+  // --- COMPONENTE DE BOTÃO ---
   const AccessButton = ({ title, subtitle, icon: Icon, onClick, delay = 0 }) => (
     <motion.button
       initial={{ opacity: 0, y: 20 }}
@@ -96,35 +91,30 @@ export default function Welcome() {
         <div className="blob bg-yellow-400 w-[80%] h-[80%] -bottom-[20%] -right-[20%] anim-yellow" />
       </div>
 
-      {/* --- HEADER FLUTUANTE (J&C VISION) --- */}
-      {/* Se selectedCompany for null, fica no centro. Se tiver selecionado, vai para a esquerda. */}
+      {/* --- HEADER FLUTUANTE (J&C VISION LOGO CUBO) --- */}
       <motion.div 
         layout 
-        className={`fixed z-40 flex items-center transition-all duration-500 ${selectedCompany ? 'top-6 left-6 flex-row gap-3' : 'top-[15%] flex-col gap-4'}`}
+        className={`fixed z-40 flex items-center transition-all duration-500 ${selectedCompany ? 'top-6 left-6 flex-row gap-3' : 'top-[12%] flex-col gap-4'}`}
       >
+        {/* A Logo do Cubo fica fora do container branco para dar profundidade */}
         <motion.img 
           layoutId="main-logo"
           src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png"
           alt="J&C Vision"
-          className={`object-contain drop-shadow-xl transition-all duration-500 ${selectedCompany ? 'h-12' : 'h-32'}`}
+          className={`object-contain drop-shadow-xl transition-all duration-500 ${selectedCompany ? 'h-12' : 'h-32 mb-4'}`}
         />
         
-        <motion.div layoutId="main-text" className="text-center md:text-left">
-          <h1 className={`font-black tracking-tight text-slate-900 dark:text-white transition-all duration-500 ${selectedCompany ? 'text-xl' : 'text-4xl'}`}>
-            <span className="text-blue-900 dark:text-blue-200">ONE</span> Vision
-          </h1>
-          {!selectedCompany && (
-            <motion.p 
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="text-slate-600 dark:text-slate-300 text-sm font-semibold tracking-wide uppercase mt-2"
-            >
-              Selecione a empresa
-            </motion.p>
-          )}
-        </motion.div>
+        {/* Quando selecionado, o Título ONE VISION vai para o header ao lado da logo */}
+        {selectedCompany && (
+           <motion.div layoutId="main-text" className="text-left">
+             <h1 className="font-black tracking-tight text-slate-900 dark:text-white text-xl">
+               <span className="text-blue-900 dark:text-blue-200">ONE</span> Vision
+             </h1>
+           </motion.div>
+        )}
       </motion.div>
 
-      {/* --- BOTÃO VOLTAR (Só aparece quando selecionado) --- */}
+      {/* --- BOTÃO VOLTAR --- */}
       <AnimatePresence>
         {selectedCompany && (
           <motion.button
@@ -139,66 +129,95 @@ export default function Welcome() {
         )}
       </AnimatePresence>
 
-      {/* --- ÁREA CENTRAL (LOGOS DAS EMPRESAS) --- */}
+      {/* --- ÁREA CENTRAL (CONTAINER BRANCO) --- */}
       <div className={`relative z-10 w-full max-w-4xl flex flex-col items-center justify-center transition-all duration-700 ${selectedCompany ? 'mt-32' : 'mt-[35vh]'}`}>
         
-        {/* CONTAINER DE LOGOS */}
+        {/* CARTÃO BRANCO PRINCIPAL */}
         <motion.div 
           layout
-          className={`flex items-center justify-center gap-4 transition-all duration-500 
+          className={`flex items-center justify-center transition-all duration-500 
             ${selectedCompany 
-              ? 'flex-col' // Quando selecionado, alinha verticalmente (mas só vai sobrar uma)
-              : 'flex-row bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/60 dark:border-slate-700 shadow-2xl p-6 rounded-3xl' // Estilo cartão original
+              ? 'flex-col bg-transparent' // Quando selecionado, remove o fundo branco para focar na logo selecionada
+              : 'flex-col bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/60 dark:border-slate-700 shadow-2xl p-10 rounded-[2.5rem]' // Cartão Expandido
             }`}
         >
-          <AnimatePresence mode='popLayout'>
-            {COMPANIES.map((company, index) => {
-              // LÓGICA DE EXIBIÇÃO:
-              // Se nenhuma selecionada: Mostra todas.
-              // Se uma selecionada: Mostra APENAS a selecionada.
-              const isSelected = selectedCompany === company.id;
-              const isHidden = selectedCompany && !isSelected;
+          
+          {/* LOGOS DAS EMPRESAS */}
+          <div className="flex items-start justify-center gap-6 md:gap-10">
+            <AnimatePresence mode='popLayout'>
+              {COMPANIES.map((company, index) => {
+                const isSelected = selectedCompany === company.id;
+                const isHidden = selectedCompany && !isSelected;
 
-              if (isHidden) return null;
+                if (isHidden) return null;
 
-              return (
-                <motion.div
-                  layoutId={`company-container-${company.id}`}
-                  key={company.id}
-                  onClick={() => handleCompanyClick(company.id)}
-                  className={`relative flex items-center justify-center transition-all duration-500 cursor-pointer
-                    ${isSelected ? 'p-0 mb-8 scale-110' : 'flex-1 hover:scale-105'}`
-                  }
+                return (
+                  <motion.div
+                    layoutId={`company-container-${company.id}`}
+                    key={company.id}
+                    onClick={() => handleCompanyClick(company.id)}
+                    className={`relative flex flex-col items-center justify-center transition-all duration-500 cursor-pointer group
+                      ${isSelected ? 'p-0 mb-8 scale-110' : 'flex-1 hover:scale-105'}`
+                    }
+                  >
+                    {/* LOGO DA EMPRESA */}
+                    <motion.img 
+                      layoutId={`company-logo-${company.id}`}
+                      src={company.logo}
+                      alt={company.name}
+                      className={`object-contain transition-transform duration-500 drop-shadow-md
+                        ${isSelected ? 'h-32 md:h-40' : 'h-20 md:h-24'} 
+                        ${company.id === 'inovalum' ? 'scale-[1.4]' : ''}
+                      `}
+                    />
+                    
+                    {/* DESCRIÇÃO DA EMPRESA (Aparece embaixo da logo) */}
+                    {!selectedCompany && (
+                        <motion.div 
+                            initial={{ opacity: 0 }} 
+                            animate={{ opacity: 1 }} 
+                            className="mt-4 text-center"
+                        >
+                            <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest group-hover:text-blue-600 transition-colors">
+                                {company.desc}
+                            </p>
+                        </motion.div>
+                    )}
+
+                    {/* Dica para o Admin (Só aparece quando selecionado) */}
+                    {isSelected && (
+                      <motion.div 
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}
+                        className="absolute -bottom-8 flex flex-col items-center whitespace-nowrap"
+                      >
+                        <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Empresa Selecionada</span>
+                        <span className="text-[9px] text-slate-300">(Clique novamente para Admin)</span>
+                      </motion.div>
+                    )}
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+          </div>
+
+          {/* TÍTULO ONE VISION (DENTRO DO CARTÃO BRANCO) */}
+          {!selectedCompany && (
+             <motion.div 
+                layoutId="main-text" 
+                className="text-center mt-10 pt-8 border-t border-slate-200/60 w-full"
+             >
+                <h1 className="text-4xl font-black tracking-tight text-slate-900 dark:text-white drop-shadow-sm">
+                  <span className="text-blue-900 dark:text-blue-200">ONE</span> Vision
+                </h1>
+                <motion.p 
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="text-slate-500 dark:text-slate-400 text-xs font-semibold tracking-[0.2em] uppercase mt-2"
                 >
-                  {/* SEPARADOR (Só mostra se não tiver selecionado e não for o último) */}
-                  {!selectedCompany && index < COMPANIES.length - 1 && (
-                     <div className="absolute -right-2 h-12 w-px bg-slate-300 dark:bg-slate-600 pointer-events-none"></div>
-                  )}
+                  Selecione a empresa para acessar
+                </motion.p>
+             </motion.div>
+          )}
 
-                  <motion.img 
-                    layoutId={`company-logo-${company.id}`}
-                    src={company.logo}
-                    alt={company.name}
-                    className={`object-contain transition-all duration-500 drop-shadow-md
-                      ${isSelected ? 'h-32 md:h-40' : 'h-20 md:h-24'} 
-                      ${company.id === 'inovalum' ? 'scale-[1.4]' : ''}
-                    `}
-                  />
-                  
-                  {/* Dica para o Admin (Aparece sutilmente quando selecionado) */}
-                  {isSelected && (
-                    <motion.div 
-                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}
-                      className="absolute -bottom-8 flex flex-col items-center"
-                    >
-                      <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Empresa Selecionada</span>
-                      <span className="text-[9px] text-slate-300">(Clique novamente para Admin)</span>
-                    </motion.div>
-                  )}
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
         </motion.div>
 
         {/* --- BOTÕES DE ACESSO (Só aparecem quando selecionado) --- */}
