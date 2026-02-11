@@ -89,7 +89,7 @@ export default function Welcome() {
           {/* TÍTULO CENTRALIZADO */}
           <div className="text-center space-y-1">
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-              <span className="text-blue-900 dark:text-blue-100">J&C</span> Vision
+              <span className="text-blue-900 dark:text-blue-100"></span>One Vision
             </h1>
             
             <p className="text-slate-500 dark:text-slate-400 text-sm font-medium tracking-wide">
