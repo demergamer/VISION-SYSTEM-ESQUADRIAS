@@ -79,7 +79,7 @@ export default function Welcome() {
             {/* Logo 2: Esquadrias (Ajustado pela altura h-20, pois ela é mais larga) */}
             <div className="flex items-center justify-center">
                <img 
-                 src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/fa98a5f2b_LOGOJCFUNDOTRANSPARENTE-Copia.png"
+                 src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/936ba5dbe_logo_JCEsquadrias.png"
                  alt="J&C Esquadrias"
                  className="h-20 md:h-24 w-auto object-contain drop-shadow-md hover:scale-105 transition-transform duration-300"
                />
