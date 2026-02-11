@@ -10,29 +10,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Save, X, Plus, Eye, Truck, User } from "lucide-react";
+import { Save, X, Plus, Eye, Truck, User, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
-import ModalContainer from "@/components/modals/ModalContainer"; // Importe o ModalContainer
+import ModalContainer from "@/components/modals/ModalContainer";
 
-// Componente para exibir detalhes do cliente
-const ClienteInfoModal = ({ cliente, onClose }) => {
-  if (!cliente) return null;
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div><strong>Código:</strong> {cliente.codigo}</div>
-        <div><strong>Nome:</strong> {cliente.nome}</div>
-        <div><strong>Região:</strong> {cliente.regiao || '-'}</div>
-        <div><strong>Telefone:</strong> {cliente.telefone || '-'}</div>
-        <div><strong>Email:</strong> {cliente.email || '-'}</div>
-        <div><strong>Endereço:</strong> {cliente.endereco || '-'}</div>
-      </div>
-      <div className="flex justify-end pt-4">
-        <Button onClick={onClose}>Fechar</Button>
-      </div>
-    </div>
-  );
-};
+// IMPORTEI O COMPONENTE OFICIAL DE DETALHES
+import ClienteDetails from "@/components/clientes/ClienteDetails";
 
 export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, onCadastrarCliente, isLoading }) {
   const [form, setForm] = useState({
@@ -44,21 +27,23 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     data_entrega: '',
     numero_pedido: '',
     valor_pedido: 0,
-    // total_pago removido conforme solicitado
+    // total_pago removido
     saldo_restante: 0,
     observacao: '',
     outras_informacoes: '',
     status: 'aberto',
     porcentagem_comissao: 5,
-    rota: '', // ADICIONADO: campo rota
-    motorista: '', // ADICIONADO: campo motorista
-    desconto_tipo: 'valor', // ADICIONADO: tipo de desconto (valor ou porcentagem)
-    desconto_valor: 0 // ADICIONADO: valor do desconto
+    rota: '', 
+    motorista: '',
+    desconto_tipo: 'valor', // 'valor' ou 'porcentagem'
+    desconto_valor: 0
   });
 
   const [clienteSelecionadoDetalhes, setClienteSelecionadoDetalhes] = useState(null);
   const [showClienteModal, setShowClienteModal] = useState(false);
-  const [buscaCliente, setBuscaCliente] = useState(""); // Estado para busca de cliente
+  
+  // Estado para busca do cliente (Melhoria de UX)
+  const [buscaCliente, setBuscaCliente] = useState(""); 
 
   useEffect(() => {
     if (pedido) {
@@ -71,27 +56,26 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
         data_entrega: pedido.data_entrega || '',
         numero_pedido: pedido.numero_pedido || '',
         valor_pedido: pedido.valor_pedido || 0,
-        // total_pago removido
         saldo_restante: pedido.saldo_restante || 0,
         observacao: pedido.observacao || '',
         outras_informacoes: pedido.outras_informacoes || '',
         status: pedido.status || 'aberto',
         porcentagem_comissao: pedido.porcentagem_comissao || 5,
-        rota: pedido.rota || '', // ADICIONADO
-        motorista: pedido.motorista || '', // ADICIONADO
-        desconto_tipo: pedido.desconto_tipo || 'valor', // ADICIONADO
-        desconto_valor: pedido.desconto_valor || 0 // ADICIONADO
+        rota: pedido.rota || '', 
+        motorista: pedido.motorista || '',
+        desconto_tipo: pedido.desconto_tipo || 'valor',
+        desconto_valor: pedido.desconto_valor || 0
       });
     }
   }, [pedido]);
 
-  // Filtragem de clientes melhorada
+  // Filtra a lista de clientes baseado no que o usuário digita
   const clientesFiltrados = useMemo(() => {
     if (!buscaCliente) return clientes;
     const termo = buscaCliente.toLowerCase();
     return clientes.filter(c => 
       c.nome.toLowerCase().includes(termo) || 
-      c.codigo.toLowerCase().includes(termo)
+      String(c.codigo).toLowerCase().includes(termo)
     );
   }, [clientes, buscaCliente]);
 
@@ -110,22 +94,25 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     }
   };
 
-  const handleValorChange = (field, value) => {
+  // Função centralizada para atualizar valores e recalcular saldo com desconto
+  const updateValores = (field, value) => {
     const newForm = { ...form, [field]: value };
-    // Recalcula saldo restante considerando desconto (se houver lógica futura para abater do saldo)
-    // Por enquanto, saldo_restante = valor_pedido pois total_pago foi removido da edição manual direta neste form (assumindo que pagamentos são lançados separadamente ou iniciam zerados)
-    // Se desejar aplicar o desconto no valor do pedido ou saldo, ajuste aqui.
-    // Exemplo: Saldo = Valor Pedido - Desconto (se aplicável no saldo inicial)
     
-    let desconto = 0;
+    // Calcula o valor do desconto em Reais
+    let valorDescontoReais = 0;
+    const valorTotal = parseFloat(newForm.valor_pedido) || 0;
+    const descontoInput = parseFloat(newForm.desconto_valor) || 0;
+
     if (newForm.desconto_tipo === 'valor') {
-        desconto = newForm.desconto_valor;
+        valorDescontoReais = descontoInput;
     } else {
-        desconto = (newForm.valor_pedido * newForm.desconto_valor) / 100;
+        // Se for porcentagem
+        valorDescontoReais = (valorTotal * descontoInput) / 100;
     }
-    
-    // Ajuste simples: Saldo inicial é o valor do pedido menos o desconto
-    newForm.saldo_restante = (newForm.valor_pedido || 0) - desconto;
+
+    // O Saldo Restante nasce igual ao (Valor Pedido - Desconto)
+    // Se no futuro quiser abater pagamentos parciais, subtraia aqui também.
+    newForm.saldo_restante = Math.max(0, valorTotal - valorDescontoReais);
 
     setForm(newForm);
   };
@@ -148,39 +135,47 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     <div className="space-y-6 py-2">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
-        {/* Campo Cliente Melhorado */}
+        {/* SELEÇÃO DE CLIENTE (COM BUSCA MELHORADA) */}
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor="cliente">Cliente *</Label>
           <div className="flex items-center gap-2">
-             {/* Select nativo substituído por combobox simulado ou select com busca se o componente UI permitir, 
-                 aqui mantendo Select do shadcn mas adicionando filtro visual se possível ou apenas melhorando a UX */}
-              
-              <div className="flex-1 relative">
+              <div className="flex-1">
                 <Select
                     value={form.cliente_codigo}
                     onValueChange={handleClienteChange}
                     disabled={!!pedido}
                 >
-                    <SelectTrigger className={cn(inputClass, "w-full")}>
-                    <SelectValue placeholder="Selecione o cliente" />
+                    <SelectTrigger className={cn(inputClass, "w-full text-left font-medium")}>
+                       <SelectValue placeholder="Selecione o cliente" />
                     </SelectTrigger>
-                    <SelectContent>
-                        {/* Input de busca dentro do Select (simulação) */}
-                        <div className="p-2 sticky top-0 bg-white z-10 border-b">
-                            <Input 
-                                placeholder="Buscar cliente..." 
-                                value={buscaCliente}
-                                onChange={(e) => setBuscaCliente(e.target.value)}
-                                className="h-8"
-                                onKeyDown={(e) => e.stopPropagation()} // Evita fechar o select ao digitar
-                            />
+                    
+                    <SelectContent className="max-h-[300px]">
+                        {/* CAMPO DE BUSCA DENTRO DO SELECT */}
+                        <div className="p-2 sticky top-0 bg-white z-10 border-b pb-2 mb-1">
+                            <div className="relative">
+                                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"/>
+                                <Input 
+                                    placeholder="Buscar por nome ou código..." 
+                                    value={buscaCliente}
+                                    onChange={(e) => setBuscaCliente(e.target.value)}
+                                    className="h-9 pl-8 bg-slate-50"
+                                    onKeyDown={(e) => e.stopPropagation()} 
+                                    autoFocus
+                                />
+                            </div>
                         </div>
+
                         {clientesFiltrados.length === 0 ? (
-                            <div className="p-2 text-sm text-slate-500 text-center">Nenhum cliente encontrado</div>
+                            <div className="py-6 text-center text-sm text-slate-500">
+                                Nenhum cliente encontrado.
+                            </div>
                         ) : (
                             clientesFiltrados.map((cli) => (
-                                <SelectItem key={cli.codigo} value={cli.codigo}>
-                                {cli.codigo} - {cli.nome}
+                                <SelectItem key={cli.codigo} value={cli.codigo} className="py-3 border-b border-slate-50 last:border-0 cursor-pointer">
+                                    <div className="flex flex-col text-left">
+                                        <span className="font-bold text-slate-700">{cli.nome}</span>
+                                        <span className="text-xs text-slate-400">Cód: {cli.codigo} {cli.regiao ? `• ${cli.regiao}` : ''}</span>
+                                    </div>
                                 </SelectItem>
                             ))
                         )}
@@ -188,7 +183,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
                 </Select>
               </div>
 
-              {/* Botão Olho para ver detalhes */}
+              {/* Botão Olho: Chama o ClienteDetails */}
               <Button
                   type="button"
                   variant="ghost"
@@ -216,6 +211,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
           </div>
         </div>
 
+        {/* NÚMERO DO PEDIDO */}
         <div className="space-y-2">
           <Label htmlFor="numero_pedido">Número do Pedido *</Label>
           <Input
@@ -227,6 +223,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
           />
         </div>
 
+        {/* DATA DE ENTREGA */}
         <div className="space-y-2">
           <Label htmlFor="data_entrega">Data de Entrega *</Label>
           <Input
@@ -238,24 +235,24 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
           />
         </div>
 
-        {/* Campo Rota */}
+        {/* ROTA */}
         <div className="space-y-2">
-            <Label htmlFor="rota">Rota</Label>
+            <Label htmlFor="rota">Rota de Entrega</Label>
             <div className="relative">
                 <Truck className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input
                     id="rota"
                     value={form.rota}
                     onChange={(e) => setForm({ ...form, rota: e.target.value })}
-                    placeholder="Ex: Zona Norte"
+                    placeholder="Ex: Zona Norte / Interior"
                     className={cn(inputClass, "pl-9")}
                 />
             </div>
         </div>
 
-        {/* Campo Motorista */}
+        {/* MOTORISTA */}
         <div className="space-y-2">
-            <Label htmlFor="motorista">Motorista</Label>
+            <Label htmlFor="motorista">Motorista Responsável</Label>
             <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input
@@ -268,6 +265,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
             </div>
         </div>
 
+        {/* COMISSÃO */}
         <div className="space-y-2">
           <Label htmlFor="porcentagem_comissao">Comissão (%)</Label>
           <div className="relative">
@@ -285,6 +283,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
            </div>
         </div>
 
+        {/* VALOR DO PEDIDO */}
         <div className="space-y-2">
           <Label htmlFor="valor_pedido">Valor do Pedido (R$) *</Label>
           <div className="relative">
@@ -295,30 +294,19 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
                 min="0"
                 step="0.01"
                 value={form.valor_pedido}
-                onChange={(e) => handleValorChange('valor_pedido', parseFloat(e.target.value) || 0)}
-                className={cn(inputClass, "pl-9 font-medium text-slate-700")}
+                onChange={(e) => updateValores('valor_pedido', parseFloat(e.target.value) || 0)}
+                className={cn(inputClass, "pl-9 font-bold text-slate-700")}
             />
           </div>
         </div>
 
-        {/* Campo Desconto */}
+        {/* DESCONTO (OPCIONAL) */}
         <div className="space-y-2">
             <Label>Desconto (Opcional)</Label>
             <div className="flex gap-2">
                 <Select
                     value={form.desconto_tipo}
-                    onValueChange={(val) => {
-                        const newForm = { ...form, desconto_tipo: val };
-                        // Recalcula saldo ao mudar tipo
-                        let desconto = 0;
-                        if (val === 'valor') {
-                            desconto = newForm.desconto_valor;
-                        } else {
-                            desconto = (newForm.valor_pedido * newForm.desconto_valor) / 100;
-                        }
-                        newForm.saldo_restante = (newForm.valor_pedido || 0) - desconto;
-                        setForm(newForm);
-                    }}
+                    onValueChange={(val) => updateValores('desconto_tipo', val)}
                 >
                     <SelectTrigger className={cn(inputClass, "w-24")}>
                         <SelectValue />
@@ -333,20 +321,25 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
                     min="0"
                     step={form.desconto_tipo === 'valor' ? "0.01" : "0.1"}
                     value={form.desconto_valor}
-                    onChange={(e) => handleValorChange('desconto_valor', parseFloat(e.target.value) || 0)}
-                    placeholder="Valor do desconto"
-                    className={inputClass}
+                    onChange={(e) => updateValores('desconto_valor', parseFloat(e.target.value) || 0)}
+                    placeholder="0,00"
+                    className={cn(inputClass, form.desconto_valor > 0 ? "text-red-600 font-medium" : "")}
                 />
             </div>
         </div>
 
+        {/* SALDO RESTANTE */}
         <div className="space-y-2 md:col-span-2">
-          <Label>Saldo Restante (A Receber)</Label>
-          <div className="h-11 flex items-center px-4 bg-slate-100 border border-slate-200 rounded-xl font-semibold text-lg text-slate-700">
-            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(form.saldo_restante)}
+          <Label>Valor Líquido (A Receber)</Label>
+          <div className="h-14 flex items-center justify-between px-4 bg-slate-50 border border-slate-200 rounded-xl">
+             <span className="text-sm text-slate-500 font-medium uppercase">Total c/ Desconto:</span>
+             <span className="font-bold text-2xl text-emerald-600">
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(form.saldo_restante)}
+             </span>
           </div>
         </div>
 
+        {/* OBSERVAÇÃO */}
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor="observacao">Observação</Label>
           <Textarea
@@ -359,6 +352,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
           />
         </div>
 
+        {/* OUTRAS INFORMAÇÕES */}
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor="outras_informacoes">Outras Informações</Label>
           <Textarea
@@ -372,7 +366,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
         </div>
       </div>
 
-      <div className="flex justify-end gap-3 pt-6 border-t">
+      <div className="flex justify-end gap-3 pt-6 border-t mt-4">
         <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading} className="h-11 px-6 rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900">
           <X className="w-4 h-4 mr-2" />
           Cancelar
@@ -383,14 +377,20 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
         </Button>
       </div>
 
-      {/* Modal de Detalhes do Cliente */}
+      {/* Modal Container reutilizando o componente oficial ClienteDetails */}
       <ModalContainer
         open={showClienteModal}
         onClose={() => setShowClienteModal(false)}
-        title="Detalhes do Cliente"
-        size="md"
+        title={`Ficha do Cliente: ${clienteSelecionadoDetalhes?.nome || ''}`}
+        size="lg"
       >
-        <ClienteInfoModal cliente={clienteSelecionadoDetalhes} onClose={() => setShowClienteModal(false)} />
+        {clienteSelecionadoDetalhes && (
+            // AQUI ESTÁ A CHAMADA PARA O COMPONENTE QUE VOCÊ PEDIU
+            <ClienteDetails 
+                cliente={clienteSelecionadoDetalhes} 
+                onClose={() => setShowClienteModal(false)}
+            />
+        )}
       </ModalContainer>
     </div>
   );
