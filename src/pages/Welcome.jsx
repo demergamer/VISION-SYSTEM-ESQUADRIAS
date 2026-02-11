@@ -70,7 +70,6 @@ export default function Welcome() {
           </div>
 
           {/* 2. CONTAINER DAS 3 EMPRESAS (LADO A LADO) */}
-          {/* Este container cria um "grupo" visual */}
           <div className="flex items-center justify-center gap-4 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md border border-white/50 dark:border-slate-700/50 p-4 rounded-2xl shadow-sm w-full max-w-[95%]">
             
             {/* Logo J&C Esquadrias */}
@@ -86,12 +85,13 @@ export default function Welcome() {
             {/* Separador Vertical */}
             <div className="h-8 w-px bg-slate-300 dark:bg-slate-600 opacity-50"></div>
             
-            {/* Logo Inovalum (Azul e Cinza) - CENTRO */}
-            <div className="flex-1 flex justify-center items-center">
+            {/* Logo Inovalum (AUMENTADA) */}
+            {/* APLIQUEI scale-150 e aumentei o h- para 16/20 para compensar a transparência */}
+            <div className="flex-1 flex justify-center items-center overflow-visible">
                <img 
                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/386f33ec8_INOVALUMTRANSPARENTECOMBORDA.png"
                  alt="Inovalum"
-                 className="h-10 md:h-12 w-auto object-contain hover:scale-110 transition-transform duration-300"
+                 className="h-16 md:h-20 w-auto object-contain scale-[1.4] hover:scale-[1.5] transition-transform duration-300"
                  title="Inovalum"
                />
             </div>
@@ -162,7 +162,7 @@ export default function Welcome() {
 
       </div>
 
-      {/* NOTIFICAÇÃO (MANTIDA) */}
+      {/* NOTIFICAÇÃO FLUTUANTE */}
       <AnimatePresence>
         {showNotification && (
           <motion.div
