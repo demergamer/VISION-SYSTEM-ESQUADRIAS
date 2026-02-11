@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DollarSign, Save, Lock, Trash2, Download, RefreshCw, Plus, Search, AlertTriangle, FileText, Loader2, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
+import { DollarSign, Save, Lock, Trash2, Download, RefreshCw, Plus, Search, AlertTriangle, FileText, Loader2, Calendar, ChevronLeft, ChevronRight, ArrowLeftRight } from "lucide-react";
 import { format, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -119,18 +119,11 @@ export default function ComissaoDetalhes({
       toast.success('Adicionado!');
   };
 
-  // --- ACTIONS (Save/PDF) ---
+  // --- ACTIONS (Save/Finalize/PDF) ---
   const handleSaveDraft = async () => {
-      // ... (Código de salvar mantido, mas o botão será ocultado no Portal)
-      // Vou omitir a repetição da lógica de salvar aqui para focar na mudança, 
-      // mas imagine que o código anterior do handleSaveDraft está aqui.
-      // Se precisar, copio ele novamente.
-      // ...
-      // Lógica idêntica ao código anterior
+      if (isPortal) return;
       setLoading(true);
       try {
-          // Lógica de roubo...
-          // ...
           const payload = {
               referencia: String(mesAno),
               representante_codigo: String(representante.codigo),
@@ -147,15 +140,75 @@ export default function ComissaoDetalhes({
           };
           if (controleId) await base44.entities.ComissaoControle.update(controleId, payload);
           else { const res = await base44.entities.ComissaoControle.create(payload); if(res?.id) setControleId(res.id); }
-          toast.success("Salvo!");
+          toast.success("Rascunho salvo com sucesso!");
           if (onSuccessSave) onSuccessSave();
-      } catch (error) { toast.error("Erro ao salvar."); } finally { setLoading(false); }
+      } catch (error) { toast.error("Erro ao salvar rascunho."); } finally { setLoading(false); }
   };
 
   const handleFinalize = async () => {
-      // ... (Código de finalizar mantido - oculto no portal)
-      // Lógica idêntica ao código anterior
-      // ...
+      if (isPortal) return;
+      if (!confirm(`Confirma o fechamento de ${formatCurrency(totais.saldoFinal)} para ${representante.nome}? \nEssa ação irá gerar uma conta a pagar.`)) return;
+      
+      setLoading(true);
+      try {
+          // 1. Salva o controle como FECHADO
+          const payload = {
+              referencia: String(mesAno),
+              representante_codigo: String(representante.codigo),
+              representante_nome: String(representante.nome),
+              vales: parseFloat(vales || 0),
+              outros_descontos: parseFloat(outrosDescontos || 0),
+              observacao: String(observacoes || ''),
+              status: 'fechado', // Marca como fechado
+              data_fechamento: new Date().toISOString(),
+              total_pago: parseFloat(totais.saldoFinal),
+              pedidos_ajustados: pedidosEditaveis.map(p => ({
+                  pedido_id: String(p.id),
+                  percentual: parseFloat(p.percentualComissao || 0)
+              }))
+          };
+
+          let finalControleId = controleId;
+          if (finalControleId) {
+             await base44.entities.ComissaoControle.update(finalControleId, payload);
+          } else {
+             const res = await base44.entities.ComissaoControle.create(payload);
+             finalControleId = res.id;
+          }
+
+          // 2. Marca pedidos como PAGOS
+          const promisesPedidos = pedidosEditaveis.map(p => 
+              base44.entities.Pedido.update(p.id, { 
+                  comissao_paga: true, 
+                  comissao_mes_ano_pago: mesAno,
+                  comissao_controle_id: finalControleId
+              })
+          );
+          await Promise.all(promisesPedidos);
+
+          // 3. Gera Conta a Pagar
+          await base44.entities.Pagamento.create({
+              descricao: `Comissão ${representante.nome} - Ref: ${mesAno}`,
+              valor: parseFloat(totais.saldoFinal),
+              data_vencimento: new Date().toISOString(), // Vence hoje (ajustar conforme regra)
+              status: 'pendente',
+              categoria: 'Comissões',
+              tipo: 'saida',
+              favorecido: representante.nome,
+              origem_id: finalControleId,
+              origem_tipo: 'comissao'
+          });
+
+          setIsFechado(true);
+          toast.success("Comissão finalizada com sucesso!");
+          if (onSuccessSave) onSuccessSave();
+
+      } catch (error) {
+          console.error(error);
+          toast.error("Erro ao finalizar comissão.");
+      } finally {
+          setLoading(false);
+      }
   };
 
   const handleGerarPDF = async () => {
@@ -174,23 +227,35 @@ export default function ComissaoDetalhes({
               status: isFechado ? 'fechado' : 'aberto'
           };
           const response = await base44.functions.invoke('gerarRelatorioComissoes', { tipo: 'analitico', mes_ano: mesAno, representante: dadosParaPDF });
+          
+          // Download do PDF
           const blob = new Blob([response.data], { type: 'application/pdf' });
           const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a'); a.href = url; a.download = `Comissao-${representante.nome}-${mesAno}.pdf`; document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url); a.remove();
-          toast.dismiss(); toast.success("PDF gerado!");
-      } catch (error) { toast.dismiss(); toast.error("Erro ao gerar PDF."); } finally { setGeneratingPdf(false); }
+          const a = document.createElement('a'); 
+          a.href = url; 
+          a.download = `Comissao-${representante.nome}-${mesAno}.pdf`; 
+          document.body.appendChild(a); 
+          a.click(); 
+          window.URL.revokeObjectURL(url); 
+          a.remove();
+          
+          toast.dismiss(); 
+          toast.success("PDF gerado!");
+      } catch (error) { 
+          toast.dismiss(); 
+          toast.error("Erro ao gerar PDF."); 
+      } finally { 
+          setGeneratingPdf(false); 
+      }
   };
 
   // --- SELETOR DE MESES (PORTAL) ---
   const mesesNavegacao = useMemo(() => {
       const lista = [];
       const dataAtual = new Date();
-      // 1 mês futuro
-      lista.push(addMonths(dataAtual, 1));
-      // Mês atual
-      lista.push(dataAtual);
-      // 11 meses passados
-      for (let i = 1; i <= 11; i++) {
+      lista.push(addMonths(dataAtual, 1)); // 1 mês futuro
+      lista.push(dataAtual); // Mês atual
+      for (let i = 1; i <= 11; i++) { // 11 meses passados
           lista.push(subMonths(dataAtual, i));
       }
       return lista.map(d => ({
@@ -242,7 +307,6 @@ export default function ComissaoDetalhes({
           <div><p className="text-xs text-slate-500 font-bold mb-1">(-) Vales / Adiant.</p>
             <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">R$</span>
-                {/* Input desabilitado no Portal */}
                 <Input type="number" className="pl-8 h-9 font-bold text-red-600" value={vales} onChange={(e) => setVales(e.target.value)} disabled={isFechado || isPortal}/>
             </div>
           </div>
@@ -274,7 +338,6 @@ export default function ComissaoDetalhes({
                             <TableCell className="text-sm text-slate-600">{p.cliente_nome}</TableCell>
                             <TableCell className="text-right font-medium text-blue-700">{formatCurrency(p.valorBaseComissao)}</TableCell>
                             <TableCell className="text-center p-2">
-                                {/* Se for Portal ou Fechado, mostra Badge estática */}
                                 {isFechado || isPortal ? <Badge variant="outline">{p.percentualComissao}%</Badge> : <div className="flex justify-center items-center gap-1"><Input type="number" className="h-8 w-16 text-center px-1" value={p.percentualComissao} onChange={(e) => handleEditarPercentual(p.id, e.target.value)}/><span className="text-xs text-slate-400">%</span></div>}
                             </TableCell>
                             <TableCell className="text-right font-bold text-emerald-600">{formatCurrency(p.valorComissao)}</TableCell>
@@ -309,10 +372,9 @@ export default function ComissaoDetalhes({
           )}
       </div>
 
-      {/* Modal Adicionar (Omitido se isPortal para economizar render, embora já esteja bloqueado pelo botão) */}
+      {/* Modal Adicionar (Omitido se isPortal) */}
       {!isPortal && (
         <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Adicionar Pedido Avulso" description="Pedidos pagos não comissionados." size="lg">
-            {/* ... Conteúdo do modal de adicionar (igual ao anterior) ... */}
             <div className="space-y-4">
               <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><Input placeholder="Buscar..." value={buscaPedidoAdd} onChange={(e) => setBuscaPedidoAdd(e.target.value)} className="pl-9"/></div>
               <div className="max-h-[300px] overflow-y-auto border rounded-md">
@@ -337,7 +399,7 @@ export default function ComissaoDetalhes({
                   </Table>
               </div>
               <div className="flex justify-end"><Button variant="outline" onClick={() => setShowAddModal(false)}>Fechar</Button></div>
-          </div>
+            </div>
         </ModalContainer>
       )}
     </div>
