@@ -14,8 +14,9 @@ import { Save, X, Plus, Eye, Truck, User, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ModalContainer from "@/components/modals/ModalContainer";
 
-// IMPORTEI O COMPONENTE OFICIAL DE DETALHES
+// IMPORTS DOS COMPONENTES DE CLIENTE
 import ClienteDetails from "@/components/clientes/ClienteDetails";
+import ClienteForm from "@/components/clientes/ClienteForm";
 
 export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, onCadastrarCliente, isLoading }) {
   const [form, setForm] = useState({
@@ -27,7 +28,6 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     data_entrega: '',
     numero_pedido: '',
     valor_pedido: 0,
-    // total_pago removido
     saldo_restante: 0,
     observacao: '',
     outras_informacoes: '',
@@ -35,15 +35,23 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     porcentagem_comissao: 5,
     rota: '', 
     motorista: '',
-    desconto_tipo: 'valor', // 'valor' ou 'porcentagem'
+    desconto_tipo: 'valor',
     desconto_valor: 0
   });
 
+  // Estados para Modais e Buscas
   const [clienteSelecionadoDetalhes, setClienteSelecionadoDetalhes] = useState(null);
   const [showClienteModal, setShowClienteModal] = useState(false);
-  
-  // Estado para busca do cliente (Melhoria de UX)
+  const [showNovoClienteModal, setShowNovoClienteModal] = useState(false); // Modal de Cadastro
   const [buscaCliente, setBuscaCliente] = useState(""); 
+  
+  // Estado para armazenar clientes criados AGORA (para aparecerem na lista sem F5)
+  const [novosClientesLocais, setNovosClientesLocais] = useState([]);
+
+  // Combina clientes do banco com os recém-criados localmente
+  const todosClientes = useMemo(() => {
+    return [...clientes, ...novosClientesLocais];
+  }, [clientes, novosClientesLocais]);
 
   useEffect(() => {
     if (pedido) {
@@ -69,18 +77,18 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     }
   }, [pedido]);
 
-  // Filtra a lista de clientes baseado no que o usuário digita
+  // Filtra a lista combinada
   const clientesFiltrados = useMemo(() => {
-    if (!buscaCliente) return clientes;
+    if (!buscaCliente) return todosClientes;
     const termo = buscaCliente.toLowerCase();
-    return clientes.filter(c => 
+    return todosClientes.filter(c => 
       c.nome.toLowerCase().includes(termo) || 
       String(c.codigo).toLowerCase().includes(termo)
     );
-  }, [clientes, buscaCliente]);
+  }, [todosClientes, buscaCliente]);
 
   const handleClienteChange = (codigo) => {
-    const cli = clientes.find(c => c.codigo === codigo);
+    const cli = todosClientes.find(c => c.codigo === codigo);
     if (cli) {
       setForm({
         ...form,
@@ -94,11 +102,8 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     }
   };
 
-  // Função centralizada para atualizar valores e recalcular saldo com desconto
   const updateValores = (field, value) => {
     const newForm = { ...form, [field]: value };
-    
-    // Calcula o valor do desconto em Reais
     let valorDescontoReais = 0;
     const valorTotal = parseFloat(newForm.valor_pedido) || 0;
     const descontoInput = parseFloat(newForm.desconto_valor) || 0;
@@ -106,14 +111,9 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     if (newForm.desconto_tipo === 'valor') {
         valorDescontoReais = descontoInput;
     } else {
-        // Se for porcentagem
         valorDescontoReais = (valorTotal * descontoInput) / 100;
     }
-
-    // O Saldo Restante nasce igual ao (Valor Pedido - Desconto)
-    // Se no futuro quiser abater pagamentos parciais, subtraia aqui também.
     newForm.saldo_restante = Math.max(0, valorTotal - valorDescontoReais);
-
     setForm(newForm);
   };
 
@@ -122,11 +122,33 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
   };
 
   const openClienteModal = () => {
-    const cli = clientes.find(c => c.codigo === form.cliente_codigo);
+    const cli = todosClientes.find(c => c.codigo === form.cliente_codigo);
     if (cli) {
       setClienteSelecionadoDetalhes(cli);
       setShowClienteModal(true);
     }
+  };
+
+  // Callback quando um novo cliente é criado com sucesso
+  const handleSuccessNovoCliente = (novoCliente) => {
+    // Adiciona na lista local para aparecer imediatamente no Select
+    setNovosClientesLocais(prev => [...prev, novoCliente]);
+    
+    // Seleciona ele automaticamente no formulário
+    setForm(prev => ({
+        ...prev,
+        cliente_codigo: novoCliente.codigo,
+        cliente_nome: novoCliente.nome,
+        cliente_regiao: novoCliente.regiao || '',
+        representante_codigo: novoCliente.representante_codigo || '',
+        representante_nome: novoCliente.representante_nome || '',
+        porcentagem_comissao: novoCliente.porcentagem_comissao || 5
+    }));
+
+    setShowNovoClienteModal(false);
+    
+    // Se a página pai passou uma função de recarregar, chama ela também
+    if (onCadastrarCliente) onCadastrarCliente();
   };
 
   const inputClass = "h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all";
@@ -135,7 +157,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     <div className="space-y-6 py-2">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
-        {/* SELEÇÃO DE CLIENTE (COM BUSCA MELHORADA) */}
+        {/* SELEÇÃO DE CLIENTE */}
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor="cliente">Cliente *</Label>
           <div className="flex items-center gap-2">
@@ -150,7 +172,6 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
                     </SelectTrigger>
                     
                     <SelectContent className="max-h-[300px]">
-                        {/* CAMPO DE BUSCA DENTRO DO SELECT */}
                         <div className="p-2 sticky top-0 bg-white z-10 border-b pb-2 mb-1">
                             <div className="relative">
                                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"/>
@@ -183,7 +204,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
                 </Select>
               </div>
 
-              {/* Botão Olho: Chama o ClienteDetails */}
+              {/* Botão Olho: Ver Detalhes */}
               <Button
                   type="button"
                   variant="ghost"
@@ -196,13 +217,14 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
                   <Eye className="h-5 w-5" />
               </Button>
 
-              {!pedido && onCadastrarCliente && (
+              {/* Botão Plus: Novo Cliente (Chama o Modal Agora) */}
+              {!pedido && (
                   <Button
                       type="button"
                       variant="ghost"
                       size="icon"
-                      onClick={onCadastrarCliente}
-                      className="h-11 w-11 rounded-xl border border-slate-200 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                      onClick={() => setShowNovoClienteModal(true)}
+                      className="h-11 w-11 rounded-xl border border-slate-200 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200 transition-all"
                       title="Cadastrar Novo Cliente"
                   >
                       <Plus className="h-5 w-5" />
@@ -300,7 +322,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
           </div>
         </div>
 
-        {/* DESCONTO (OPCIONAL) */}
+        {/* DESCONTO */}
         <div className="space-y-2">
             <Label>Desconto (Opcional)</Label>
             <div className="flex gap-2">
@@ -377,7 +399,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
         </Button>
       </div>
 
-      {/* Modal Container reutilizando o componente oficial ClienteDetails */}
+      {/* MODAL 1: DETALHES DO CLIENTE */}
       <ModalContainer
         open={showClienteModal}
         onClose={() => setShowClienteModal(false)}
@@ -385,12 +407,25 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
         size="lg"
       >
         {clienteSelecionadoDetalhes && (
-            // AQUI ESTÁ A CHAMADA PARA O COMPONENTE QUE VOCÊ PEDIU
             <ClienteDetails 
                 cliente={clienteSelecionadoDetalhes} 
                 onClose={() => setShowClienteModal(false)}
             />
         )}
+      </ModalContainer>
+
+      {/* MODAL 2: NOVO CLIENTE (Reutilizando ClienteForm) */}
+      <ModalContainer
+        open={showNovoClienteModal}
+        onClose={() => setShowNovoClienteModal(false)}
+        title="Cadastrar Novo Cliente"
+        size="xl"
+      >
+        {/* Passando onSuccess para capturar o novo cliente criado */}
+        <ClienteForm 
+            onSuccess={handleSuccessNovoCliente}
+            onCancel={() => setShowNovoClienteModal(false)}
+        />
       </ModalContainer>
     </div>
   );
