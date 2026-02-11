@@ -45,60 +45,65 @@ export default function Welcome() {
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center p-6 relative overflow-hidden bg-slate-50 dark:bg-slate-950">
       
-      {/* --- CSS: ANIMAÇÕES ALEATÓRIAS E MISTURA --- */}
+      {/* --- CSS: ANIMAÇÕES DE CRESCIMENTO E BORDA --- */}
       <style>{`
-        /* Movimento A: Lento e Amplo */
+        /* Movimento A: Canto Superior Esquerdo - Cresce MUITO */
         @keyframes floatA {
-          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
-          50% { transform: translate(30px, -30px) scale(1.1); opacity: 0.8; }
+          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+          50% { transform: translate(50px, 50px) scale(1.5); opacity: 0.8; }
         }
-        /* Movimento B: Médio e Lateral */
+        /* Movimento B: Canto Inferior Direito - Respira Fundo */
         @keyframes floatB {
-          0%, 100% { transform: translate(0, 0) scale(1.1); opacity: 0.5; }
-          50% { transform: translate(-20px, 40px) scale(1); opacity: 0.7; }
+          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+          50% { transform: translate(-50px, -50px) scale(1.4); opacity: 0.8; }
         }
-        /* Movimento C: Respiração Profunda */
+        /* Movimento C: Lateral Esquerda - Pulsação Rápida */
         @keyframes floatC {
-          0%, 100% { transform: scale(0.9); opacity: 0.6; }
-          50% { transform: scale(1.2); opacity: 0.9; }
+          0%, 100% { transform: scale(0.9) translate(-20px, 0); opacity: 0.4; }
+          50% { transform: scale(1.3) translate(20px, -20px); opacity: 0.7; }
+        }
+        /* Movimento D: Lateral Direita - Lento */
+        @keyframes floatD {
+          0%, 100% { transform: scale(1); opacity: 0.5; }
+          50% { transform: scale(1.4) translate(-30px, 30px); opacity: 0.8; }
         }
 
         .blob {
           position: absolute;
           border-radius: 50%;
-          filter: blur(60px); /* Menos blur para mais nitidez */
-          mix-blend-mode: multiply; /* EFEITO MISTURA DE TINTAS (No branco) */
+          filter: blur(80px); /* Blur alto para suavizar as bordas gigantes */
+          mix-blend-mode: multiply; /* Mistura de tintas */
           will-change: transform, opacity;
         }
         
-        /* Ajuste para modo escuro (Multiply some no preto, Screen soma luz) */
         .dark .blob {
           mix-blend-mode: screen; 
-          opacity: 0.4 !important; /* Mais suave no escuro para não ofuscar */
+          opacity: 0.3 !important;
         }
 
-        .anim-a { animation: floatA 8s ease-in-out infinite; }
-        .anim-b { animation: floatB 10s ease-in-out infinite reverse; }
-        .anim-c { animation: floatC 7s ease-in-out infinite; }
+        .anim-a { animation: floatA 12s ease-in-out infinite; }
+        .anim-b { animation: floatB 14s ease-in-out infinite reverse; }
+        .anim-c { animation: floatC 9s ease-in-out infinite; }
+        .anim-d { animation: floatD 16s ease-in-out infinite; }
       `}</style>
 
       {/* --- FUNDO BASE --- */}
       <div className="absolute inset-0 z-0 bg-white dark:bg-slate-950" />
       
-      {/* --- BOLAS COLORIDAS (Tintas) --- */}
+      {/* --- BOLAS NAS BORDAS (GIGANTES) --- */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         
-        {/* 1. AZUL (Canto Superior Esquerdo) */}
-        <div className="blob bg-blue-500 w-[60%] h-[60%] -top-[10%] -left-[10%] anim-a" />
+        {/* 1. AZUL (Canto Superior Esquerdo - Borda) */}
+        <div className="blob bg-blue-600 w-[80%] h-[80%] -top-[30%] -left-[30%] anim-a" />
         
-        {/* 2. ÂMBAR (Canto Inferior Direito) */}
-        <div className="blob bg-amber-500 w-[60%] h-[60%] -bottom-[10%] -right-[10%] anim-b" />
+        {/* 2. ÂMBAR (Canto Inferior Direito - Borda) */}
+        <div className="blob bg-amber-500 w-[80%] h-[80%] -bottom-[30%] -right-[30%] anim-b" />
 
-        {/* 3. VERDE (Canto Inferior Esquerdo) - Novo */}
-        <div className="blob bg-emerald-500 w-[50%] h-[50%] bottom-[5%] -left-[15%] anim-c" style={{ animationDelay: '1s' }} />
+        {/* 3. VERDE (Lateral Esquerda Inferior - Borda) */}
+        <div className="blob bg-emerald-500 w-[60%] h-[60%] bottom-[10%] -left-[30%] anim-c" style={{ animationDelay: '2s' }} />
 
-        {/* 4. LARANJA (Canto Superior Direito) - Novo */}
-        <div className="blob bg-orange-500 w-[50%] h-[50%] -top-[5%] -right-[15%] anim-a" style={{ animationDelay: '4s' }} />
+        {/* 4. LARANJA (Lateral Direita Superior - Borda) */}
+        <div className="blob bg-orange-500 w-[60%] h-[60%] top-[10%] -right-[30%] anim-d" style={{ animationDelay: '5s' }} />
 
       </div>
 
