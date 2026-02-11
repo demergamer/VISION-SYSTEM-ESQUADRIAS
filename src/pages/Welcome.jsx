@@ -1,23 +1,60 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Briefcase, ShieldCheck, ChevronRight, Lock } from 'lucide-react';
+import { User, Briefcase, ChevronRight, ChevronLeft, Lock } from 'lucide-react';
+
+// --- CONFIGURAÇÃO DAS EMPRESAS ---
+const COMPANIES = [
+  {
+    id: 'jc',
+    name: 'J&C Esquadrias',
+    logo: 'https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/936ba5dbe_logo_JCEsquadrias.png',
+    color: 'bg-yellow-500', // Cor de destaque (opcional)
+  },
+  {
+    id: 'inovalum',
+    name: 'Inovalum',
+    logo: 'https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/386f33ec8_INOVALUMTRANSPARENTECOMBORDA.png',
+    color: 'bg-blue-500',
+    scale: 1.4 // Ajuste específico para esta logo
+  },
+  {
+    id: 'oliver',
+    name: 'Oliver Extrusora',
+    logo: 'https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/6dba430e9_LOGOOLIVERTRANSPARENTECOMBORDA.png',
+    color: 'bg-slate-700',
+  }
+];
 
 export default function Welcome() {
   const navigate = useNavigate();
-  const [showNotification, setShowNotification] = useState(false);
+  const [selectedCompany, setSelectedCompany] = useState(null); // null = visão geral, 'id' = selecionada
 
-  // --- Navegação ---
+  // --- AÇÕES ---
+  const handleCompanyClick = (companyId) => {
+    if (selectedCompany === companyId) {
+      // LÓGICA DO ADMIN: Se clicar na logo que JÁ está selecionada -> Vai para Admin
+      navigate('/Dashboard');
+    } else {
+      // Seleciona a empresa e inicia a animação
+      setSelectedCompany(companyId);
+    }
+  };
+
+  const handleBack = () => {
+    setSelectedCompany(null); // Volta para a visão geral
+  };
+
   const handleCliente = () => navigate('/PortalCliente');
-  const handleAdmin = () => navigate('/Dashboard');
   const handleRepresentante = () => navigate('/PortalDoRepresentante');
 
-  // --- Botão Otimizado ---
-  const AccessButton = ({ title, subtitle, icon: Icon, onClick, delay }) => (
+  // --- COMPONENTE DE BOTÃO (Reutilizável) ---
+  const AccessButton = ({ title, subtitle, icon: Icon, onClick, delay = 0 }) => (
     <motion.button
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: delay }}
+      exit={{ opacity: 0, y: 10 }}
+      transition={{ duration: 0.4, delay }}
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
@@ -28,7 +65,6 @@ export default function Welcome() {
                  transition-all duration-300 relative overflow-hidden z-30"
     >
       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-100/50 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 pointer-events-none" />
-
       <div className="flex items-center gap-4 relative z-10">
         <div className="p-3 bg-blue-100 dark:bg-slate-800 rounded-lg text-blue-700 dark:text-blue-400 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300">
           <Icon size={20} />
@@ -43,143 +79,166 @@ export default function Welcome() {
   );
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center justify-center p-6 relative overflow-hidden bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen w-full flex flex-col items-center p-6 relative overflow-hidden bg-slate-50 dark:bg-slate-950 transition-all duration-500">
       
-      {/* --- CSS: MISTURA DE CORES (Multiply) --- */}
+      {/* --- BACKGROUND ANIMADO --- */}
       <style>{`
-        /* Movimento A: Azul - Vem da esquerda superior e desce */
-        @keyframes floatBlue {
-          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
-          50% { transform: translate(40%, 40%) scale(1.4); opacity: 0.8; }
-        }
-        
-        /* Movimento B: Amarelo - Vem da direita inferior e sobe */
-        @keyframes floatYellow {
-          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
-          50% { transform: translate(-40%, -40%) scale(1.4); opacity: 0.8; }
-        }
-
-        .blob {
-          position: absolute;
-          border-radius: 50%;
-          filter: blur(60px); /* Blur calibrado para manter a cor nítida */
-          mix-blend-mode: multiply; /* O SEGREDO: Azul * Amarelo = Verde */
-          will-change: transform, opacity;
-        }
-        
-        /* No modo escuro, multiply escurece demais, então usamos screen (luz) */
-        .dark .blob {
-          mix-blend-mode: screen; 
-          opacity: 0.4 !important;
-        }
-
+        @keyframes floatBlue { 0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; } 50% { transform: translate(40%, 40%) scale(1.4); opacity: 0.8; } }
+        @keyframes floatYellow { 0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; } 50% { transform: translate(-40%, -40%) scale(1.4); opacity: 0.8; } }
+        .blob { position: absolute; border-radius: 50%; filter: blur(60px); mix-blend-mode: multiply; will-change: transform, opacity; }
+        .dark .blob { mix-blend-mode: screen; opacity: 0.4 !important; }
         .anim-blue { animation: floatBlue 10s ease-in-out infinite; }
         .anim-yellow { animation: floatYellow 12s ease-in-out infinite reverse; }
       `}</style>
-
-      {/* --- FUNDO BRANCO PURO (Necessário para a mistura funcionar bem) --- */}
       <div className="absolute inset-0 z-0 bg-white dark:bg-slate-950" />
-      
-      {/* --- AS DUAS BOLAS MISTURADORAS --- */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        
-        {/* 1. AZUL (Ciano Intenso) */}
-        {/* Usando cyan-500 para garantir que a mistura com amarelo fique um verde bonito */}
         <div className="blob bg-cyan-500 w-[80%] h-[80%] -top-[20%] -left-[20%] anim-blue" />
-        
-        {/* 2. AMARELO (Amarelo Ouro) */}
         <div className="blob bg-yellow-400 w-[80%] h-[80%] -bottom-[20%] -right-[20%] anim-yellow" />
-
       </div>
 
-      {/* --- CONTEÚDO PRINCIPAL --- */}
-      <div className="relative z-10 w-full max-w-md flex flex-col items-center">
+      {/* --- HEADER FLUTUANTE (J&C VISION) --- */}
+      {/* Se selectedCompany for null, fica no centro. Se tiver selecionado, vai para a esquerda. */}
+      <motion.div 
+        layout 
+        className={`fixed z-40 flex items-center transition-all duration-500 ${selectedCompany ? 'top-6 left-6 flex-row gap-3' : 'top-[15%] flex-col gap-4'}`}
+      >
+        <motion.img 
+          layoutId="main-logo"
+          src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png"
+          alt="J&C Vision"
+          className={`object-contain drop-shadow-xl transition-all duration-500 ${selectedCompany ? 'h-12' : 'h-32'}`}
+        />
         
-        {/* ÁREA DAS LOGOS */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-          className="w-full flex flex-col items-center justify-center mb-10"
-        >
-          {/* LOGO PRINCIPAL */}
-          <div className="mb-8 relative z-20 drop-shadow-2xl">
-            <img 
-              src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png"
-              alt="J&C Vision"
-              className="h-32 md:h-36 w-auto object-contain hover:scale-105 transition-transform duration-500"
-            />
-          </div>
-
-          {/* CONTAINER DAS 3 EMPRESAS */}
-          <div className="flex items-center justify-center gap-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/60 dark:border-slate-700 shadow-2xl p-6 rounded-3xl w-full z-20">
-            
-            {/* J&C */}
-            <div className="flex-1 flex justify-center items-center">
-               <img 
-                 src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/936ba5dbe_logo_JCEsquadrias.png"
-                 alt="J&C Esquadrias"
-                 className="h-20 md:h-24 w-auto object-contain hover:scale-110 transition-transform duration-300"
-               />
-            </div>
-
-            <div className="h-12 w-px bg-slate-300 dark:bg-slate-600"></div>
-            
-            {/* Inovalum */}
-            <div className="flex-1 flex justify-center items-center overflow-visible">
-               <img 
-                 src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/386f33ec8_INOVALUMTRANSPARENTECOMBORDA.png"
-                 alt="Inovalum"
-                 className="h-20 md:h-24 w-auto object-contain scale-[1.4] hover:scale-[1.5] transition-transform duration-300"
-                 title="Inovalum"
-               />
-            </div>
-
-            <div className="h-12 w-px bg-slate-300 dark:bg-slate-600"></div>
-
-            {/* Oliver */}
-            <div className="flex-1 flex justify-center items-center">
-               <img 
-                 src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/6dba430e9_LOGOOLIVERTRANSPARENTECOMBORDA.png"
-                 alt="Oliver Extrusora"
-                 className="h-20 md:h-24 w-auto object-contain hover:scale-110 transition-transform duration-300"
-               />
-            </div>
-          </div>
-          
-          {/* TÍTULO */}
-          <div className="text-center mt-10 space-y-2 relative z-20">
-            <h1 className="text-4xl font-black tracking-tight text-slate-900 dark:text-white drop-shadow-sm">
-              <span className="text-blue-900 dark:text-blue-200">ONE</span> Vision
-            </h1>
-            <p className="text-slate-600 dark:text-slate-300 text-sm font-semibold tracking-wide uppercase">
-              Gestão Integrada | Selecione seu acesso
-            </p>
-          </div>
+        <motion.div layoutId="main-text" className="text-center md:text-left">
+          <h1 className={`font-black tracking-tight text-slate-900 dark:text-white transition-all duration-500 ${selectedCompany ? 'text-xl' : 'text-4xl'}`}>
+            <span className="text-blue-900 dark:text-blue-200">ONE</span> Vision
+          </h1>
+          {!selectedCompany && (
+            <motion.p 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="text-slate-600 dark:text-slate-300 text-sm font-semibold tracking-wide uppercase mt-2"
+            >
+              Selecione a empresa
+            </motion.p>
+          )}
         </motion.div>
+      </motion.div>
 
-        {/* BOTÕES DE ACESSO */}
-        <div className="w-full flex flex-col gap-3 items-center z-20">
-          <AccessButton title="Área do Cliente" subtitle="Acompanhe seus pedidos e entregas" icon={User} onClick={handleCliente} delay={0.1} />
-          <AccessButton title="Portal do Representante" subtitle="Gestão de carteira e vendas" icon={Briefcase} onClick={handleRepresentante} delay={0.2} />
-          <AccessButton title="Acesso Administrativo" subtitle="Controle financeiro e produção" icon={ShieldCheck} onClick={handleAdmin} delay={0.3} />
-        </div>
-
-        {/* RODAPÉ */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }} className="mt-12 text-center relative z-20">
-          <p className="text-slate-500 dark:text-slate-500 text-[10px] font-bold tracking-[0.2em] uppercase">Vision System &copy; {new Date().getFullYear()}</p>
-        </motion.div>
-
-      </div>
-
+      {/* --- BOTÃO VOLTAR (Só aparece quando selecionado) --- */}
       <AnimatePresence>
-        {showNotification && (
-          <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="absolute bottom-10 bg-slate-800 text-white px-6 py-3 rounded-full flex items-center gap-3 shadow-2xl z-50 border border-slate-700">
-            <Lock size={16} className="text-yellow-400" /><span className="text-sm font-medium">Acesso restrito.</span>
-          </motion.div>
+        {selectedCompany && (
+          <motion.button
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            onClick={handleBack}
+            className="fixed top-6 right-6 z-50 p-2 bg-white/50 hover:bg-white rounded-full shadow-sm text-slate-600 transition-all"
+          >
+            <ChevronLeft size={24} />
+          </motion.button>
         )}
       </AnimatePresence>
 
+      {/* --- ÁREA CENTRAL (LOGOS DAS EMPRESAS) --- */}
+      <div className={`relative z-10 w-full max-w-4xl flex flex-col items-center justify-center transition-all duration-700 ${selectedCompany ? 'mt-32' : 'mt-[35vh]'}`}>
+        
+        {/* CONTAINER DE LOGOS */}
+        <motion.div 
+          layout
+          className={`flex items-center justify-center gap-4 transition-all duration-500 
+            ${selectedCompany 
+              ? 'flex-col' // Quando selecionado, alinha verticalmente (mas só vai sobrar uma)
+              : 'flex-row bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/60 dark:border-slate-700 shadow-2xl p-6 rounded-3xl' // Estilo cartão original
+            }`}
+        >
+          <AnimatePresence mode='popLayout'>
+            {COMPANIES.map((company, index) => {
+              // LÓGICA DE EXIBIÇÃO:
+              // Se nenhuma selecionada: Mostra todas.
+              // Se uma selecionada: Mostra APENAS a selecionada.
+              const isSelected = selectedCompany === company.id;
+              const isHidden = selectedCompany && !isSelected;
+
+              if (isHidden) return null;
+
+              return (
+                <motion.div
+                  layoutId={`company-container-${company.id}`}
+                  key={company.id}
+                  onClick={() => handleCompanyClick(company.id)}
+                  className={`relative flex items-center justify-center transition-all duration-500 cursor-pointer
+                    ${isSelected ? 'p-0 mb-8 scale-110' : 'flex-1 hover:scale-105'}`
+                  }
+                >
+                  {/* SEPARADOR (Só mostra se não tiver selecionado e não for o último) */}
+                  {!selectedCompany && index < COMPANIES.length - 1 && (
+                     <div className="absolute -right-2 h-12 w-px bg-slate-300 dark:bg-slate-600 pointer-events-none"></div>
+                  )}
+
+                  <motion.img 
+                    layoutId={`company-logo-${company.id}`}
+                    src={company.logo}
+                    alt={company.name}
+                    className={`object-contain transition-all duration-500 drop-shadow-md
+                      ${isSelected ? 'h-32 md:h-40' : 'h-20 md:h-24'} 
+                      ${company.id === 'inovalum' ? 'scale-[1.4]' : ''}
+                    `}
+                  />
+                  
+                  {/* Dica para o Admin (Aparece sutilmente quando selecionado) */}
+                  {isSelected && (
+                    <motion.div 
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}
+                      className="absolute -bottom-8 flex flex-col items-center"
+                    >
+                      <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Empresa Selecionada</span>
+                      <span className="text-[9px] text-slate-300">(Clique novamente para Admin)</span>
+                    </motion.div>
+                  )}
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+        </motion.div>
+
+        {/* --- BOTÕES DE ACESSO (Só aparecem quando selecionado) --- */}
+        <AnimatePresence>
+          {selectedCompany && (
+            <motion.div 
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="w-full max-w-sm flex flex-col gap-3 mt-4"
+            >
+              <AccessButton 
+                title="Área do Cliente" 
+                subtitle="Acompanhe pedidos e financeiro" 
+                icon={User} 
+                onClick={handleCliente} 
+                delay={0.2}
+              />
+              <AccessButton 
+                title="Portal do Representante" 
+                subtitle="Gestão de vendas e carteira" 
+                icon={Briefcase} 
+                onClick={handleRepresentante} 
+                delay={0.3}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* RODAPÉ */}
+        <motion.div 
+          layout
+          className="fixed bottom-6 text-center"
+        >
+          <p className="text-slate-400 dark:text-slate-600 text-[10px] font-bold tracking-[0.2em] uppercase">
+            Vision System &copy; {new Date().getFullYear()}
+          </p>
+        </motion.div>
+
+      </div>
     </div>
   );
 }
