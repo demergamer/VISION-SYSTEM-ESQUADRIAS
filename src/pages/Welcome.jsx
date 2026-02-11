@@ -60,28 +60,48 @@ export default function Welcome() {
           transition={{ duration: 0.6, ease: "easeOut" }}
           className="w-full flex flex-col items-center justify-center mb-10"
         >
-          {/* CONTAINER DAS LOGOS LADO A LADO */}
-          {/* Ajustei para alinhar pelo centro vertical e horizontal do container */}
-          <div className="flex items-center justify-center gap-8 mb-6 w-full">
-            
-            {/* Logo 1: Vision (Ajustado pela altura h-24 para equilibrar) */}
-            <div className="flex items-center justify-center">
-               <img 
-                 src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png"
-                 alt="J&C Vision"
-                 className="h-24 md:h-28 w-auto object-contain drop-shadow-md hover:scale-105 transition-transform duration-300"
-               />
-            </div>
+          {/* LOGO PRINCIPAL - J&C VISION NO TOPO */}
+          <div className="flex items-center justify-center mb-8 w-full">
+            <img 
+              src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png"
+              alt="J&C Vision"
+              className="h-28 md:h-32 w-auto object-contain drop-shadow-lg hover:scale-105 transition-transform duration-300"
+            />
+          </div>
 
-            {/* Separador Vertical Fino e Centralizado */}
-            <div className="h-16 w-[1px] bg-slate-300 dark:bg-slate-700 opacity-60 rounded-full"></div>
+          {/* GRUPO DAS 3 LOGOS LADO A LADO */}
+          <div className="flex items-center justify-center gap-6 mb-6 w-full flex-wrap">
             
-            {/* Logo 2: Esquadrias (Ajustado pela altura h-20, pois ela é mais larga) */}
+            {/* Logo 1: J&C Esquadrias */}
             <div className="flex items-center justify-center">
                <img 
                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/936ba5dbe_logo_JCEsquadrias.png"
                  alt="J&C Esquadrias"
-                 className="h-20 md:h-24 w-auto object-contain drop-shadow-md hover:scale-105 transition-transform duration-300"
+                 className="h-16 md:h-20 w-auto object-contain drop-shadow-md hover:scale-105 transition-transform duration-300"
+               />
+            </div>
+
+            {/* Separador */}
+            <div className="h-12 w-[1px] bg-slate-300 dark:bg-slate-700 opacity-40 rounded-full hidden md:block"></div>
+            
+            {/* Logo 2: Inovalum */}
+            <div className="flex items-center justify-center">
+               <img 
+                 src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/386f33ec8_INOVALUMTRANSPARENTECOMBORDA.png"
+                 alt="Inovalum"
+                 className="h-16 md:h-20 w-auto object-contain drop-shadow-md hover:scale-105 transition-transform duration-300"
+               />
+            </div>
+
+            {/* Separador */}
+            <div className="h-12 w-[1px] bg-slate-300 dark:bg-slate-700 opacity-40 rounded-full hidden md:block"></div>
+
+            {/* Logo 3: Oliver Extrusora */}
+            <div className="flex items-center justify-center">
+               <img 
+                 src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/6dba430e9_LOGOOLIVERTRANSPARENTECOMBORDA.png"
+                 alt="Oliver Extrusora"
+                 className="h-16 md:h-20 w-auto object-contain drop-shadow-md hover:scale-105 transition-transform duration-300"
                />
             </div>
           </div>
