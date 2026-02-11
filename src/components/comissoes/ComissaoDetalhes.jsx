@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DollarSign, Save, Lock, Trash2, Download, RefreshCw, Plus, Search, AlertTriangle, FileText, Loader2, Calendar, ChevronLeft, ChevronRight, ArrowLeftRight, RotateCcw, AlertOctagon } from "lucide-react";
+import { DollarSign, Save, Lock, Trash2, Download, RefreshCw, Plus, Search, AlertTriangle, FileText, Loader2, Calendar, ChevronLeft, ChevronRight, ArrowLeftRight, RotateCcw } from "lucide-react";
 import { format, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 export default function ComissaoDetalhes({ 
   representante, 
   mesAno, 
-  pedidosTodos, 
+  pedidosTodos = [], // Garante que seja array
   controles, 
   onClose, 
   onSuccessSave,
@@ -32,21 +32,21 @@ export default function ComissaoDetalhes({
   const [controleId, setControleId] = useState(null);
   
   const [loading, setLoading] = useState(false);
-  const [reopening, setReopening] = useState(false); // Estado para o loading de reabertura
+  const [reopening, setReopening] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [buscaPedidoAdd, setBuscaPedidoAdd] = useState('');
 
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
-  // --- EFEITO DE CARREGAMENTO ---
+  // --- EFEITO DE CARREGAMENTO INTELIGENTE ---
   useEffect(() => {
       const fechado = representante.status === 'fechado';
       setIsFechado(fechado);
-      setControleId(representante.id || null);
+      setControleId(representante.controleId || representante.id || null);
 
       if (fechado && representante.pedidos_detalhes) {
-          // MODO LEITURA (SNAPSHOT)
+          // 1. MODO FECHADO: Usa o snapshot do banco (Histórico Fixo)
           setPedidosEditaveis(representante.pedidos_detalhes.map(p => ({
               id: p.pedido_id,
               numero_pedido: p.numero_pedido,
@@ -57,20 +57,44 @@ export default function ComissaoDetalhes({
               valorComissao: parseFloat(p.valor_comissao || 0),
               veio_do_snapshot: true
           })));
-          setVales(representante.vales_adiantamentos || 0);
+          setVales(representante.vales_adiantamentos || representante.vales || 0);
           setOutrosDescontos(representante.outros_descontos || 0);
           setObservacoes(representante.observacoes || '');
       } else {
-          // MODO EDIÇÃO
-          setPedidosEditaveis(representante.pedidos || []);
+          // 2. MODO ABERTO: Carrega pedidos pendentes
+          
+          let listaInicial = representante.pedidos || [];
+
+          // CORREÇÃO CRÍTICA: Se a lista do representante vier vazia, mas houver pedidos globais elegíveis, puxa eles.
+          if (listaInicial.length === 0 && pedidosTodos.length > 0) {
+              const codigoRep = String(representante.codigo);
+              listaInicial = pedidosTodos.filter(p => {
+                  // Filtra pedidos deste representante
+                  const mesmoRep = String(p.representante_codigo) === codigoRep;
+                  // Filtra pedidos PAGOS pelo cliente
+                  const estaPago = p.status === 'pago'; 
+                  // Filtra pedidos que AINDA NÃO TIVERAM comissão paga
+                  const semComissao = !p.comissao_paga; 
+
+                  return mesmoRep && estaPago && semComissao;
+              }).map(p => ({
+                  ...p,
+                  valorBaseComissao: parseFloat(p.total_pago || 0),
+                  percentualComissao: p.porcentagem_comissao || representante.porcentagem_padrao || 5, // Usa padrão se não tiver no pedido
+                  valorComissao: (parseFloat(p.total_pago || 0) * (p.porcentagem_comissao || representante.porcentagem_padrao || 5)) / 100
+              }));
+          }
+
+          setPedidosEditaveis(listaInicial);
           setVales(representante.vales || 0);
           setOutrosDescontos(representante.outrosDescontos || 0);
           setObservacoes(representante.observacoes || '');
       }
-  }, [representante]);
+  }, [representante, pedidosTodos, mesAno]);
 
-  // Totais
+  // Totais (Memoizados para performance)
   const totais = useMemo(() => {
+    // Se fechado, usa os valores cravados do banco
     if (isFechado) {
         return {
             totalVendas: representante.total_vendas || 0,
@@ -78,13 +102,14 @@ export default function ComissaoDetalhes({
             saldoFinal: representante.valor_liquido || 0
         };
     }
+    // Se aberto, calcula dinamicamente
     const totalVendas = pedidosEditaveis.reduce((sum, p) => sum + (parseFloat(p.valorBaseComissao) || 0), 0);
     const totalComissoes = pedidosEditaveis.reduce((sum, p) => sum + (parseFloat(p.valorComissao) || 0), 0);
     const saldoFinal = totalComissoes - parseFloat(vales || 0) - parseFloat(outrosDescontos || 0);
     return { totalVendas, totalComissoes, saldoFinal };
   }, [pedidosEditaveis, vales, outrosDescontos, isFechado, representante]);
 
-  // Filtros (Admin)
+  // Filtro para o Modal "Adicionar Pedido Avulso"
   const pedidosDisponiveisParaAdicao = useMemo(() => {
       if (isPortal || !pedidosTodos || isFechado) return []; 
       const codigoAtual = String(representante.codigo);
@@ -92,7 +117,10 @@ export default function ComissaoDetalhes({
           if (String(p.representante_codigo) !== codigoAtual) return false;
           if (p.status !== 'pago') return false; 
           if (p.comissao_paga === true) return false; 
-          if (pedidosEditaveis.some(pe => pe.id === p.id)) return false; 
+          // Não mostra se já está na lista atual
+          if (pedidosEditaveis.some(pe => String(pe.id) === String(p.id))) return false; 
+          
+          // Filtro de texto do input
           if (buscaPedidoAdd) {
               const t = buscaPedidoAdd.toLowerCase();
               return p.numero_pedido?.toLowerCase().includes(t) || p.cliente_nome?.toLowerCase().includes(t);
@@ -101,7 +129,7 @@ export default function ComissaoDetalhes({
       });
   }, [pedidosTodos, representante, pedidosEditaveis, buscaPedidoAdd, isFechado, isPortal]);
 
-  // --- HANDLERS BÁSICOS ---
+  // --- HANDLERS ---
   const handleEditarPercentual = (pedidoId, novoPercentual) => {
     if (isPortal || isFechado) return;
     const pct = parseFloat(novoPercentual) || 0;
@@ -113,13 +141,13 @@ export default function ComissaoDetalhes({
       const pct = parseFloat(bulkPercent);
       if (isNaN(pct)) return;
       setPedidosEditaveis(prev => prev.map(p => ({ ...p, percentualComissao: pct, valorComissao: (parseFloat(p.valorBaseComissao) * pct) / 100 })));
-      toast.success(`Aplicado ${pct}%!`);
+      toast.success(`Aplicado ${pct}% em todos os pedidos!`);
   };
 
   const handleRemoverPedido = (id) => {
       if (isPortal || isFechado) return;
       setPedidosEditaveis(prev => prev.filter(p => p.id !== id));
-      toast.info("Removido da lista.");
+      toast.info("Pedido removido da lista deste mês.");
   };
 
   const handleAdicionarPedidoManual = (pedido) => {
@@ -133,14 +161,7 @@ export default function ComissaoDetalhes({
           valorComissao: (valorBase * pct) / 100,
           veio_de_outro_mes: pedido.mes_atual_rascunho
       }]);
-      toast.success('Adicionado!');
-  };
-
-  // --- [MELHORIA 4] NOTIFICAÇÃO ---
-  const enviarNotificacao = async () => {
-      // Aqui entraria a chamada real da API do WhatsApp
-      console.log(`[WhatsApp API] Enviando para ${representante.nome}: "Comissão fechada: ${formatCurrency(totais.saldoFinal)}"`);
-      toast.info("Notificação enviada ao representante (Simulação).");
+      toast.success('Pedido adicionado!');
   };
 
   // --- ACTIONS ---
@@ -161,6 +182,7 @@ export default function ComissaoDetalhes({
               total_vendas: totais.totalVendas,
               total_comissoes_bruto: totais.totalComissoes,
               valor_liquido: totais.saldoFinal,
+              // Salva o estado atual para poder restaurar depois
               pedidos_detalhes: pedidosEditaveis.map(p => ({
                   pedido_id: String(p.id),
                   numero_pedido: p.numero_pedido,
@@ -172,13 +194,16 @@ export default function ComissaoDetalhes({
               }))
           };
 
+          let novoControleId = controleId;
           if (controleId) {
               await base44.entities.FechamentoComissao.update(controleId, payload);
           } else { 
               const res = await base44.entities.FechamentoComissao.create(payload); 
-              if(res?.id) setControleId(res.id); 
+              novoControleId = res.id;
+              setControleId(res.id); 
           }
           
+          // Opcional: Atualizar percentuais nos pedidos originais
           const promises = pedidosEditaveis.map(p => 
              base44.entities.Pedido.update(p.id, { porcentagem_comissao: p.percentualComissao })
           );
@@ -186,24 +211,25 @@ export default function ComissaoDetalhes({
 
           toast.success("Rascunho salvo!");
           if (onSuccessSave) onSuccessSave();
-      } catch (error) { toast.error("Erro ao salvar."); } finally { setLoading(false); }
+      } catch (error) { 
+          console.error(error);
+          toast.error("Erro ao salvar."); 
+      } finally { setLoading(false); }
   };
 
   const handleFinalize = async () => {
       if (isPortal) return;
 
-      // --- [MELHORIA 2] VALIDAÇÃO BANCÁRIA ---
       if (!representante.chave_pix) {
-          toast.error("Impossível finalizar: Representante sem Chave PIX cadastrada.", {
-              description: "Edite o cadastro do representante e adicione a chave PIX."
-          });
+          toast.error("Bloqueado: Representante sem Chave PIX cadastrada.");
           return;
       }
 
-      if (!confirm(`ATENÇÃO: Confirma o fechamento de ${formatCurrency(totais.saldoFinal)}?\n\nIsso irá gerar uma conta a pagar no financeiro e bloqueará edições.`)) return;
+      if (!confirm(`ATENÇÃO: Confirma o fechamento de ${formatCurrency(totais.saldoFinal)}?\n\nIsso irá gerar uma conta a pagar e bloqueará edições.`)) return;
       
       setLoading(true);
       try {
+          // 1. Snapshot dos pedidos
           const snapshotPedidos = pedidosEditaveis.map(p => ({
               pedido_id: String(p.id),
               numero_pedido: p.numero_pedido,
@@ -214,6 +240,7 @@ export default function ComissaoDetalhes({
               valor_comissao: parseFloat(p.valorComissao)
           }));
 
+          // 2. Payload do Fechamento
           const payloadFechamento = {
               mes_ano: String(mesAno),
               representante_codigo: String(representante.codigo),
@@ -239,6 +266,7 @@ export default function ComissaoDetalhes({
              finalId = res.id;
           }
 
+          // 3. Criar Conta a Pagar
           const contaPagar = await base44.entities.ContaPagar.create({
               fornecedor_codigo: representante.codigo,
               fornecedor_nome: representante.nome,
@@ -246,15 +274,17 @@ export default function ComissaoDetalhes({
               valor: parseFloat(totais.saldoFinal),
               data_vencimento: new Date().toISOString(),
               status: 'pendente',
-              categoria_financeira: 'comissoes',
+              categoria_financeira: 'comissoes', // Certifique-se que adicionou 'comissoes' no enum do ContaPagar
               tipo_lancamento: 'unica',
               observacao: `Gerado via Fechamento #${finalId}. PIX: ${representante.chave_pix}`,
-              origem_id: finalId, // Importante para o Reabrir funcionar
+              origem_id: finalId,
               origem_tipo: 'fechamento_comissao'
           });
 
+          // 4. Vínculo Reverso
           await base44.entities.FechamentoComissao.update(finalId, { pagamento_id: contaPagar.id });
 
+          // 5. Baixa nos Pedidos
           const promisesPedidos = pedidosEditaveis.map(p => 
               base44.entities.Pedido.update(p.id, { 
                   comissao_paga: true, 
@@ -264,12 +294,12 @@ export default function ComissaoDetalhes({
           );
           await Promise.all(promisesPedidos);
 
-          // Dispara notificação (Melhoria 4)
-          enviarNotificacao();
-
+          // 6. Atualização Visual e Notificação
           setIsFechado(true);
           setControleId(finalId);
-          toast.success("Comissão finalizada e conta gerada!");
+          toast.success("Comissão finalizada com sucesso!");
+          
+          // IMPORTANTE: Avisa o pai para recarregar a lista e mudar o status de "Aberto" para "Fechado"
           if (onSuccessSave) onSuccessSave();
 
       } catch (error) {
@@ -280,35 +310,28 @@ export default function ComissaoDetalhes({
       }
   };
 
-  // --- [MELHORIA 1] REABRIR FECHAMENTO ---
   const handleReopen = async () => {
       if (isPortal || !isFechado || !controleId) return;
 
-      if (!confirm("ATENÇÃO: Deseja reabrir este fechamento?\n\n1. A Conta a Pagar gerada será EXCLUÍDA.\n2. Os pedidos voltarão a ficar 'Em Aberto'.\n3. Você poderá editar valores novamente.")) return;
+      if (!confirm("ATENÇÃO: Deseja reabrir este fechamento?\n\nA conta a pagar será excluída e os pedidos voltarão para 'Em Aberto'.")) return;
 
       setReopening(true);
       try {
-          // 1. Verificar Status no Financeiro
-          // Buscamos o fechamento atual para pegar o ID atualizado do pagamento
+          // 1. Verifica se conta já foi paga
           const fechamentoAtual = await base44.entities.FechamentoComissao.getById(controleId);
-          
           if (fechamentoAtual.pagamento_id) {
               const conta = await base44.entities.ContaPagar.getById(fechamentoAtual.pagamento_id);
               if (conta) {
                   if (conta.status === 'pago' || conta.status === 'parcial') {
-                      toast.error("Ação Bloqueada: A conta já foi paga pelo financeiro.", {
-                          description: "Solicite o estorno no financeiro antes de reabrir."
-                      });
+                      toast.error("Bloqueado: A conta já foi paga pelo financeiro.");
                       setReopening(false);
                       return;
                   }
-                  // Se estiver pendente, exclui
                   await base44.entities.ContaPagar.delete(conta.id);
               }
           }
 
-          // 2. Liberar Pedidos
-          // Usamos a lista atual (pedidosEditaveis) pois ela contém os IDs corretos
+          // 2. Libera Pedidos
           const promisesPedidos = pedidosEditaveis.map(p => 
               base44.entities.Pedido.update(p.id, { 
                   comissao_paga: false, 
@@ -318,21 +341,21 @@ export default function ComissaoDetalhes({
           );
           await Promise.all(promisesPedidos);
 
-          // 3. Atualizar Fechamento para 'aberto'
+          // 3. Reabre Fechamento
           await base44.entities.FechamentoComissao.update(controleId, {
               status: 'aberto',
               pagamento_id: null,
               data_fechamento: null
           });
 
-          toast.success("Fechamento reaberto com sucesso!");
+          toast.success("Fechamento reaberto!");
           setIsFechado(false);
-          // O Pai recarregará os dados, ou podemos forçar refresh
+          
           if (onSuccessSave) onSuccessSave();
 
       } catch (error) {
           console.error(error);
-          toast.error("Erro ao reabrir fechamento.");
+          toast.error("Erro ao reabrir.");
       } finally {
           setReopening(false);
       }
@@ -374,7 +397,7 @@ export default function ComissaoDetalhes({
   return (
     <div className="space-y-6">
       
-      {/* NAVEGAÇÃO PORTAL */}
+      {/* HEADER PORTAL */}
       {isPortal && (
           <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4 mb-2">
               <div className="flex items-center gap-2"><Calendar className="w-5 h-5 text-purple-600" /><span className="font-bold text-slate-700">Período de Referência:</span></div>
@@ -387,7 +410,7 @@ export default function ComissaoDetalhes({
           </div>
       )}
 
-      {/* FERRAMENTAS ADMIN */}
+      {/* FERRAMENTAS */}
       {!isPortal && !isFechado && (
           <Card className="p-4 bg-blue-50 border-blue-100 flex items-center justify-between">
               <div className="flex items-center gap-3"><div className="p-2 bg-blue-100 rounded-full"><RefreshCw className="w-4 h-4 text-blue-600"/></div><div><h4 className="font-bold text-sm text-blue-900">Alteração em Massa</h4><p className="text-xs text-blue-700">Defina uma % única.</p></div></div>
@@ -452,7 +475,6 @@ export default function ComissaoDetalhes({
               <Button variant="outline" onClick={handleGerarPDF} disabled={generatingPdf} className="gap-2 border-purple-200 text-purple-700 hover:bg-purple-50">{generatingPdf ? <Loader2 className="w-4 h-4 animate-spin"/> : <FileText className="w-4 h-4"/>} Baixar Relatório</Button>
           </div>
           
-          {/* BOTÕES DE ADMIN */}
           {!isPortal && (
               <div className="flex gap-2">
                 {!isFechado ? (
@@ -461,7 +483,6 @@ export default function ComissaoDetalhes({
                         <Button onClick={handleFinalize} disabled={loading} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 min-w-[140px]"><Lock className="w-4 h-4"/> Finalizar</Button>
                     </>
                 ) : (
-                    // BOTÃO REABRIR (NOVA FUNÇÃO)
                     <Button onClick={handleReopen} disabled={reopening} variant="destructive" className="gap-2 bg-red-100 text-red-700 hover:bg-red-200 border-red-200">
                         {reopening ? <Loader2 className="w-4 h-4 animate-spin"/> : <RotateCcw className="w-4 h-4"/>} 
                         Reabrir Fechamento
@@ -471,6 +492,7 @@ export default function ComissaoDetalhes({
           )}
       </div>
 
+      {/* MODAL ADICIONAR PEDIDO (FILTRADO) */}
       {!isPortal && (
         <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Adicionar Pedido Avulso" description="Pedidos pagos não comissionados." size="lg">
             <div className="space-y-4">
