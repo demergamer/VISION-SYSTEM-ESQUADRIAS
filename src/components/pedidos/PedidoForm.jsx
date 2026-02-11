@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Save, X, Plus, Eye, Truck, User, Search } from "lucide-react";
+import { Save, X, Plus, Eye, Truck, User, Search, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ModalContainer from "@/components/modals/ModalContainer";
 import { useQuery } from '@tanstack/react-query';
@@ -22,7 +22,7 @@ import ClienteForm from "@/components/clientes/ClienteForm";
 
 export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, onCadastrarCliente, isLoading }) {
   
-  // --- BUSCA DE REPRESENTANTES (PARA O MODAL DE NOVO CLIENTE) ---
+  // Busca representantes para preencher o select (caso esteja editável)
   const { data: representantes = [] } = useQuery({ 
     queryKey: ['representantes_pedido_form'], 
     queryFn: () => base44.entities.Representante.list() 
@@ -32,8 +32,11 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     cliente_codigo: '',
     cliente_nome: '',
     cliente_regiao: '',
+    
+    // Representante
     representante_codigo: '',
     representante_nome: '',
+    
     data_entrega: '',
     numero_pedido: '',
     valor_pedido: 0,
@@ -42,22 +45,26 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     outras_informacoes: '',
     status: 'aberto',
     porcentagem_comissao: 5,
-    rota: '', 
-    motorista: '',
+    
+    // Logística (Corrigido mapeamento)
+    rota_entrega: '', 
+    motorista_codigo: '', // NOVO CAMPO
+    motorista_atual: '',
+    
     desconto_tipo: 'valor',
     desconto_valor: 0
   });
 
-  // Estados para Modais e Buscas
+  // Lógica de Bloqueio do Representante
+  // Bloqueia APENAS se estiver editando um pedido existente QUE JÁ TENHA representante definido.
+  const isRepresentanteLocked = !!pedido && !!pedido.representante_codigo;
+
   const [clienteSelecionadoDetalhes, setClienteSelecionadoDetalhes] = useState(null);
   const [showClienteModal, setShowClienteModal] = useState(false);
   const [showNovoClienteModal, setShowNovoClienteModal] = useState(false);
   const [buscaCliente, setBuscaCliente] = useState(""); 
-  
-  // Estado para armazenar clientes criados AGORA
   const [novosClientesLocais, setNovosClientesLocais] = useState([]);
 
-  // Combina clientes do banco com os recém-criados localmente
   const todosClientes = useMemo(() => {
     return [...clientes, ...novosClientesLocais];
   }, [clientes, novosClientesLocais]);
@@ -68,8 +75,10 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
         cliente_codigo: pedido.cliente_codigo || '',
         cliente_nome: pedido.cliente_nome || '',
         cliente_regiao: pedido.cliente_regiao || '',
+        
         representante_codigo: pedido.representante_codigo || '',
         representante_nome: pedido.representante_nome || '',
+        
         data_entrega: pedido.data_entrega || '',
         numero_pedido: pedido.numero_pedido || '',
         valor_pedido: pedido.valor_pedido || 0,
@@ -78,8 +87,12 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
         outras_informacoes: pedido.outras_informacoes || '',
         status: pedido.status || 'aberto',
         porcentagem_comissao: pedido.porcentagem_comissao || 5,
-        rota: pedido.rota || '', 
-        motorista: pedido.motorista || '',
+        
+        // Mapeando para os campos corretos da entidade
+        rota_entrega: pedido.rota_entrega || '', 
+        motorista_codigo: pedido.motorista_codigo || '', // NOVO
+        motorista_atual: pedido.motorista_atual || '',
+        
         desconto_tipo: pedido.desconto_tipo || 'valor',
         desconto_valor: pedido.desconto_valor || 0
       });
@@ -98,16 +111,28 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
   const handleClienteChange = (codigo) => {
     const cli = todosClientes.find(c => c.codigo === codigo);
     if (cli) {
-      setForm({
-        ...form,
+      setForm(prev => ({
+        ...prev,
         cliente_codigo: codigo,
         cliente_nome: cli.nome,
         cliente_regiao: cli.regiao || '',
-        representante_codigo: cli.representante_codigo || '',
-        representante_nome: cli.representante_nome || '',
+        // Só puxa o representante do cliente se o campo não estiver bloqueado pelo pedido
+        ...(!isRepresentanteLocked ? {
+            representante_codigo: cli.representante_codigo || '',
+            representante_nome: cli.representante_nome || ''
+        } : {}),
         porcentagem_comissao: cli.porcentagem_comissao || 5
-      });
+      }));
     }
+  };
+
+  const handleRepresentanteSelect = (codigo) => {
+      const rep = representantes.find(r => r.codigo === codigo);
+      setForm(prev => ({
+          ...prev,
+          representante_codigo: codigo,
+          representante_nome: rep?.nome || ''
+      }));
   };
 
   const updateValores = (field, value) => {
@@ -158,6 +183,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     <div className="space-y-6 py-2">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
+        {/* --- CLIENTE --- */}
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor="cliente">Cliente *</Label>
           <div className="flex items-center gap-2">
@@ -189,6 +215,28 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
           </div>
         </div>
 
+        {/* --- REPRESENTANTE (COM LÓGICA DE BLOQUEIO) --- */}
+        <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+                Representante
+                {isRepresentanteLocked && <Lock className="w-3 h-3 text-amber-500" />}
+            </Label>
+            <Select 
+                value={form.representante_codigo} 
+                onValueChange={handleRepresentanteSelect}
+                disabled={isRepresentanteLocked} // Bloqueia se já estiver preenchido no pedido original
+            >
+                <SelectTrigger className={cn(inputClass, isRepresentanteLocked && "bg-slate-100 opacity-80 cursor-not-allowed")}>
+                    <SelectValue placeholder="Sem representante" />
+                </SelectTrigger>
+                <SelectContent>
+                    {representantes.map(rep => (
+                        <SelectItem key={rep.codigo} value={rep.codigo}>{rep.nome}</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="numero_pedido">Número do Pedido *</Label>
           <Input id="numero_pedido" value={form.numero_pedido} onChange={(e) => setForm({ ...form, numero_pedido: e.target.value })} placeholder="Ex: PED001" className={inputClass} />
@@ -200,18 +248,46 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
         </div>
 
         <div className="space-y-2">
-            <Label htmlFor="rota">Rota de Entrega</Label>
+            <Label htmlFor="rota_entrega">Rota de Entrega</Label>
             <div className="relative">
                 <Truck className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input id="rota" value={form.rota} onChange={(e) => setForm({ ...form, rota: e.target.value })} placeholder="Ex: Zona Norte" className={cn(inputClass, "pl-9")} />
+                <Input 
+                    id="rota_entrega" 
+                    value={form.rota_entrega} 
+                    onChange={(e) => setForm({ ...form, rota_entrega: e.target.value })} 
+                    placeholder="Ex: Zona Norte" 
+                    className={cn(inputClass, "pl-9")} 
+                />
             </div>
         </div>
 
-        <div className="space-y-2">
-            <Label htmlFor="motorista">Motorista Responsável</Label>
-            <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input id="motorista" value={form.motorista} onChange={(e) => setForm({ ...form, motorista: e.target.value })} placeholder="Nome do motorista" className={cn(inputClass, "pl-9")} />
+        {/* --- MOTORISTA (AGORA COM CÓDIGO E NOME) --- */}
+        <div className="space-y-2 md:col-span-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
+            <Label className="mb-2 block text-slate-600 font-semibold">Dados Logísticos (Motorista)</Label>
+            <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-1">
+                    <Label htmlFor="motorista_codigo" className="text-xs text-slate-400">Cód. Motorista</Label>
+                    <Input 
+                        id="motorista_codigo" 
+                        value={form.motorista_codigo} 
+                        onChange={(e) => setForm({ ...form, motorista_codigo: e.target.value })} 
+                        placeholder="000" 
+                        className={inputClass} 
+                    />
+                </div>
+                <div className="col-span-2">
+                    <Label htmlFor="motorista_atual" className="text-xs text-slate-400">Nome do Motorista</Label>
+                    <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Input 
+                            id="motorista_atual" 
+                            value={form.motorista_atual} 
+                            onChange={(e) => setForm({ ...form, motorista_atual: e.target.value })} 
+                            placeholder="Nome do motorista responsável" 
+                            className={cn(inputClass, "pl-9")} 
+                        />
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -274,7 +350,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
         <ClienteForm 
             onSuccess={handleSuccessNovoCliente} 
             onCancel={() => setShowNovoClienteModal(false)} 
-            representantes={representantes} // REPRESENTANTES PASSADOS AQUI
+            representantes={representantes} 
             todosClientes={clientes}
         />
       </ModalContainer>
