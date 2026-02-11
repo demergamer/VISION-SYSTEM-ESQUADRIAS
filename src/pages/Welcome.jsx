@@ -45,65 +45,50 @@ export default function Welcome() {
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center p-6 relative overflow-hidden bg-slate-50 dark:bg-slate-950">
       
-      {/* --- CSS: ANIMAÇÕES DE CRESCIMENTO E BORDA --- */}
+      {/* --- CSS: MISTURA DE CORES (Multiply) --- */}
       <style>{`
-        /* Movimento A: Canto Superior Esquerdo - Cresce MUITO */
-        @keyframes floatA {
-          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
-          50% { transform: translate(50px, 50px) scale(1.5); opacity: 0.8; }
+        /* Movimento A: Azul - Vem da esquerda superior e desce */
+        @keyframes floatBlue {
+          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
+          50% { transform: translate(40%, 40%) scale(1.4); opacity: 0.8; }
         }
-        /* Movimento B: Canto Inferior Direito - Respira Fundo */
-        @keyframes floatB {
-          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
-          50% { transform: translate(-50px, -50px) scale(1.4); opacity: 0.8; }
-        }
-        /* Movimento C: Lateral Esquerda - Pulsação Rápida */
-        @keyframes floatC {
-          0%, 100% { transform: scale(0.9) translate(-20px, 0); opacity: 0.4; }
-          50% { transform: scale(1.3) translate(20px, -20px); opacity: 0.7; }
-        }
-        /* Movimento D: Lateral Direita - Lento */
-        @keyframes floatD {
-          0%, 100% { transform: scale(1); opacity: 0.5; }
-          50% { transform: scale(1.4) translate(-30px, 30px); opacity: 0.8; }
+        
+        /* Movimento B: Amarelo - Vem da direita inferior e sobe */
+        @keyframes floatYellow {
+          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
+          50% { transform: translate(-40%, -40%) scale(1.4); opacity: 0.8; }
         }
 
         .blob {
           position: absolute;
           border-radius: 50%;
-          filter: blur(80px); /* Blur alto para suavizar as bordas gigantes */
-          mix-blend-mode: multiply; /* Mistura de tintas */
+          filter: blur(60px); /* Blur calibrado para manter a cor nítida */
+          mix-blend-mode: multiply; /* O SEGREDO: Azul * Amarelo = Verde */
           will-change: transform, opacity;
         }
         
+        /* No modo escuro, multiply escurece demais, então usamos screen (luz) */
         .dark .blob {
           mix-blend-mode: screen; 
-          opacity: 0.3 !important;
+          opacity: 0.4 !important;
         }
 
-        .anim-a { animation: floatA 12s ease-in-out infinite; }
-        .anim-b { animation: floatB 14s ease-in-out infinite reverse; }
-        .anim-c { animation: floatC 9s ease-in-out infinite; }
-        .anim-d { animation: floatD 16s ease-in-out infinite; }
+        .anim-blue { animation: floatBlue 10s ease-in-out infinite; }
+        .anim-yellow { animation: floatYellow 12s ease-in-out infinite reverse; }
       `}</style>
 
-      {/* --- FUNDO BASE --- */}
+      {/* --- FUNDO BRANCO PURO (Necessário para a mistura funcionar bem) --- */}
       <div className="absolute inset-0 z-0 bg-white dark:bg-slate-950" />
       
-      {/* --- BOLAS NAS BORDAS (GIGANTES) --- */}
+      {/* --- AS DUAS BOLAS MISTURADORAS --- */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         
-        {/* 1. AZUL (Canto Superior Esquerdo - Borda) */}
-        <div className="blob bg-blue-600 w-[80%] h-[80%] -top-[30%] -left-[30%] anim-a" />
+        {/* 1. AZUL (Ciano Intenso) */}
+        {/* Usando cyan-500 para garantir que a mistura com amarelo fique um verde bonito */}
+        <div className="blob bg-cyan-500 w-[80%] h-[80%] -top-[20%] -left-[20%] anim-blue" />
         
-        {/* 2. ÂMBAR (Canto Inferior Direito - Borda) */}
-        <div className="blob bg-amber-500 w-[80%] h-[80%] -bottom-[30%] -right-[30%] anim-b" />
-
-        {/* 3. VERDE (Lateral Esquerda Inferior - Borda) */}
-        <div className="blob bg-emerald-500 w-[60%] h-[60%] bottom-[10%] -left-[30%] anim-c" style={{ animationDelay: '2s' }} />
-
-        {/* 4. LARANJA (Lateral Direita Superior - Borda) */}
-        <div className="blob bg-orange-500 w-[60%] h-[60%] top-[10%] -right-[30%] anim-d" style={{ animationDelay: '5s' }} />
+        {/* 2. AMARELO (Amarelo Ouro) */}
+        <div className="blob bg-yellow-400 w-[80%] h-[80%] -bottom-[20%] -right-[20%] anim-yellow" />
 
       </div>
 
@@ -146,6 +131,7 @@ export default function Welcome() {
                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/386f33ec8_INOVALUMTRANSPARENTECOMBORDA.png"
                  alt="Inovalum"
                  className="h-20 md:h-24 w-auto object-contain scale-[1.4] hover:scale-[1.5] transition-transform duration-300"
+                 title="Inovalum"
                />
             </div>
 
