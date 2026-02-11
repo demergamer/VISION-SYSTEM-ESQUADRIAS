@@ -45,7 +45,7 @@ export default function Welcome() {
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center p-6 relative overflow-hidden bg-slate-50 dark:bg-slate-950">
       
-      {/* --- FUNDO LEVE (Estático para performance) --- */}
+      {/* --- FUNDO LEVE --- */}
       <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-100 via-slate-50 to-white dark:from-slate-900 dark:via-slate-950 dark:to-black opacity-80" />
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-400/10 blur-3xl dark:bg-blue-600/10" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-yellow-400/10 blur-3xl dark:bg-yellow-600/10" />
@@ -53,67 +53,70 @@ export default function Welcome() {
       {/* --- CONTEÚDO PRINCIPAL --- */}
       <div className="relative z-10 w-full max-w-md flex flex-col items-center">
         
-        {/* CABEÇALHO (LOGOS + TEXTO) */}
+        {/* ÁREA DAS LOGOS */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.6, ease: "easeOut" }}
-          className="w-full flex flex-col items-center justify-center mb-10"
+          className="w-full flex flex-col items-center justify-center mb-8"
         >
-          {/* LOGO PRINCIPAL - J&C VISION NO TOPO */}
-          <div className="flex items-center justify-center mb-8 w-full">
+          {/* 1. LOGO PRINCIPAL (SISTEMA) NO TOPO */}
+          <div className="mb-6 relative z-20">
             <img 
               src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png"
               alt="J&C Vision"
-              className="h-28 md:h-32 w-auto object-contain drop-shadow-lg hover:scale-105 transition-transform duration-300"
+              className="h-28 md:h-32 w-auto object-contain drop-shadow-xl hover:scale-105 transition-transform duration-500"
             />
           </div>
 
-          {/* GRUPO DAS 3 LOGOS LADO A LADO */}
-          <div className="flex items-center justify-center gap-6 mb-6 w-full flex-wrap">
+          {/* 2. CONTAINER DAS 3 EMPRESAS (LADO A LADO) */}
+          {/* Este container cria um "grupo" visual */}
+          <div className="flex items-center justify-center gap-4 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md border border-white/50 dark:border-slate-700/50 p-4 rounded-2xl shadow-sm w-full max-w-[95%]">
             
-            {/* Logo 1: J&C Esquadrias */}
-            <div className="flex items-center justify-center">
+            {/* Logo J&C Esquadrias */}
+            <div className="flex-1 flex justify-center items-center">
                <img 
                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/936ba5dbe_logo_JCEsquadrias.png"
                  alt="J&C Esquadrias"
-                 className="h-16 md:h-20 w-auto object-contain drop-shadow-md hover:scale-105 transition-transform duration-300"
+                 className="h-12 md:h-14 w-auto object-contain hover:scale-110 transition-transform duration-300"
+                 title="J&C Esquadrias"
                />
             </div>
 
-            {/* Separador */}
-            <div className="h-12 w-[1px] bg-slate-300 dark:bg-slate-700 opacity-40 rounded-full hidden md:block"></div>
+            {/* Separador Vertical */}
+            <div className="h-8 w-px bg-slate-300 dark:bg-slate-600 opacity-50"></div>
             
-            {/* Logo 2: Inovalum */}
-            <div className="flex items-center justify-center">
+            {/* Logo Inovalum (Azul e Cinza) - CENTRO */}
+            <div className="flex-1 flex justify-center items-center">
                <img 
                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/386f33ec8_INOVALUMTRANSPARENTECOMBORDA.png"
                  alt="Inovalum"
-                 className="h-16 md:h-20 w-auto object-contain drop-shadow-md hover:scale-105 transition-transform duration-300"
+                 className="h-10 md:h-12 w-auto object-contain hover:scale-110 transition-transform duration-300"
+                 title="Inovalum"
                />
             </div>
 
-            {/* Separador */}
-            <div className="h-12 w-[1px] bg-slate-300 dark:bg-slate-700 opacity-40 rounded-full hidden md:block"></div>
+            {/* Separador Vertical */}
+            <div className="h-8 w-px bg-slate-300 dark:bg-slate-600 opacity-50"></div>
 
-            {/* Logo 3: Oliver Extrusora */}
-            <div className="flex items-center justify-center">
+            {/* Logo Oliver Extrusora */}
+            <div className="flex-1 flex justify-center items-center">
                <img 
                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/6dba430e9_LOGOOLIVERTRANSPARENTECOMBORDA.png"
                  alt="Oliver Extrusora"
-                 className="h-16 md:h-20 w-auto object-contain drop-shadow-md hover:scale-105 transition-transform duration-300"
+                 className="h-12 md:h-14 w-auto object-contain hover:scale-110 transition-transform duration-300"
+                 title="Oliver Extrusora"
                />
             </div>
           </div>
           
-          {/* TÍTULO CENTRALIZADO */}
-          <div className="text-center space-y-1">
+          {/* TÍTULO E SUBTÍTULO */}
+          <div className="text-center mt-6 space-y-1">
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
               <span className="text-blue-900 dark:text-blue-100">ONE</span> Vision
             </h1>
-            
-            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium tracking-wide">
-              Selecione seu perfil de acesso
+            <p className="text-slate-500 dark:text-slate-400 text-xs md:text-sm font-medium tracking-wide">
+              Gestão Integrada | Selecione seu acesso
             </p>
           </div>
         </motion.div>
@@ -150,7 +153,7 @@ export default function Welcome() {
           initial={{ opacity: 0 }} 
           animate={{ opacity: 1 }} 
           transition={{ delay: 0.8 }}
-          className="mt-12 text-center"
+          className="mt-10 text-center"
         >
           <p className="text-slate-400 dark:text-slate-600 text-[10px] font-bold tracking-[0.2em] uppercase">
             Vision System &copy; {new Date().getFullYear()}
@@ -159,7 +162,7 @@ export default function Welcome() {
 
       </div>
 
-      {/* NOTIFICAÇÃO FLUTUANTE */}
+      {/* NOTIFICAÇÃO (MANTIDA) */}
       <AnimatePresence>
         {showNotification && (
           <motion.div
