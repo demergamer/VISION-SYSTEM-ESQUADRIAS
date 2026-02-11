@@ -106,7 +106,7 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
       setNovoFornecedor({ nome: '', codigo: '' });
       toast.success('Fornecedor cadastrado!');
       
-      // Recarregar lista de fornecedores
+      // Recarregar lista de fornecedores (idealmente via query invalidation, mas reload funciona aqui no contexto modal)
       window.location.reload();
     } catch (error) {
       toast.error('Erro ao cadastrar fornecedor');
@@ -293,6 +293,7 @@ function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
               <SelectItem value="impostos">⚖️ Impostos e Taxas</SelectItem>
               <SelectItem value="folha">👷 Folha de Pagamento</SelectItem>
               <SelectItem value="vale">🎟️ Vale</SelectItem>
+              <SelectItem value="comissoes">💰 Comissões</SelectItem>
             </SelectContent>
           </Select>
         </div>
