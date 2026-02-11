@@ -69,7 +69,7 @@ export default function Welcome() {
             />
           </div>
 
-          {/* 2. CONTAINER DAS 3 EMPRESAS (LADO A LADO - AUMENTADAS) */}
+          {/* 2. CONTAINER DAS 3 EMPRESAS (AUMENTADAS) */}
           <div className="flex items-center justify-center gap-2 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md border border-white/50 dark:border-slate-700/50 p-6 rounded-3xl shadow-sm w-full">
             
             {/* Logo J&C Esquadrias */}
@@ -77,7 +77,6 @@ export default function Welcome() {
                <img 
                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/936ba5dbe_logo_JCEsquadrias.png"
                  alt="J&C Esquadrias"
-                 // Aumentado para h-20 (mobile) e h-24 (desktop)
                  className="h-20 md:h-24 w-auto object-contain hover:scale-110 transition-transform duration-300"
                  title="J&C Esquadrias"
                />
@@ -86,12 +85,11 @@ export default function Welcome() {
             {/* Separador Vertical */}
             <div className="h-12 w-px bg-slate-300 dark:bg-slate-600 opacity-50"></div>
             
-            {/* Logo Inovalum (AUMENTADA + ESCALA) */}
+            {/* Logo Inovalum */}
             <div className="flex-1 flex justify-center items-center overflow-visible">
                <img 
                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/386f33ec8_INOVALUMTRANSPARENTECOMBORDA.png"
                  alt="Inovalum"
-                 // Aumentado base para h-20/24 e mantendo escala 1.4 para compensar borda transparente
                  className="h-20 md:h-24 w-auto object-contain scale-[1.4] hover:scale-[1.5] transition-transform duration-300"
                  title="Inovalum"
                />
@@ -105,14 +103,13 @@ export default function Welcome() {
                <img 
                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/6dba430e9_LOGOOLIVERTRANSPARENTECOMBORDA.png"
                  alt="Oliver Extrusora"
-                 // Aumentado para h-20 (mobile) e h-24 (desktop)
                  className="h-20 md:h-24 w-auto object-contain hover:scale-110 transition-transform duration-300"
                  title="Oliver Extrusora"
                />
             </div>
           </div>
           
-          {/* TÍTULO E SUBTÍTULO */}
+          {/* TÍTULO */}
           <div className="text-center mt-8 space-y-1">
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
               <span className="text-blue-900 dark:text-blue-100">ONE</span> Vision
@@ -123,8 +120,8 @@ export default function Welcome() {
           </div>
         </motion.div>
 
-        {/* BOTÕES DE ACESSO */}
-        <div className="w-full flex flex-col gap-3">
+        {/* BOTÕES DE ACESSO (CORRIGIDO: 'items-center' adicionado para centralizar) */}
+        <div className="w-full flex flex-col gap-3 items-center">
           <AccessButton 
             title="Área do Cliente" 
             subtitle="Acompanhe seus pedidos e entregas" 
