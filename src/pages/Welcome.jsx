@@ -76,30 +76,31 @@ export default function Welcome() {
   return (
     <div className="min-h-screen w-full flex flex-col items-center p-6 relative overflow-hidden transition-all duration-500">
       
-      {/* --- FUNDO CINZA CHUMBO / CIMENTO QUEIMADO --- */}
-      {/* Usando um gradiente sutil de cinza escuro para simular a textura e profundidade */}
+      {/* --- FUNDO CINZA CHUMBO / CIMENTO --- */}
       <div className="absolute inset-0 z-0 bg-gradient-to-br from-slate-700 via-slate-800 to-gray-900" />
-      
-      {/* (Opcional) Uma leve textura de ruído ou luz para não ficar "chapado" demais */}
       <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-white/5 to-transparent opacity-40 pointer-events-none"></div>
 
-      {/* --- HEADER FLUTUANTE (LOGO CUBO) --- */}
+      {/* --- HEADER FLUTUANTE (COM PAINEL BRANCO) --- */}
       <motion.div 
         layout 
-        className={`fixed z-40 flex items-center transition-all duration-500 ${selectedCompany ? 'top-6 left-6 flex-row gap-3' : 'top-[5%] flex-col gap-4'}`}
+        className={`fixed z-40 flex items-center justify-center transition-all duration-500 bg-white shadow-2xl rounded-2xl
+          ${selectedCompany 
+            ? 'top-6 left-6 flex-row gap-3 px-4 py-2'  // Painel pequeno no canto
+            : 'top-[8%] flex-col gap-4 p-6'            // Painel grande no centro
+          }`}
       >
         <motion.img 
           layoutId="main-logo"
           src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png"
           alt="J&C Vision"
-          className={`object-contain drop-shadow-2xl transition-all duration-500 ${selectedCompany ? 'h-12' : 'h-28 mb-2'}`}
+          className={`object-contain transition-all duration-500 ${selectedCompany ? 'h-10' : 'h-24'}`}
         />
         
-        {/* Quando selecionado, o Título vai para o header */}
+        {/* Quando selecionado, o Título aparece dentro do painel branco no header */}
         {selectedCompany && (
-           <motion.div layoutId="main-text" className="text-left">
-             <h1 className="font-black tracking-tight text-white text-xl drop-shadow-md">
-               <span className="text-blue-200">ONE</span> Vision
+           <motion.div layoutId="main-text" className="text-left border-l border-slate-200 pl-3">
+             <h1 className="font-black tracking-tight text-slate-900 text-lg leading-tight">
+               <span className="text-blue-900">ONE</span> Vision
              </h1>
            </motion.div>
         )}
@@ -120,8 +121,8 @@ export default function Welcome() {
         )}
       </AnimatePresence>
 
-      {/* --- ÁREA CENTRAL (CONTAINER BRANCO) --- */}
-      <div className={`relative z-10 w-full max-w-5xl flex flex-col items-center justify-center transition-all duration-700 ${selectedCompany ? 'mt-32' : 'mt-[25vh]'}`}>
+      {/* --- ÁREA CENTRAL (CONTAINER BRANCO GRANDE) --- */}
+      <div className={`relative z-10 w-full max-w-5xl flex flex-col items-center justify-center transition-all duration-700 ${selectedCompany ? 'mt-32' : 'mt-[30vh]'}`}>
         
         {/* CARTÃO BRANCO PRINCIPAL */}
         <motion.div 
@@ -133,7 +134,7 @@ export default function Welcome() {
             }`}
         >
           
-          {/* 1. TÍTULO E SUBTÍTULO */}
+          {/* 1. TÍTULO E SUBTÍTULO (Dentro do cartão grande) */}
           {!selectedCompany && (
              <motion.div 
                 layoutId="main-text" 
@@ -182,14 +183,14 @@ export default function Welcome() {
                       `}
                     />
                     
-                    {/* DESCRIÇÃO (Aparece embaixo da logo) */}
+                    {/* DESCRIÇÃO (Aparece embaixo da logo quando não selecionado) */}
                     {!selectedCompany && (
                         <motion.div 
                             initial={{ opacity: 0 }} 
                             animate={{ opacity: 1 }} 
                             className="mt-6 text-center"
                         >
-                            <p className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest group-hover:text-blue-600 transition-colors bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
+                            <p className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest group-hover:text-blue-600 transition-colors bg-slate-100 px-3 py-1 rounded-full border border-slate-200 shadow-sm">
                                 {company.desc}
                             </p>
                         </motion.div>
