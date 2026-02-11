@@ -59,10 +59,9 @@ const RepresentanteCard = ({ rep, onClick }) => {
 export default function Comissoes() {
   const queryClient = useQueryClient();
   
-  // --- INICIALIZAÇÃO DE DATA (LÓGICA DIA 10) ---
+  // Data inicial (Dia 10)
   const [mesAnoSelecionado, setMesAnoSelecionado] = useState(() => {
       const hoje = new Date();
-      // Se for dia 10 ou menos, seleciona o mês anterior por padrão
       if (hoje.getDate() <= 10) {
           return format(subMonths(hoje, 1), 'yyyy-MM');
       }
@@ -76,7 +75,11 @@ export default function Comissoes() {
   // Queries
   const { data: pedidos = [] } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list() });
   const { data: representantes = [] } = useQuery({ queryKey: ['representantes'], queryFn: () => base44.entities.Representante.list() });
-  const { data: controles = [] } = useQuery({ queryKey: ['comissaoControle'], queryFn: () => base44.entities.ComissaoControle.list() });
+  // Agora buscamos a entidade correta de FechamentoComissao
+  const { data: fechamentos = [] } = useQuery({ 
+      queryKey: ['fechamentoComissao', mesAnoSelecionado], 
+      queryFn: () => base44.entities.FechamentoComissao.list({ filters: { mes_ano: mesAnoSelecionado } })
+  });
 
   // --- LÓGICA MESTRA DE CÁLCULO ---
   const comissoesPorRepresentante = useMemo(() => {
@@ -84,38 +87,25 @@ export default function Comissoes() {
     const inicioMes = startOfMonth(new Date(ano, mes - 1));
     const fimMes = endOfMonth(new Date(ano, mes - 1));
     
-    // 1. MAPA DE "SEQUESTROS" (PEDIDOS EM RASCUNHOS DE OUTROS MESES)
-    const mapaPedidoParaMes = {}; 
-    controles.forEach(c => {
-        if (c.status === 'aberto' && c.pedidos_ajustados) {
-            c.pedidos_ajustados.forEach(p => {
-                mapaPedidoParaMes[String(p.pedido_id)] = c.referencia;
-            });
-        }
+    // 1. Mapa de Fechamentos (Substitui o antigo "Controles")
+    // Se existir um registro para o representante neste mês, usamos ele como fonte da verdade
+    const mapaFechamentos = {};
+    fechamentos.forEach(f => {
+        mapaFechamentos[f.representante_codigo] = f;
     });
 
-    const controlesDoMesAtual = controles.filter(c => c.referencia === mesAnoSelecionado);
-
-    // 2. FILTRAGEM UNIFICADA (IMÃ + GRAVIDADE)
-    const pedidosDesteMes = pedidos.filter(p => {
-        const idStr = String(p.id);
-
-        // A. Se já pago (Finalizado Definitivo)
+    // 2. Filtragem de Pedidos Pendentes (Só importa para quem NÃO tem fechamento fechado)
+    // Se o fechamento já existe e está fechado, os pedidos dele estão no snapshot, não precisamos filtrar aqui para somar.
+    // Mas para visualização "Aberto", filtramos os elegíveis.
+    const pedidosElegiveisMes = pedidos.filter(p => {
+        // Se já pago, verifica se foi pago NESTE mês de referência
         if (p.comissao_paga === true) {
-            return p.comissao_referencia_paga === mesAnoSelecionado;
+            return p.comissao_mes_ano_pago === mesAnoSelecionado;
         }
-
-        // B. Se não pago (Status do Pedido)
+        // Se não pago, deve estar com status 'pago' (pelo cliente)
         if (p.status !== 'pago') return false;
 
-        // C. REGRA DO IMÃ (Prioridade Máxima)
-        if (mapaPedidoParaMes[idStr]) {
-            // Se está mapeado para ESTE mês, mostra aqui.
-            // Se está mapeado para OUTRO mês, esconde daqui.
-            return mapaPedidoParaMes[idStr] === mesAnoSelecionado;
-        }
-
-        // D. REGRA DA GRAVIDADE (Data Natural)
+        // Data de referência
         const dataRef = p.data_referencia_comissao ? new Date(p.data_referencia_comissao) : (p.data_pagamento ? new Date(p.data_pagamento) : null);
         if (!dataRef) return false;
         
@@ -124,9 +114,11 @@ export default function Comissoes() {
 
     const agrupado = {};
 
-    // 3. INICIALIZAÇÃO DE TODOS OS REPRESENTANTES
+    // 3. Inicialização e Mesclagem
     representantes.forEach(rep => {
-        const controle = controlesDoMesAtual.find(c => c.representante_codigo === rep.codigo);
+        const fechamento = mapaFechamentos[rep.codigo];
+        
+        // Dados Base
         agrupado[rep.codigo] = {
             codigo: rep.codigo,
             nome: rep.nome,
@@ -135,71 +127,46 @@ export default function Comissoes() {
             pedidos: [],
             totalVendas: 0,
             totalComissoes: 0,
-            vales: controle ? controle.vales : 0,
-            outrosDescontos: controle ? controle.outros_descontos : 0,
-            observacoes: controle ? controle.observacao : '',
-            status: controle ? controle.status : 'aberto',
-            controleId: controle?.id,
-            pedidos_ajustados: controle?.pedidos_ajustados || []
+            // Prioridade: Fechamento salvo > Zero
+            vales: fechamento ? (fechamento.vales_adiantamentos || 0) : 0,
+            outrosDescontos: fechamento ? (fechamento.outros_descontos || 0) : 0,
+            observacoes: fechamento ? (fechamento.observacoes || '') : '',
+            status: fechamento ? fechamento.status : 'aberto',
+            // ID importante para o modal saber o que carregar
+            id: fechamento?.id, 
+            pedidos_detalhes: fechamento?.pedidos_detalhes // Snapshot se houver
         };
-    });
 
-    // Função auxiliar segura
-    const getRepAgrupado = (repCodigo, dadosExtra = {}) => {
-        if (!agrupado[repCodigo]) {
-            const controle = controlesDoMesAtual.find(c => c.representante_codigo === repCodigo);
-            agrupado[repCodigo] = {
-                codigo: repCodigo,
-                nome: dadosExtra.nome || 'Desconhecido',
-                chave_pix: '',
-                porcentagem_padrao: 5,
-                pedidos: [],
-                totalVendas: 0,
-                totalComissoes: 0,
-                vales: controle ? controle.vales : 0,
-                outrosDescontos: controle ? controle.outros_descontos : 0,
-                observacoes: controle ? controle.observacao : '',
-                status: controle ? controle.status : 'aberto',
-                controleId: controle?.id,
-                pedidos_ajustados: controle?.pedidos_ajustados || []
-            };
+        // Se estiver FECHADO, usamos os totais congelados do banco
+        if (fechamento && fechamento.status === 'fechado') {
+            agrupado[rep.codigo].totalVendas = fechamento.total_vendas || 0;
+            agrupado[rep.codigo].totalComissoes = fechamento.total_comissoes_bruto || 0;
+            agrupado[rep.codigo].saldoAPagar = fechamento.valor_liquido || 0;
+            // Pedidos vêm do snapshot no modal, aqui só para contagem
+            agrupado[rep.codigo].pedidos = fechamento.pedidos_detalhes || [];
+        } 
+        else {
+            // Se estiver ABERTO, calculamos com base nos pedidos elegíveis
+            const pedidosDoRep = pedidosElegiveisMes.filter(p => String(p.representante_codigo) === String(rep.codigo));
+            
+            pedidosDoRep.forEach(p => {
+                const valorBase = parseFloat(p.total_pago) || 0;
+                // Tenta pegar % do pedido, senão do padrão do rep
+                const percentual = p.porcentagem_comissao || rep.porcentagem_comissao || 5;
+                const comissao = (valorBase * percentual) / 100;
+
+                agrupado[rep.codigo].pedidos.push(p);
+                agrupado[rep.codigo].totalVendas += valorBase;
+                agrupado[rep.codigo].totalComissoes += comissao;
+            });
+
+            // Calcula saldo
+            agrupado[rep.codigo].saldoAPagar = agrupado[rep.codigo].totalComissoes - agrupado[rep.codigo].vales - agrupado[rep.codigo].outrosDescontos;
         }
-        return agrupado[repCodigo];
-    };
-
-    // 4. DISTRIBUIÇÃO
-    pedidosDesteMes.forEach(pedido => {
-        const repData = getRepAgrupado(pedido.representante_codigo, { nome: pedido.representante_nome });
-        
-        let percentual = pedido.porcentagem_comissao || repData.porcentagem_padrao;
-        
-        // Se existe no rascunho deste mês, usa a % salva
-        if (mapaPedidoParaMes[String(pedido.id)] === mesAnoSelecionado) {
-             const ajuste = repData.pedidos_ajustados?.find(a => String(a.pedido_id) === String(pedido.id));
-             if (ajuste) percentual = ajuste.percentual;
-        }
-
-        const valorBase = parseFloat(pedido.total_pago) || 0;
-        const valorComissao = (valorBase * percentual) / 100;
-
-        repData.pedidos.push({
-            ...pedido,
-            valorBaseComissao: valorBase,
-            percentualComissao: percentual,
-            valorComissao
-        });
-
-        repData.totalVendas += valorBase;
-        repData.totalComissoes += valorComissao;
-    });
-
-    // 5. SALDO
-    Object.values(agrupado).forEach(rep => {
-      rep.saldoAPagar = rep.totalComissoes - rep.vales - rep.outrosDescontos;
     });
 
     return Object.values(agrupado);
-  }, [pedidos, mesAnoSelecionado, representantes, controles]);
+  }, [pedidos, mesAnoSelecionado, representantes, fechamentos]);
 
   const handleGerarRelatorioGeral = async () => {
     try {
@@ -273,18 +240,29 @@ export default function Comissoes() {
         </div>
 
         {/* MODAL */}
-        <ModalContainer open={showDetalhes} onClose={() => { setShowDetalhes(false); setRepresentanteSelecionado(null); }} title={`Detalhes - ${representanteSelecionado?.nome || ''}`} description={`Fechamento de ${mesesDisponiveis.find(m => m.value === mesAnoSelecionado)?.label}`} size="xl">
+        <ModalContainer 
+            open={showDetalhes} 
+            onClose={() => { setShowDetalhes(false); setRepresentanteSelecionado(null); }} 
+            title={`Detalhes - ${representanteSelecionado?.nome || ''}`} 
+            description={`Fechamento de ${mesesDisponiveis.find(m => m.value === mesAnoSelecionado)?.label}`} 
+            size="xl"
+        >
           {representanteSelecionado && (
             <ComissaoDetalhes 
-              key={representanteSelecionado.codigo + mesAnoSelecionado + controles.length} 
+              // A KEY É O SEGREDO: Se o status mudar, o componente reseta e recarrega
+              key={`${representanteSelecionado.codigo}-${mesAnoSelecionado}-${representanteSelecionado.status}`}
               representante={representanteSelecionado}
               mesAno={mesAnoSelecionado}
-              pedidosTodos={pedidos}
-              controles={controles} 
+              pedidosTodos={pedidos} // Passando a lista completa para a busca inteligente
+              controles={fechamentos} // Passando a lista correta
               onClose={() => { setShowDetalhes(false); setRepresentanteSelecionado(null); }}
               onSuccessSave={() => {
-                  queryClient.invalidateQueries(['comissaoControle']);
+                  // Invalida tudo para forçar recálculo e atualização de status
+                  queryClient.invalidateQueries(['fechamentoComissao']);
                   queryClient.invalidateQueries(['pedidos']);
+                  queryClient.invalidateQueries(['contasPagar']);
+                  // Fecha o modal após sucesso (opcional, se preferir manter aberto remova essa linha)
+                  // setShowDetalhes(false); 
               }}
             />
           )}
