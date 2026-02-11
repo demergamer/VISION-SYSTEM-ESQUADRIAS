@@ -27,57 +27,28 @@ import { toast } from "sonner";
 import { base44 } from '@/api/base44Client';
 import { InputCpfCnpj } from "@/components/ui/input-mask";
 
-// Componente Interno: Seleção de Formas de Pagamento (Atualizado com regras fixas)
 function FormasPagamentoSelector({ formasSelecionadas, onChange }) {
-  // Regra: Estes 3 são OBRIGATÓRIOS e não podem ser desmarcados
   const formasFixas = ['PIX', 'Dinheiro', 'Cartão'];
-  
-  // Regra: Estes são OPCIONAIS
   const formasOpcionais = ['Boleto', 'Cheque', 'Serviços'];
 
   const togglePagamento = (forma) => {
-    if (formasFixas.includes(forma)) return; // Bloqueia desmarcar fixos
-
-    if (formasSelecionadas.includes(forma)) {
-        onChange(formasSelecionadas.filter(f => f !== forma));
-    } else {
-        onChange([...formasSelecionadas, forma]);
-    }
+    if (formasFixas.includes(forma)) return;
+    if (formasSelecionadas.includes(forma)) onChange(formasSelecionadas.filter(f => f !== forma));
+    else onChange([...formasSelecionadas, forma]);
   };
 
   return (
     <div className="flex flex-wrap gap-2">
-      {/* FIXOS (Bloqueados e Ativos) */}
       {formasFixas.map(forma => (
-        <div 
-            key={forma} 
-            className="px-4 py-2 rounded-xl text-sm font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-sm flex items-center gap-2 cursor-not-allowed opacity-80"
-            title="Forma de pagamento padrão (obrigatória)"
-        >
-            <CheckSquare className="w-4 h-4 fill-current" />
-            {forma}
+        <div key={forma} className="px-4 py-2 rounded-xl text-sm font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-sm flex items-center gap-2 cursor-not-allowed opacity-80" title="Obrigatório">
+            <CheckSquare className="w-4 h-4 fill-current" /> {forma}
         </div>
       ))}
-
-      {/* OPCIONAIS (Clicáveis) */}
       {formasOpcionais.map(forma => {
         const isSelected = formasSelecionadas.includes(forma);
         return (
-            <button
-                key={forma}
-                type="button"
-                onClick={() => togglePagamento(forma)}
-                className={cn(
-                    "px-4 py-2 rounded-xl text-sm font-medium transition-all border flex items-center gap-2",
-                    isSelected 
-                        ? "bg-blue-600 text-white border-blue-600 shadow-sm" 
-                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                )}
-            >
-                {/* Checkbox visual simples */}
-                <div className={cn("w-4 h-4 rounded border flex items-center justify-center", isSelected ? "bg-white border-white" : "bg-white border-slate-300")}>
-                    {isSelected && <CheckSquare className="w-3 h-3 text-blue-600" />}
-                </div>
+            <button key={forma} type="button" onClick={() => togglePagamento(forma)} className={cn("px-4 py-2 rounded-xl text-sm font-medium transition-all border flex items-center gap-2", isSelected ? "bg-blue-600 text-white border-blue-600 shadow-sm" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50")}>
+                <div className={cn("w-4 h-4 rounded border flex items-center justify-center", isSelected ? "bg-white border-white" : "bg-white border-slate-300")}>{isSelected && <CheckSquare className="w-3 h-3 text-blue-600" />}</div>
                 {forma}
             </button>
         );
@@ -89,7 +60,7 @@ function FormasPagamentoSelector({ formasSelecionadas, onChange }) {
 export default function ClienteForm({ cliente, representantes = [], todosClientes = [], onSave, onCancel, isLoading, onSuccess }) {
   const [form, setForm] = useState({
     codigo: '',
-    nome: '', 
+    nome: '', // Apelido
     razao_social: '', 
     nome_fantasia: '', 
     cnpj: '',
@@ -97,20 +68,14 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     representante_codigo: '',
     representante_nome: '',
     porcentagem_comissao: 5,
-    
-    // --- CONTATOS (3 SLOTS) ---
     telefone_1: '', responsavel_1: '',
     telefone_2: '', responsavel_2: '',
     telefone_3: '', responsavel_3: '',
     email: '',
-
-    // --- FINANCEIRO ---
     score: '',
     data_consulta: '',
     limite_credito: 0,
     bloqueado_manual: false,
-    
-    // --- ENDEREÇO ---
     cep: '',
     endereco: '',
     numero: '',
@@ -118,14 +83,10 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     cidade: '',
     estado: '',
     complemento: '',
-    
-    // --- FISCAL ---
     cnaes_descricao: '', 
     tem_st: false,
-
-    // --- NOVOS CAMPOS DE COBRANÇA ---
-    formas_pagamento: ['PIX', 'Dinheiro', 'Cartão'], // Inicia com padrão
-    permite_cobranca_posterior: 'nao', // 'sim' | 'nao'
+    formas_pagamento: ['PIX', 'Dinheiro', 'Cartão'], 
+    permite_cobranca_posterior: 'nao', 
     dia_cobranca: '',
     serasa_file_url: null
   });
@@ -135,18 +96,15 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
   const [isSaving, setIsSaving] = useState(false);
   const [isConsulting, setIsConsulting] = useState(false);
 
-  // Inicializa o formulário com dados existentes (edição)
   useEffect(() => {
     if (cliente) {
       setForm(prev => ({
         ...prev,
         ...cliente,
-        // Garante valores padrão e arrays corretos
         porcentagem_comissao: cliente.porcentagem_comissao ?? 5,
         limite_credito: cliente.limite_credito ?? 0,
         bloqueado_manual: cliente.bloqueado_manual ?? false,
         tem_st: cliente.tem_st ?? false,
-        // Garante que os fixos estejam presentes
         formas_pagamento: Array.from(new Set([...(cliente.formas_pagamento || []), 'PIX', 'Dinheiro', 'Cartão'])),
         permite_cobranca_posterior: cliente.permite_cobranca_posterior || 'nao',
         dia_cobranca: cliente.dia_cobranca || ''
@@ -154,7 +112,6 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     }
   }, [cliente]);
 
-  // --- MÁSCARAS ---
   const formatTelefoneDinamico = (val) => {
     if (!val) return '';
     let v = val.replace(/\D/g, '').substring(0, 11);
@@ -167,12 +124,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
   const handleInputChange = (e) => {
       const { name, value } = e.target;
       let finalVal = value;
-
-      // Aplica máscaras específicas
-      if (['telefone_1', 'telefone_2', 'telefone_3'].includes(name)) {
-          finalVal = formatTelefoneDinamico(value);
-      }
-
+      if (['telefone_1', 'telefone_2', 'telefone_3'].includes(name)) finalVal = formatTelefoneDinamico(value);
       setForm(prev => ({ ...prev, [name]: finalVal }));
       if (errors[name]) setErrors(prev => ({ ...prev, [name]: null }));
   };
@@ -182,7 +134,6 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     setForm(prev => ({ ...prev, representante_codigo: codigo, representante_nome: rep?.nome || '' }));
   };
 
-  // --- CONSULTAS EXTERNAS ---
   const handleBlurCEP = async () => {
     const cepLimpo = form.cep.replace(/\D/g, '');
     if (cepLimpo.length !== 8) return;
@@ -190,9 +141,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
       const response = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
       const data = await response.json();
       if (!data.erro) {
-        setForm(prev => ({
-          ...prev, endereco: data.logradouro, bairro: data.bairro, cidade: data.localidade, estado: data.uf
-        }));
+        setForm(prev => ({ ...prev, endereco: data.logradouro, bairro: data.bairro, cidade: data.localidade, estado: data.uf }));
         toast.success("Endereço preenchido!");
       }
     } catch (e) { console.error(e); }
@@ -201,15 +150,12 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
   const handleConsultarCNPJ = async (cnpjValue) => {
     const cnpjLimpo = cnpjValue?.replace(/\D/g, '');
     if (!cnpjLimpo || cnpjLimpo.length !== 14) return;
-
     setIsConsulting(true);
     const toastId = toast.loading("Buscando dados do CNPJ...");
-
     try {
       const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`);
       if (!response.ok) throw new Error('Erro na API');
       const data = await response.json();
-
       const cnaesComST = ['4744005', '4744099', '4672900']; 
       const todosCnaes = [{ codigo: data.cnae_fiscal, descricao: data.cnae_fiscal_descricao }, ...(data.cnaes_secundarios || [])];
       const possuiST = todosCnaes.some(c => cnaesComST.includes(String(c.codigo).replace(/\D/g, '')));
@@ -219,7 +165,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
         ...prev,
         razao_social: data.razao_social,
         nome_fantasia: data.nome_fantasia || data.razao_social,
-        nome: prev.nome || (data.nome_fantasia || data.razao_social), // Preenche apelido se vazio
+        nome: prev.nome || (data.nome_fantasia || data.razao_social), 
         email: data.email || prev.email,
         telefone_1: formatTelefoneDinamico(data.ddd_telefone_1 || prev.telefone_1),
         cep: data.cep ? data.cep.replace(/(\d{5})(\d{3})/, '$1-$2') : prev.cep,
@@ -228,12 +174,8 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
         cnaes_descricao: textoCnaes,
         tem_st: possuiST 
       }));
-      toast.success(possuiST ? "Dados carregados. ATENÇÃO: Cliente tem ST!" : "Dados carregados!", { id: toastId });
-    } catch (error) {
-      toast.error("Erro ao consultar CNPJ.", { id: toastId });
-    } finally {
-      setIsConsulting(false);
-    }
+      toast.success(possuiST ? "Dados carregados. COM ST!" : "Dados carregados!", { id: toastId });
+    } catch (error) { toast.error("Erro ao consultar CNPJ.", { id: toastId }); } finally { setIsConsulting(false); }
   };
 
   const handleCnpjChange = (e) => {
@@ -265,17 +207,9 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     if (validate()) {
       setIsSaving(true);
       try {
-        const dataToSave = { 
-          ...form, 
-          // Garante numéricos
-          porcentagem_comissao: parseFloat(form.porcentagem_comissao) || 0,
-          limite_credito: parseFloat(form.limite_credito) || 0
-        };
-        
-        // Chama callback do pai (pode ser onSave ou onSuccess)
+        const dataToSave = { ...form, porcentagem_comissao: parseFloat(form.porcentagem_comissao) || 0, limite_credito: parseFloat(form.limite_credito) || 0 };
         if (onSave) await onSave(dataToSave);
-        else if (onSuccess) onSuccess(dataToSave); // Fallback para novo modo
-        
+        else if (onSuccess) onSuccess(dataToSave); 
       } catch (error) { toast.error("Erro ao salvar."); } finally { setIsSaving(false); }
     } else { toast.error("Verifique os erros."); }
   };
@@ -288,11 +222,8 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
       <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
         <Accordion type="multiple" defaultValue={['dados_cadastrais', 'endereco', 'contato', 'analise_financeira']} className="space-y-4">
           
-          {/* 1. DADOS CADASTRAIS */}
           <AccordionItem value="dados_cadastrais" className="border rounded-xl bg-white px-4 shadow-sm">
-            <AccordionTrigger className="hover:no-underline py-4">
-              <div className="flex items-center gap-2 text-slate-800"><Building className="w-5 h-5 text-blue-600" /><span className="font-semibold text-base">Dados Cadastrais</span></div>
-            </AccordionTrigger>
+            <AccordionTrigger className="hover:no-underline py-4"><div className="flex items-center gap-2 text-slate-800"><Building className="w-5 h-5 text-blue-600" /><span className="font-semibold text-base">Dados Cadastrais</span></div></AccordionTrigger>
             <AccordionContent className="pb-4 pt-2">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="space-y-1">
@@ -307,17 +238,22 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
                     {isConsulting && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-600 animate-spin" />}
                   </div>
                 </div>
+                
+                {/* 3 CAMPOS DE NOME SEPARADOS */}
                 <div className="space-y-1 lg:col-span-3">
-                  <Label htmlFor="nome" className={labelClass}>Apelido (Nome Fantasia) *</Label>
-                  <Input id="nome" name="nome" value={form.nome} onChange={handleInputChange} className={cn(inputClass, "font-bold text-slate-700")} />
+                  <Label htmlFor="nome" className={labelClass}>Nome (Apelido / Identificação) *</Label>
+                  <Input id="nome" name="nome" value={form.nome} onChange={handleInputChange} className={cn(inputClass, "font-bold text-slate-700")} placeholder="Como o cliente é conhecido" />
                   {errors.nome && <p className="text-xs text-red-500">{errors.nome}</p>}
                 </div>
                 <div className="space-y-1 lg:col-span-3">
+                  <Label htmlFor="nome_fantasia" className={labelClass}>Nome Fantasia</Label>
+                  <Input id="nome_fantasia" name="nome_fantasia" value={form.nome_fantasia} onChange={handleInputChange} className={inputClass} placeholder="Nome na fachada/marca" />
+                </div>
+                <div className="space-y-1 lg:col-span-3">
                   <Label htmlFor="razao_social" className={labelClass}>Razão Social</Label>
-                  <Input id="razao_social" name="razao_social" value={form.razao_social} onChange={handleInputChange} className={inputClass} />
+                  <Input id="razao_social" name="razao_social" value={form.razao_social} onChange={handleInputChange} className={inputClass} placeholder="Nome jurídico" />
                 </div>
                 
-                {/* ST Toggle */}
                 <div className="md:col-span-3 mt-2 p-4 bg-slate-50 border border-slate-200 rounded-xl">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2"><Factory className="w-5 h-5 text-slate-500" /><span className="font-semibold text-slate-700">Classificação Fiscal (ST)</span></div>
@@ -331,11 +267,8 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
             </AccordionContent>
           </AccordionItem>
 
-          {/* 2. ENDEREÇO */}
           <AccordionItem value="endereco" className="border rounded-xl bg-white px-4 shadow-sm">
-            <AccordionTrigger className="hover:no-underline py-4">
-              <div className="flex items-center gap-2 text-slate-800"><MapPin className="w-5 h-5 text-red-500" /><span className="font-semibold text-base">Endereço</span></div>
-            </AccordionTrigger>
+            <AccordionTrigger className="hover:no-underline py-4"><div className="flex items-center gap-2 text-slate-800"><MapPin className="w-5 h-5 text-red-500" /><span className="font-semibold text-base">Endereço</span></div></AccordionTrigger>
             <AccordionContent className="pb-4 pt-2">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-1 md:col-span-1"><Label className={labelClass}>CEP</Label><Input name="cep" value={form.cep} onChange={handleInputChange} onBlur={handleBlurCEP} className={inputClass} /></div>
@@ -349,23 +282,17 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
             </AccordionContent>
           </AccordionItem>
 
-          {/* 3. CONTATOS (ATUALIZADO - 3 CAMPOS) */}
           <AccordionItem value="contato" className="border rounded-xl bg-white px-4 shadow-sm">
-            <AccordionTrigger className="hover:no-underline py-4">
-              <div className="flex items-center gap-2 text-slate-800"><Phone className="w-5 h-5 text-amber-500" /><span className="font-semibold text-base">Contatos</span></div>
-            </AccordionTrigger>
+            <AccordionTrigger className="hover:no-underline py-4"><div className="flex items-center gap-2 text-slate-800"><Phone className="w-5 h-5 text-amber-500" /><span className="font-semibold text-base">Contatos</span></div></AccordionTrigger>
             <AccordionContent className="pb-4 pt-2 space-y-4">
-               {/* Contato 1 */}
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
                   <div className="space-y-1"><Label className={labelClass}>Telefone Principal</Label><Input name="telefone_1" value={form.telefone_1} onChange={handleInputChange} className={inputClass} placeholder="(00) 00000-0000" /></div>
                   <div className="space-y-1"><Label className={labelClass}>Responsável 1</Label><Input name="responsavel_1" value={form.responsavel_1} onChange={handleInputChange} className={inputClass} /></div>
                </div>
-               {/* Contato 2 */}
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
                   <div className="space-y-1"><Label className={labelClass}>Telefone 2</Label><Input name="telefone_2" value={form.telefone_2} onChange={handleInputChange} className={inputClass} placeholder="(00) 00000-0000" /></div>
                   <div className="space-y-1"><Label className={labelClass}>Responsável 2</Label><Input name="responsavel_2" value={form.responsavel_2} onChange={handleInputChange} className={inputClass} /></div>
                </div>
-               {/* Contato 3 */}
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
                   <div className="space-y-1"><Label className={labelClass}>Telefone 3</Label><Input name="telefone_3" value={form.telefone_3} onChange={handleInputChange} className={inputClass} placeholder="(00) 00000-0000" /></div>
                   <div className="space-y-1"><Label className={labelClass}>Responsável 3</Label><Input name="responsavel_3" value={form.responsavel_3} onChange={handleInputChange} className={inputClass} /></div>
@@ -374,34 +301,22 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
             </AccordionContent>
           </AccordionItem>
 
-          {/* 4. ANÁLISE FINANCEIRA (ATUALIZADO) */}
           <AccordionItem value="analise_financeira" className="border rounded-xl bg-white px-4 shadow-sm">
-            <AccordionTrigger className="hover:no-underline py-4">
-              <div className="flex items-center gap-2 text-slate-800"><Wallet className="w-5 h-5 text-green-600" /><span className="font-semibold text-base">Financeiro & Cobrança</span></div>
-            </AccordionTrigger>
+            <AccordionTrigger className="hover:no-underline py-4"><div className="flex items-center gap-2 text-slate-800"><Wallet className="w-5 h-5 text-green-600" /><span className="font-semibold text-base">Financeiro & Cobrança</span></div></AccordionTrigger>
             <AccordionContent className="pb-4 pt-2 space-y-6">
-              
-              {/* Formas de Pagamento */}
               <div className="space-y-2">
                  <Label className={labelClass}>Formas de Pagamento Autorizadas</Label>
                  <FormasPagamentoSelector formasSelecionadas={form.formas_pagamento} onChange={(newVal) => setForm(prev => ({...prev, formas_pagamento: newVal}))} />
               </div>
-
               <div className="h-px bg-slate-100 my-2"></div>
-
-              {/* Cobrança Posterior */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-amber-50 p-4 rounded-xl border border-amber-100">
                   <div className="space-y-1">
                      <Label className={labelClass}>Aceita Cobrança Posterior?</Label>
                      <Select value={form.permite_cobranca_posterior} onValueChange={(val) => setForm(prev => ({...prev, permite_cobranca_posterior: val}))}>
                         <SelectTrigger className={cn(inputClass, "bg-white")}><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="nao">Não (Pagamento na Entrega/Antecipado)</SelectItem>
-                            <SelectItem value="sim">Sim (Cobrador passa depois)</SelectItem>
-                        </SelectContent>
+                        <SelectContent><SelectItem value="nao">Não (Pagamento na Entrega/Antecipado)</SelectItem><SelectItem value="sim">Sim (Cobrador passa depois)</SelectItem></SelectContent>
                      </Select>
                   </div>
-
                   {form.permite_cobranca_posterior === 'sim' && (
                       <div className="space-y-1 animate-in fade-in slide-in-from-left-2">
                          <Label className={labelClass}>Dia da Cobrança</Label>
@@ -409,22 +324,16 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
                             <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-amber-600" />
                             <Select value={form.dia_cobranca} onValueChange={(val) => setForm(prev => ({...prev, dia_cobranca: val}))}>
                                 <SelectTrigger className={cn(inputClass, "pl-9 bg-white border-amber-300")}><SelectValue placeholder="Selecione o dia..." /></SelectTrigger>
-                                <SelectContent>
-                                    {['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'].map(dia => (<SelectItem key={dia} value={dia}>{dia}</SelectItem>))}
-                                </SelectContent>
+                                <SelectContent>{['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'].map(dia => (<SelectItem key={dia} value={dia}>{dia}</SelectItem>))}</SelectContent>
                             </Select>
                          </div>
                       </div>
                   )}
               </div>
-
-              {/* Limites e Serasa */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  <div className="space-y-1"><Label className={labelClass}>Limite de Crédito (R$)</Label><Input type="number" value={form.limite_credito} onChange={handleInputChange} name="limite_credito" className={inputClass} /></div>
                  <div className="space-y-1"><Label className={labelClass}>Score Serasa</Label><Input value={form.score} onChange={handleInputChange} name="score" className={inputClass} /></div>
               </div>
-
-              {/* Upload Serasa */}
               <div className="space-y-1">
                  <Label className={labelClass}>Arquivo Serasa (PDF)</Label>
                  <div className="flex items-center gap-3">
@@ -436,11 +345,9 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
                     {form.serasa_file_url && <Button type="button" variant="ghost" size="icon" onClick={() => setForm(p => ({...p, serasa_file_url: null}))}><Trash2 className="w-4 h-4 text-red-600"/></Button>}
                  </div>
               </div>
-
             </AccordionContent>
           </AccordionItem>
 
-          {/* DADOS DE VENDAS */}
           <AccordionItem value="vendas" className="border rounded-xl bg-white px-4 shadow-sm">
              <AccordionTrigger className="hover:no-underline py-4"><div className="flex items-center gap-2 text-slate-800"><Briefcase className="w-5 h-5 text-purple-600"/><span className="font-semibold text-base">Vendas</span></div></AccordionTrigger>
              <AccordionContent className="pb-4 pt-2">
@@ -456,7 +363,6 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
                 </div>
              </AccordionContent>
           </AccordionItem>
-
         </Accordion>
 
         <div className="mt-4 bg-slate-50 border border-slate-100 rounded-2xl p-5 flex items-center justify-between">
