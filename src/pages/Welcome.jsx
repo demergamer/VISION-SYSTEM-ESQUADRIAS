@@ -8,20 +8,20 @@ const COMPANIES = [
   {
     id: 'jc',
     name: 'J&C Esquadrias',
-    desc: 'Portas e Janelas', // Nova descrição
+    desc: 'Portas e Janelas',
     logo: 'https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/936ba5dbe_logo_JCEsquadrias.png',
   },
   {
     id: 'inovalum',
     name: 'Inovalum',
-    desc: 'Perfis e Acessórios', // Nova descrição
+    desc: 'Perfis e Acessórios',
     logo: 'https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/386f33ec8_INOVALUMTRANSPARENTECOMBORDA.png',
     scale: 1.4 
   },
   {
     id: 'oliver',
     name: 'Oliver Extrusora',
-    desc: 'Perfis', // Nova descrição
+    desc: 'Perfis',
     logo: 'https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/6dba430e9_LOGOOLIVERTRANSPARENTECOMBORDA.png',
   }
 ];
@@ -91,20 +91,19 @@ export default function Welcome() {
         <div className="blob bg-yellow-400 w-[80%] h-[80%] -bottom-[20%] -right-[20%] anim-yellow" />
       </div>
 
-      {/* --- HEADER FLUTUANTE (J&C VISION LOGO CUBO) --- */}
+      {/* --- HEADER FLUTUANTE (LOGO CUBO) --- */}
       <motion.div 
         layout 
-        className={`fixed z-40 flex items-center transition-all duration-500 ${selectedCompany ? 'top-6 left-6 flex-row gap-3' : 'top-[12%] flex-col gap-4'}`}
+        className={`fixed z-40 flex items-center transition-all duration-500 ${selectedCompany ? 'top-6 left-6 flex-row gap-3' : 'top-[5%] flex-col gap-4'}`}
       >
-        {/* A Logo do Cubo fica fora do container branco para dar profundidade */}
         <motion.img 
           layoutId="main-logo"
           src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png"
           alt="J&C Vision"
-          className={`object-contain drop-shadow-xl transition-all duration-500 ${selectedCompany ? 'h-12' : 'h-32 mb-4'}`}
+          className={`object-contain drop-shadow-xl transition-all duration-500 ${selectedCompany ? 'h-12' : 'h-28 mb-2'}`}
         />
         
-        {/* Quando selecionado, o Título ONE VISION vai para o header ao lado da logo */}
+        {/* Quando selecionado, o Título vai para o header */}
         {selectedCompany && (
            <motion.div layoutId="main-text" className="text-left">
              <h1 className="font-black tracking-tight text-slate-900 dark:text-white text-xl">
@@ -130,22 +129,42 @@ export default function Welcome() {
       </AnimatePresence>
 
       {/* --- ÁREA CENTRAL (CONTAINER BRANCO) --- */}
-      <div className={`relative z-10 w-full max-w-4xl flex flex-col items-center justify-center transition-all duration-700 ${selectedCompany ? 'mt-32' : 'mt-[35vh]'}`}>
+      <div className={`relative z-10 w-full max-w-5xl flex flex-col items-center justify-center transition-all duration-700 ${selectedCompany ? 'mt-32' : 'mt-[25vh]'}`}>
         
         {/* CARTÃO BRANCO PRINCIPAL */}
         <motion.div 
           layout
           className={`flex items-center justify-center transition-all duration-500 
             ${selectedCompany 
-              ? 'flex-col bg-transparent' // Quando selecionado, remove o fundo branco para focar na logo selecionada
-              : 'flex-col bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/60 dark:border-slate-700 shadow-2xl p-10 rounded-[2.5rem]' // Cartão Expandido
+              ? 'flex-col bg-transparent' 
+              : 'flex-col bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/60 dark:border-slate-700 shadow-2xl p-10 rounded-[2.5rem]' 
             }`}
         >
           
-          {/* LOGOS DAS EMPRESAS */}
-          <div className="flex items-start justify-center gap-6 md:gap-10">
+          {/* 1. TÍTULO E SUBTÍTULO (AGORA EM CIMA) */}
+          {!selectedCompany && (
+             <motion.div 
+                layoutId="main-text" 
+                className="text-center mb-10 w-full border-b border-slate-200/60 pb-6"
+             >
+                <h1 className="text-4xl md:text-5xl font-black tracking-tight text-slate-900 dark:text-white drop-shadow-sm mb-2">
+                  <span className="text-blue-900 dark:text-blue-200">ONE</span> Vision
+                </h1>
+                
+                {/* SUBTÍTULO GRANDE E EM NEGRITO */}
+                <motion.p 
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="text-slate-700 dark:text-slate-200 text-lg md:text-xl font-extrabold tracking-wide uppercase mt-3"
+                >
+                  SELECIONE A EMPRESA PARA ACESSAR
+                </motion.p>
+             </motion.div>
+          )}
+
+          {/* 2. LOGOS DAS EMPRESAS (EMBAIXO DO TÍTULO) */}
+          <div className="flex items-start justify-center gap-6 md:gap-12">
             <AnimatePresence mode='popLayout'>
-              {COMPANIES.map((company, index) => {
+              {COMPANIES.map((company) => {
                 const isSelected = selectedCompany === company.id;
                 const isHidden = selectedCompany && !isSelected;
 
@@ -171,14 +190,14 @@ export default function Welcome() {
                       `}
                     />
                     
-                    {/* DESCRIÇÃO DA EMPRESA (Aparece embaixo da logo) */}
+                    {/* DESCRIÇÃO (Aparece embaixo da logo) */}
                     {!selectedCompany && (
                         <motion.div 
                             initial={{ opacity: 0 }} 
                             animate={{ opacity: 1 }} 
-                            className="mt-4 text-center"
+                            className="mt-6 text-center"
                         >
-                            <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest group-hover:text-blue-600 transition-colors">
+                            <p className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest group-hover:text-blue-600 transition-colors bg-white/50 px-2 py-1 rounded-full">
                                 {company.desc}
                             </p>
                         </motion.div>
@@ -188,7 +207,7 @@ export default function Welcome() {
                     {isSelected && (
                       <motion.div 
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}
-                        className="absolute -bottom-8 flex flex-col items-center whitespace-nowrap"
+                        className="absolute -bottom-10 flex flex-col items-center whitespace-nowrap"
                       >
                         <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Empresa Selecionada</span>
                         <span className="text-[9px] text-slate-300">(Clique novamente para Admin)</span>
@@ -199,24 +218,6 @@ export default function Welcome() {
               })}
             </AnimatePresence>
           </div>
-
-          {/* TÍTULO ONE VISION (DENTRO DO CARTÃO BRANCO) */}
-          {!selectedCompany && (
-             <motion.div 
-                layoutId="main-text" 
-                className="text-center mt-10 pt-8 border-t border-slate-200/60 w-full"
-             >
-                <h1 className="text-4xl font-black tracking-tight text-slate-900 dark:text-white drop-shadow-sm">
-                  <span className="text-blue-900 dark:text-blue-200">ONE</span> Vision
-                </h1>
-                <motion.p 
-                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                  className="text-slate-500 dark:text-slate-400 text-xs font-semibold tracking-[0.2em] uppercase mt-2"
-                >
-                  Selecione a empresa para acessar
-                </motion.p>
-             </motion.div>
-          )}
 
         </motion.div>
 
