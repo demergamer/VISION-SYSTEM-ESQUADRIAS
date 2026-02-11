@@ -61,7 +61,7 @@ export default function Welcome() {
           className="w-full flex flex-col items-center justify-center mb-8"
         >
           {/* 1. LOGO PRINCIPAL (SISTEMA) NO TOPO */}
-          <div className="mb-6 relative z-20">
+          <div className="mb-8 relative z-20">
             <img 
               src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png"
               alt="J&C Vision"
@@ -69,49 +69,51 @@ export default function Welcome() {
             />
           </div>
 
-          {/* 2. CONTAINER DAS 3 EMPRESAS (LADO A LADO) */}
-          <div className="flex items-center justify-center gap-4 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md border border-white/50 dark:border-slate-700/50 p-4 rounded-2xl shadow-sm w-full max-w-[95%]">
+          {/* 2. CONTAINER DAS 3 EMPRESAS (LADO A LADO - AUMENTADAS) */}
+          <div className="flex items-center justify-center gap-2 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md border border-white/50 dark:border-slate-700/50 p-6 rounded-3xl shadow-sm w-full">
             
             {/* Logo J&C Esquadrias */}
             <div className="flex-1 flex justify-center items-center">
                <img 
                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/936ba5dbe_logo_JCEsquadrias.png"
                  alt="J&C Esquadrias"
-                 className="h-12 md:h-14 w-auto object-contain hover:scale-110 transition-transform duration-300"
+                 // Aumentado para h-20 (mobile) e h-24 (desktop)
+                 className="h-20 md:h-24 w-auto object-contain hover:scale-110 transition-transform duration-300"
                  title="J&C Esquadrias"
                />
             </div>
 
             {/* Separador Vertical */}
-            <div className="h-8 w-px bg-slate-300 dark:bg-slate-600 opacity-50"></div>
+            <div className="h-12 w-px bg-slate-300 dark:bg-slate-600 opacity-50"></div>
             
-            {/* Logo Inovalum (AUMENTADA) */}
-            {/* APLIQUEI scale-150 e aumentei o h- para 16/20 para compensar a transparência */}
+            {/* Logo Inovalum (AUMENTADA + ESCALA) */}
             <div className="flex-1 flex justify-center items-center overflow-visible">
                <img 
                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/386f33ec8_INOVALUMTRANSPARENTECOMBORDA.png"
                  alt="Inovalum"
-                 className="h-16 md:h-20 w-auto object-contain scale-[1.4] hover:scale-[1.5] transition-transform duration-300"
+                 // Aumentado base para h-20/24 e mantendo escala 1.4 para compensar borda transparente
+                 className="h-20 md:h-24 w-auto object-contain scale-[1.4] hover:scale-[1.5] transition-transform duration-300"
                  title="Inovalum"
                />
             </div>
 
             {/* Separador Vertical */}
-            <div className="h-8 w-px bg-slate-300 dark:bg-slate-600 opacity-50"></div>
+            <div className="h-12 w-px bg-slate-300 dark:bg-slate-600 opacity-50"></div>
 
             {/* Logo Oliver Extrusora */}
             <div className="flex-1 flex justify-center items-center">
                <img 
                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/6dba430e9_LOGOOLIVERTRANSPARENTECOMBORDA.png"
                  alt="Oliver Extrusora"
-                 className="h-12 md:h-14 w-auto object-contain hover:scale-110 transition-transform duration-300"
+                 // Aumentado para h-20 (mobile) e h-24 (desktop)
+                 className="h-20 md:h-24 w-auto object-contain hover:scale-110 transition-transform duration-300"
                  title="Oliver Extrusora"
                />
             </div>
           </div>
           
           {/* TÍTULO E SUBTÍTULO */}
-          <div className="text-center mt-6 space-y-1">
+          <div className="text-center mt-8 space-y-1">
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
               <span className="text-blue-900 dark:text-blue-100">ONE</span> Vision
             </h1>
