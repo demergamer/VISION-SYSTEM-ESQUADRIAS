@@ -45,25 +45,62 @@ export default function Welcome() {
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center p-6 relative overflow-hidden bg-slate-50 dark:bg-slate-950">
       
-      {/* --- ESTILOS CSS INJETADOS (Animação de Respiração MAIS FORTE) --- */}
+      {/* --- CSS: ANIMAÇÕES ALEATÓRIAS E MISTURA --- */}
       <style>{`
-        @keyframes breathe {
-          0%, 100% { transform: scale(1); opacity: 0.5; }
+        /* Movimento A: Lento e Amplo */
+        @keyframes floatA {
+          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
+          50% { transform: translate(30px, -30px) scale(1.1); opacity: 0.8; }
+        }
+        /* Movimento B: Médio e Lateral */
+        @keyframes floatB {
+          0%, 100% { transform: translate(0, 0) scale(1.1); opacity: 0.5; }
+          50% { transform: translate(-20px, 40px) scale(1); opacity: 0.7; }
+        }
+        /* Movimento C: Respiração Profunda */
+        @keyframes floatC {
+          0%, 100% { transform: scale(0.9); opacity: 0.6; }
           50% { transform: scale(1.2); opacity: 0.9; }
         }
-        .breathe-animation {
-          animation: breathe 5s ease-in-out infinite;
+
+        .blob {
+          position: absolute;
+          border-radius: 50%;
+          filter: blur(60px); /* Menos blur para mais nitidez */
+          mix-blend-mode: multiply; /* EFEITO MISTURA DE TINTAS (No branco) */
           will-change: transform, opacity;
         }
+        
+        /* Ajuste para modo escuro (Multiply some no preto, Screen soma luz) */
+        .dark .blob {
+          mix-blend-mode: screen; 
+          opacity: 0.4 !important; /* Mais suave no escuro para não ofuscar */
+        }
+
+        .anim-a { animation: floatA 8s ease-in-out infinite; }
+        .anim-b { animation: floatB 10s ease-in-out infinite reverse; }
+        .anim-c { animation: floatC 7s ease-in-out infinite; }
       `}</style>
 
-      {/* --- FUNDO (Background) --- */}
-      <div className="absolute inset-0 z-0 bg-white dark:bg-slate-950 opacity-100" />
+      {/* --- FUNDO BASE --- */}
+      <div className="absolute inset-0 z-0 bg-white dark:bg-slate-950" />
       
-      {/* Bolhas de Luz (Respiração INTENSA) */}
-      {/* Aumentei a opacidade (/30 e /40) e mudei para cores mais fortes (blue-600 e amber-500) */}
-      <div className="absolute top-[-15%] left-[-15%] w-[70%] h-[70%] rounded-full bg-blue-600/30 blur-[100px] breathe-animation pointer-events-none" />
-      <div className="absolute bottom-[-15%] right-[-15%] w-[70%] h-[70%] rounded-full bg-amber-500/40 blur-[100px] breathe-animation pointer-events-none" style={{ animationDelay: '2.5s' }} />
+      {/* --- BOLAS COLORIDAS (Tintas) --- */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        
+        {/* 1. AZUL (Canto Superior Esquerdo) */}
+        <div className="blob bg-blue-500 w-[60%] h-[60%] -top-[10%] -left-[10%] anim-a" />
+        
+        {/* 2. ÂMBAR (Canto Inferior Direito) */}
+        <div className="blob bg-amber-500 w-[60%] h-[60%] -bottom-[10%] -right-[10%] anim-b" />
+
+        {/* 3. VERDE (Canto Inferior Esquerdo) - Novo */}
+        <div className="blob bg-emerald-500 w-[50%] h-[50%] bottom-[5%] -left-[15%] anim-c" style={{ animationDelay: '1s' }} />
+
+        {/* 4. LARANJA (Canto Superior Direito) - Novo */}
+        <div className="blob bg-orange-500 w-[50%] h-[50%] -top-[5%] -right-[15%] anim-a" style={{ animationDelay: '4s' }} />
+
+      </div>
 
       {/* --- CONTEÚDO PRINCIPAL --- */}
       <div className="relative z-10 w-full max-w-md flex flex-col items-center">
@@ -75,7 +112,7 @@ export default function Welcome() {
           transition={{ duration: 0.6, ease: "easeOut" }}
           className="w-full flex flex-col items-center justify-center mb-10"
         >
-          {/* 1. LOGO PRINCIPAL (SISTEMA) NO TOPO */}
+          {/* LOGO PRINCIPAL */}
           <div className="mb-8 relative z-20 drop-shadow-2xl">
             <img 
               src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png"
@@ -84,42 +121,37 @@ export default function Welcome() {
             />
           </div>
 
-          {/* 2. CONTAINER DAS 3 EMPRESAS */}
-          <div className="flex items-center justify-center gap-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-white/60 dark:border-slate-700 shadow-2xl p-6 rounded-3xl w-full z-20">
+          {/* CONTAINER DAS 3 EMPRESAS */}
+          <div className="flex items-center justify-center gap-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/60 dark:border-slate-700 shadow-2xl p-6 rounded-3xl w-full z-20">
             
-            {/* Logo J&C Esquadrias */}
+            {/* J&C */}
             <div className="flex-1 flex justify-center items-center">
                <img 
                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/936ba5dbe_logo_JCEsquadrias.png"
                  alt="J&C Esquadrias"
                  className="h-20 md:h-24 w-auto object-contain hover:scale-110 transition-transform duration-300"
-                 title="J&C Esquadrias"
                />
             </div>
 
-            {/* Separador Vertical */}
             <div className="h-12 w-px bg-slate-300 dark:bg-slate-600"></div>
             
-            {/* Logo Inovalum */}
+            {/* Inovalum */}
             <div className="flex-1 flex justify-center items-center overflow-visible">
                <img 
                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/386f33ec8_INOVALUMTRANSPARENTECOMBORDA.png"
                  alt="Inovalum"
                  className="h-20 md:h-24 w-auto object-contain scale-[1.4] hover:scale-[1.5] transition-transform duration-300"
-                 title="Inovalum"
                />
             </div>
 
-            {/* Separador Vertical */}
             <div className="h-12 w-px bg-slate-300 dark:bg-slate-600"></div>
 
-            {/* Logo Oliver Extrusora */}
+            {/* Oliver */}
             <div className="flex-1 flex justify-center items-center">
                <img 
                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/6dba430e9_LOGOOLIVERTRANSPARENTECOMBORDA.png"
                  alt="Oliver Extrusora"
                  className="h-20 md:h-24 w-auto object-contain hover:scale-110 transition-transform duration-300"
-                 title="Oliver Extrusora"
                />
             </div>
           </div>
@@ -137,56 +169,22 @@ export default function Welcome() {
 
         {/* BOTÕES DE ACESSO */}
         <div className="w-full flex flex-col gap-3 items-center z-20">
-          <AccessButton 
-            title="Área do Cliente" 
-            subtitle="Acompanhe seus pedidos e entregas" 
-            icon={User} 
-            onClick={handleCliente} 
-            delay={0.1}
-          />
-
-          <AccessButton 
-            title="Portal do Representante" 
-            subtitle="Gestão de carteira e vendas" 
-            icon={Briefcase} 
-            onClick={handleRepresentante} 
-            delay={0.2}
-          />
-
-          <AccessButton 
-            title="Acesso Administrativo" 
-            subtitle="Controle financeiro e produção" 
-            icon={ShieldCheck} 
-            onClick={handleAdmin} 
-            delay={0.3}
-          />
+          <AccessButton title="Área do Cliente" subtitle="Acompanhe seus pedidos e entregas" icon={User} onClick={handleCliente} delay={0.1} />
+          <AccessButton title="Portal do Representante" subtitle="Gestão de carteira e vendas" icon={Briefcase} onClick={handleRepresentante} delay={0.2} />
+          <AccessButton title="Acesso Administrativo" subtitle="Controle financeiro e produção" icon={ShieldCheck} onClick={handleAdmin} delay={0.3} />
         </div>
 
         {/* RODAPÉ */}
-        <motion.div 
-          initial={{ opacity: 0 }} 
-          animate={{ opacity: 1 }} 
-          transition={{ delay: 0.8 }}
-          className="mt-12 text-center relative z-20"
-        >
-          <p className="text-slate-500 dark:text-slate-500 text-[10px] font-bold tracking-[0.2em] uppercase">
-            Vision System &copy; {new Date().getFullYear()}
-          </p>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }} className="mt-12 text-center relative z-20">
+          <p className="text-slate-500 dark:text-slate-500 text-[10px] font-bold tracking-[0.2em] uppercase">Vision System &copy; {new Date().getFullYear()}</p>
         </motion.div>
 
       </div>
 
-      {/* NOTIFICAÇÃO FLUTUANTE */}
       <AnimatePresence>
         {showNotification && (
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="absolute bottom-10 bg-slate-800 text-white px-6 py-3 rounded-full flex items-center gap-3 shadow-2xl z-50 border border-slate-700"
-          >
-            <Lock size={16} className="text-yellow-400" />
-            <span className="text-sm font-medium">Acesso restrito.</span>
+          <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="absolute bottom-10 bg-slate-800 text-white px-6 py-3 rounded-full flex items-center gap-3 shadow-2xl z-50 border border-slate-700">
+            <Lock size={16} className="text-yellow-400" /><span className="text-sm font-medium">Acesso restrito.</span>
           </motion.div>
         )}
       </AnimatePresence>
