@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Save, X, Plus, Eye, Truck, User, Search, Lock } from "lucide-react";
+import { Save, X, Plus, Eye, Truck, User, Search, Lock, Upload, FileCheck, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ModalContainer from "@/components/modals/ModalContainer";
 import { useQuery } from '@tanstack/react-query';
@@ -52,7 +52,11 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     motorista_atual: '',
     
     desconto_tipo: 'valor',
-    desconto_valor: 0
+    desconto_valor: 0,
+    
+    // Sinal (Pagamento Antecipado)
+    valor_sinal_informado: 0,
+    arquivos_sinal: []
   });
 
   // Lógica de Bloqueio do Representante
@@ -64,6 +68,9 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
   const [showNovoClienteModal, setShowNovoClienteModal] = useState(false);
   const [buscaCliente, setBuscaCliente] = useState(""); 
   const [novosClientesLocais, setNovosClientesLocais] = useState([]);
+  
+  // Estados para Sinal
+  const [uploadingSinal, setUploadingSinal] = useState(false);
 
   const todosClientes = useMemo(() => {
     return [...clientes, ...novosClientesLocais];
@@ -94,7 +101,11 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
         motorista_atual: pedido.motorista_atual || '',
         
         desconto_tipo: pedido.desconto_tipo || 'valor',
-        desconto_valor: pedido.desconto_valor || 0
+        desconto_valor: pedido.desconto_valor || 0,
+        
+        // Sinal
+        valor_sinal_informado: pedido.valor_sinal_informado || 0,
+        arquivos_sinal: pedido.arquivos_sinal || []
       });
     }
   }, [pedido]);
@@ -146,7 +157,9 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     } else {
         valorDescontoReais = (valorTotal * descontoInput) / 100;
     }
-    newForm.saldo_restante = Math.max(0, valorTotal - valorDescontoReais);
+    
+    const valorSinal = parseFloat(newForm.valor_sinal_informado) || 0;
+    newForm.saldo_restante = Math.max(0, valorTotal - valorDescontoReais - valorSinal);
     setForm(newForm);
   };
 
@@ -175,6 +188,27 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     }));
     setShowNovoClienteModal(false);
     if (onCadastrarCliente) onCadastrarCliente();
+  };
+
+  // Upload de Comprovantes de Sinal
+  const handleUploadSinal = async (files) => {
+    if (!files || files.length === 0) return;
+    setUploadingSinal(true);
+    try {
+      const uploads = Array.from(files).map(file => base44.integrations.Core.UploadFile({ file }));
+      const results = await Promise.all(uploads);
+      const urls = results.map(r => r.file_url);
+      setForm(prev => ({ ...prev, arquivos_sinal: [...prev.arquivos_sinal, ...urls] }));
+      toast.success(`${urls.length} arquivo(s) enviado(s)!`);
+    } catch (error) {
+      toast.error('Erro ao enviar comprovantes');
+    } finally {
+      setUploadingSinal(false);
+    }
+  };
+
+  const handleRemoveSinal = (url) => {
+    setForm(prev => ({ ...prev, arquivos_sinal: prev.arquivos_sinal.filter(u => u !== url) }));
   };
 
   const inputClass = "h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all";
@@ -319,10 +353,129 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
         </div>
 
         <div className="space-y-2 md:col-span-2">
-          <Label>Valor Líquido (A Receber)</Label>
+          <Label>Saldo Restante (A Receber)</Label>
           <div className="h-14 flex items-center justify-between px-4 bg-slate-50 border border-slate-200 rounded-xl">
-             <span className="text-sm text-slate-500 font-medium uppercase">Total c/ Desconto:</span>
+             <span className="text-sm text-slate-500 font-medium uppercase">Valor Líquido:</span>
              <span className="font-bold text-2xl text-emerald-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(form.saldo_restante)}</span>
+          </div>
+        </div>
+
+        {/* SEÇÃO: PAGAMENTO ANTECIPADO / SINAL */}
+        <div className="md:col-span-2 mt-4 p-6 bg-blue-50 border border-blue-200 rounded-xl space-y-4">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Upload className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="font-bold text-blue-900 text-lg">Pagamento Antecipado / Sinal</h3>
+              <p className="text-xs text-blue-700">Informações sobre entrada já recebida</p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="valor_sinal">Valor do Sinal Recebido (R$)</Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">R$</span>
+              <Input 
+                id="valor_sinal"
+                type="number" 
+                min="0" 
+                step="0.01" 
+                value={form.valor_sinal_informado} 
+                onChange={(e) => updateValores('valor_sinal_informado', parseFloat(e.target.value) || 0)} 
+                className={cn(inputClass, "pl-9 font-bold text-blue-700")} 
+                placeholder="0,00"
+              />
+            </div>
+            {form.valor_sinal_informado > 0 && (
+              <p className="text-xs text-blue-600 flex items-center gap-1">
+                <FileCheck className="w-3 h-3" />
+                Sinal de {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(form.valor_sinal_informado)} será registrado
+              </p>
+            )}
+          </div>
+
+          {/* DROPZONE DE COMPROVANTES */}
+          <div className="space-y-2">
+            <Label>Comprovantes do Sinal</Label>
+            <div 
+              className={cn(
+                "relative border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer",
+                uploadingSinal ? "bg-blue-100 border-blue-300" : "bg-white border-blue-200 hover:border-blue-400 hover:bg-blue-50"
+              )}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                handleUploadSinal(e.dataTransfer.files);
+              }}
+              onClick={() => !uploadingSinal && document.getElementById('file-input-sinal').click()}
+            >
+              <input 
+                id="file-input-sinal"
+                type="file" 
+                multiple 
+                accept="image/*,.pdf" 
+                onChange={(e) => handleUploadSinal(e.target.files)} 
+                className="hidden"
+                disabled={uploadingSinal}
+              />
+              
+              {uploadingSinal ? (
+                <div className="flex flex-col items-center gap-2 text-blue-600">
+                  <Upload className="w-8 h-8 animate-bounce" />
+                  <span className="font-medium">Enviando arquivos...</span>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-2 text-slate-500">
+                  <Upload className="w-8 h-8" />
+                  <span className="font-medium">Arraste aqui os comprovantes do Sinal</span>
+                  <span className="text-xs">ou clique para selecionar (imagens e PDFs)</span>
+                </div>
+              )}
+            </div>
+
+            {/* LISTA DE ARQUIVOS ENVIADOS */}
+            {form.arquivos_sinal.length > 0 && (
+              <div className="space-y-2 mt-3">
+                <p className="text-xs font-bold text-blue-700 uppercase">Arquivos anexados:</p>
+                <div className="space-y-1">
+                  {form.arquivos_sinal.map((url, idx) => (
+                    <div key={idx} className="flex items-center justify-between bg-white p-2 rounded-lg border border-blue-100">
+                      <div className="flex items-center gap-2">
+                        <FileCheck className="w-4 h-4 text-green-600" />
+                        <span className="text-xs text-slate-600">Comprovante {idx + 1}</span>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-7 w-7"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(url, '_blank');
+                          }}
+                        >
+                          <Eye className="w-3 h-3 text-blue-600" />
+                        </Button>
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-7 w-7"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveSinal(url);
+                          }}
+                        >
+                          <Trash2 className="w-3 h-3 text-red-600" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
