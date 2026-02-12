@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Save, X, Plus, Eye, Truck, User, Search, Lock, Upload, FileCheck, Trash2 } from "lucide-react";
+import { Save, X, Plus, Eye, Truck, User, Search, Lock, Upload, FileCheck, Trash2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ModalContainer from "@/components/modals/ModalContainer";
 import { useQuery } from '@tanstack/react-query';
@@ -72,6 +72,9 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
   
   // Estados para Sinal
   const [uploadingSinal, setUploadingSinal] = useState(false);
+  
+  // NOVO: Estado para loading ao salvar cliente novo
+  const [savingCliente, setSavingCliente] = useState(false);
 
   const todosClientes = useMemo(() => {
     return [...clientes, ...novosClientesLocais];
@@ -174,21 +177,6 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
       setClienteSelecionadoDetalhes(cli);
       setShowClienteModal(true);
     }
-  };
-
-  const handleSuccessNovoCliente = (novoCliente) => {
-    setNovosClientesLocais(prev => [...prev, novoCliente]);
-    setForm(prev => ({
-        ...prev,
-        cliente_codigo: novoCliente.codigo,
-        cliente_nome: novoCliente.nome,
-        cliente_regiao: novoCliente.regiao || '',
-        representante_codigo: novoCliente.representante_codigo || '',
-        representante_nome: novoCliente.representante_nome || '',
-        porcentagem_comissao: novoCliente.porcentagem_comissao || 5
-    }));
-    setShowNovoClienteModal(false);
-    if (onCadastrarCliente) onCadastrarCliente();
   };
 
   // Upload de Comprovantes de Sinal
@@ -500,12 +488,47 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
         {clienteSelecionadoDetalhes && <ClienteDetails cliente={clienteSelecionadoDetalhes} onClose={() => setShowClienteModal(false)} />}
       </ModalContainer>
 
+      {/* --- CORREÇÃO AQUI --- */}
       <ModalContainer open={showNovoClienteModal} onClose={() => setShowNovoClienteModal(false)} title="Cadastrar Novo Cliente" size="xl">
         <ClienteForm 
-            onSuccess={handleSuccessNovoCliente} 
+            // Agora salvamos de verdade no banco antes de devolver o sucesso
+            onSave={async (dadosCliente) => {
+                setSavingCliente(true);
+                try {
+                    // 1. CRIA O CLIENTE DE VERDADE NO BANCO
+                    const novoCliente = await base44.entities.Cliente.create({
+                        ...dadosCliente,
+                        status: 'ativo'
+                    });
+
+                    // 2. ATUALIZA A LISTA LOCAL E SELECIONA
+                    setNovosClientesLocais(prev => [...prev, novoCliente]);
+                    setForm(prev => ({
+                        ...prev,
+                        cliente_codigo: novoCliente.codigo,
+                        cliente_nome: novoCliente.nome,
+                        cliente_regiao: novoCliente.regiao || '',
+                        representante_codigo: novoCliente.representante_codigo || '',
+                        representante_nome: novoCliente.representante_nome || '',
+                        porcentagem_comissao: novoCliente.porcentagem_comissao || 5
+                    }));
+
+                    setShowNovoClienteModal(false);
+                    toast.success(`Cliente ${novoCliente.nome} cadastrado com sucesso!`);
+                    
+                    if (onCadastrarCliente) onCadastrarCliente();
+
+                } catch (error) {
+                    console.error("Erro ao cadastrar cliente:", error);
+                    toast.error("Erro ao salvar cliente.");
+                } finally {
+                    setSavingCliente(false);
+                }
+            }}
             onCancel={() => setShowNovoClienteModal(false)} 
             representantes={representantes} 
             todosClientes={clientes}
+            isLoading={savingCliente} // Se seu ClienteForm suportar essa prop
         />
       </ModalContainer>
     </div>
