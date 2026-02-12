@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, DollarSign, Percent, Wallet, Loader2, Plus, X, Upload, FileText, Trash2 } from "lucide-react";
+import { Search, DollarSign, Percent, Wallet, Loader2, Plus, X, Upload, FileText, Trash2, Sparkles, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ModalContainer from "@/components/modals/ModalContainer";
 import AdicionarChequeModal from "@/components/pedidos/AdicionarChequeModal";
@@ -31,6 +31,9 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
   const [uploadingFile, setUploadingFile] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = React.useRef(null);
+  
+  // Controle de Herança de Sinal
+  const [sinaisHerdados, setSinaisHerdados] = useState([]);
 
   const { data: creditos = [] } = useQuery({
     queryKey: ['creditos', selectedPedidos[0]?.cliente_codigo],
@@ -60,6 +63,71 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     const total = creditos.reduce((sum, c) => sum + (c?.valor || 0), 0);
     setCreditoDisponivelTotal(total);
   }, [creditos]);
+
+  // ✨ INTELIGÊNCIA: HERANÇA AUTOMÁTICA DE SINAL DOS PEDIDOS
+  React.useEffect(() => {
+    if (selectedPedidos.length === 0) {
+      setSinaisHerdados([]);
+      return;
+    }
+
+    const sinaisDetectados = [];
+    const novosComprovantes = [];
+    const novasFormasPagamento = [];
+
+    selectedPedidos.forEach(pedido => {
+      const valorSinal = parseFloat(pedido.valor_sinal_informado) || 0;
+      const arquivosSinal = pedido.arquivos_sinal || [];
+
+      if (valorSinal > 0) {
+        sinaisDetectados.push({
+          pedido_numero: pedido.numero_pedido,
+          valor: valorSinal,
+          arquivos: arquivosSinal.length
+        });
+
+        // Adiciona forma de pagamento automática
+        novasFormasPagamento.push({
+          tipo: 'pix', // Tipo padrão (usuário pode alterar depois)
+          valor: String(valorSinal),
+          parcelas: '1',
+          dadosCheque: { numero: '', banco: '', agencia: '' },
+          chequesSalvos: [],
+          herdadoDeSinal: true // Flag para identificação visual
+        });
+
+        // Injeta comprovantes na lista
+        if (arquivosSinal.length > 0) {
+          novosComprovantes.push(...arquivosSinal);
+        }
+      }
+    });
+
+    if (sinaisDetectados.length > 0) {
+      setSinaisHerdados(sinaisDetectados);
+      
+      // Preenche automaticamente
+      setFormasPagamento(prev => {
+        // Remove formas vazias padrão e adiciona as herdadas
+        const formasNaoVazias = prev.filter(fp => parseFloat(fp.valor) > 0);
+        return [...formasNaoVazias, ...novasFormasPagamento];
+      });
+
+      setComprovantes(prev => {
+        // Evita duplicação
+        const novos = novosComprovantes.filter(url => !prev.includes(url));
+        return [...prev, ...novos];
+      });
+
+      const totalSinalHerdado = sinaisDetectados.reduce((sum, s) => sum + s.valor, 0);
+      const totalArquivos = sinaisDetectados.reduce((sum, s) => sum + s.arquivos, 0);
+      
+      toast.success(
+        `💡 ${sinaisDetectados.length} sinal(is) detectado(s)! Total: ${formatCurrency(totalSinalHerdado)}. ${totalArquivos} comprovante(s) adicionado(s) automaticamente.`,
+        { duration: 6000 }
+      );
+    }
+  }, [selectedPedidos]);
 
   const pedidosComPort = useMemo(() => {
     const pedidosIds = selectedPedidos.map(p => p?.id).filter(Boolean);
@@ -521,6 +589,37 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
 
       {selectedPedidos.length > 0 && (
         <>
+          {/* ALERTA DE HERANÇA DE SINAL */}
+          {sinaisHerdados.length > 0 && (
+            <Card className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200 border-2">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-blue-600 rounded-lg">
+                  <Sparkles className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-bold text-blue-900 flex items-center gap-2 mb-2">
+                    Dados do Sinal Herdados Automaticamente
+                  </h4>
+                  <div className="space-y-1">
+                    {sinaisHerdados.map((sinal, idx) => (
+                      <p key={idx} className="text-sm text-blue-800">
+                        • Pedido <span className="font-mono font-bold">#{sinal.pedido_numero}</span>: 
+                        <span className="font-bold text-blue-600"> {formatCurrency(sinal.valor)}</span>
+                        {sinal.arquivos > 0 && (
+                          <span className="text-xs text-purple-700"> ({sinal.arquivos} comprovante{sinal.arquivos > 1 ? 's' : ''})</span>
+                        )}
+                      </p>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex items-center gap-2 text-xs text-slate-600 bg-white/60 p-2 rounded-lg border border-blue-100">
+                    <Info className="w-4 h-4 text-blue-500" />
+                    <span>Os valores e comprovantes foram pré-preenchidos. Você pode ajustar antes de finalizar.</span>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
+
           {pedidosComPort.length > 0 && (
             <Card className="p-4 bg-amber-50 border-amber-300">
               <div className="flex items-center justify-between">
@@ -585,10 +684,17 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
               </div>
 
               {formasPagamento.map((fp, index) => (
-                <Card key={index} className="p-3 bg-white">
+                <Card key={index} className={cn("p-3", fp.herdadoDeSinal ? "bg-blue-50 border-blue-200 border-2" : "bg-white")}>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">Forma {index + 1}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">Forma {index + 1}</span>
+                        {fp.herdadoDeSinal && (
+                          <Badge className="bg-blue-600 text-white text-[10px] px-2 py-0.5 flex items-center gap-1">
+                            <Sparkles className="w-3 h-3" /> Vindo do Sinal
+                          </Badge>
+                        )}
+                      </div>
                       {formasPagamento.length > 1 && <Button type="button" size="sm" variant="ghost" onClick={() => removerFormaPagamento(index)} className="text-red-600 h-6"><X className="w-3 h-3" /></Button>}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
