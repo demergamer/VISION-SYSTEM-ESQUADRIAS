@@ -64,66 +64,87 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     setCreditoDisponivelTotal(total);
   }, [creditos]);
 
-  // ✨ INTELIGÊNCIA: HERANÇA AUTOMÁTICA DE SINAL DOS PEDIDOS
+  // ✨ INTELIGÊNCIA: HERANÇA AUTOMÁTICA DE SINAL DOS PEDIDOS (SEM DUPLICIDADE)
   React.useEffect(() => {
     if (selectedPedidos.length === 0) {
       setSinaisHerdados([]);
+      setFormasPagamento([{ tipo: 'dinheiro', valor: '', parcelas: '1', dadosCheque: { numero: '', banco: '', agencia: '' }, chequesSalvos: [] }]);
+      setComprovantes([]);
       return;
     }
 
-    const sinaisDetectados = [];
-    const novosComprovantes = [];
-    const novasFormasPagamento = [];
+    // Mapeia os sinais detectados por ID do pedido
+    const sinaisMap = new Map();
+    const arquivosDetectados = new Set();
 
     selectedPedidos.forEach(pedido => {
       const valorSinal = parseFloat(pedido.valor_sinal_informado) || 0;
       const arquivosSinal = pedido.arquivos_sinal || [];
 
       if (valorSinal > 0) {
-        sinaisDetectados.push({
+        sinaisMap.set(pedido.id, {
+          pedido_id: pedido.id,
           pedido_numero: pedido.numero_pedido,
           valor: valorSinal,
-          arquivos: arquivosSinal.length
+          arquivos: arquivosSinal
         });
 
-        // Adiciona forma de pagamento automática
-        novasFormasPagamento.push({
-          tipo: 'pix', // Tipo padrão (usuário pode alterar depois)
-          valor: String(valorSinal),
-          parcelas: '1',
-          dadosCheque: { numero: '', banco: '', agencia: '' },
-          chequesSalvos: [],
-          herdadoDeSinal: true // Flag para identificação visual
-        });
-
-        // Injeta comprovantes na lista
-        if (arquivosSinal.length > 0) {
-          novosComprovantes.push(...arquivosSinal);
-        }
+        // Adiciona arquivos ao Set (evita duplicação)
+        arquivosSinal.forEach(url => arquivosDetectados.add(url));
       }
     });
 
-    if (sinaisDetectados.length > 0) {
-      setSinaisHerdados(sinaisDetectados);
+    // Atualiza sinaisHerdados para exibição
+    const sinaisArray = Array.from(sinaisMap.values()).map(s => ({
+      pedido_numero: s.pedido_numero,
+      valor: s.valor,
+      arquivos: s.arquivos.length
+    }));
+    setSinaisHerdados(sinaisArray);
+
+    // Atualiza FORMAS DE PAGAMENTO sincronizando com selectedPedidos
+    setFormasPagamento(prev => {
+      // 1. Mantém formas manuais (sem flag herdadoDeSinal ou sem pedido_origem_sinal)
+      const formasManuais = prev.filter(fp => !fp.herdadoDeSinal && !fp.pedido_origem_sinal);
+
+      // 2. Cria formas automáticas baseadas nos pedidos selecionados
+      const formasAutomaticas = Array.from(sinaisMap.values()).map(sinal => ({
+        tipo: 'pix',
+        valor: String(sinal.valor),
+        parcelas: '1',
+        dadosCheque: { numero: '', banco: '', agencia: '' },
+        chequesSalvos: [],
+        herdadoDeSinal: true,
+        pedido_origem_sinal: sinal.pedido_id // ID único para rastreamento
+      }));
+
+      return [...formasManuais, ...formasAutomaticas];
+    });
+
+    // Atualiza COMPROVANTES sincronizando com selectedPedidos
+    setComprovantes(prev => {
+      // Mantém apenas comprovantes que foram adicionados manualmente
+      // ou que pertencem aos pedidos ainda selecionados
+      const arquivosAtuais = Array.from(arquivosDetectados);
       
-      // Preenche automaticamente
-      setFormasPagamento(prev => {
-        // Remove formas vazias padrão e adiciona as herdadas
-        const formasNaoVazias = prev.filter(fp => parseFloat(fp.valor) > 0);
-        return [...formasNaoVazias, ...novasFormasPagamento];
+      // Identifica comprovantes manuais (não estão nos pedidos)
+      const comprovantesManuais = prev.filter(url => {
+        // Verifica se o comprovante está em algum pedido selecionado
+        return !selectedPedidos.some(p => 
+          (p.arquivos_sinal || []).includes(url)
+        );
       });
 
-      setComprovantes(prev => {
-        // Evita duplicação
-        const novos = novosComprovantes.filter(url => !prev.includes(url));
-        return [...prev, ...novos];
-      });
+      return [...comprovantesManuais, ...arquivosAtuais];
+    });
 
-      const totalSinalHerdado = sinaisDetectados.reduce((sum, s) => sum + s.valor, 0);
-      const totalArquivos = sinaisDetectados.reduce((sum, s) => sum + s.arquivos, 0);
+    // Mostra toast apenas se houver sinais detectados
+    if (sinaisArray.length > 0) {
+      const totalSinalHerdado = sinaisArray.reduce((sum, s) => sum + s.valor, 0);
+      const totalArquivos = sinaisArray.reduce((sum, s) => sum + s.arquivos, 0);
       
       toast.success(
-        `💡 ${sinaisDetectados.length} sinal(is) detectado(s)! Total: ${formatCurrency(totalSinalHerdado)}. ${totalArquivos} comprovante(s) adicionado(s) automaticamente.`,
+        `💡 ${sinaisArray.length} sinal(is) detectado(s)! Total: ${formatCurrency(totalSinalHerdado)}. ${totalArquivos} comprovante(s) adicionado(s) automaticamente.`,
         { duration: 6000 }
       );
     }
