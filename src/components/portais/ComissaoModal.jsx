@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -10,81 +10,115 @@ export default function ComissaoModal({ open, onClose, representante }) {
   // --- INICIALIZAÇÃO DE DATA (LÓGICA DIA 10) ---
   const [mesAno, setMesAno] = useState(() => {
       const hoje = new Date();
-      // Se for dia 10 ou menos, mostra o mês anterior por padrão
       if (hoje.getDate() <= 10) {
           return format(subMonths(hoje, 1), 'yyyy-MM');
       }
       return format(hoje, 'yyyy-MM');
   });
 
-  const { data: pedidos = [], isLoading: loadingPedidos } = useQuery({ queryKey: ['pedidos_portal_comissao'], queryFn: () => base44.entities.Pedido.list(), enabled: open });
-  const { data: controles = [], isLoading: loadingControles } = useQuery({ queryKey: ['controles_portal_comissao'], queryFn: () => base44.entities.ComissaoControle.list(), enabled: open });
+  // --- QUERIES CORRIGIDAS ---
+  // 1. Busca Fechamento Oficial (Aberto ou Fechado)
+  const { data: fechamentos = [], isLoading: loadingFechamento } = useQuery({ 
+      queryKey: ['fechamento_portal', mesAno, representante?.codigo], 
+      queryFn: () => base44.entities.FechamentoComissao.list({
+          filters: { 
+              mes_ano: mesAno,
+              representante_codigo: representante?.codigo 
+          }
+      }), 
+      enabled: open && !!representante 
+  });
+
+  // 2. Busca Pedidos (Apenas se não tiver fechamento fechado, para calcular previsão)
+  const { data: pedidos = [], isLoading: loadingPedidos } = useQuery({ 
+      queryKey: ['pedidos_portal', mesAno], 
+      queryFn: () => base44.entities.Pedido.list(), 
+      enabled: open && !!representante 
+  });
 
   const dadosComissao = useMemo(() => {
-    if (!representante || !pedidos.length) return null;
+    if (!representante) return null;
+
+    // A. SE JÁ EXISTE FECHAMENTO (Rascunho ou Finalizado)
+    // Usamos ele como fonte da verdade absoluta
+    if (fechamentos && fechamentos.length > 0) {
+        const fechamento = fechamentos[0];
+        return {
+            codigo: representante.codigo,
+            nome: representante.nome,
+            chave_pix: representante.chave_pix,
+            porcentagem_padrao: representante.porcentagem_comissao || 5,
+            
+            // Dados vindos do fechamento
+            id: fechamento.id,
+            status: fechamento.status,
+            vales: fechamento.vales_adiantamentos || 0,
+            outrosDescontos: fechamento.outros_descontos || 0,
+            observacoes: fechamento.observacoes || '',
+            
+            // Se estiver fechado, já tem o snapshot
+            pedidos_detalhes: fechamento.pedidos_detalhes || [],
+            
+            // Totais
+            totalVendas: fechamento.total_vendas,
+            totalComissoes: fechamento.total_comissoes_bruto,
+            saldoAPagar: fechamento.valor_liquido
+        };
+    }
+
+    // B. SE NÃO EXISTE FECHAMENTO (Modo Previsão / Aberto)
+    // Calculamos com base nos pedidos do mês
     const [ano, mes] = mesAno.split('-').map(Number);
     const inicioMes = startOfMonth(new Date(ano, mes - 1));
     const fimMes = endOfMonth(new Date(ano, mes - 1));
 
-    const mapaPedidoParaMes = {};
-    controles.forEach(c => {
-        if (c.status === 'aberto' && c.referencia !== mesAno && c.representante_codigo === representante.codigo) {
-            c.pedidos_ajustados?.forEach(p => mapaPedidoParaMes[String(p.pedido_id)] = c.referencia);
-        }
-    });
-
-    const meuControleAtual = controles.find(c => c.referencia === mesAno && c.representante_codigo === representante.codigo);
-
     const meusPedidos = pedidos.filter(p => {
+        // Filtra meu código
         if (String(p.representante_codigo) !== String(representante.codigo)) return false;
         
-        const idStr = String(p.id);
-
-        // Se já pago definitivo
-        if (p.comissao_paga === true) return p.comissao_referencia_paga === mesAno;
+        // Se já pago definitivo (mas não tem fechamento vinculado? Estranho, mas ok)
+        if (p.comissao_paga === true) return p.comissao_mes_ano_pago === mesAno;
         
-        // Se não pago
+        // Se não pago (comissão), precisa estar pago pelo cliente
         if (p.status !== 'pago') return false;
 
-        // Regra do Imã
-        if (mapaPedidoParaMes[idStr]) return mapaPedidoParaMes[idStr] === mesAno;
-
-        // Regra da Gravidade
+        // Data de referência
         const dataRef = p.data_referencia_comissao ? new Date(p.data_referencia_comissao) : (p.data_pagamento ? new Date(p.data_pagamento) : null);
         if (!dataRef) return false;
         
         return dataRef >= inicioMes && dataRef <= fimMes;
     });
 
-    const dadosFinais = {
-        codigo: representante.codigo, nome: representante.nome, chave_pix: representante.chave_pix, porcentagem_padrao: representante.porcentagem_comissao || 5,
-        pedidos: [],
-        vales: meuControleAtual ? meuControleAtual.vales : 0, outrosDescontos: meuControleAtual ? meuControleAtual.outros_descontos : 0, observacoes: meuControleAtual ? meuControleAtual.observacao : '',
-        status: meuControleAtual ? meuControleAtual.status : 'aberto', controleId: meuControleAtual?.id
-    };
-
-    meusPedidos.forEach(pedido => {
-        let percentual = pedido.porcentagem_comissao || dadosFinais.porcentagem_padrao;
-        
-        if (meuControleAtual?.pedidos_ajustados) {
-            const ajuste = meuControleAtual.pedidos_ajustados.find(a => String(a.pedido_id) === String(pedido.id));
-            if (ajuste) percentual = ajuste.percentual;
-        }
-
-        const valorBase = parseFloat(pedido.total_pago) || 0;
-        const valorComissao = (valorBase * percentual) / 100;
-
-        dadosFinais.pedidos.push({
-            ...pedido,
+    // Monta estrutura "Fake" de fechamento para o componente
+    const pedidosFormatados = meusPedidos.map(p => {
+        const percentual = p.porcentagem_comissao || representante.porcentagem_comissao || 5;
+        const valorBase = parseFloat(p.total_pago) || 0;
+        return {
+            ...p,
             valorBaseComissao: valorBase,
             percentualComissao: percentual,
-            valorComissao: valorComissao
-        });
+            valorComissao: (valorBase * percentual) / 100
+        };
     });
 
-    return dadosFinais;
+    return {
+        codigo: representante.codigo,
+        nome: representante.nome,
+        chave_pix: representante.chave_pix,
+        porcentagem_padrao: representante.porcentagem_comissao || 5,
+        status: 'aberto',
+        id: null,
+        vales: 0,
+        outrosDescontos: 0,
+        observacoes: '',
+        pedidos: pedidosFormatados, // Passamos como lista dinâmica
+        // Totais calculados na hora
+        totalVendas: pedidosFormatados.reduce((acc, p) => acc + p.valorBaseComissao, 0),
+        totalComissoes: pedidosFormatados.reduce((acc, p) => acc + p.valorComissao, 0),
+        saldoAPagar: pedidosFormatados.reduce((acc, p) => acc + p.valorComissao, 0)
+    };
 
-  }, [pedidos, controles, mesAno, representante]);
+  }, [pedidos, fechamentos, mesAno, representante]);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -94,15 +128,21 @@ export default function ComissaoModal({ open, onClose, representante }) {
           <DialogDescription>Histórico e previsões de pagamentos.</DialogDescription>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto p-6">
-            {(loadingPedidos || loadingControles) ? (
+            {(loadingPedidos || loadingFechamento) ? (
                 <div className="flex flex-col items-center justify-center h-full text-slate-500"><Loader2 className="w-10 h-10 animate-spin mb-2 text-indigo-600" /><p>Carregando dados financeiros...</p></div>
             ) : !representante ? (
                 <div className="flex flex-col items-center justify-center h-full text-slate-500 bg-amber-50 rounded-xl border border-amber-200 m-4 p-8"><AlertCircle className="w-10 h-10 mb-2 text-amber-600" /><p>Erro: Dados do representante não identificados.</p></div>
             ) : (
                 <ComissaoDetalhes 
-                    key={mesAno} 
-                    representante={dadosComissao} mesAno={mesAno} pedidosTodos={[]} controles={null} onClose={onClose}
-                    isPortal={true} onChangeMonth={(novoMes) => setMesAno(novoMes)} 
+                    // KEY IMPORTANTE: Força recarregar se mudar mês ou status
+                    key={`${mesAno}-${dadosComissao?.status}`}
+                    representante={dadosComissao} 
+                    mesAno={mesAno} 
+                    pedidosTodos={pedidos} // Passa todos para o filtro interno funcionar se precisar
+                    controles={null} 
+                    onClose={onClose}
+                    isPortal={true} 
+                    onChangeMonth={(novoMes) => setMesAno(novoMes)} 
                 />
             )}
         </div>
