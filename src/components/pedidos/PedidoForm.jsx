@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import ModalContainer from "@/components/modals/ModalContainer";
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { toast } from "sonner";
 
 // IMPORTS DOS COMPONENTES DE CLIENTE
 import ClienteDetails from "@/components/clientes/ClienteDetails";
