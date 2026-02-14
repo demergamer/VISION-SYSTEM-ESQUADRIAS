@@ -60,11 +60,11 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
         console.log(`--- INICIANDO CARGA PARA ${representante.nome} (${representante.codigo}) EM ${mesAno} ---`);
 
         // A. Busca Fechamento Salvo (Se houver)
-        // Aqui mantemos o filtro específico pois IDs de fechamento são mais robustos
-        const fechamentos = await base44.entities.FechamentoComissao.list({
-           filters: { representante_codigo: representante.codigo, mes_ano: mesAno }
-        });
-        const fechamentoAtual = fechamentos?.[0];
+        const todosFechamentos = await base44.entities.FechamentoComissao.list();
+        const fechamentoAtual = todosFechamentos.find(f => 
+          String(f.representante_codigo).trim().toUpperCase() === String(representante.codigo).trim().toUpperCase() && 
+          f.mes_ano === mesAno
+        );
 
         if (fechamentoAtual) {
            console.log("FECHAMENTO ENCONTRADO (MODO EDIÇÃO):", fechamentoAtual);
@@ -74,42 +74,49 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
            setOutrosDescontos(fechamentoAtual.outros_descontos || 0);
            setObservacoes(fechamentoAtual.observacoes || '');
 
+           // Prioriza snapshot, mas também busca pedidos vinculados
            if (fechamentoAtual.pedidos_detalhes && fechamentoAtual.pedidos_detalhes.length > 0) {
+               console.log("Usando SNAPSHOT:", fechamentoAtual.pedidos_detalhes.length, "pedidos");
                setPedidosDaComissao(fechamentoAtual.pedidos_detalhes.map(p => prepararPedidoParaTela(p, 'snapshot')));
            } else {
-               // Se o snapshot estiver vazio, busca pedidos vinculados pelo ID
-               const pedidosVinculados = await base44.entities.Pedido.list({ filters: { comissao_fechamento_id: fechamentoAtual.id } });
+               // Busca pedidos vinculados (mesmo que snapshot vazio)
+               console.log("Snapshot vazio. Buscando pedidos vinculados...");
+               const todosPedidos = await base44.entities.Pedido.list();
+               const pedidosVinculados = todosPedidos.filter(p => 
+                 String(p.comissao_fechamento_id) === String(fechamentoAtual.id)
+               );
+               console.log("Pedidos vinculados encontrados:", pedidosVinculados.length);
                setPedidosDaComissao(pedidosVinculados.map(p => prepararPedidoParaTela(p, 'vinculado')));
            }
 
         } else {
-           // --- MODO PREVISÃO (Onde estava o erro) ---
+           // --- MODO PREVISÃO ---
            console.log("NENHUM FECHAMENTO SALVO. CALCULANDO PREVISÃO...");
            setControleId(null);
            setStatusFechamento('aberto');
            setVales(representante.vales || 0);
+           setOutrosDescontos(0);
+           setObservacoes('');
            
-           // ESTRATÉGIA: Busca TODOS os pedidos pagos do sistema (sem filtrar representante na API)
-           // Isso evita erros de string vs number ou case-sensitive no banco.
-           const todosPagos = await base44.entities.Pedido.list({ filters: { status: 'pago' } });
+           // Busca todos pedidos pagos e filtra manualmente
+           const todosPagos = await base44.entities.Pedido.list();
            
-           console.log(`TOTAL PEDIDOS PAGOS BAIXADOS: ${todosPagos.length}`);
+           console.log(`TOTAL PEDIDOS BAIXADOS: ${todosPagos.length}`);
 
-           // FILTRAGEM MANUAL (No Cliente) - Muito mais seguro
            const pedidosDoMes = todosPagos.filter(p => {
-              // 1. Filtro de Representante (Normalizado)
-              // Converte ambos para string, remove espaços e compara
+              // Status pago
+              if (p.status !== 'pago') return false;
+              
+              // Representante (normalizado)
               const repPedido = String(p.representante_codigo || '').trim().toUpperCase();
               const repAtual = String(representante.codigo || '').trim().toUpperCase();
-              
               if (repPedido !== repAtual) return false;
 
-              // 2. Filtro de Vínculo (Se já tem dono, ignora)
+              // Não pode ter comissão já fechada/paga
               if (p.comissao_fechamento_id) return false;
               if (p.comissao_paga === true) return false;
 
-              // 3. Filtro de Data (Comparação de Texto Simples)
-              // Pega "2026-02-15..." e verifica se começa com "2026-02"
+              // Data do mês
               const dataRef = p.data_referencia_comissao || p.data_pagamento;
               if (!dataRef) return false;
               
