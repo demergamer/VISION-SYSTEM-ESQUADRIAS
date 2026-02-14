@@ -5,20 +5,20 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Save, Lock, Trash2, Plus, Search, FileText, Loader2, ArrowLeftRight, RotateCcw } from "lucide-react";
-import { format, startOfMonth, endOfMonth } from 'date-fns';
+import { Save, Lock, Trash2, Plus, Search, Loader2 } from "lucide-react";
+import { startOfMonth, endOfMonth } from 'date-fns';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import ModalContainer from "@/components/modals/ModalContainer";
 
 export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuccessSave }) {
   // Estados principais
-  const [pedidosDaComissao, setPedidosDaComissao] = useState([]); // Lista principal da tela
+  const [pedidosDaComissao, setPedidosDaComissao] = useState([]); 
   const [loading, setLoading] = useState(true);
   
   // Estados do Fechamento
-  const [controleId, setControleId] = useState(null); // ID do FechamentoComissao
-  const [statusFechamento, setStatusFechamento] = useState('aberto'); // aberto | fechado
+  const [controleId, setControleId] = useState(null); 
+  const [statusFechamento, setStatusFechamento] = useState('aberto'); 
   const [vales, setVales] = useState(0);
   const [outrosDescontos, setOutrosDescontos] = useState(0);
   const [observacoes, setObservacoes] = useState('');
@@ -30,7 +30,38 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
 
   const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
-  // --- 1. CARREGAMENTO INTELIGENTE ---
+  // --- 1. FUNÇÃO DE NORMALIZAÇÃO (O SEGREDO DA CORREÇÃO) ---
+  // Esta função sabe ler tanto o Pedido original quanto o Snapshot do Fechamento
+  const prepararPedidoParaTela = (p, origem = 'auto') => {
+      // 1. Tenta pegar o valor pago. 
+      // Se vier do Banco (Pedido), é 'total_pago'. 
+      // Se vier do Snapshot (Fechamento), foi salvo como 'valor_pedido'.
+      // Fallback para 'valor_pedido' do banco se total_pago for zero.
+      const valorBaseRaw = p.total_pago || p.valor_pedido || 0;
+      
+      // 2. Tenta pegar o percentual.
+      // Banco: 'porcentagem_comissao'. Snapshot: 'percentual_comissao'.
+      const percentualRaw = p.porcentagem_comissao ?? p.percentual_comissao ?? representante.porcentagem_padrao ?? 5;
+
+      // 3. Tenta pegar o valor da comissão já calculado (snapshot) ou calcula agora
+      const valorComissaoCalculado = (parseFloat(valorBaseRaw) * parseFloat(percentualRaw)) / 100;
+      const valorComissaoFinal = p.valor_comissao ?? valorComissaoCalculado;
+
+      return {
+          ...p,
+          // Normalizamos para uso interno na tela
+          id: p.id || p.pedido_id, // Snapshot usa pedido_id, Banco usa id
+          numero_pedido: p.numero_pedido,
+          cliente_nome: p.cliente_nome,
+          data_pagamento: p.data_pagamento,
+          valorBase: parseFloat(valorBaseRaw),
+          percentual: parseFloat(percentualRaw),
+          valorComissao: parseFloat(valorComissaoFinal),
+          origem_dado: origem // apenas para debug se precisar
+      };
+  };
+
+  // --- 2. CARREGAMENTO ---
   useEffect(() => {
     const carregar = async () => {
       setLoading(true);
@@ -42,22 +73,27 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
         const fechamentoAtual = fechamentos?.[0];
 
         if (fechamentoAtual) {
-           // MODO EDIÇÃO: Carrega o que está salvo no banco
+           // --- MODO EDIÇÃO (Lê do Snapshot salvo) ---
            setControleId(fechamentoAtual.id);
            setStatusFechamento(fechamentoAtual.status);
            setVales(fechamentoAtual.vales_adiantamentos || 0);
            setOutrosDescontos(fechamentoAtual.outros_descontos || 0);
            setObservacoes(fechamentoAtual.observacoes || '');
 
-           // Busca os pedidos que estão VINCULADOS a este ID (AQUI ESTÁ A CORREÇÃO DE VISUALIZAÇÃO)
-           const pedidosVinculados = await base44.entities.Pedido.list({
-              filters: { comissao_fechamento_id: fechamentoAtual.id }
-           });
-           
-           setPedidosDaComissao(pedidosVinculados.map(prepararPedidoParaTela));
+           // Se tem detalhes salvos (snapshot), usa eles pois são a verdade absoluta do fechamento
+           if (fechamentoAtual.pedidos_detalhes && fechamentoAtual.pedidos_detalhes.length > 0) {
+               console.log("Carregando do Snapshot:", fechamentoAtual.pedidos_detalhes);
+               setPedidosDaComissao(fechamentoAtual.pedidos_detalhes.map(p => prepararPedidoParaTela(p, 'snapshot')));
+           } else {
+               // Fallback: Se o fechamento existe mas o snapshot está vazio (ex: migração), busca pelo ID
+               const pedidosVinculados = await base44.entities.Pedido.list({
+                  filters: { comissao_fechamento_id: fechamentoAtual.id }
+               });
+               setPedidosDaComissao(pedidosVinculados.map(p => prepararPedidoParaTela(p, 'banco_vinculado')));
+           }
 
         } else {
-           // MODO CRIAÇÃO: Busca pedidos soltos do mês
+           // --- MODO CRIAÇÃO (Busca Pedidos Soltos) ---
            setControleId(null);
            setStatusFechamento('aberto');
            setVales(representante.vales || 0);
@@ -66,19 +102,26 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
            const inicio = startOfMonth(new Date(ano, mes - 1)).toISOString();
            const fim = endOfMonth(new Date(ano, mes - 1)).toISOString();
 
-           const todosPedidos = await base44.entities.Pedido.list({ filters: { representante_codigo: representante.codigo, status: 'pago' } });
+           // Busca pedidos pagos deste representante
+           const todosPedidos = await base44.entities.Pedido.list({ 
+               filters: { representante_codigo: representante.codigo, status: 'pago' } 
+           });
            
+           // Filtra: Data bate? Sem dono?
            const pedidosDoMes = todosPedidos.filter(p => {
-              if (p.comissao_fechamento_id) return false; // Já tem dono, ignora
+              if (p.comissao_fechamento_id) return false; // Já tem dono
+              if (p.comissao_paga) return false; // Já pago
+              
               const dataRef = p.data_referencia_comissao || p.data_pagamento;
               return dataRef >= inicio && dataRef <= fim;
            });
 
-           setPedidosDaComissao(pedidosDoMes.map(prepararPedidoParaTela));
+           console.log("Pedidos Soltos Encontrados:", pedidosDoMes);
+           setPedidosDaComissao(pedidosDoMes.map(p => prepararPedidoParaTela(p, 'banco_solto')));
         }
       } catch (err) {
         console.error(err);
-        toast.error("Erro ao carregar.");
+        toast.error("Erro ao carregar dados.");
       } finally {
         setLoading(false);
       }
@@ -86,24 +129,15 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
     carregar();
   }, [representante, mesAno]);
 
-  const prepararPedidoParaTela = (p) => ({
-      ...p,
-      valorBase: parseFloat(p.total_pago || 0),
-      percentual: p.porcentagem_comissao || representante.porcentagem_padrao || 5,
-      // Se já estava salvo com valor fixo no banco, considere recalcular ou usar salvo se tiver snapshots
-      // Aqui vamos recalcular dinamicamente para garantir consistência
-      valorComissao: (parseFloat(p.total_pago || 0) * (p.porcentagem_comissao || representante.porcentagem_padrao || 5)) / 100
-  });
-
-  // --- 2. CÁLCULOS ---
+  // --- 3. CÁLCULOS ---
   const totais = useMemo(() => {
-    const vendas = pedidosDaComissao.reduce((acc, p) => acc + p.valorBase, 0);
-    const comissaoBruta = pedidosDaComissao.reduce((acc, p) => acc + p.valorComissao, 0);
+    const vendas = pedidosDaComissao.reduce((acc, p) => acc + (p.valorBase || 0), 0);
+    const comissaoBruta = pedidosDaComissao.reduce((acc, p) => acc + (p.valorComissao || 0), 0);
     const liquido = comissaoBruta - parseFloat(vales || 0) - parseFloat(outrosDescontos || 0);
     return { vendas, comissaoBruta, liquido };
   }, [pedidosDaComissao, vales, outrosDescontos]);
 
-  // --- 3. AÇÕES LOCAIS ---
+  // --- 4. AÇÕES LOCAIS ---
   const handleUpdatePercentual = (id, novoPct) => {
     if (statusFechamento === 'fechado') return;
     setPedidosDaComissao(prev => prev.map(p => 
@@ -113,32 +147,43 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
 
   const handleRemoverPedido = (id) => {
     if (statusFechamento === 'fechado') return;
-    // Apenas remove visualmente. A persistência acontece no Salvar.
     setPedidosDaComissao(prev => prev.filter(p => p.id !== id));
   };
 
-  // --- 4. SALVAR RASCUNHO (A MÁGICA DA PERSISTÊNCIA) ---
+  // --- 5. SALVAR RASCUNHO/FINALIZAR ---
   const handleSave = async (isFinalizing = false) => {
     setLoading(true);
     try {
-        // A. Cria/Atualiza o Fechamento
+        // A. Prepara o Snapshot (Mapeando para o Schema FechamentoComissao)
+        const snapshotParaSalvar = pedidosDaComissao.map(p => ({
+            pedido_id: String(p.id),
+            numero_pedido: p.numero_pedido,
+            cliente_nome: p.cliente_nome,
+            data_pagamento: p.data_pagamento,
+            valor_pedido: parseFloat(p.valorBase), // Aqui salvamos o valor base usado (total_pago)
+            percentual_comissao: parseFloat(p.percentual),
+            valor_comissao: parseFloat(p.valorComissao)
+        }));
+
         const payloadFechamento = {
             mes_ano: mesAno,
             representante_codigo: String(representante.codigo),
             representante_nome: representante.nome,
-            status: isFinalizing ? 'fechado' : 'aberto', // Rascunho
+            representante_chave_pix: representante.chave_pix || '',
+            status: isFinalizing ? 'fechado' : 'aberto',
             vales_adiantamentos: parseFloat(vales),
             outros_descontos: parseFloat(outrosDescontos),
             observacoes: observacoes,
             total_vendas: totais.vendas,
+            total_comissoes_bruto: totais.comissaoBruta, // Adicionado conforme schema
             valor_liquido: totais.liquido,
-            // Importante: Snapshot para histórico
-            pedidos_detalhes: pedidosDaComissao.map(p => ({
-                pedido_id: p.id,
-                numero_pedido: p.numero_pedido,
-                valor_comissao: p.valorComissao
-            }))
+            pedidos_detalhes: snapshotParaSalvar
         };
+
+        if (isFinalizing) {
+            payloadFechamento.data_fechamento = new Date().toISOString();
+            payloadFechamento.fechado_por = 'sistema'; // Ou email do usuario logado
+        }
 
         let currentId = controleId;
         if (currentId) {
@@ -149,35 +194,48 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
             setControleId(res.id);
         }
 
-        // B. ATUALIZAÇÃO DOS PEDIDOS (VÍNCULO NO BANCO)
+        // B. VINCULAÇÃO NOS PEDIDOS (Mapeando para o Schema Pedido)
         
-        // 1. "Soltar" pedidos que foram removidos da tela (estavam vinculados a este ID, mas não estão mais na lista local)
-        // Isso resolve o problema de remover um pedido antecipado e ele continuar preso.
+        // 1. Solta os removidos
         const pedidosNoBanco = await base44.entities.Pedido.list({ filters: { comissao_fechamento_id: currentId } });
         const idsNaTela = new Set(pedidosDaComissao.map(p => String(p.id)));
-        
         const pedidosParaSoltar = pedidosNoBanco.filter(p => !idsNaTela.has(String(p.id)));
+        
         await Promise.all(pedidosParaSoltar.map(p => 
-            base44.entities.Pedido.update(p.id, { comissao_fechamento_id: null, comissao_mes_ano_pago: null })
+            base44.entities.Pedido.update(p.id, { comissao_fechamento_id: null, comissao_mes_ano_pago: null, comissao_paga: false })
         ));
 
-        // 2. "Vincular" pedidos que estão na tela
-        // Isso resolve o problema de antecipação: força o pedido a pertencer a este fechamento
+        // 2. Vincula os atuais
         await Promise.all(pedidosDaComissao.map(p => 
             base44.entities.Pedido.update(p.id, {
                 comissao_fechamento_id: currentId,
-                comissao_mes_ano_pago: mesAno, // Força a data visual
-                comissao_paga: isFinalizing, // Se finalizando, marca pago. Se rascunho, FALSE.
-                porcentagem_comissao: parseFloat(p.percentual) // Salva a % editada no pedido também
+                comissao_mes_ano_pago: mesAno,
+                comissao_paga: isFinalizing,
+                porcentagem_comissao: parseFloat(p.percentual) // Atualiza a % no pedido original também
             })
         ));
 
+        // C. GERAÇÃO DE CONTA A PAGAR (Se Finalizar)
         if (isFinalizing) {
-             // Lógica de Conta a Pagar aqui (omitida para brevidade, igual anterior)
-             toast.success("Comissão Finalizada!");
-             setStatusFechamento('fechado');
+            const contaPagar = await base44.entities.ContaPagar.create({
+                fornecedor_codigo: representante.codigo,
+                fornecedor_nome: representante.nome,
+                descricao: `Comissão Ref: ${mesAno} - ${representante.nome}`,
+                valor: parseFloat(totais.liquido),
+                data_vencimento: new Date().toISOString(),
+                status: 'pendente',
+                categoria_financeira: 'comissoes',
+                tipo_lancamento: 'unica',
+                observacao: `Fechamento #${currentId}. PIX: ${representante.chave_pix}`,
+                origem_id: currentId,
+                origem_tipo: 'fechamento_comissao'
+            });
+            
+            await base44.entities.FechamentoComissao.update(currentId, { pagamento_id: contaPagar.id });
+            setStatusFechamento('fechado');
+            toast.success("Finalizado e Conta a Pagar gerada!");
         } else {
-             toast.success("Rascunho Salvo! Pedidos vinculados.");
+            toast.success("Rascunho salvo!");
         }
         
         if (onSuccessSave) onSuccessSave();
@@ -190,23 +248,22 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
     }
   };
 
-  // --- 5. ADICIONAR PEDIDO (ANTECIPAÇÃO) ---
+  // --- 6. ADICIONAR PEDIDO ---
   const carregarParaAdicionar = async () => {
-      // Busca TODOS os pedidos pagos do representante que NÃO têm comissão paga e NÃO têm fechamento ID
       const todos = await base44.entities.Pedido.list({ filters: { representante_codigo: representante.codigo, status: 'pago' } });
       const disponiveis = todos.filter(p => 
           !p.comissao_fechamento_id && // Sem dono
           !p.comissao_paga && 
-          !pedidosDaComissao.some(pc => pc.id === p.id) // Não está na tela
+          !pedidosDaComissao.some(pc => pc.id === p.id) 
       );
       setPedidosDisponiveis(disponiveis);
       setShowAddModal(true);
   };
 
   const adicionarManual = (pedido) => {
-      setPedidosDaComissao(prev => [...prev, prepararPedidoParaTela(pedido)]);
+      setPedidosDaComissao(prev => [...prev, prepararPedidoParaTela(pedido, 'manual')]);
       setShowAddModal(false);
-      toast.success("Pedido adicionado à lista. Clique em SALVAR para confirmar.");
+      toast.success("Pedido adicionado.");
   };
 
   return (
@@ -220,23 +277,24 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
            )}
        </div>
 
-       <div className="border rounded-md overflow-hidden">
+       <div className="border rounded-md overflow-hidden bg-white">
           <Table>
               <TableHeader className="bg-slate-100">
                   <TableRow>
                       <TableHead>Pedido</TableHead>
                       <TableHead>Data Pgto</TableHead>
                       <TableHead>Cliente</TableHead>
-                      <TableHead>Valor</TableHead>
+                      <TableHead>Base Calc.</TableHead>
                       <TableHead>%</TableHead>
                       <TableHead className="text-right">Comissão</TableHead>
                       <TableHead></TableHead>
                   </TableRow>
               </TableHeader>
               <TableBody>
-                  {pedidosDaComissao.map(p => (
+                  {pedidosDaComissao.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center text-slate-400 py-8">Nenhum pedido vinculado.</TableCell></TableRow> :
+                  pedidosDaComissao.map(p => (
                       <TableRow key={p.id}>
-                          <TableCell className="font-bold">{p.numero_pedido}</TableCell>
+                          <TableCell className="font-bold">#{p.numero_pedido}</TableCell>
                           <TableCell>{p.data_pagamento ? new Date(p.data_pagamento).toLocaleDateString() : '-'}</TableCell>
                           <TableCell className="text-xs">{p.cliente_nome}</TableCell>
                           <TableCell>{formatCurrency(p.valorBase)}</TableCell>
@@ -284,11 +342,10 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
                    </Button>
                </>
            ) : (
-               <Button variant="destructive" onClick={() => { /* Lógica reabrir igual anterior */ }}>Reabrir</Button>
+               <Button variant="destructive" onClick={() => alert('Função reabrir deve ser implementada')}>Reabrir</Button>
            )}
        </div>
        
-       {/* Modal Adicionar Simplificado */}
        <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Adicionar Pedido">
            <div className="space-y-2">
                <Input placeholder="Buscar..." value={buscaPedido} onChange={e => setBuscaPedido(e.target.value)} />
@@ -299,7 +356,7 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
                        <div key={p.id} className="flex justify-between p-2 border-b hover:bg-slate-50 cursor-pointer" onClick={() => adicionarManual(p)}>
                            <div>
                                <p className="font-bold">#{p.numero_pedido} - {p.cliente_nome}</p>
-                               <p className="text-xs text-slate-500">{new Date(p.data_pagamento).toLocaleDateString()}</p>
+                               <p className="text-xs text-slate-500">{p.data_pagamento ? new Date(p.data_pagamento).toLocaleDateString() : 'Sem data'}</p>
                            </div>
                            <p className="font-bold text-emerald-600">{formatCurrency(p.total_pago)}</p>
                        </div>
