@@ -25,14 +25,24 @@ export default function GestorComissoes() {
   const [showModalAntecipar, setShowModalAntecipar] = useState(false);
   const [comissoesSelecionadas, setComissoesSelecionadas] = useState([]);
 
-  // Busca comissões do mês atual
+  // Busca comissões do mês atual (ABERTO ou FECHADO)
   const { data: comissoesDoMes = [], isLoading } = useQuery({
     queryKey: ['commissionEntries', mesCompetencia],
     queryFn: async () => {
       const todas = await base44.entities.CommissionEntry.list();
-      return todas.filter(c => c.mes_competencia === mesCompetencia && c.status === 'aberto');
+      return todas.filter(c => c.mes_competencia === mesCompetencia);
     }
   });
+
+  // Verifica se o mês está fechado
+  const mesFechado = useMemo(() => {
+    return comissoesDoMes.length > 0 && comissoesDoMes.every(c => c.status === 'fechado');
+  }, [comissoesDoMes]);
+
+  const dataFechamento = useMemo(() => {
+    if (!mesFechado || comissoesDoMes.length === 0) return null;
+    return comissoesDoMes[0]?.data_fechamento;
+  }, [mesFechado, comissoesDoMes]);
 
   // Busca comissões de outros meses (para antecipação)
   const { data: comissoesOutrosMeses = [] } = useQuery({
@@ -108,18 +118,31 @@ export default function GestorComissoes() {
   // Fechar comissão do mês
   const fecharMutation = useMutation({
     mutationFn: async () => {
-      const ids = comissoesDoMes.map(c => c.id);
-      const promises = ids.map(id => 
-        base44.entities.CommissionEntry.update(id, {
+      const comissoesAbertas = comissoesDoMes.filter(c => c.status === 'aberto');
+      if (comissoesAbertas.length === 0) {
+        throw new Error('Nenhuma comissão aberta para fechar');
+      }
+
+      const dataFechamento = new Date().toISOString();
+      
+      // Atualiza todas as comissões abertas para fechado
+      const promises = comissoesAbertas.map(c => 
+        base44.entities.CommissionEntry.update(c.id, {
           status: 'fechado',
-          data_fechamento: new Date().toISOString()
+          data_fechamento: dataFechamento
         })
       );
       await Promise.all(promises);
+
+      // Criar registro de pagamento global (opcional - pode ser implementado depois)
+      return { total: comissoesAbertas.length, data: dataFechamento };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries(['commissionEntries']);
-      toast.success('Comissões do mês fechadas!');
+      toast.success(`${result.total} comissões fechadas em ${new Date(result.data).toLocaleDateString('pt-BR')}!`);
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Erro ao fechar comissões');
     }
   });
 
@@ -193,10 +216,21 @@ export default function GestorComissoes() {
       {/* Tabela Principal */}
       <Card className="p-6">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-bold text-slate-700">Comissões a Pagar em {format(new Date(mesCompetencia + '-01'), 'MMMM', { locale: ptBR }).toUpperCase()}</h2>
-          <Button onClick={() => setShowModalAntecipar(true)} size="sm" className="gap-2 bg-blue-600 hover:bg-blue-700">
-            <Plus className="w-4 h-4"/> Adicionar/Antecipar
-          </Button>
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold text-slate-700">
+              Comissões {mesFechado ? 'Pagas' : 'a Pagar'} em {format(new Date(mesCompetencia + '-01'), 'MMMM', { locale: ptBR }).toUpperCase()}
+            </h2>
+            {mesFechado && dataFechamento && (
+              <Badge className="bg-emerald-600 text-white flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3"/> Fechado em {new Date(dataFechamento).toLocaleDateString('pt-BR')}
+              </Badge>
+            )}
+          </div>
+          {!mesFechado && (
+            <Button onClick={() => setShowModalAntecipar(true)} size="sm" className="gap-2 bg-blue-600 hover:bg-blue-700">
+              <Plus className="w-4 h-4"/> Adicionar/Antecipar
+            </Button>
+          )}
         </div>
 
         {isLoading ? (
@@ -244,15 +278,19 @@ export default function GestorComissoes() {
                       {formatCurrency(comissao.valor_comissao)}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => postergarMutation.mutate(comissao.id)}
-                        disabled={postergarMutation.isPending}
-                        className="gap-1 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                      >
-                        <ArrowRight className="w-4 h-4"/> Próximo Mês
-                      </Button>
+                      {!mesFechado && comissao.status === 'aberto' ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => postergarMutation.mutate(comissao.id)}
+                          disabled={postergarMutation.isPending}
+                          className="gap-1 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                        >
+                          <ArrowRight className="w-4 h-4"/> Próximo Mês
+                        </Button>
+                      ) : (
+                        <Badge variant="outline" className="text-xs text-slate-400">Bloqueado</Badge>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -265,21 +303,34 @@ export default function GestorComissoes() {
         {comissoesDoMes.length > 0 && (
           <div className="mt-6 pt-6 border-t flex justify-between items-center">
             <div className="space-y-1">
-              <p className="text-sm text-slate-500">Total a pagar neste mês:</p>
+              <p className="text-sm text-slate-500">
+                {mesFechado ? 'Total pago neste mês:' : 'Total a pagar neste mês:'}
+              </p>
               <p className="text-2xl font-bold text-emerald-600">{formatCurrency(totais.comissoes)}</p>
             </div>
-            <Button 
-              onClick={() => {
-                if (confirm(`Confirma o fechamento de ${comissoesDoMes.length} comissões?`)) {
-                  fecharMutation.mutate();
-                }
-              }}
-              disabled={fecharMutation.isPending}
-              className="gap-2 bg-emerald-600 hover:bg-emerald-700"
-            >
-              {fecharMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin"/> : <CheckCircle2 className="w-4 h-4"/>}
-              Fechar Comissão de {format(new Date(mesCompetencia + '-01'), 'MMMM', { locale: ptBR })}
-            </Button>
+            {!mesFechado ? (
+              <Button 
+                onClick={() => {
+                  const comissoesAbertas = comissoesDoMes.filter(c => c.status === 'aberto');
+                  if (comissoesAbertas.length === 0) {
+                    toast.error('Nenhuma comissão aberta para fechar');
+                    return;
+                  }
+                  if (confirm(`Confirma o fechamento de ${comissoesAbertas.length} comissões?\n\nApós o fechamento, não será possível mover estas comissões para outros meses.`)) {
+                    fecharMutation.mutate();
+                  }
+                }}
+                disabled={fecharMutation.isPending}
+                className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+              >
+                {fecharMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin"/> : <CheckCircle2 className="w-4 h-4"/>}
+                Fechar Comissão de {format(new Date(mesCompetencia + '-01'), 'MMMM', { locale: ptBR })}
+              </Button>
+            ) : (
+              <Badge className="bg-slate-100 text-slate-600 px-4 py-2 text-sm">
+                🔒 Período Bloqueado para Edição
+              </Badge>
+            )}
           </div>
         )}
       </Card>
