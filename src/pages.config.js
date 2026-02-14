@@ -72,6 +72,7 @@ import Representantes from './pages/Representantes';
 import Representation from './pages/Representation';
 import Usuarios from './pages/Usuarios';
 import Welcome from './pages/Welcome';
+import GestorComissoes from './pages/GestorComissoes';
 import __Layout from './Layout.jsx';
 
 
@@ -101,6 +102,7 @@ export const PAGES = {
     "Representation": Representation,
     "Usuarios": Usuarios,
     "Welcome": Welcome,
+    "GestorComissoes": GestorComissoes,
 }
 
 export const pagesConfig = {
