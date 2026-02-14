@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -26,21 +25,18 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
 
   const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
-  // --- 1. NORMALIZAÇÃO DE DADOS ---
+  // --- 1. NORMALIZAÇÃO ---
   const prepararPedidoParaTela = (p, origem) => {
-      // Prioridade: valor_pedido (Snapshot) -> total_pago (Banco) -> valor_pedido (Banco)
+      // Garante que pega o valor correto independente do nome no banco
       const valorBaseRaw = p.valor_pedido || p.total_pago || 0;
-      
-      // Prioridade: percentual_comissao (Snapshot) -> porcentagem_comissao (Banco) -> Padrão Rep -> 5
       const percentualRaw = p.percentual_comissao ?? p.porcentagem_comissao ?? representante.porcentagem_padrao ?? 5;
-
-      // Calcula comissão se não vier pronta
+      
       const valorComissaoCalculado = (parseFloat(valorBaseRaw) * parseFloat(percentualRaw)) / 100;
       const valorComissaoFinal = p.valor_comissao ?? valorComissaoCalculado;
 
       return {
           ...p,
-          id: p.id || p.pedido_id, // Unifica ID
+          id: p.id || p.pedido_id, 
           numero_pedido: p.numero_pedido,
           cliente_nome: p.cliente_nome,
           data_pagamento: p.data_pagamento,
@@ -51,67 +47,63 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
       };
   };
 
-  // --- 2. CARREGAMENTO BLINDADO ---
+  // --- 2. CARREGAMENTO (LÓGICA BLINDADA) ---
   useEffect(() => {
     const carregar = async () => {
       setLoading(true);
       try {
-        // A. Busca Fechamento Existente
+        // A. Busca Fechamento Salvo
         const fechamentos = await base44.entities.FechamentoComissao.list({
            filters: { representante_codigo: representante.codigo, mes_ano: mesAno }
         });
         const fechamentoAtual = fechamentos?.[0];
 
         if (fechamentoAtual) {
-           // --- MODO EDIÇÃO ---
+           // --- CENÁRIO: JÁ SALVO (Rascunho ou Fechado) ---
            setControleId(fechamentoAtual.id);
            setStatusFechamento(fechamentoAtual.status);
            setVales(fechamentoAtual.vales_adiantamentos || 0);
            setOutrosDescontos(fechamentoAtual.outros_descontos || 0);
            setObservacoes(fechamentoAtual.observacoes || '');
 
-           if (fechamentoAtual.pedidos_detalhes && fechamentoAtual.pedidos_detalhes.length > 0) {
+           if (fechamentoAtual.pedidos_detalhes?.length > 0) {
                setPedidosDaComissao(fechamentoAtual.pedidos_detalhes.map(p => prepararPedidoParaTela(p, 'snapshot')));
            } else {
-               const pedidosVinculados = await base44.entities.Pedido.list({
-                  filters: { comissao_fechamento_id: fechamentoAtual.id }
-               });
-               setPedidosDaComissao(pedidosVinculados.map(p => prepararPedidoParaTela(p, 'banco_vinculado')));
+               const pedidosVinculados = await base44.entities.Pedido.list({ filters: { comissao_fechamento_id: fechamentoAtual.id } });
+               setPedidosDaComissao(pedidosVinculados.map(p => prepararPedidoParaTela(p, 'vinculado')));
            }
         } else {
-           // --- MODO CRIAÇÃO (PREVISÃO) ---
+           // --- CENÁRIO: PREVISÃO (Aberto) ---
            setControleId(null);
            setStatusFechamento('aberto');
            setVales(representante.vales || 0);
            
-           // Extrai Mês e Ano alvo (ex: 2026-02)
-           const [anoAlvo, mesAlvo] = mesAno.split('-').map(Number); // mesAlvo: 1=Jan, 2=Fev
+           // Busca TODOS os pedidos pagos deste representante
+           // Filtrando direto na API para reduzir carga
+           const todosDoRep = await base44.entities.Pedido.list({ 
+               filters: { 
+                   representante_codigo: representante.codigo, 
+                   status: 'pago' 
+               } 
+           });
            
-           // Busca TODOS os pedidos pagos (sem filtrar rep na API para evitar erro de tipo string/number)
-           const todosPagos = await base44.entities.Pedido.list({ filters: { status: 'pago' } });
-           
-           // Filtra localmente (Mais seguro)
-           const pedidosDoMes = todosPagos.filter(p => {
-              // 1. Filtro Representante (Converte ambos para String)
-              if (String(p.representante_codigo) !== String(representante.codigo)) return false;
-
-              // 2. Filtro Dono (Se já tem dono, ignora)
+           // Filtro JavaScript (String Match - Infalível)
+           const pedidosDoMes = todosDoRep.filter(p => {
+              // 1. Se já tem dono (fechamento ID), ignora.
               if (p.comissao_fechamento_id) return false;
+              // 2. Se já está marcado como pago, ignora.
               if (p.comissao_paga) return false;
 
-              // 3. Filtro Data (Lógica Simples: Mês/Ano batem?)
-              const dataRefStr = p.data_referencia_comissao || p.data_pagamento;
-              if (!dataRefStr) return false;
-              
-              const dataObj = new Date(dataRefStr);
-              // getMonth() retorna 0 para Jan, 1 para Fev. 
-              // mesAlvo vem como 2 para Fev. Logo: dataObj.getMonth() + 1 === mesAlvo
-              const mesmaData = (dataObj.getMonth() + 1) === mesAlvo && dataObj.getFullYear() === anoAlvo;
-              
-              return mesmaData;
+              // 3. COMPARAÇÃO DE DATA POR TEXTO (Safe)
+              const dataRef = p.data_referencia_comissao || p.data_pagamento;
+              if (!dataRef) return false;
+
+              // "2026-02-15" substring(0,7) -> "2026-02"
+              // Se "2026-02" for igual ao mesAno ("2026-02"), entra.
+              return dataRef.substring(0, 7) === mesAno;
            });
 
-           setPedidosDaComissao(pedidosDoMes.map(p => prepararPedidoParaTela(p, 'previsao_solto')));
+           setPedidosDaComissao(pedidosDoMes.map(p => prepararPedidoParaTela(p, 'previsao')));
         }
       } catch (err) {
         console.error(err);
@@ -131,12 +123,10 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
     return { vendas, comissaoBruta, liquido };
   }, [pedidosDaComissao, vales, outrosDescontos]);
 
-  // --- 4. HANDLERS ---
+  // --- 4. AÇÕES ---
   const handleUpdatePercentual = (id, novoPct) => {
     if (statusFechamento === 'fechado') return;
-    setPedidosDaComissao(prev => prev.map(p => 
-       p.id === id ? { ...p, percentual: novoPct, valorComissao: (p.valorBase * novoPct) / 100 } : p
-    ));
+    setPedidosDaComissao(prev => prev.map(p => p.id === id ? { ...p, percentual: novoPct, valorComissao: (p.valorBase * novoPct) / 100 } : p));
   };
 
   const handleRemoverPedido = (id) => {
@@ -149,7 +139,7 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
     setLoading(true);
     try {
         // Snapshot
-        const snapshotParaSalvar = pedidosDaComissao.map(p => ({
+        const snapshot = pedidosDaComissao.map(p => ({
             pedido_id: String(p.id),
             numero_pedido: p.numero_pedido,
             cliente_nome: p.cliente_nome,
@@ -171,7 +161,7 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
             total_vendas: totais.vendas,
             total_comissoes_bruto: totais.comissaoBruta,
             valor_liquido: totais.liquido,
-            pedidos_detalhes: snapshotParaSalvar
+            pedidos_detalhes: snapshot
         };
 
         if (isFinalizing) {
@@ -188,15 +178,15 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
             setControleId(res.id);
         }
 
-        // Vínculo Reverso
+        // Vínculo Reverso (Soltar removidos / Vincular atuais)
         const pedidosNoBanco = await base44.entities.Pedido.list({ filters: { comissao_fechamento_id: currentId } });
         const idsNaTela = new Set(pedidosDaComissao.map(p => String(p.id)));
         
-        // Solta os removidos
+        // Solta quem não está mais na tela
         const soltar = pedidosNoBanco.filter(p => !idsNaTela.has(String(p.id)));
         await Promise.all(soltar.map(p => base44.entities.Pedido.update(p.id, { comissao_fechamento_id: null, comissao_mes_ano_pago: null, comissao_paga: false })));
 
-        // Vincula os atuais
+        // Vincula quem está na tela
         await Promise.all(pedidosDaComissao.map(p => base44.entities.Pedido.update(p.id, {
             comissao_fechamento_id: currentId,
             comissao_mes_ano_pago: mesAno,
@@ -218,9 +208,9 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
             });
             await base44.entities.FechamentoComissao.update(currentId, { pagamento_id: conta.id });
             setStatusFechamento('fechado');
-            toast.success("Finalizado!");
+            toast.success("Finalizado com sucesso!");
         } else {
-            toast.success("Salvo!");
+            toast.success("Rascunho salvo!");
         }
         if (onSuccessSave) onSuccessSave();
 
@@ -232,14 +222,13 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
     }
   };
 
-  // --- 6. ADICIONAR MANUAL ---
+  // --- 6. ADICIONAR MANUAL (ANTECIPAR) ---
   const carregarParaAdicionar = async () => {
-      // Mesma lógica robusta: Pega tudo pago e filtra manual
       const todos = await base44.entities.Pedido.list({ filters: { status: 'pago' } });
       const disponiveis = todos.filter(p => 
           String(p.representante_codigo) === String(representante.codigo) &&
-          !p.comissao_fechamento_id && 
-          !p.comissao_paga && 
+          !p.comissao_fechamento_id && // Sem dono
+          !p.comissao_paga && // Não pago
           !pedidosDaComissao.some(pc => String(pc.id) === String(p.id)) 
       );
       setPedidosDisponiveis(disponiveis);
@@ -302,7 +291,7 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
                <div className="h-64 overflow-y-auto border rounded">
                    {pedidosDisponiveis.filter(p => !buscaPedido || p.numero_pedido.includes(buscaPedido)).map(p => (
                        <div key={p.id} className="flex justify-between p-2 border-b hover:bg-slate-50 cursor-pointer" onClick={() => adicionarManual(p)}>
-                           <div><p className="font-bold">#{p.numero_pedido} - {p.cliente_nome}</p><p className="text-xs text-slate-500">{p.data_pagamento}</p></div>
+                           <div><p className="font-bold">#{p.numero_pedido} - {p.cliente_nome}</p><p className="text-xs text-slate-500">{p.data_pagamento ? new Date(p.data_pagamento).toLocaleDateString() : '?'}</p></div>
                            <p className="font-bold text-emerald-600">{formatCurrency(p.total_pago)}</p>
                        </div>
                    ))}
