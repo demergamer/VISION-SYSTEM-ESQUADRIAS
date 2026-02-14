@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DollarSign, Save, Lock, Trash2, Download, RefreshCw, Plus, Search, AlertTriangle, FileText, Loader2, Calendar, ChevronLeft, ChevronRight, ArrowLeftRight, RotateCcw } from "lucide-react";
+import { Save, Lock, Trash2, Download, RefreshCw, Plus, Search, FileText, Loader2, Calendar, ArrowLeftRight, RotateCcw } from "lucide-react";
 import { format, addMonths, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -29,7 +29,7 @@ export default function ComissaoDetalhes({
   const [observacoes, setObservacoes] = useState('');
   const [bulkPercent, setBulkPercent] = useState(''); 
   const [isFechado, setIsFechado] = useState(false);
-  const [controleId, setControleId] = useState(null); // ID do FechamentoComissao
+  const [controleId, setControleId] = useState(null);
   
   const [loading, setLoading] = useState(false);
   const [reopening, setReopening] = useState(false);
@@ -39,11 +39,11 @@ export default function ComissaoDetalhes({
 
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
-  // --- BUSCA INICIAL DE DADOS (COM CORREÇÃO DE DATAS) ---
+  // --- BUSCA E FILTRAGEM DE DADOS ---
   useEffect(() => {
       const carregarDadosReais = async () => {
           try {
-              // 1. Tenta achar um fechamento existente no banco
+              // 1. Tenta buscar fechamento existente no banco
               const fechamentos = await base44.entities.FechamentoComissao.list({
                   filters: {
                       representante_codigo: representante.codigo,
@@ -54,16 +54,13 @@ export default function ComissaoDetalhes({
               const fechamentoExistente = fechamentos && fechamentos.length > 0 ? fechamentos[0] : null;
 
               if (fechamentoExistente) {
-                  // console.log("Fechamento encontrado:", fechamentoExistente);
                   setControleId(fechamentoExistente.id);
                   setIsFechado(fechamentoExistente.status === 'fechado');
-                  
-                  // Preenche valores salvos
                   setVales(fechamentoExistente.vales_adiantamentos || 0);
                   setOutrosDescontos(fechamentoExistente.outros_descontos || 0);
                   setObservacoes(fechamentoExistente.observacoes || '');
 
-                  // Se tiver pedidos salvos (snapshot), usa eles.
+                  // Se tem snapshot salvo, usa ele (garante consistência histórica)
                   if (fechamentoExistente.pedidos_detalhes && fechamentoExistente.pedidos_detalhes.length > 0) {
                       setPedidosEditaveis(fechamentoExistente.pedidos_detalhes.map(p => ({
                           id: p.pedido_id,
@@ -75,10 +72,9 @@ export default function ComissaoDetalhes({
                           valorComissao: parseFloat(p.valor_comissao || 0),
                           veio_do_snapshot: true
                       })));
-                      return; // Sai daqui pois já carregou tudo do banco
+                      return; 
                   }
               } else {
-                  // console.log("Nenhum fechamento salvo. Iniciando modo rascunho.");
                   setControleId(null);
                   setIsFechado(false);
                   setVales(representante.vales || 0);
@@ -86,36 +82,41 @@ export default function ComissaoDetalhes({
                   setObservacoes(representante.observacoes || '');
               }
 
-              // 2. CÁLCULO AUTOMÁTICO (SE NÃO TIVER SNAPSHOT)
+              // 2. Se não tem snapshot, calcula baseados nos pedidos elegíveis
               if (pedidosTodos.length > 0) {
                   const codigoRep = String(representante.codigo);
                   
-                  // --- CORREÇÃO APLICADA: DEFINIÇÃO DO INTERVALO DE DATAS ---
+                  // --- CORREÇÃO DE DATA ---
                   const [ano, mes] = mesAno.split('-').map(Number);
-                  // Mês em JS é 0-indexado (0 = Jan, 1 = Fev)
                   const inicioMes = startOfMonth(new Date(ano, mes - 1));
                   const fimMes = endOfMonth(new Date(ano, mes - 1));
-                  // -----------------------------------------------------------
+                  // -----------------------
 
                   const listaInicial = pedidosTodos.filter(p => {
                       const mesmoRep = String(p.representante_codigo) === codigoRep;
                       const estaPago = p.status === 'pago'; 
                       
-                      // Se já existe fechamento (mesmo aberto), e o pedido está nele (pelo ID), ok. 
-                      // Se não, só pega os que não tem comissão paga.
-                      const semComissao = !p.comissao_paga || (fechamentoExistente && p.comissao_fechamento_id === fechamentoExistente.id); 
-                      
-                      // --- CORREÇÃO APLICADA: FILTRO DE DATA ---
-                      // Verifica Data Referência ou Data Pagamento
+                      // Regra de exclusão: 
+                      // Se já tem comissão paga, ignora (a menos que seja deste fechamento).
+                      // Se tem um ID de fechamento mas não é o atual, ignora (pertence a outro rascunho).
+                      const pertenceAOutroFechamento = p.comissao_fechamento_id && (!fechamentoExistente || p.comissao_fechamento_id !== fechamentoExistente.id);
+                      if (pertenceAOutroFechamento) return false;
+
+                      // Se já está pago comissão
+                      if (p.comissao_paga) return false;
+
+                      // --- FILTRO DE DATA RIGOROSO ---
                       const dataRef = p.data_referencia_comissao ? new Date(p.data_referencia_comissao) : (p.data_pagamento ? new Date(p.data_pagamento) : null);
-                      
                       if (!dataRef) return false;
                       
-                      // Só entra se estiver DENTRO do mês selecionado (Jan 01 a Jan 31)
+                      // Só entra automaticamente se estiver dentro do mês
+                      // Pedidos de outro mês só entram via "Adicionar Manual"
                       const pertenceAoMes = dataRef >= inicioMes && dataRef <= fimMes;
-                      // -----------------------------------------
 
-                      return mesmoRep && estaPago && semComissao && pertenceAoMes;
+                      // Se já estava vinculado a este fechamento (rascunho), entra mesmo se a data for diferente
+                      const vinculadoExplicitamente = fechamentoExistente && p.comissao_fechamento_id === fechamentoExistente.id;
+
+                      return mesmoRep && estaPago && (pertenceAoMes || vinculadoExplicitamente);
                   }).map(p => ({
                       ...p,
                       valorBaseComissao: parseFloat(p.total_pago || 0),
@@ -144,7 +145,7 @@ export default function ComissaoDetalhes({
     return { totalVendas, totalComissoes, saldoFinal };
   }, [pedidosEditaveis, vales, outrosDescontos, isFechado]);
 
-  // Filtro Modal Adicionar (Aqui permitimos buscar pedidos de outros meses se necessário)
+  // Filtro Modal Adicionar
   const pedidosDisponiveisParaAdicao = useMemo(() => {
       if (isPortal || !pedidosTodos || isFechado) return []; 
       const codigoAtual = String(representante.codigo);
@@ -152,7 +153,11 @@ export default function ComissaoDetalhes({
           if (String(p.representante_codigo) !== codigoAtual) return false;
           if (p.status !== 'pago') return false; 
           if (p.comissao_paga === true) return false; 
-          // Evita duplicar o que já está na tela
+          
+          // Se já tem um fechamento ID e não é o atual, não mostra
+          if (p.comissao_fechamento_id && p.comissao_fechamento_id !== controleId) return false;
+
+          // Não mostra o que já está na tabela principal
           if (pedidosEditaveis.some(pe => String(pe.id) === String(p.id))) return false; 
           
           if (buscaPedidoAdd) {
@@ -161,7 +166,7 @@ export default function ComissaoDetalhes({
           }
           return true;
       });
-  }, [pedidosTodos, representante, pedidosEditaveis, buscaPedidoAdd, isFechado, isPortal]);
+  }, [pedidosTodos, representante, pedidosEditaveis, buscaPedidoAdd, isFechado, isPortal, controleId]);
 
   // Handlers
   const handleEditarPercentual = (pedidoId, novoPercentual) => {
@@ -192,17 +197,17 @@ export default function ComissaoDetalhes({
           valorBaseComissao: valorBase, 
           percentualComissao: pct, 
           valorComissao: (valorBase * pct) / 100,
-          veio_de_outro_mes: pedido.mes_atual_rascunho // Apenas flag visual se quiser usar
+          veio_de_outro_mes: pedido.mes_atual_rascunho 
       }]);
       toast.success('Adicionado!');
   };
 
-  // ACTIONS
-
+  // --- AÇÃO: SALVAR RASCUNHO (COM VÍNCULO NO BANCO) ---
   const handleSaveDraft = async () => {
       if (isPortal) return;
       setLoading(true);
       try {
+          // 1. Salva o Fechamento (Header)
           const payload = {
               mes_ano: String(mesAno),
               representante_codigo: String(representante.codigo),
@@ -226,18 +231,57 @@ export default function ComissaoDetalhes({
               }))
           };
 
-          if (controleId) {
-              await base44.entities.FechamentoComissao.update(controleId, payload);
+          let finalId = controleId;
+          if (finalId) {
+              await base44.entities.FechamentoComissao.update(finalId, payload);
           } else { 
               const res = await base44.entities.FechamentoComissao.create(payload); 
-              if(res?.id) setControleId(res.id); 
+              finalId = res.id;
+              setControleId(res.id); 
           }
+
+          // 2. Sincroniza os Pedidos no Banco (Vínculo Real)
           
-          toast.success("Rascunho salvo!");
+          // A. Limpa pedidos que estavam vinculados a este fechamento mas foram removidos da tela
+          // (Isso faz com que eles voltem a ficar disponíveis para o mês original)
+          const pedidosVinculadosAntigos = await base44.entities.Pedido.list({
+             filters: { comissao_fechamento_id: finalId }
+          });
+          
+          const idsAtuais = new Set(pedidosEditaveis.map(p => String(p.id)));
+          
+          const paraRemover = pedidosVinculadosAntigos.filter(p => !idsAtuais.has(String(p.id)));
+          const promisesRemover = paraRemover.map(p => 
+             base44.entities.Pedido.update(p.id, { 
+                 comissao_fechamento_id: null,
+                 comissao_mes_ano_pago: null
+             })
+          );
+          await Promise.all(promisesRemover);
+
+          // B. Vincula os pedidos atuais a este fechamento
+          const promisesVincular = pedidosEditaveis.map(p => 
+              base44.entities.Pedido.update(p.id, {
+                  comissao_fechamento_id: finalId,
+                  // Truque: Ao setar o mes_ano para o mês deste fechamento, ele "some" da lista do mês original
+                  comissao_mes_ano_pago: mesAno, 
+                  comissao_paga: false // Ainda é rascunho
+              })
+          );
+          await Promise.all(promisesVincular);
+          
+          toast.success("Rascunho salvo e pedidos vinculados!");
           if (onSuccessSave) onSuccessSave();
-      } catch (error) { toast.error("Erro ao salvar."); } finally { setLoading(false); }
+
+      } catch (error) { 
+          console.error(error);
+          toast.error("Erro ao salvar."); 
+      } finally { 
+          setLoading(false); 
+      }
   };
 
+  // --- AÇÃO: FINALIZAR ---
   const handleFinalize = async () => {
       if (isPortal) return;
       if (!representante.chave_pix) { toast.error("Representante sem Chave PIX."); return; }
@@ -245,7 +289,7 @@ export default function ComissaoDetalhes({
       
       setLoading(true);
       try {
-          // 1. Snapshot
+          // Snapshot
           const snapshotPedidos = pedidosEditaveis.map(p => ({
               pedido_id: String(p.id),
               numero_pedido: p.numero_pedido,
@@ -273,7 +317,6 @@ export default function ComissaoDetalhes({
               fechado_por: 'sistema'
           };
 
-          // 2. Salva/Cria Fechamento
           let finalId = controleId;
           if (finalId) {
              await base44.entities.FechamentoComissao.update(finalId, payloadFechamento);
@@ -282,7 +325,7 @@ export default function ComissaoDetalhes({
              finalId = res.id;
           }
 
-          // 3. Cria Conta a Pagar
+          // Conta a Pagar
           const contaPagar = await base44.entities.ContaPagar.create({
               fornecedor_codigo: representante.codigo,
               fornecedor_nome: representante.nome,
@@ -297,13 +340,12 @@ export default function ComissaoDetalhes({
               origem_tipo: 'fechamento_comissao'
           });
 
-          // 4. Vínculo Reverso
           await base44.entities.FechamentoComissao.update(finalId, { 
               pagamento_id: contaPagar.id,
               status: 'fechado'
           });
 
-          // 5. Baixa nos Pedidos
+          // Baixa Definitiva nos Pedidos
           const promisesPedidos = pedidosEditaveis.map(p => 
               base44.entities.Pedido.update(p.id, { 
                   comissao_paga: true, 
@@ -316,17 +358,17 @@ export default function ComissaoDetalhes({
           setIsFechado(true);
           setControleId(finalId);
           toast.success("Finalizado com sucesso!");
-          
           if (onSuccessSave) onSuccessSave();
 
-      } catch (error) {
+      } catch (error) { 
           console.error(error);
-          toast.error("Erro ao finalizar.");
-      } finally {
-          setLoading(false);
+          toast.error("Erro ao finalizar."); 
+      } finally { 
+          setLoading(false); 
       }
   };
 
+  // --- AÇÃO: REABRIR ---
   const handleReopen = async () => {
       if (isPortal || !isFechado || !controleId) return;
       if (!confirm("Deseja reabrir? A conta a pagar será excluída.")) return;
@@ -344,14 +386,24 @@ export default function ComissaoDetalhes({
               if (conta) await base44.entities.ContaPagar.delete(conta.id);
           }
 
+          // Mantemos os pedidos vinculados ao fechamento, mas setamos como NÃO PAGOS
+          // Assim continua sendo um Rascunho válido
           const promisesPedidos = pedidosEditaveis.map(p => 
-              base44.entities.Pedido.update(p.id, { comissao_paga: false, comissao_mes_ano_pago: null, comissao_fechamento_id: null })
+              base44.entities.Pedido.update(p.id, { 
+                  comissao_paga: false, 
+                  comissao_mes_ano_pago: mesAno, 
+                  comissao_fechamento_id: controleId 
+              })
           );
           await Promise.all(promisesPedidos);
 
-          await base44.entities.FechamentoComissao.update(controleId, { status: 'aberto', pagamento_id: null, data_fechamento: null });
+          await base44.entities.FechamentoComissao.update(controleId, { 
+              status: 'aberto', 
+              pagamento_id: null, 
+              data_fechamento: null 
+          });
 
-          toast.success("Reaberto!");
+          toast.success("Reaberto para edição!");
           setIsFechado(false);
           if (onSuccessSave) onSuccessSave();
 
