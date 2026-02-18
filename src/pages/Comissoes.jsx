@@ -516,6 +516,9 @@ export default function Comissoes() {
               onSuccessSave={() => {
                   queryClient.invalidateQueries(['fechamentoComissao']);
                   queryClient.invalidateQueries(['pedidos']);
+                  queryClient.invalidateQueries(['commissionEntries']);
+                  // Invalida a query de pedidos soltos do mês para atualizar cards de totais
+                  queryClient.invalidateQueries(['pedidos', 'soltos']);
               }}
             />
           )}

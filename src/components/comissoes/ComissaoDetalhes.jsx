@@ -19,6 +19,9 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
   const [outrosDescontos, setOutrosDescontos] = useState(0);
   const [observacoes, setObservacoes] = useState('');
 
+  // Rastreia pedidos removidos da tela para mover ao próximo mês no save
+  const [pedidosRemovidosIds, setPedidosRemovidosIds] = useState([]);
+
   // Adicionar Manual
   const [showAddModal, setShowAddModal] = useState(false);
   const [pedidosDisponiveis, setPedidosDisponiveis] = useState([]);
@@ -154,6 +157,8 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
   const handleRemoverPedido = (id) => {
     if (statusFechamento === 'fechado') return;
     setPedidosDaComissao(prev => prev.filter(p => p.id !== id));
+    // Registra o ID para processar no save (mover para próximo mês)
+    setPedidosRemovidosIds(prev => [...prev, String(id)]);
   };
 
   // --- 5. SALVAR ---
@@ -203,9 +208,33 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
         const pedidosNoBanco = await base44.entities.Pedido.list({ filters: { comissao_fechamento_id: currentId } });
         const idsNaTela = new Set(pedidosDaComissao.map(p => String(p.id)));
         
-        // Solta removidos
+        // Solta removidos → move data_referencia_comissao para o 1º dia do mês seguinte
+        const [anoAtual, mesAtual] = mesAno.split('-').map(Number);
+        const proximoMesDate = new Date(anoAtual, mesAtual, 1); // JS: mês é 0-based, então mesAtual já é o próximo
+        const proximoMesStr = `${proximoMesDate.getFullYear()}-${String(proximoMesDate.getMonth() + 1).padStart(2, '0')}-01`;
+
         const soltar = pedidosNoBanco.filter(p => !idsNaTela.has(String(p.id)));
-        await Promise.all(soltar.map(p => base44.entities.Pedido.update(p.id, { comissao_fechamento_id: null, comissao_mes_ano_pago: null, comissao_paga: false })));
+
+        // Também inclui pedidos removidos que não estavam no banco ainda (previsão/snapshot)
+        const idsJaSoltos = new Set(soltar.map(p => String(p.id)));
+        const removerExtras = pedidosRemovidosIds.filter(id => !idsJaSoltos.has(id));
+        const pedidosExtra = removerExtras.length > 0
+          ? await base44.entities.Pedido.list().then(todos => todos.filter(p => removerExtras.includes(String(p.id))))
+          : [];
+
+        const todosParaSoltar = [...soltar, ...pedidosExtra];
+
+        await Promise.all(todosParaSoltar.map(p =>
+          base44.entities.Pedido.update(p.id, {
+            comissao_fechamento_id: null,
+            comissao_mes_ano_pago: null,
+            comissao_paga: false,
+            // Move para o próximo mês para não "sumir"
+            data_referencia_comissao: proximoMesStr,
+            mes_pagamento: `${proximoMesDate.getFullYear()}-${String(proximoMesDate.getMonth() + 1).padStart(2, '0')}`
+          })
+        ));
+        setPedidosRemovidosIds([]); // Limpa após save
 
         // Vincula atuais
         await Promise.all(pedidosDaComissao.map(p => base44.entities.Pedido.update(p.id, {
