@@ -1,15 +1,13 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
 /**
- * FUNÇÃO AUTOMÁTICA: Gera CommissionEntry quando um pedido é pago
- * 
- * IMPORTANTE: Esta função deve ser chamada via Automation (Entity Trigger)
- * ou manualmente após liquidação de pedidos.
- * 
- * Regra de Competência:
- * - Verifica se o mês do pagamento já está fechado
- * - Se sim, joga a comissão para o mês atual aberto
- * - Se não, usa a data de pagamento como competência
+ * FUNÇÃO AUTOMÁTICA: Gera CommissionEntry quando um pedido é totalmente quitado.
+ *
+ * REGRAS:
+ * 1. Só gera comissão se status === 'pago' E saldo_restante === 0 (quitação total).
+ * 2. Base de cálculo = total_pago (valor efetivamente recebido, descontos já deduzidos).
+ * 3. Proteção anti-duplicidade: verifica existência antes de criar; atualiza se encontrar.
+ * 4. Se o mês do pagamento já estiver fechado, joga para o mês corrente.
  */
 
 Deno.serve(async (req) => {
@@ -27,105 +25,139 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'pedido_id é obrigatório' }, { status: 400 });
     }
 
-    // 1. Busca o pedido
+    // ─── 1. BUSCA O PEDIDO ───────────────────────────────────────────────────
     const pedido = await base44.asServiceRole.entities.Pedido.get(pedido_id);
 
     if (!pedido) {
       return Response.json({ error: 'Pedido não encontrado' }, { status: 404 });
     }
 
+    // ─── 2. GATILHO: SÓ EXECUTA SE TOTALMENTE QUITADO ───────────────────────
     if (pedido.status !== 'pago') {
-      return Response.json({ 
-        message: 'Pedido ainda não está pago. Comissão não gerada.',
+      return Response.json({
+        message: `Status "${pedido.status}" — comissão não gerada (aguardando quitação total).`,
         status: 'skipped'
       });
     }
 
-    // 2. Verifica se já existe comissão para este pedido
-    const comissoesExistentes = await base44.asServiceRole.entities.CommissionEntry.list();
-    const jaExiste = comissoesExistentes.some(c => c.pedido_id === pedido_id);
-
-    if (jaExiste) {
-      return Response.json({ 
-        message: 'Comissão já existe para este pedido',
-        status: 'already_exists'
+    // Garante saldo zerado: se saldo_restante ainda tem valor, não é quitação total.
+    const saldoRestante = parseFloat(pedido.saldo_restante ?? 0);
+    if (saldoRestante > 0.01) { // tolerância de 1 centavo para arredondamentos
+      return Response.json({
+        message: `Saldo devedor de R$ ${saldoRestante.toFixed(2)} ainda em aberto. Comissão não gerada.`,
+        status: 'skipped_partial'
       });
     }
 
-    // 3. Determina a data de competência
-    const dataPagamento = pedido.data_pagamento || new Date().toISOString();
-    const mesAnoPagamento = dataPagamento.substring(0, 7); // "2026-02"
+    // ─── 3. PROTEÇÃO ANTI-DUPLICIDADE ────────────────────────────────────────
+    const todasComissoes = await base44.asServiceRole.entities.CommissionEntry.list();
+    const entryExistente = todasComissoes.find(c => String(c.pedido_id) === String(pedido_id));
 
-    // 4. Verifica se o mês do pagamento já está fechado
-    const comissoesMesPagamento = comissoesExistentes.filter(c => 
-      c.mes_competencia === mesAnoPagamento
-    );
-    
-    const mesFechado = comissoesMesPagamento.length > 0 && 
-                       comissoesMesPagamento.every(c => c.status === 'fechado');
+    // ─── 4. BASE DE CÁLCULO = VALOR EFETIVAMENTE PAGO ────────────────────────
+    // total_pago já reflete o valor real recebido (descontos deduzidos no momento
+    // da liquidação). NÃO usar valor_pedido para evitar superestimar a comissão.
+    const valorBase = parseFloat(pedido.total_pago) || 0;
+
+    if (valorBase <= 0) {
+      return Response.json({
+        message: 'total_pago é zero. Comissão não gerada.',
+        status: 'skipped_zero'
+      });
+    }
+
+    const percentual   = parseFloat(pedido.porcentagem_comissao) || 5;
+    const valorComissao = parseFloat(((valorBase * percentual) / 100).toFixed(2));
+
+    // ─── 5. DETERMINA COMPETÊNCIA (MÊS DO PAGAMENTO OU MÊS ATUAL SE FECHADO) ─
+    const dataPagamentoRaw  = pedido.data_pagamento || new Date().toISOString();
+    const dataPagamentoStr  = String(dataPagamentoRaw).split('T')[0]; // "YYYY-MM-DD"
+    const mesAnoPagamento   = dataPagamentoStr.substring(0, 7);       // "YYYY-MM"
+
+    const comissoesMesPgto  = todasComissoes.filter(c => c.mes_competencia === mesAnoPagamento);
+    const mesFechado        = comissoesMesPgto.length > 0 &&
+                              comissoesMesPgto.every(c => c.status === 'fechado');
 
     let dataCompetenciaFinal;
     let mesCompetenciaFinal;
 
     if (mesFechado) {
-      // Se o mês está fechado, joga para o mês atual
       const hoje = new Date();
       dataCompetenciaFinal = hoje.toISOString().split('T')[0];
-      mesCompetenciaFinal = dataCompetenciaFinal.substring(0, 7);
-      
-      console.log(`⚠️ Mês ${mesAnoPagamento} já fechado. Jogando para ${mesCompetenciaFinal}`);
+      mesCompetenciaFinal  = dataCompetenciaFinal.substring(0, 7);
+      console.log(`⚠️ Mês ${mesAnoPagamento} já fechado → competência ajustada para ${mesCompetenciaFinal}`);
     } else {
-      // Usa o mês do pagamento
-      dataCompetenciaFinal = dataPagamento.split('T')[0];
-      mesCompetenciaFinal = mesAnoPagamento;
+      dataCompetenciaFinal = dataPagamentoStr;
+      mesCompetenciaFinal  = mesAnoPagamento;
     }
 
-    // 5. Calcula valores
-    const valorBase = parseFloat(pedido.total_pago) || 0;
-    const percentual = pedido.porcentagem_comissao || 5;
-    const valorComissao = (valorBase * percentual) / 100;
-
-    // 6. Cria o lançamento de comissão
-    const novaComissao = await base44.asServiceRole.entities.CommissionEntry.create({
-      pedido_id: pedido.id,
-      pedido_numero: pedido.numero_pedido,
-      representante_id: pedido.representante_codigo, // Pode ser melhorado com ID real
+    const payload = {
+      pedido_id:            String(pedido.id),
+      pedido_numero:        pedido.numero_pedido,
+      representante_id:     pedido.representante_codigo,
       representante_codigo: pedido.representante_codigo,
-      representante_nome: pedido.representante_nome,
-      cliente_nome: pedido.cliente_nome,
-      valor_base: valorBase,
-      percentual: percentual,
-      valor_comissao: valorComissao,
-      data_pagamento_real: dataPagamento.split('T')[0],
-      data_competencia: dataCompetenciaFinal,
-      mes_competencia: mesCompetenciaFinal,
-      status: 'aberto',
-      observacao: mesFechado ? `Gerado automaticamente. Mês original (${mesAnoPagamento}) já estava fechado.` : 'Gerado automaticamente',
+      representante_nome:   pedido.representante_nome,
+      cliente_nome:         pedido.cliente_nome,
+      valor_base:           valorBase,
+      percentual:           percentual,
+      valor_comissao:       valorComissao,
+      data_pagamento_real:  dataPagamentoStr,
+      data_competencia:     dataCompetenciaFinal,
+      mes_competencia:      mesCompetenciaFinal,
+      status:               'aberto',
+      observacao: mesFechado
+        ? `Gerado automaticamente. Mês original (${mesAnoPagamento}) já fechado.`
+        : 'Gerado automaticamente',
       movimentacoes: mesFechado ? [{
-        data: new Date().toISOString(),
-        mes_origem: mesAnoPagamento,
+        data:        new Date().toISOString(),
+        mes_origem:  mesAnoPagamento,
         mes_destino: mesCompetenciaFinal,
-        usuario: 'sistema',
-        motivo: 'Mês de pagamento já estava fechado'
+        usuario:     'sistema',
+        motivo:      'Mês de pagamento já estava fechado'
       }] : []
-    });
+    };
 
-    // 7. Vincula a comissão ao pedido (opcional - campo auxiliar)
+    // ─── 6. CRIA OU ATUALIZA (NUNCA DUPLICA) ─────────────────────────────────
+    let comissao;
+    if (entryExistente) {
+      // Já existe: atualiza apenas os valores calculáveis (não toca em movimentações manuais)
+      comissao = await base44.asServiceRole.entities.CommissionEntry.update(entryExistente.id, {
+        valor_base:       valorBase,
+        percentual:       percentual,
+        valor_comissao:   valorComissao,
+        data_competencia: entryExistente.data_competencia, // preserva competência já definida
+        mes_competencia:  entryExistente.mes_competencia,
+        observacao:       (entryExistente.observacao || '') + ' | Recalculado após quitação.'
+      });
+
+      console.log(`♻️  CommissionEntry já existia (${entryExistente.id}). Valores atualizados.`);
+
+      return Response.json({
+        success: true,
+        message: `Comissão atualizada (já existia). Base: R$ ${valorBase}, Comissão: R$ ${valorComissao}`,
+        status:  'updated',
+        comissao
+      });
+    }
+
+    comissao = await base44.asServiceRole.entities.CommissionEntry.create(payload);
+
+    // ─── 7. MARCA O PEDIDO COM O ID DA ENTRY ─────────────────────────────────
     await base44.asServiceRole.entities.Pedido.update(pedido_id, {
-      comissao_entry_id: novaComissao.id
+      comissao_entry_id: comissao.id
     });
 
     return Response.json({
       success: true,
-      message: mesFechado 
-        ? `Comissão gerada para o mês ${mesCompetenciaFinal} (original ${mesAnoPagamento} estava fechado)`
-        : `Comissão gerada para o mês ${mesCompetenciaFinal}`,
-      comissao: novaComissao
+      message: mesFechado
+        ? `Comissão criada para ${mesCompetenciaFinal} (mês original ${mesAnoPagamento} estava fechado). Base: R$ ${valorBase}`
+        : `Comissão criada para ${mesCompetenciaFinal}. Base: R$ ${valorBase}`,
+      status: 'created',
+      comissao
     });
 
   } catch (error) {
     console.error('Erro ao gerar comissão:', error);
-    return Response.json({ 
+    return Response.json({
       error: error.message,
       stack: error.stack
     }, { status: 500 });
