@@ -98,9 +98,21 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
 
   useEffect(() => {
     if (cliente) {
+      // Garante que representante_codigo seja sempre uma string simples (pega apenas o primeiro
+      // se vier como array ou string concatenada por alguma corrupção de dados)
+      let repCodigo = cliente.representante_codigo || '';
+      if (Array.isArray(repCodigo)) repCodigo = repCodigo[0] || '';
+      repCodigo = String(repCodigo).trim();
+
+      // Tenta encontrar o representante pelo código limpo para obter o nome correto da lista
+      const repDaLista = representantes.find(r => String(r.codigo).trim() === repCodigo);
+      const repNome = repDaLista?.nome || (typeof cliente.representante_nome === 'string' ? cliente.representante_nome.trim() : '');
+
       setForm(prev => ({
         ...prev,
         ...cliente,
+        representante_codigo: repCodigo,
+        representante_nome: repNome,
         porcentagem_comissao: cliente.porcentagem_comissao ?? 5,
         limite_credito: cliente.limite_credito ?? 0,
         bloqueado_manual: cliente.bloqueado_manual ?? false,
@@ -110,7 +122,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
         dia_cobranca: cliente.dia_cobranca || ''
       }));
     }
-  }, [cliente]);
+  }, [cliente, representantes]);
 
   const formatTelefoneDinamico = (val) => {
     if (!val) return '';
