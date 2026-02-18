@@ -78,15 +78,18 @@ export default function Comissoes() {
     enabled: modoVisualizacao === 'competencia'
   });
 
-  // 1C. Verifica se o mês está fechado
+  // 1C. Verifica status do mês
+  // mesFechado = true quando TODAS as entradas do mês são 'fechado' (não há mais abertas)
   const mesFechado = useMemo(() => {
-    return comissoesDoMes.length > 0 && comissoesDoMes.every(c => c.status === 'fechado');
+    if (comissoesDoMes.length === 0) return false;
+    return comissoesDoMes.every(c => c.status === 'fechado');
   }, [comissoesDoMes]);
 
+  // Pega a data de fechamento da primeira entrada fechada encontrada
   const dataFechamento = useMemo(() => {
-    if (!mesFechado || comissoesDoMes.length === 0) return null;
-    return comissoesDoMes[0]?.data_fechamento;
-  }, [mesFechado, comissoesDoMes]);
+    const fechada = comissoesDoMes.find(c => c.status === 'fechado' && c.data_fechamento);
+    return fechada?.data_fechamento || null;
+  }, [comissoesDoMes]);
 
   // 1D. Busca comissões de outros meses (para antecipação)
   const { data: comissoesOutrosMeses = [] } = useQuery({
@@ -405,43 +408,63 @@ export default function Comissoes() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {comissoesDoMes.map(comissao => (
-                      <TableRow key={comissao.id}>
-                        <TableCell className="text-sm text-slate-500">
-                          {comissao.data_pagamento_real ? 
-                            new Date(comissao.data_pagamento_real).toLocaleDateString('pt-BR') : '-'}
-                        </TableCell>
-                        <TableCell className="font-mono font-bold text-sm">
-                          #{comissao.pedido_numero}
-                        </TableCell>
-                        <TableCell className="text-sm">{comissao.cliente_nome}</TableCell>
-                        <TableCell className="text-sm text-slate-600">{comissao.representante_nome}</TableCell>
-                        <TableCell className="text-right font-medium text-blue-700">
-                          {formatCurrency(comissao.valor_base)}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant="outline">{comissao.percentual}%</Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-bold text-emerald-600">
-                          {formatCurrency(comissao.valor_comissao)}
-                        </TableCell>
-                        <TableCell>
-                          {!mesFechado && comissao.status === 'aberto' ? (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => postergarMutation.mutate(comissao.id)}
-                              disabled={postergarMutation.isPending}
-                              className="gap-1 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                            >
-                              <ArrowRight className="w-4 h-4"/> Próximo Mês
-                            </Button>
-                          ) : (
-                            <Badge variant="outline" className="text-xs text-slate-400">Bloqueado</Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {comissoesDoMes.map(comissao => {
+                      const isFechado = comissao.status === 'fechado';
+                      const tooltipFechamento = isFechado && comissao.data_fechamento
+                        ? `Comissão paga no fechamento de ${new Date(comissao.data_fechamento).toLocaleDateString('pt-BR')}`
+                        : undefined;
+
+                      return (
+                        <TableRow
+                          key={comissao.id}
+                          className={isFechado ? 'bg-slate-50 opacity-80' : ''}
+                          title={tooltipFechamento}
+                        >
+                          <TableCell className="text-sm text-slate-500">
+                            {comissao.data_pagamento_real ? 
+                              new Date(comissao.data_pagamento_real).toLocaleDateString('pt-BR') : '-'}
+                          </TableCell>
+                          <TableCell className="font-mono font-bold text-sm">
+                            #{comissao.pedido_numero}
+                          </TableCell>
+                          <TableCell className="text-sm">{comissao.cliente_nome}</TableCell>
+                          <TableCell className="text-sm text-slate-600">{comissao.representante_nome}</TableCell>
+                          <TableCell className="text-right font-medium text-blue-700">
+                            {formatCurrency(comissao.valor_base)}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="outline">{comissao.percentual}%</Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {isFechado && (
+                                <Lock className="w-3 h-3 text-slate-400" title={tooltipFechamento} />
+                              )}
+                              <span className={`font-bold ${isFechado ? 'text-slate-500' : 'text-emerald-600'}`}>
+                                {formatCurrency(comissao.valor_comissao)}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {isFechado ? (
+                              <Badge className="bg-emerald-50 text-emerald-600 border border-emerald-200 text-xs gap-1">
+                                <CheckCircle2 className="w-3 h-3"/> Pago
+                              </Badge>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => postergarMutation.mutate(comissao.id)}
+                                disabled={postergarMutation.isPending}
+                                className="gap-1 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                              >
+                                <ArrowRight className="w-4 h-4"/> Próximo Mês
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
