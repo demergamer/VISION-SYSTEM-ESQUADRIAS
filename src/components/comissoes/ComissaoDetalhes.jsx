@@ -272,28 +272,83 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
     }
   };
 
-  // --- 6. ADICIONAR (ANTECIPAR) ---
+  // --- 6. ADICIONAR (ANTECIPAR / PUXAR DE OUTROS MESES) ---
   const carregarParaAdicionar = async () => {
-      // Também usa busca ampla + filtro manual para garantir consistência
-      const todosPagos = await base44.entities.Pedido.list({ filters: { status: 'pago' } });
-      
-      const disponiveis = todosPagos.filter(p => {
-          const repPedido = String(p.representante_codigo || '').trim().toUpperCase();
-          const repAtual = String(representante.codigo || '').trim().toUpperCase();
-          
-          return (
-              repPedido === repAtual &&
-              !p.comissao_fechamento_id && 
-              !p.comissao_paga && 
-              !pedidosDaComissao.some(pc => String(pc.id) === String(p.id))
-          );
+      const repAtual = String(representante.codigo || '').trim().toUpperCase();
+      const idsDaTelaAtual = new Set(pedidosDaComissao.map(p => String(p.id)));
+
+      // Fonte 1: CommissionEntries abertas deste representante em QUALQUER mês ≠ atual
+      // (inclui futuras e passadas atrasadas)
+      const todasEntries = await base44.entities.CommissionEntry.list();
+      const entriesDisponiveis = todasEntries.filter(c => {
+          if (c.status !== 'aberto') return false;
+          if (c.mes_competencia === mesAno) return false; // Já está no mês atual
+          const repEntry = String(c.representante_codigo || '').trim().toUpperCase();
+          if (repEntry !== repAtual) return false;
+          if (idsDaTelaAtual.has(String(c.pedido_id))) return false; // Já na lista
+          return true;
       });
 
-      setPedidosDisponiveis(disponiveis);
+      // Fonte 2: Pedidos pagos sem nenhuma CommissionEntry ainda (sem comissao_fechamento_id, em mês ≠ atual)
+      const todosPedidos = await base44.entities.Pedido.list();
+      const idsComEntry = new Set(todasEntries.map(c => String(c.pedido_id)));
+      const pedidosSemEntry = todosPedidos.filter(p => {
+          if (p.status !== 'pago') return false;
+          if (p.comissao_paga === true) return false;
+          if (p.comissao_fechamento_id) return false;
+          const repPedido = String(p.representante_codigo || '').trim().toUpperCase();
+          if (repPedido !== repAtual) return false;
+          if (idsDaTelaAtual.has(String(p.id))) return false;
+          if (idsComEntry.has(String(p.id))) return false; // Já tem entry (tratado acima)
+          const dataRef = p.data_referencia_comissao || p.data_pagamento;
+          if (!dataRef) return false;
+          // Deve estar em mês DIFERENTE do atual
+          return String(dataRef).substring(0, 7) !== mesAno;
+      });
+
+      // Normaliza entradas de CommissionEntry para o mesmo formato do modal
+      const entriesNormalizadas = entriesDisponiveis.map(c => ({
+          id: c.pedido_id, // ID do pedido original para adicionar à lista
+          _entry_id: c.id,
+          numero_pedido: c.pedido_numero,
+          cliente_nome: c.cliente_nome,
+          data_pagamento: c.data_pagamento_real,
+          total_pago: c.valor_base,
+          porcentagem_comissao: c.percentual,
+          valor_comissao: c.valor_comissao,
+          _mes_competencia: c.mes_competencia,
+          _origem: c.mes_competencia > mesAno ? 'futuro' : 'passado',
+      }));
+
+      const pedidosNormalizados = pedidosSemEntry.map(p => ({
+          ...p,
+          _mes_competencia: String(p.data_referencia_comissao || p.data_pagamento || '').substring(0, 7),
+          _origem: String(p.data_referencia_comissao || p.data_pagamento || '').substring(0, 7) > mesAno ? 'futuro' : 'passado',
+      }));
+
+      // Ordena: passados primeiro, depois futuros; dentro de cada grupo por mês
+      const todos = [...entriesNormalizadas, ...pedidosNormalizados].sort((a, b) => {
+          if (a._origem !== b._origem) return a._origem === 'passado' ? -1 : 1;
+          return (a._mes_competencia || '').localeCompare(b._mes_competencia || '');
+      });
+
+      setPedidosDisponiveis(todos);
       setShowAddModal(true);
   };
 
-  const adicionarManual = (pedido) => {
+  const adicionarManual = async (pedido) => {
+      // Se veio de uma CommissionEntry, atualiza a competência dela para o mês atual
+      if (pedido._entry_id) {
+          try {
+              await base44.entities.CommissionEntry.update(pedido._entry_id, {
+                  data_competencia: `${mesAno}-01`,
+                  mes_competencia: mesAno,
+                  movimentacoes: [] // Limpa histórico de movimentação ao trazer de volta
+              });
+          } catch (e) {
+              console.warn('Não foi possível atualizar CommissionEntry:', e);
+          }
+      }
       setPedidosDaComissao(prev => [...prev, prepararPedidoParaTela(pedido, 'manual')]);
       setShowAddModal(false);
       toast.success("Adicionado!");
