@@ -151,8 +151,13 @@ export default function Comissoes() {
       }
     });
 
-    return representantes.map(rep => {
-        const fechamento = mapaFechamentos[rep.codigo];
+    // Deduplicação dos representantes também (evita cards duplicados se a lista vier suja)
+    const representantesUnicos = Array.from(
+      new Map(representantes.map(r => [String(r.codigo).trim(), r])).values()
+    );
+
+    return representantesUnicos.map(rep => {
+        const fechamento = mapaFechamentos[String(rep.codigo).trim()];
 
         // CENÁRIO A: Já tem fechamento (Rascunho ou Final) -> Usa dados do banco
         if (fechamento) {
