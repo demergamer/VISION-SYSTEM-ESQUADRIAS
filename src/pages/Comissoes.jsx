@@ -135,8 +135,21 @@ export default function Comissoes() {
 
   // --- MOTE DE CÁLCULO ---
   const dadosConsolidados = useMemo(() => {
+    // Deduplicação defensiva: se o banco retornar múltiplos fechamentos para o mesmo
+    // representante (ex: bug de gravação dupla), pega apenas o mais recente.
     const mapaFechamentos = {};
-    fechamentos.forEach(f => mapaFechamentos[f.representante_codigo] = f);
+    fechamentos.forEach(f => {
+      const cod = String(f.representante_codigo || '').trim();
+      const existing = mapaFechamentos[cod];
+      // Prefere o fechado sobre o rascunho; entre iguais, o mais recente (maior updated_date)
+      if (!existing) {
+        mapaFechamentos[cod] = f;
+      } else if (f.status === 'fechado' && existing.status !== 'fechado') {
+        mapaFechamentos[cod] = f;
+      } else if (f.status === existing.status && f.updated_date > existing.updated_date) {
+        mapaFechamentos[cod] = f;
+      }
+    });
 
     return representantes.map(rep => {
         const fechamento = mapaFechamentos[rep.codigo];
