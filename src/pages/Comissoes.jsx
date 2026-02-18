@@ -91,14 +91,20 @@ export default function Comissoes() {
     return fechada?.data_fechamento || null;
   }, [comissoesDoMes]);
 
-  // 1D. Busca comissões de outros meses (para antecipação)
-  const { data: comissoesOutrosMeses = [] } = useQuery({
-    queryKey: ['commissionEntries', 'outros'],
+  // 1D. Busca comissões disponíveis para antecipação:
+  //   - Outras competências com status 'aberto' (futuras ou passadas esquecidas)
+  //   - A chave inclui mesAnoSelecionado para re-fetch ao trocar de mês
+  const { data: comissoesOutrosMeses = [], isLoading: loadingOutrosMeses } = useQuery({
+    queryKey: ['commissionEntries', 'outros', mesAnoSelecionado],
     queryFn: async () => {
       const todas = await base44.entities.CommissionEntry.list();
-      return todas.filter(c => c.mes_competencia !== mesAnoSelecionado && c.status === 'aberto');
+      // Inclui: diferente do mês atual E status aberto (passados ou futuros)
+      return todas
+        .filter(c => c.mes_competencia !== mesAnoSelecionado && c.status === 'aberto')
+        .sort((a, b) => a.mes_competencia.localeCompare(b.mes_competencia));
     },
-    enabled: showModalAntecipar
+    enabled: showModalAntecipar,
+    staleTime: 0 // Sempre busca dados frescos ao abrir o modal
   });
 
   // 2. Busca Fechamentos (Rascunhos ou Fechados) do Mês
@@ -110,20 +116,19 @@ export default function Comissoes() {
   // 3. Busca Pedidos "Soltos" do Mês (Para calcular previsão de quem não tem rascunho)
   const { data: pedidosSoltos = [], isLoading: loadingPedidos } = useQuery({
       queryKey: ['pedidos', 'soltos', mesAnoSelecionado],
+      staleTime: 0, // Sem cache: garante que após remoção o card some imediatamente
       queryFn: async () => {
           const [ano, mes] = mesAnoSelecionado.split('-').map(Number);
-          const inicio = startOfMonth(new Date(ano, mes - 1)).toISOString();
-          const fim = endOfMonth(new Date(ano, mes - 1)).toISOString();
-          
-          // Busca pedidos pagos no mês que NÃO têm dono (comissao_fechamento_id IS NULL)
-          // Nota: Filtros complexos idealmente via RPC, mas aqui simulamos com listagem
+          // Compara só os 7 primeiros chars (YYYY-MM) para evitar bugs de fuso horário
           const todos = await base44.entities.Pedido.list(); 
           return todos.filter(p => {
              if (p.status !== 'pago') return false;
-             if (p.comissao_fechamento_id) return false; // Se tem ID, pertence a um rascunho (já tratado no passo 2)
+             if (p.comissao_fechamento_id) return false;
+             // Usa data_referencia_comissao se disponível, senão data_pagamento
              const dataRef = p.data_referencia_comissao || p.data_pagamento;
              if (!dataRef) return false;
-             return dataRef >= inicio && dataRef <= fim;
+             // Compara somente YYYY-MM para evitar problemas com horário/fuso
+             return String(dataRef).substring(0, 7) === mesAnoSelecionado;
           });
       }
   });
@@ -535,9 +540,15 @@ export default function Comissoes() {
           size="xl"
         >
           <div className="space-y-4">
-            {comissoesOutrosMeses.length === 0 ? (
+            {loadingOutrosMeses ? (
+              <div className="text-center py-10">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-500"/>
+                <p className="text-sm text-slate-400 mt-2">Buscando comissões disponíveis...</p>
+              </div>
+            ) : comissoesOutrosMeses.length === 0 ? (
               <div className="text-center py-10 text-slate-400">
-                Nenhuma comissão disponível em outros períodos.
+                <p className="font-medium">Nenhuma comissão disponível em outros períodos.</p>
+                <p className="text-xs mt-1">Pedidos removidos de meses fechados aparecem aqui automaticamente.</p>
               </div>
             ) : (
               <>
