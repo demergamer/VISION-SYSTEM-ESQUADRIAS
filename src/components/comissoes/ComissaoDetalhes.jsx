@@ -398,16 +398,30 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
            ) : (<Button variant="destructive" onClick={() => alert("Reabrir não disponível.")}>Reabrir</Button>)}
        </div>
        
-       <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Adicionar Pedido">
-           <div className="space-y-2">
-               <Input placeholder="Buscar..." value={buscaPedido} onChange={e => setBuscaPedido(e.target.value)} />
-               <div className="h-64 overflow-y-auto border rounded">
-                   {pedidosDisponiveis.filter(p => !buscaPedido || p.numero_pedido.includes(buscaPedido)).map(p => (
-                       <div key={p.id} className="flex justify-between p-2 border-b hover:bg-slate-50 cursor-pointer" onClick={() => adicionarManual(p)}>
-                           <div><p className="font-bold">#{p.numero_pedido} - {p.cliente_nome}</p><p className="text-xs text-slate-500">{p.data_pagamento ? new Date(p.data_pagamento).toLocaleDateString() : '?'}</p></div>
-                           <p className="font-bold text-emerald-600">{formatCurrency(p.total_pago)}</p>
-                       </div>
-                   ))}
+       <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Antecipar / Puxar Pedido">
+           <div className="space-y-3">
+               <p className="text-xs text-slate-500">Pedidos deste representante em outros meses (passados atrasados ou futuros agendados).</p>
+               <Input placeholder="Buscar por pedido ou cliente..." value={buscaPedido} onChange={e => setBuscaPedido(e.target.value)} />
+               <div className="max-h-72 overflow-y-auto border rounded divide-y">
+                   {pedidosDisponiveis.length === 0 ? (
+                       <p className="text-center text-slate-400 py-8 text-sm">Nenhum pedido disponível em outros meses.</p>
+                   ) : pedidosDisponiveis
+                       .filter(p => !buscaPedido || String(p.numero_pedido).includes(buscaPedido) || String(p.cliente_nome || '').toLowerCase().includes(buscaPedido.toLowerCase()))
+                       .map(p => (
+                           <div key={`${p.id}-${p._entry_id || ''}`} className="flex justify-between items-center p-3 hover:bg-slate-50 cursor-pointer" onClick={() => adicionarManual(p)}>
+                               <div className="flex items-center gap-3">
+                                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${p._origem === 'futuro' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+                                       {p._origem === 'futuro' ? `▶ ${p._mes_competencia}` : `◀ ${p._mes_competencia}`}
+                                   </span>
+                                   <div>
+                                       <p className="font-bold text-sm">#{p.numero_pedido} — {p.cliente_nome}</p>
+                                       <p className="text-xs text-slate-500">{p.data_pagamento ? new Date(p.data_pagamento).toLocaleDateString('pt-BR') : '?'}</p>
+                                   </div>
+                               </div>
+                               <p className="font-bold text-emerald-600 text-sm">{formatCurrency(p.total_pago || p.valor_comissao)}</p>
+                           </div>
+                       ))
+                   }
                </div>
            </div>
        </ModalContainer>
