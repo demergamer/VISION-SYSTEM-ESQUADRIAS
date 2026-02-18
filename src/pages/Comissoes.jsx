@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button"; 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Wallet, Users, Calendar, DollarSign, FileText, Search, ArrowRight, Download, Loader2, Plus, CheckCircle2, Clock } from "lucide-react";
+import { Wallet, Users, Calendar, DollarSign, FileText, Search, ArrowRight, Download, Loader2, Plus, CheckCircle2, Clock, Lock } from "lucide-react";
 import PermissionGuard from "@/components/PermissionGuard";
 import ModalContainer from "@/components/modals/ModalContainer";
 import ComissaoDetalhes from "@/components/comissoes/ComissaoDetalhes";
