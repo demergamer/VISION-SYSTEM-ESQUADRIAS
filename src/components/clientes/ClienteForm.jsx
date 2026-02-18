@@ -156,7 +156,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
       const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`);
       if (!response.ok) throw new Error('Erro na API');
       const data = await response.json();
-      const cnaesComST = ['4744005', '4744099', '4672900']; 
+      const cnaesComST = ['4744005', '4744099']; 
       const todosCnaes = [{ codigo: data.cnae_fiscal, descricao: data.cnae_fiscal_descricao }, ...(data.cnaes_secundarios || [])];
       const possuiST = todosCnaes.some(c => cnaesComST.includes(String(c.codigo).replace(/\D/g, '')));
       const textoCnaes = todosCnaes.map(c => `${c.codigo} - ${c.descricao}`).join('\n');
