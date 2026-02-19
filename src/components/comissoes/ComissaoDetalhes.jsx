@@ -173,11 +173,53 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
     setPedidosDaComissao(prev => prev.map(p => p.id === id ? { ...p, percentual: novoPct, valorComissao: (p.valorBase * novoPct) / 100 } : p));
   };
 
+  const handleUpdateBase = (id, novaBase) => {
+    if (statusFechamento === 'fechado') return;
+    setPedidosDaComissao(prev => prev.map(p => {
+      if (p.id !== id) return p;
+      const base = parseFloat(novaBase) || 0;
+      return { ...p, valorBase: base, valorComissao: (base * p.percentual) / 100 };
+    }));
+  };
+
   const handleRemoverPedido = (id) => {
     if (statusFechamento === 'fechado') return;
     setPedidosDaComissao(prev => prev.filter(p => p.id !== id));
     // Registra o ID para processar no save (mover para próximo mês)
     setPedidosRemovidosIds(prev => [...prev, String(id)]);
+  };
+
+  const abrirTransferencia = async (pedidoId) => {
+    if (representantes.length === 0) {
+      const reps = await base44.entities.Representante.list();
+      setRepresentantes(reps.filter(r => !r.bloqueado && String(r.codigo) !== String(representante.codigo)));
+    }
+    setRepDestino('');
+    setTransferindoId(pedidoId);
+  };
+
+  const confirmarTransferencia = async () => {
+    if (!repDestino) return;
+    setSalvandoTransfer(true);
+    try {
+      const repEncontrado = representantes.find(r => String(r.codigo) === String(repDestino));
+      // Atualiza o pedido no banco com o novo representante
+      await base44.entities.Pedido.update(transferindoId, {
+        representante_codigo: repEncontrado.codigo,
+        representante_nome: repEncontrado.nome,
+        comissao_fechamento_id: null,
+        comissao_paga: false,
+        comissao_mes_ano_pago: null,
+      });
+      // Remove da lista local
+      setPedidosDaComissao(prev => prev.filter(p => String(p.id) !== String(transferindoId)));
+      setTransferindoId(null);
+      toast.success(`Pedido transferido para ${repEncontrado.nome}!`);
+    } catch (e) {
+      toast.error('Erro ao transferir: ' + e.message);
+    } finally {
+      setSalvandoTransfer(false);
+    }
   };
 
   // --- 5. SALVAR ---
