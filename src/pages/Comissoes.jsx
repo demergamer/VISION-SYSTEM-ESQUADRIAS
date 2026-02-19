@@ -359,13 +359,24 @@ export default function Comissoes() {
              </div>
              <Button
                variant="outline"
-               onClick={() => setShowSincronizarModal(true)}
+               onClick={handleSincronizar}
                className="gap-2 bg-white"
-               title="Gerar / atualizar comissões de todos os pedidos pagos"
+               title="Sincronização em background — você receberá uma notificação ao concluir"
              >
                <RefreshCw className="w-4 h-4" />
                Sincronizar
              </Button>
+             {syncJob && (
+               <JobStatusBadge
+                 jobId={syncJob.id}
+                 onConcluido={() => {
+                   queryClient.invalidateQueries(['commissionEntries']);
+                   queryClient.invalidateQueries(['pedidos', 'soltos']);
+                   queryClient.invalidateQueries(['fechamentoComissao']);
+                   setSyncJob(null);
+                 }}
+               />
+             )}
           </div>
         </div>
 
