@@ -218,6 +218,7 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
       setPedidosDaComissao(prev => prev.filter(p => String(p.id) !== String(transferindoId)));
       setTransferindoId(null);
       toast.success(`Pedido transferido para ${repEncontrado.nome}!`);
+      if (onSuccessSave) onSuccessSave();
     } catch (e) {
       toast.error('Erro ao transferir: ' + e.message);
     } finally {
