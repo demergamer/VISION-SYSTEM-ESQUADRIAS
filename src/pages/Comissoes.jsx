@@ -264,12 +264,21 @@ export default function Comissoes() {
     }
   });
 
-  const handleSincronizarClose = (stats) => {
-    setShowSincronizarModal(false);
-    if (stats?.criados > 0 || stats?.atualizados > 0) {
-      queryClient.invalidateQueries(['commissionEntries']);
-      queryClient.invalidateQueries(['pedidos', 'soltos']);
-      queryClient.invalidateQueries(['fechamentoComissao']);
+  const handleSincronizar = async () => {
+    try {
+      const res = await base44.functions.invoke('despacharSincronizacao', {});
+      const data = res?.data || {};
+      if (data.status === 'already_running') {
+        toast.warning('Já existe uma sincronização em andamento.');
+        setSyncJob({ id: data.job_id, status: 'processando' });
+        return;
+      }
+      if (data.status === 'accepted') {
+        toast.success('Sincronização enviada! Você receberá uma notificação quando concluir.', { duration: 5000 });
+        setSyncJob({ id: data.job_id, status: 'pendente' });
+      }
+    } catch (err) {
+      toast.error('Erro ao disparar sincronização: ' + (err.message || ''));
     }
   };
 
