@@ -73,196 +73,107 @@ Deno.serve(async (req) => {
 
         // ─────────────────────────────────────────────────────────────
         // ACTION 2: Transferir para outro Representante (CORREÇÃO JSON)
-        // Fluxo:
-        //  1. Resolve entry alvo + representante destino
-        //  2. Identifica/cria FechamentoComissao de destino (mesmo mes_ano)
-        //  3. Move CommissionEntry(s) → novo fechamento_id + novo representante
-        //  4. Move Pedido(s) → novo representante + limpa vínculos de fechamento antigo
-        //  5. Atualiza cadastro do Cliente
-        //  6. Recalcula totais do fechamento antigo e do novo
         // ─────────────────────────────────────────────────────────────
         if (action === 'transferir') {
             const { entry_id, pedido_id, novo_representante_codigo, mover_todos } = body;
 
-            if (!novo_representante_codigo) {
-                return Response.json({ error: 'novo_representante_codigo é obrigatório' }, { status: 400 });
-            }
-            if (!entry_id && !pedido_id) {
-                return Response.json({ error: 'entry_id ou pedido_id é obrigatório' }, { status: 400 });
-            }
+            if (!novo_representante_codigo) return Response.json({ error: 'Falta novo_representante_codigo' }, { status: 400 });
 
             try {
-                // ── 1. Busca dados base em paralelo ───────────────────
-                const [todosReps, todosPedidos, todasEntries, todosFechamentos, todosClientes] = await Promise.all([
+                // 1. Busca Dados
+                const [todosReps, todosPedidos, todosFechamentos, todosClientes] = await Promise.all([
                     base44.asServiceRole.entities.Representante.list(),
                     base44.asServiceRole.entities.Pedido.list(),
-                    base44.asServiceRole.entities.CommissionEntry.list(),
                     base44.asServiceRole.entities.FechamentoComissao.list(),
                     base44.asServiceRole.entities.Cliente.list(),
                 ]);
 
-                // Valida representante destino
                 const repDestino = todosReps.find(r => String(r.codigo) === String(novo_representante_codigo));
                 if (!repDestino) return Response.json({ error: 'Representante destino não encontrado' }, { status: 404 });
-                if (repDestino.bloqueado) return Response.json({ error: 'Representante destino está bloqueado' }, { status: 409 });
 
-                // Resolve entry alvo principal (entry_id pode ser id da entry ou id do pedido)
-                let entryAlvo = entry_id ? todasEntries.find(e => String(e.id) === String(entry_id)) : null;
+                const idBusca = pedido_id || entry_id;
+                const pedidoAlvo = todosPedidos.find(p => String(p.id) === String(idBusca));
+                if (!pedidoAlvo) return Response.json({ error: 'Pedido alvo não encontrado' }, { status: 404 });
 
-                // Resolve pedido alvo
-                const pedidoAlvoId = entryAlvo?.pedido_id || pedido_id || entry_id;
-                const pedidoAlvo   = todosPedidos.find(p => String(p.id) === String(pedidoAlvoId));
+                const clienteNome = pedidoAlvo.cliente_nome;
+                const clienteCodigo = pedidoAlvo.cliente_codigo;
 
-                if (!entryAlvo && !pedidoAlvo) {
-                    return Response.json({ error: 'Entry ou Pedido alvo não encontrado' }, { status: 404 });
-                }
-                if (entryAlvo?.status === 'fechado') {
-                    return Response.json({ error: 'Não é possível transferir uma comissão já fechada' }, { status: 409 });
-                }
-
-                // Dados do representante destino (usados em todas as atualizações)
-                const dadosRep = {
-                    representante_codigo: repDestino.codigo,
-                    representante_nome:   repDestino.nome,
-                };
-
-                // ── 2. Determina quais entries mover ──────────────────
-                const clienteNome   = entryAlvo?.cliente_nome || pedidoAlvo?.cliente_nome || '';
-                const clienteCodigo = pedidoAlvo?.cliente_codigo || null;
-
-                let entriesToMove = [];
-                if (mover_todos) {
-                    // Todas as entries abertas do mesmo cliente
-                    entriesToMove = todasEntries.filter(e =>
-                        e.status === 'aberto' && e.cliente_nome === clienteNome
-                    );
+                // 2. Determina Pedidos a mover
+                let pedidosParaMover = new Set();
+                if (mover_todos && clienteNome) {
+                    todosPedidos.filter(p => p.cliente_nome === clienteNome && !p.comissao_paga)
+                                .forEach(p => pedidosParaMover.add(p));
                 } else {
-                    if (entryAlvo) entriesToMove = [entryAlvo];
+                    pedidosParaMover.add(pedidoAlvo);
                 }
 
-                // IDs dos fechamentos de origem afetados (para recálculo posterior)
-                const fechamentosOrigem = new Set(
-                    entriesToMove.map(e => e.fechamento_id).filter(Boolean)
-                );
+                const pedidosIds = Array.from(pedidosParaMover).map(p => String(p.id));
+                const fechamentosAfetados = new Set();
 
-                // ── 3. Agrupa entries por mes_ano para resolver/criar envelopes destino ──
-                const envelopeDestinoCache = new Map(); // mes_ano → id do FechamentoComissao destino
-
-                const resolverEnvelopeDestino = async (mesAno) => {
-                    if (envelopeDestinoCache.has(mesAno)) return envelopeDestinoCache.get(mesAno);
-
-                    const existente = todosFechamentos.find(f =>
-                        f.representante_codigo === String(repDestino.codigo) &&
-                        f.mes_ano === mesAno &&
-                        f.status === 'aberto'
-                    );
-
-                    let envelopeId;
-                    if (existente) {
-                        envelopeId = existente.id;
-                    } else {
-                        const novo = await base44.asServiceRole.entities.FechamentoComissao.create({
-                            mes_ano:               mesAno,
-                            representante_codigo:  repDestino.codigo,
-                            representante_nome:    repDestino.nome,
-                            representante_chave_pix: repDestino.chave_pix || '',
-                            status:                'aberto',
-                            total_vendas:          0,
-                            total_comissoes_bruto: 0,
-                            vales_adiantamentos:   0,
-                            outros_descontos:      0,
-                            valor_liquido:         0,
-                            pedidos_detalhes:      [],
-                        });
-                        envelopeId = novo.id;
-                    }
-                    envelopeDestinoCache.set(mesAno, envelopeId);
-                    return envelopeId;
-                };
-
-                // ── 4. Move CommissionEntries → novo representante + novo envelope ──
-                const stats = { entries_movidas: 0, pedidos_movidos: 0, cliente_atualizado: false };
-
-                await Promise.all(entriesToMove.map(async (e) => {
-                    const mesAno = e.mes_competencia || String(e.data_competencia || '').substring(0, 7);
-                    const novoEnvelopeId = await resolverEnvelopeDestino(mesAno);
-                    await base44.asServiceRole.entities.CommissionEntry.update(e.id, {
-                        ...dadosRep,
-                        representante_id: repDestino.id || repDestino.codigo,
-                        fechamento_id:    novoEnvelopeId,
-                    });
-                    stats.entries_movidas++;
-                }));
-
-                // ── 5. Move Pedidos vinculados ────────────────────────
-                const pedidoIdsParaMover = new Set(entriesToMove.map(e => String(e.pedido_id)).filter(Boolean));
-
-                if (mover_todos) {
-                    // Também pedidos abertos/parciais do cliente sem entry
-                    todosPedidos
-                        .filter(p => p.cliente_nome === clienteNome && ['aberto', 'aguardando', 'parcial'].includes(p.status) && !p.comissao_paga)
-                        .forEach(p => pedidoIdsParaMover.add(String(p.id)));
-                } else if (pedidoAlvo) {
-                    pedidoIdsParaMover.add(String(pedidoAlvo.id));
-                }
-
-                await Promise.all([...pedidoIdsParaMover].map(async (pid) => {
-                    await base44.asServiceRole.entities.Pedido.update(pid, {
-                        ...dadosRep,
+                // 3. Atualiza Pedidos e coleta fechamentos afetados
+                await Promise.all(Array.from(pedidosParaMover).map(async (p) => {
+                    if (p.comissao_fechamento_id) fechamentosAfetados.add(String(p.comissao_fechamento_id));
+                    await base44.asServiceRole.entities.Pedido.update(p.id, {
+                        representante_codigo: repDestino.codigo,
+                        representante_nome:   repDestino.nome,
                         comissao_fechamento_id: null,
-                        comissao_paga:          false,
-                        comissao_mes_ano_pago:  null,
                     });
-                    stats.pedidos_movidos++;
                 }));
 
-                // ── 6. Atualiza cadastro do Cliente ───────────────────
+                // 4. Atualiza Cliente
                 const clienteAlvo = todosClientes.find(c =>
                     (clienteCodigo && String(c.codigo) === String(clienteCodigo)) ||
                     (!clienteCodigo && c.nome === clienteNome)
                 );
                 if (clienteAlvo) {
-                    await base44.asServiceRole.entities.Cliente.update(clienteAlvo.id, dadosRep);
-                    stats.cliente_atualizado = true;
+                    await base44.asServiceRole.entities.Cliente.update(clienteAlvo.id, {
+                        representante_codigo: repDestino.codigo,
+                        representante_nome:   repDestino.nome,
+                    });
                 }
 
-                // ── 7. Recalcula totais de TODOS os fechamentos afetados ──
-                // Recarrega entries atualizadas para somar corretamente
-                const entriesAtualizadas = await base44.asServiceRole.entities.CommissionEntry.list();
+                // 5. FAXINA: Varre todos os FechamentoComissao abertos,
+                //    remove os pedidos movidos do JSON pedidos_detalhes e recalcula totais
+                let fechamentosAtualizados = 0;
+                const todosParaVerificar = new Set([...fechamentosAfetados]);
+                // Inclui todos os rascunhos abertos como segurança (cobre vínculos perdidos)
+                todosFechamentos.filter(f => f.status === 'aberto').forEach(f => todosParaVerificar.add(String(f.id)));
 
-                const recalcularFechamento = async (fechamentoId) => {
-                    if (!fechamentoId) return;
-                    const itens = entriesAtualizadas.filter(e => String(e.fechamento_id) === String(fechamentoId));
-                    const totalVendas    = itens.reduce((s, e) => s + (parseFloat(e.valor_base)     || 0), 0);
-                    const totalComissoes = itens.reduce((s, e) => s + (parseFloat(e.valor_comissao) || 0), 0);
-                    const fech = todosFechamentos.find(f => String(f.id) === String(fechamentoId));
-                    const vales   = parseFloat(fech?.vales_adiantamentos || 0);
-                    const outros  = parseFloat(fech?.outros_descontos     || 0);
-                    await base44.asServiceRole.entities.FechamentoComissao.update(fechamentoId, {
-                        total_vendas:          parseFloat(totalVendas.toFixed(2)),
-                        total_comissoes_bruto: parseFloat(totalComissoes.toFixed(2)),
-                        valor_liquido:         parseFloat((totalComissoes - vales - outros).toFixed(2)),
+                await Promise.all(Array.from(todosParaVerificar).map(async (fId) => {
+                    const fechamento = todosFechamentos.find(f => String(f.id) === fId);
+                    if (!fechamento) return;
+
+                    const detalhesAtuais = Array.isArray(fechamento.pedidos_detalhes) ? fechamento.pedidos_detalhes : [];
+                    const contemPedidoMovido = detalhesAtuais.some(d => pedidosIds.includes(String(d.pedido_id)));
+                    if (!contemPedidoMovido) return;
+
+                    // Remove os pedidos transferidos do JSON
+                    const novaListaDetalhes = detalhesAtuais.filter(d => !pedidosIds.includes(String(d.pedido_id)));
+
+                    // Recalcula totais baseado no JSON limpo
+                    const novoTotalVendas    = novaListaDetalhes.reduce((acc, d) => acc + (Number(d.valor_pedido)  || 0), 0);
+                    const novoTotalComissoes = novaListaDetalhes.reduce((acc, d) => acc + (Number(d.valor_comissao) || 0), 0);
+                    const vales  = Number(fechamento.vales_adiantamentos) || 0;
+                    const outros = Number(fechamento.outros_descontos)    || 0;
+
+                    await base44.asServiceRole.entities.FechamentoComissao.update(fId, {
+                        pedidos_detalhes:      novaListaDetalhes,
+                        total_vendas:          parseFloat(novoTotalVendas.toFixed(2)),
+                        total_comissoes_bruto: parseFloat(novoTotalComissoes.toFixed(2)),
+                        valor_liquido:         parseFloat((novoTotalComissoes - vales - outros).toFixed(2)),
                     });
-                };
-
-                // Recalcula origens + destinos
-                const todosParaRecalcular = new Set([
-                    ...fechamentosOrigem,
-                    ...envelopeDestinoCache.values(),
-                ]);
-                await Promise.all([...todosParaRecalcular].map(id => recalcularFechamento(id)));
+                    fechamentosAtualizados++;
+                }));
 
                 return Response.json({
                     ok: true,
-                    representante_destino: { codigo: repDestino.codigo, nome: repDestino.nome },
-                    stats,
-                    fechamentos_recalculados: todosParaRecalcular.size,
-                    mensagem: `Transferência concluída. ${stats.entries_movidas} comissão(ões) e ${stats.pedidos_movidos} pedido(s) movidos. Totais recalculados.`,
+                    mensagem: `Transferência concluída. Pedido removido do rascunho anterior e carteira atualizada.`,
+                    fechamentos_atualizados: fechamentosAtualizados,
                 });
 
-            } catch (transferError) {
-                console.error('[atualizarComissao] Erro na transferência:', transferError);
-                return Response.json({ error: 'Erro interno: ' + transferError.message }, { status: 500 });
+            } catch (error) {
+                console.error('[atualizarComissao] Erro na transferência:', error);
+                return Response.json({ error: 'Erro interno: ' + error.message }, { status: 500 });
             }
         }
 
