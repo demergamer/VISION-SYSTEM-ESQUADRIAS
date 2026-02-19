@@ -350,17 +350,12 @@ export default function Comissoes() {
              </div>
              <Button
                variant="outline"
-               onClick={() => {
-                 if (!sincronizarMutation.isPending && confirm('Sincronizar todas as comissões de pedidos pagos?\n\nIsso pode levar alguns minutos.')) {
-                   sincronizarMutation.mutate();
-                 }
-               }}
-               disabled={sincronizarMutation.isPending}
+               onClick={() => setShowSincronizarModal(true)}
                className="gap-2 bg-white"
                title="Gerar / atualizar comissões de todos os pedidos pagos"
              >
-               <RefreshCw className={`w-4 h-4 ${sincronizarMutation.isPending ? 'animate-spin' : ''}`} />
-               {sincronizarMutation.isPending ? 'Processando...' : 'Sincronizar'}
+               <RefreshCw className="w-4 h-4" />
+               Sincronizar
              </Button>
           </div>
         </div>
