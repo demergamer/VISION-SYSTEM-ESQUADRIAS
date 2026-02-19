@@ -518,6 +518,7 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
        <ModalContainer open={!!transferindoId} onClose={() => setTransferindoId(null)} title="Transferir para outro Representante">
          <div className="space-y-4 py-2">
            <p className="text-sm text-slate-600">Selecione o representante de destino. O pedido será removido desta lista imediatamente.</p>
+
            <Select value={repDestino} onValueChange={setRepDestino}>
              <SelectTrigger>
                <SelectValue placeholder="Selecionar representante..." />
@@ -530,6 +531,26 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
                ))}
              </SelectContent>
            </Select>
+
+           {/* Aviso automático de atualização de cliente */}
+           <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-700">
+             <span className="shrink-0 mt-0.5">💡</span>
+             <span>O cadastro deste cliente será atualizado automaticamente para o novo representante.</span>
+           </div>
+
+           {/* Checkbox de transferência em massa */}
+           <label className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-100 rounded-lg cursor-pointer hover:bg-amber-100 transition-colors">
+             <input
+               type="checkbox"
+               checked={moverTodos}
+               onChange={e => setMoverTodos(e.target.checked)}
+               className="mt-0.5 w-4 h-4 accent-amber-600 shrink-0 cursor-pointer"
+             />
+             <span className="text-sm text-amber-800">
+               🔄 Mover também todos os outros pedidos em aberto/futuros deste cliente para o novo representante.
+             </span>
+           </label>
+
            <div className="flex justify-end gap-2 pt-2">
              <Button variant="outline" onClick={() => setTransferindoId(null)}>Cancelar</Button>
              <Button
