@@ -94,7 +94,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       }
     });
 
-    // Atualiza sinaisHerdados para exibição
+    // Atualiza sinaisHerdados para exibição (apenas informativo)
     const sinaisArray = Array.from(sinaisMap.values()).map(s => ({
       pedido_numero: s.pedido_numero,
       valor: s.valor,
@@ -102,23 +102,14 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     }));
     setSinaisHerdados(sinaisArray);
 
-    // Atualiza FORMAS DE PAGAMENTO sincronizando com selectedPedidos
+    // NÃO cria formas de pagamento automáticas pelo sinal.
+    // O saldo_restante do banco já vem com o sinal deduzido.
+    // Apenas mantemos as formas manuais já existentes.
     setFormasPagamento(prev => {
-      // 1. Mantém formas manuais (sem flag herdadoDeSinal ou sem pedido_origem_sinal)
       const formasManuais = prev.filter(fp => !fp.herdadoDeSinal && !fp.pedido_origem_sinal);
-
-      // 2. Cria formas automáticas baseadas nos pedidos selecionados
-      const formasAutomaticas = Array.from(sinaisMap.values()).map(sinal => ({
-        tipo: 'pix',
-        valor: String(sinal.valor),
-        parcelas: '1',
-        dadosCheque: { numero: '', banco: '', agencia: '' },
-        chequesSalvos: [],
-        herdadoDeSinal: true,
-        pedido_origem_sinal: sinal.pedido_id // ID único para rastreamento
-      }));
-
-      return [...formasManuais, ...formasAutomaticas];
+      return formasManuais.length > 0
+        ? formasManuais
+        : [{ tipo: 'dinheiro', valor: '', parcelas: '1', dadosCheque: { numero: '', banco: '', agencia: '' }, chequesSalvos: [] }];
     });
 
     // Atualiza COMPROVANTES sincronizando com selectedPedidos
