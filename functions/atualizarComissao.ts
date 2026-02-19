@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
         }
 
         // ─────────────────────────────────────────────────────────────
-        // ACTION 2: Transferir para outro Representante (novo schema)
+        // ACTION 2: Transferir para outro Representante (CORREÇÃO JSON)
         // Fluxo:
         //  1. Resolve entry alvo + representante destino
         //  2. Identifica/cria FechamentoComissao de destino (mesmo mes_ano)
