@@ -504,7 +504,7 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm">
           <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4">
             <Loader2 className="w-12 h-12 text-emerald-600 animate-spin" />
-            <div className="text-center"><h3 className="text-lg font-bold text-slate-800">Processando Pagamento</h3><p className="text-sm text-slate-500">Gerando Borderô #{proximoNumeroBordero}...</p></div>
+            <div className="text-center"><h3 className="text-lg font-bold text-slate-800">Processando Pagamento</h3><p className="text-sm text-slate-500">Gerando Borderô {numeroBorderoGerado ? `#${numeroBorderoGerado}` : ''}...</p></div>
           </div>
         </div>
       )}
