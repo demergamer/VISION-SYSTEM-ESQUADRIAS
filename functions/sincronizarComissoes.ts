@@ -177,6 +177,8 @@ async function processarPedido(pedido, entryPorPedido, resolverCompetencia, base
     const { dataCompetencia, mesCompetencia, movimentado, mesOrigem } = resolverCompetencia(dataPagStr);
     const entryExistente = entryPorPedido.get(String(pedido.id));
 
+    const agora = new Date().toISOString();
+
     if (!entryExistente) {
       const nova = await base44.asServiceRole.entities.CommissionEntry.create({
         pedido_id:            String(pedido.id),
@@ -196,12 +198,16 @@ async function processarPedido(pedido, entryPorPedido, resolverCompetencia, base
           ? `Sincronização automática. Mês original (${mesOrigem}) fechado.`
           : 'Sincronização automática',
         movimentacoes: movimentado ? [{
-          data: new Date().toISOString(), mes_origem: mesOrigem,
+          data: agora, mes_origem: mesOrigem,
           mes_destino: mesCompetencia, usuario: 'sistema',
           motivo: 'Mês de pagamento fechado na sincronização'
         }] : [],
       });
-      await base44.asServiceRole.entities.Pedido.update(pedido.id, { comissao_entry_id: nova.id });
+      // Grava timestamp Delta + vínculo da entry
+      await base44.asServiceRole.entities.Pedido.update(pedido.id, {
+        comissao_entry_id:  nova.id,
+        comissao_last_sync: agora,
+      });
       resultado.criados++;
 
     } else if (entryExistente.status === 'aberto') {
@@ -211,8 +217,16 @@ async function processarPedido(pedido, entryPorPedido, resolverCompetencia, base
         ...(foiMovida ? {} : { data_competencia: dataCompetencia, mes_competencia: mesCompetencia }),
         observacao: (entryExistente.observacao || '') + ' | Recalculado na sincronização.',
       });
+      // Atualiza timestamp Delta para não reprocessar na próxima sync
+      await base44.asServiceRole.entities.Pedido.update(pedido.id, {
+        comissao_last_sync: agora,
+      });
       resultado.atualizados++;
     } else {
+      // Entry fechada: apenas marca o timestamp para sair do radar delta
+      await base44.asServiceRole.entities.Pedido.update(pedido.id, {
+        comissao_last_sync: agora,
+      });
       resultado.ignorados++;
     }
 
