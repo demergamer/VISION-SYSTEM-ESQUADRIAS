@@ -29,6 +29,7 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
   const [isSaving, setIsSaving] = useState(false);
   const [comprovantes, setComprovantes] = useState([]);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [numeroBorderoGerado, setNumeroBorderoGerado] = useState(null);
 
   const { data: creditos = [] } = useQuery({
     queryKey: ['creditos', pedido.cliente_codigo],
