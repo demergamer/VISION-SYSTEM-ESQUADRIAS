@@ -432,7 +432,7 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
     <div className="space-y-6">
        <div className="flex justify-between items-center bg-slate-50 p-4 rounded-lg border">
            <div className="text-sm">Status: <Badge className={statusFechamento === 'fechado' ? 'bg-emerald-600' : 'bg-amber-500'}>{statusFechamento.toUpperCase()}</Badge></div>
-           {statusFechamento !== 'fechado' && (
+           {statusFechamento !== 'fechado' && !isPortal && (
              <Button variant="outline" size="sm" onClick={carregarParaAdicionar}>
                <Plus className="w-4 h-4 mr-2"/> Antecipar / Puxar Pedidos
              </Button>
