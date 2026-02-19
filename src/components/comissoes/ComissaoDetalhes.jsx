@@ -203,13 +203,13 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
     setSalvandoTransfer(true);
     try {
       const repEncontrado = representantes.find(r => String(r.codigo) === String(repDestino));
-      // Atualiza o pedido no banco com o novo representante
-      await base44.entities.Pedido.update(transferindoId, {
-        representante_codigo: repEncontrado.codigo,
-        representante_nome: repEncontrado.nome,
-        comissao_fechamento_id: null,
-        comissao_paga: false,
-        comissao_mes_ano_pago: null,
+      // Chama backend para transferência atômica (Pedido + CommissionEntry se houver)
+      const pedido = pedidosDaComissao.find(p => String(p.id) === String(transferindoId));
+      await base44.functions.invoke('atualizarComissao', {
+        action: 'transferir',
+        pedido_id: transferindoId,
+        entry_id: pedido?._entry_id || null,
+        novo_representante_codigo: repDestino,
       });
       // Remove da lista local
       setPedidosDaComissao(prev => prev.filter(p => String(p.id) !== String(transferindoId)));
