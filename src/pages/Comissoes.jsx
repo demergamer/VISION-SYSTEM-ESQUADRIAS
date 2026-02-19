@@ -11,6 +11,7 @@ import { Wallet, Users, Calendar, DollarSign, FileText, Search, ArrowRight, Down
 import PermissionGuard from "@/components/PermissionGuard";
 import ModalContainer from "@/components/modals/ModalContainer";
 import ComissaoDetalhes from "@/components/comissoes/ComissaoDetalhes";
+import SincronizarProgressoModal from "@/components/comissoes/SincronizarProgressoModal";
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
