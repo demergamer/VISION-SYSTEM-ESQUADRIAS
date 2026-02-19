@@ -159,6 +159,15 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
   }, [pedidosDaComissao, vales, outrosDescontos]);
 
   // --- 4. AÇÕES ---
+  const pedidosFiltrados = useMemo(() => {
+    if (!searchTerm.trim()) return pedidosDaComissao;
+    const s = searchTerm.toLowerCase();
+    return pedidosDaComissao.filter(p =>
+      String(p.numero_pedido || '').toLowerCase().includes(s) ||
+      String(p.cliente_nome || '').toLowerCase().includes(s)
+    );
+  }, [pedidosDaComissao, searchTerm]);
+
   const handleUpdatePercentual = (id, novoPct) => {
     if (statusFechamento === 'fechado') return;
     setPedidosDaComissao(prev => prev.map(p => p.id === id ? { ...p, percentual: novoPct, valorComissao: (p.valorBase * novoPct) / 100 } : p));
