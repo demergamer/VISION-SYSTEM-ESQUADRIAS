@@ -149,6 +149,7 @@ export default function LiquidacaoForm({ pedido, onSave, onCancel, isLoading }) 
       // **CRIAR BORDERÔ**
       const todosBorderos = await base44.entities.Bordero.list();
       const proximoNumeroBordero = todosBorderos.length > 0 ? Math.max(...todosBorderos.map(b => b.numero_bordero || 0)) + 1 : 1;
+      setNumeroBorderoGerado(proximoNumeroBordero);
 
       let formaPagamentoStr = `${formaPagamento.toUpperCase()}: ${formatCurrency(valorPagamento)}`;
       if (formaPagamento === 'credito' && parcelasCreditoQtd !== '1') formaPagamentoStr += ` (${parcelasCreditoQtd}x)`;
