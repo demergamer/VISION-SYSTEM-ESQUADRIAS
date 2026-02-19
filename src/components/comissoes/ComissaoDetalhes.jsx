@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import ModalContainer from "@/components/modals/ModalContainer";
 
-export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuccessSave }) {
+export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuccessSave, isPortal = false }) {
   const [pedidosDaComissao, setPedidosDaComissao] = useState([]); 
   const [loading, setLoading] = useState(true);
   
