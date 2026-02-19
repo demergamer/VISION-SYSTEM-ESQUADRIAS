@@ -1,8 +1,8 @@
 /**
  * POST /despacharSincronizacao
  *
- * Endpoint leve: apenas cria um SyncJob "pendente" e retorna 202 imediatamente.
- * O processamento pesado acontece no worker (executarSyncWorker).
+ * Endpoint leve: apenas cria um SyncJob "pendente" e dispara o worker
+ * via SDK service-role (sem depender de URL auto-derivada ou token manual).
  * Acesso: somente admin.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
@@ -33,16 +33,11 @@ Deno.serve(async (req) => {
     solicitado_por: user.email,
   });
 
-  // Dispara o worker em background (não awaita — retorna 202 antes de processar)
-  const workerUrl = req.url.replace('despacharSincronizacao', 'executarSyncWorker');
-  fetch(workerUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type':  'application/json',
-      'Authorization': req.headers.get('Authorization') || '',
-    },
-    body: JSON.stringify({ job_id: job.id }),
-  }).catch((err) => console.error('Falha ao disparar worker:', err.message));
+  console.log(`[Despachar] ✅ Job ${job.id} criado. Disparando worker...`);
+
+  // Dispara o worker via SDK (service role — sem depender de URL ou token manual)
+  base44.asServiceRole.functions.invoke('executarSyncWorker', { job_id: job.id })
+    .catch((err) => console.error(`[Despachar] ❌ Falha ao invocar worker:`, err?.message || err));
 
   return Response.json({
     status:  'accepted',
