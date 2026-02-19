@@ -36,6 +36,7 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
   const [representantes, setRepresentantes] = useState([]);
   const [repDestino, setRepDestino] = useState('');
   const [salvandoTransfer, setSalvandoTransfer] = useState(false);
+  const [moverTodos, setMoverTodos] = useState(false);
 
   const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
