@@ -495,7 +495,7 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
                           </TableCell>
                           <TableCell className="text-right font-bold text-emerald-600">{formatCurrency(p.valorComissao)}</TableCell>
                           <TableCell>
-                            {statusFechamento !== 'fechado' && (
+                            {statusFechamento !== 'fechado' && !isPortal && (
                               <div className="flex items-center gap-1">
                                 <Button variant="ghost" size="sm" title="Transferir para outro representante" onClick={() => abrirTransferencia(p.id)}>
                                   <ArrowLeftRight className="w-4 h-4 text-blue-500"/>
