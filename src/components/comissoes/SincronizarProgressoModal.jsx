@@ -34,9 +34,41 @@ export default function SincronizarProgressoModal({ open, onClose }) {
     (async () => {
       try {
         const { base44 } = await import('@/api/base44Client');
-        const response = await base44.functions.invokeStream('sincronizarComissoes', {}, { signal: controller.signal });
 
-        if (!response || !response.body) throw new Error('Stream não disponível');
+        // Obtém token de auth do SDK para incluir no header do fetch
+        const appId  = import.meta.env.VITE_APP_ID  || window.__APP_ID__;
+        const token  = localStorage.getItem('base44_token') || sessionStorage.getItem('base44_token') || '';
+
+        // URL da function derivada da API base do SDK
+        const baseUrl = (window.location.hostname === 'localhost')
+          ? 'http://localhost:3001'
+          : `https://app-runner.base44.com/api/apps/${appId}/functions`;
+
+        // Fallback: usa invoke normal (sem stream) se fetch falhar
+        let response;
+        try {
+          response = await fetch(`${baseUrl}/sincronizarComissoes`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': token ? `Bearer ${token}` : '',
+            },
+            body: JSON.stringify({}),
+            signal: controller.signal,
+          });
+        } catch {
+          // Usa SDK padrão como fallback (sem progresso em tempo real)
+          const res = await base44.functions.invoke('sincronizarComissoes', {});
+          const d = res?.data || {};
+          setFase('concluido');
+          setProgresso(100);
+          setMensagem(d.message || 'Sincronização concluída.');
+          setStats({ criados: d.criados ?? 0, atualizados: d.atualizados ?? 0, ignorados: d.ignorados ?? 0, erros: d.erros?.length ?? 0, total: d.processados ?? 0, processados: d.processados ?? 0 });
+          return;
+        }
+
+        if (!response.ok) throw new Error(`Erro HTTP ${response.status}`);
+        if (!response.body) throw new Error('Stream não disponível');
 
         const reader  = response.body.getReader();
         const decoder = new TextDecoder();
