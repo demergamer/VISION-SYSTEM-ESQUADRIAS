@@ -72,18 +72,21 @@ Deno.serve(async (req) => {
         }
 
         // ─────────────────────────────────────────────────────────────
-        // ACTION 2: Transferir para outro Representante (CORREÇÃO JSON)
+        // ACTION 2: Transferir para outro Representante (LIMPEZA DE SNAPSHOT)
         // ─────────────────────────────────────────────────────────────
         if (action === 'transferir') {
             const { entry_id, pedido_id, novo_representante_codigo, mover_todos } = body;
 
-            if (!novo_representante_codigo) return Response.json({ error: 'Falta novo_representante_codigo' }, { status: 400 });
+            if (!novo_representante_codigo) {
+                return Response.json({ error: 'novo_representante_codigo é obrigatório' }, { status: 400 });
+            }
 
             try {
-                // 1. Busca Dados
-                const [todosReps, todosPedidos, todosFechamentos, todosClientes] = await Promise.all([
+                // 1. Busca todos os dados necessários
+                const [todosReps, todosPedidos, todasEntries, todosFechamentos, todosClientes] = await Promise.all([
                     base44.asServiceRole.entities.Representante.list(),
                     base44.asServiceRole.entities.Pedido.list(),
+                    base44.asServiceRole.entities.CommissionEntry.list(),
                     base44.asServiceRole.entities.FechamentoComissao.list(),
                     base44.asServiceRole.entities.Cliente.list(),
                 ]);
@@ -91,84 +94,79 @@ Deno.serve(async (req) => {
                 const repDestino = todosReps.find(r => String(r.codigo) === String(novo_representante_codigo));
                 if (!repDestino) return Response.json({ error: 'Representante destino não encontrado' }, { status: 404 });
 
+                // Identifica o pedido principal
                 const idBusca = pedido_id || entry_id;
                 const pedidoAlvo = todosPedidos.find(p => String(p.id) === String(idBusca));
                 if (!pedidoAlvo) return Response.json({ error: 'Pedido alvo não encontrado' }, { status: 404 });
 
-                const clienteNome = pedidoAlvo.cliente_nome;
-                const clienteCodigo = pedidoAlvo.cliente_codigo;
-
-                // 2. Determina Pedidos a mover
-                let pedidosParaMover = new Set();
-                if (mover_todos && clienteNome) {
-                    todosPedidos.filter(p => p.cliente_nome === clienteNome && !p.comissao_paga)
-                                .forEach(p => pedidosParaMover.add(p));
+                // 2. Determina quais pedidos serão movidos
+                let pedidosParaMover = [];
+                if (mover_todos && pedidoAlvo.cliente_nome) {
+                    pedidosParaMover = todosPedidos.filter(p => p.cliente_nome === pedidoAlvo.cliente_nome && !p.comissao_paga);
                 } else {
-                    pedidosParaMover.add(pedidoAlvo);
+                    pedidosParaMover = [pedidoAlvo];
                 }
+                const idsPedidosMovidos = pedidosParaMover.map(p => String(p.id));
 
-                const pedidosIds = Array.from(pedidosParaMover).map(p => String(p.id));
-                const fechamentosAfetados = new Set();
-
-                // 3. Atualiza Pedidos e coleta fechamentos afetados
-                await Promise.all(Array.from(pedidosParaMover).map(async (p) => {
-                    if (p.comissao_fechamento_id) fechamentosAfetados.add(String(p.comissao_fechamento_id));
-                    await base44.asServiceRole.entities.Pedido.update(p.id, {
+                // 3. Atualiza os Pedidos (Desvincula do envelope antigo e troca dono)
+                await Promise.all(pedidosParaMover.map(p =>
+                    base44.asServiceRole.entities.Pedido.update(p.id, {
                         representante_codigo: repDestino.codigo,
-                        representante_nome:   repDestino.nome,
+                        representante_nome: repDestino.nome,
                         comissao_fechamento_id: null,
-                    });
-                }));
+                        comissao_mes_ano_pago: null
+                    })
+                ));
 
-                // 4. Atualiza Cliente
-                const clienteAlvo = todosClientes.find(c =>
-                    (clienteCodigo && String(c.codigo) === String(clienteCodigo)) ||
-                    (!clienteCodigo && c.nome === clienteNome)
-                );
+                // 4. Atualiza o Cliente na base
+                const clienteAlvo = todosClientes.find(c => c.nome === pedidoAlvo.cliente_nome);
                 if (clienteAlvo) {
                     await base44.asServiceRole.entities.Cliente.update(clienteAlvo.id, {
                         representante_codigo: repDestino.codigo,
-                        representante_nome:   repDestino.nome,
+                        representante_nome: repDestino.nome
                     });
                 }
 
-                // 5. FAXINA: Varre todos os FechamentoComissao abertos,
-                //    remove os pedidos movidos do JSON pedidos_detalhes e recalcula totais
-                let fechamentosAtualizados = 0;
-                const todosParaVerificar = new Set([...fechamentosAfetados]);
-                // Inclui todos os rascunhos abertos como segurança (cobre vínculos perdidos)
-                todosFechamentos.filter(f => f.status === 'aberto').forEach(f => todosParaVerificar.add(String(f.id)));
+                // 5. Atualiza as CommissionEntries atreladas (se houver)
+                const entriesParaMover = todasEntries.filter(e => idsPedidosMovidos.includes(String(e.pedido_id)) && e.status !== 'fechado');
+                await Promise.all(entriesParaMover.map(e =>
+                    base44.asServiceRole.entities.CommissionEntry.update(e.id, {
+                        representante_id: repDestino.codigo,
+                        representante_codigo: repDestino.codigo,
+                        representante_nome: repDestino.nome,
+                        fechamento_id: null
+                    })
+                ));
 
-                await Promise.all(Array.from(todosParaVerificar).map(async (fId) => {
-                    const fechamento = todosFechamentos.find(f => String(f.id) === fId);
-                    if (!fechamento) return;
+                // 6. A FAXINA DO SNAPSHOT (O CORAÇÃO DA CORREÇÃO)
+                // Varre todos os Fechamentos em 'aberto' para limpar o JSON (pedidos_detalhes)
+                const fechamentosAbertos = todosFechamentos.filter(f => f.status === 'aberto');
 
-                    const detalhesAtuais = Array.isArray(fechamento.pedidos_detalhes) ? fechamento.pedidos_detalhes : [];
-                    const contemPedidoMovido = detalhesAtuais.some(d => pedidosIds.includes(String(d.pedido_id)));
-                    if (!contemPedidoMovido) return;
+                await Promise.all(fechamentosAbertos.map(async f => {
+                    if (!f.pedidos_detalhes || !Array.isArray(f.pedidos_detalhes)) return;
 
-                    // Remove os pedidos transferidos do JSON
-                    const novaListaDetalhes = detalhesAtuais.filter(d => !pedidosIds.includes(String(d.pedido_id)));
+                    const snapshotContemPedidoMovido = f.pedidos_detalhes.some(d => idsPedidosMovidos.includes(String(d.pedido_id)));
 
-                    // Recalcula totais baseado no JSON limpo
-                    const novoTotalVendas    = novaListaDetalhes.reduce((acc, d) => acc + (Number(d.valor_pedido)  || 0), 0);
-                    const novoTotalComissoes = novaListaDetalhes.reduce((acc, d) => acc + (Number(d.valor_comissao) || 0), 0);
-                    const vales  = Number(fechamento.vales_adiantamentos) || 0;
-                    const outros = Number(fechamento.outros_descontos)    || 0;
+                    if (snapshotContemPedidoMovido) {
+                        const novaListaDetalhes = f.pedidos_detalhes.filter(d => !idsPedidosMovidos.includes(String(d.pedido_id)));
 
-                    await base44.asServiceRole.entities.FechamentoComissao.update(fId, {
-                        pedidos_detalhes:      novaListaDetalhes,
-                        total_vendas:          parseFloat(novoTotalVendas.toFixed(2)),
-                        total_comissoes_bruto: parseFloat(novoTotalComissoes.toFixed(2)),
-                        valor_liquido:         parseFloat((novoTotalComissoes - vales - outros).toFixed(2)),
-                    });
-                    fechamentosAtualizados++;
+                        const novoTotalVendas = novaListaDetalhes.reduce((acc, d) => acc + (Number(d.valor_pedido) || 0), 0);
+                        const novoTotalComissoes = novaListaDetalhes.reduce((acc, d) => acc + (Number(d.valor_comissao) || 0), 0);
+                        const vales = Number(f.vales_adiantamentos) || 0;
+                        const outros = Number(f.outros_descontos) || 0;
+
+                        await base44.asServiceRole.entities.FechamentoComissao.update(f.id, {
+                            pedidos_detalhes: novaListaDetalhes,
+                            total_vendas: parseFloat(novoTotalVendas.toFixed(2)),
+                            total_comissoes_bruto: parseFloat(novoTotalComissoes.toFixed(2)),
+                            valor_liquido: parseFloat((novoTotalComissoes - vales - outros).toFixed(2))
+                        });
+                    }
                 }));
 
                 return Response.json({
                     ok: true,
-                    mensagem: `Transferência concluída. Pedido removido do rascunho anterior e carteira atualizada.`,
-                    fechamentos_atualizados: fechamentosAtualizados,
+                    mensagem: `Transferência concluída com sucesso. Pedidos removidos do rascunho anterior.`
                 });
 
             } catch (error) {
