@@ -356,23 +356,12 @@ export default function Comissoes() {
              <Button
                variant="outline"
                onClick={handleSincronizar}
+               disabled={sincronizando}
                className="gap-2 bg-white"
-               title="Sincronização em background — você receberá uma notificação ao concluir"
              >
-               <RefreshCw className="w-4 h-4" />
-               Sincronizar
+               {sincronizando ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+               {sincronizando ? 'Sincronizando...' : 'Sincronizar'}
              </Button>
-             {syncJob && (
-               <JobStatusBadge
-                 jobId={syncJob.id}
-                 onConcluido={() => {
-                   queryClient.invalidateQueries(['commissionEntries']);
-                   queryClient.invalidateQueries(['pedidos', 'soltos']);
-                   queryClient.invalidateQueries(['fechamentoComissao']);
-                   setSyncJob(null);
-                 }}
-               />
-             )}
           </div>
         </div>
 
