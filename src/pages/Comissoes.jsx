@@ -354,6 +354,20 @@ export default function Comissoes() {
                     {mesesDisponiveis.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                 </select>
              </div>
+             <Button
+               variant="outline"
+               onClick={() => {
+                 if (!sincronizarMutation.isPending && confirm('Sincronizar todas as comissões de pedidos pagos?\n\nIsso pode levar alguns minutos.')) {
+                   sincronizarMutation.mutate();
+                 }
+               }}
+               disabled={sincronizarMutation.isPending}
+               className="gap-2 bg-white"
+               title="Gerar / atualizar comissões de todos os pedidos pagos"
+             >
+               <RefreshCw className={`w-4 h-4 ${sincronizarMutation.isPending ? 'animate-spin' : ''}`} />
+               {sincronizarMutation.isPending ? 'Processando...' : 'Sincronizar'}
+             </Button>
           </div>
         </div>
 
