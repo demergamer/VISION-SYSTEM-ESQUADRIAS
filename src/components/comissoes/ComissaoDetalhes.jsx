@@ -20,10 +20,10 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
   const [outrosDescontos, setOutrosDescontos] = useState(0);
   const [observacoes, setObservacoes] = useState('');
 
-  // Rastreia pedidos removidos da tela para mover ao próximo mês no save
+  // Rastreia pedidos removidos da tela
   const [pedidosRemovidosIds, setPedidosRemovidosIds] = useState([]);
 
-  // Adicionar Manual
+  // Adicionar Manual (Antecipar)
   const [showAddModal, setShowAddModal] = useState(false);
   const [pedidosDisponiveis, setPedidosDisponiveis] = useState([]);
   const [buscaPedido, setBuscaPedido] = useState('');
@@ -36,7 +36,6 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
   const [representantes, setRepresentantes] = useState([]);
   const [repDestino, setRepDestino] = useState('');
   const [salvandoTransfer, setSalvandoTransfer] = useState(false);
-  const [moverTodos, setMoverTodos] = useState(false);
 
   const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
@@ -126,7 +125,7 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
     return { vendas, comissaoBruta, liquido };
   }, [pedidosDaComissao, vales, outrosDescontos]);
 
-  // --- 4. AÇÕES LOCAIS ---
+  // --- 4. AÇÕES LOCAIS DA TABELA ---
   const pedidosFiltrados = useMemo(() => {
     if (!searchTerm.trim()) return pedidosDaComissao;
     const s = searchTerm.toLowerCase();
@@ -163,7 +162,6 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
       setRepresentantes(reps.filter(r => !r.bloqueado && String(r.codigo) !== String(representante.codigo)));
     }
     setRepDestino('');
-    setMoverTodos(false);
     setTransferindoId(pedidoId);
   };
 
@@ -256,7 +254,6 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
       setTransferindoId(null);
       toast.success(`Pedido transferido com sucesso para ${repEncontrado.nome}!`);
       
-      // Força os cards do painel principal (verde/roxo) a atualizar
       if (onSuccessSave) onSuccessSave();
 
     } catch (e) {
@@ -266,7 +263,48 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
     }
   };
 
-  // --- 6. SALVAR RASCUNHO / FINALIZAR ---
+  // --- 6. ANTECIPAR / PUXAR PEDIDO (RESTAUROU!) ---
+  const carregarParaAdicionar = async () => {
+      const repAtual = String(representante.codigo || '').trim().toUpperCase();
+      const idsDaTelaAtual = new Set(pedidosDaComissao.map(p => String(p.id)));
+
+      // Busca pedidos pagos que pertencem ao vendedor e não têm fechamento atrelado
+      const todosPedidos = await base44.entities.Pedido.list();
+      const pedidosSemEntry = todosPedidos.filter(p => {
+          if (p.status !== 'pago') return false;
+          if (p.comissao_paga === true) return false;
+          if (p.comissao_fechamento_id) return false;
+          const repPedido = String(p.representante_codigo || '').trim().toUpperCase();
+          if (repPedido !== repAtual) return false;
+          if (idsDaTelaAtual.has(String(p.id))) return false;
+          const dataRef = p.data_referencia_comissao || p.data_pagamento;
+          if (!dataRef) return false;
+          // Deve estar em mês DIFERENTE do atual para ser antecipado/resgatado
+          return String(dataRef).substring(0, 7) !== mesAno;
+      });
+
+      const pedidosNormalizados = pedidosSemEntry.map(p => ({
+          ...p,
+          _mes_competencia: String(p.data_referencia_comissao || p.data_pagamento || '').substring(0, 7),
+          _origem: String(p.data_referencia_comissao || p.data_pagamento || '').substring(0, 7) > mesAno ? 'futuro' : 'passado',
+      }));
+
+      const todos = [...pedidosNormalizados].sort((a, b) => {
+          if (a._origem !== b._origem) return a._origem === 'passado' ? -1 : 1;
+          return (a._mes_competencia || '').localeCompare(b._mes_competencia || '');
+      });
+
+      setPedidosDisponiveis(todos);
+      setShowAddModal(true);
+  };
+
+  const adicionarManual = async (pedido) => {
+      setPedidosDaComissao(prev => [...prev, prepararPedidoParaTela(pedido, 'manual')]);
+      setShowAddModal(false);
+      toast.success("Adicionado à lista local! Clique em salvar para confirmar.");
+  };
+
+  // --- 7. SALVAR RASCUNHO / FINALIZAR (CORRIGIDO BUG DE ZERAR) ---
   const handleSave = async (isFinalizing = false) => {
     setLoading(true);
     try {
@@ -289,9 +327,9 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
             vales_adiantamentos: parseFloat(vales),
             outros_descontos: parseFloat(outrosDescontos),
             observacoes: observacoes,
-            total_vendas: totais.vendas,
-            total_comissoes_bruto: totais.comissaoBruta,
-            valor_liquido: totais.liquido,
+            total_vendas: parseFloat(totais.vendas.toFixed(2)),
+            total_comissoes_bruto: parseFloat(totais.comissaoBruta.toFixed(2)),
+            valor_liquido: parseFloat(totais.liquido.toFixed(2)),
             pedidos_detalhes: snapshot
         };
 
@@ -316,6 +354,7 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
         const proximoMesDate = new Date(anoAtual, mesAtual, 1);
         const proximoMesStr = `${proximoMesDate.getFullYear()}-${String(proximoMesDate.getMonth() + 1).padStart(2, '0')}-01`;
 
+        // Solta os pedidos que foram removidos
         const soltar = pedidosNoBanco.filter(p => !idsNaTela.has(String(p.id)));
         const idsJaSoltos = new Set(soltar.map(p => String(p.id)));
         const removerExtras = pedidosRemovidosIds.filter(id => !idsJaSoltos.has(id));
@@ -336,9 +375,11 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
         ));
         setPedidosRemovidosIds([]); 
 
+        // Vincula e atualiza os pedidos que ficaram
         await Promise.all(pedidosDaComissao.map(p => base44.entities.Pedido.update(p.id, {
             comissao_fechamento_id: currentId,
-            comissao_mes_ano_pago: mesAno,
+            // AQUI ESTAVA O ERRO! Ele só deve carimbar o mês de pagamento se for finalização.
+            comissao_mes_ano_pago: isFinalizing ? mesAno : null, 
             comissao_paga: isFinalizing,
             porcentagem_comissao: parseFloat(p.percentual)
         })));
@@ -357,14 +398,15 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
             });
             await base44.entities.FechamentoComissao.update(currentId, { pagamento_id: conta.id });
             setStatusFechamento('fechado');
-            toast.success("Finalizado com sucesso!");
+            toast.success("Finalizado com sucesso! Lançamento gerado no Contas a Pagar.");
         } else {
-            toast.success("Salvo!");
+            toast.success("Rascunho Salvo!");
         }
+        
         if (onSuccessSave) onSuccessSave();
 
     } catch (error) {
-        toast.error("Erro ao salvar.");
+        toast.error("Erro ao salvar o rascunho.");
     } finally {
         setLoading(false);
     }
@@ -374,6 +416,12 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
     <div className="space-y-6">
        <div className="flex justify-between items-center bg-slate-50 p-4 rounded-lg border">
            <div className="text-sm">Status: <Badge className={statusFechamento === 'fechado' ? 'bg-emerald-600' : 'bg-amber-500'}>{statusFechamento.toUpperCase()}</Badge></div>
+           {/* O BOTÃO DE ANTECIPAR VOLTOU AQUI! */}
+           {statusFechamento !== 'fechado' && (
+             <Button variant="outline" size="sm" onClick={carregarParaAdicionar}>
+               <Plus className="w-4 h-4 mr-2"/> Antecipar / Puxar Pedidos
+             </Button>
+           )}
        </div>
 
        <div className="border rounded-md overflow-hidden bg-white">
@@ -464,6 +512,7 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
            ) : (<Button variant="destructive" onClick={() => alert("Reabrir não disponível.")}>Reabrir</Button>)}
        </div>
        
+       {/* Modal de Transferência */}
        <ModalContainer open={!!transferindoId} onClose={() => setTransferindoId(null)} title="Transferir para outro Representante">
          <div className="space-y-4 py-2">
            <p className="text-sm text-slate-600">Selecione o representante de destino. O pedido será movido e os rascunhos atualizados.</p>
@@ -498,6 +547,35 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
              </Button>
            </div>
          </div>
+       </ModalContainer>
+
+       {/* O MODAL DE ANTECIPAR VOLTOU AQUI! */}
+       <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Antecipar / Puxar Pedido">
+           <div className="space-y-3">
+               <p className="text-xs text-slate-500">Pedidos deste representante que não estão no rascunho (pagos atrasados ou futuros agendados).</p>
+               <Input placeholder="Buscar por pedido ou cliente..." value={buscaPedido} onChange={e => setBuscaPedido(e.target.value)} />
+               <div className="max-h-72 overflow-y-auto border rounded divide-y">
+                   {pedidosDisponiveis.length === 0 ? (
+                       <p className="text-center text-slate-400 py-8 text-sm">Nenhum pedido disponível.</p>
+                   ) : pedidosDisponiveis
+                       .filter(p => !buscaPedido || String(p.numero_pedido).includes(buscaPedido) || String(p.cliente_nome || '').toLowerCase().includes(buscaPedido.toLowerCase()))
+                       .map(p => (
+                           <div key={p.id} className="flex justify-between items-center p-3 hover:bg-slate-50 cursor-pointer" onClick={() => adicionarManual(p)}>
+                               <div className="flex items-center gap-3">
+                                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${p._origem === 'futuro' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+                                       {p._origem === 'futuro' ? `▶ ${p._mes_competencia}` : `◀ ${p._mes_competencia}`}
+                                   </span>
+                                   <div>
+                                       <p className="font-bold text-sm">#{p.numero_pedido} — {p.cliente_nome}</p>
+                                       <p className="text-xs text-slate-500">{p.data_pagamento ? new Date(p.data_pagamento).toLocaleDateString('pt-BR') : '?'}</p>
+                                   </div>
+                               </div>
+                               <p className="font-bold text-emerald-600 text-sm">{formatCurrency(p.total_pago || p.valor_pedido)}</p>
+                           </div>
+                       ))
+                   }
+               </div>
+           </div>
        </ModalContainer>
 
     </div>
