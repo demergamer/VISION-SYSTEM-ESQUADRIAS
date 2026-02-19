@@ -174,6 +174,12 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     }
   };
 
+  // Soma dos sinais retidos dos pedidos selecionados (histórico — já deduzido do saldo_restante)
+  const somaSinais = useMemo(() => 
+    selectedPedidos.reduce((sum, p) => sum + (parseFloat(p?.valor_sinal_informado) || 0), 0),
+    [selectedPedidos]
+  );
+
   const calcularTotais = () => {
     const totalOriginal = selectedPedidos.reduce((sum, p) => sum + (p?.saldo_restante || ((p?.valor_pedido || 0) - (p?.total_pago || 0))), 0);
     let desconto = 0;
@@ -186,7 +192,10 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     }
     const devolucaoValor = parseFloat(devolucao) || 0;
     const totalComDesconto = totalOriginal - desconto - devolucaoValor;
-    const totalPago = formasPagamento.reduce((sum, fp) => sum + (parseFloat(fp?.valor) || 0), 0) + (creditoAUsar || 0);
+    // Ignora formas marcadas como isSinal para não duplicar o cálculo
+    const totalPago = formasPagamento
+      .filter(fp => !fp.isSinal)
+      .reduce((sum, fp) => sum + (parseFloat(fp?.valor) || 0), 0) + (creditoAUsar || 0);
     return { totalOriginal, desconto, devolucaoValor, totalComDesconto, totalPago };
   };
 
