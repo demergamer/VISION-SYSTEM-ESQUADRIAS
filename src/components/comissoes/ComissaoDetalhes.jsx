@@ -212,6 +212,7 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
         pedido_id: transferindoId,
         entry_id: pedido?._entry_id || null,
         novo_representante_codigo: repDestino,
+        mover_todos: moverTodos,
       });
       // Remove da lista local
       setPedidosDaComissao(prev => prev.filter(p => String(p.id) !== String(transferindoId)));
