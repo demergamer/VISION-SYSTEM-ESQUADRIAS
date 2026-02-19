@@ -710,17 +710,26 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
                 <Button type="button" size="sm" variant="outline" onClick={adicionarFormaPagamento}><Plus className="w-4 h-4 mr-2" />Adicionar</Button>
               </div>
 
+              {/* Linha read-only do Sinal (histórico) */}
+              {somaSinais > 0 && (
+                <Card className="p-3 bg-slate-100 border-slate-300 border opacity-80">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-slate-500">💰 Sinal (Adiantamento Histórico)</span>
+                      <Badge className="bg-slate-400 text-white text-[10px] px-2 py-0.5">Já Deduzido</Badge>
+                    </div>
+                    <span className="font-bold text-slate-500">{formatCurrency(somaSinais)}</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">Este valor já foi abatido do saldo restante. Consta no borderô apenas como histórico.</p>
+                </Card>
+              )}
+
               {formasPagamento.map((fp, index) => (
-                <Card key={index} className={cn("p-3", fp.herdadoDeSinal ? "bg-blue-50 border-blue-200 border-2" : "bg-white")}>
+                <Card key={index} className="bg-white p-3">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium">Forma {index + 1}</span>
-                        {fp.herdadoDeSinal && (
-                          <Badge className="bg-blue-600 text-white text-[10px] px-2 py-0.5 flex items-center gap-1">
-                            <Sparkles className="w-3 h-3" /> Vindo do Sinal
-                          </Badge>
-                        )}
                       </div>
                       {formasPagamento.length > 1 && <Button type="button" size="sm" variant="ghost" onClick={() => removerFormaPagamento(index)} className="text-red-600 h-6"><X className="w-3 h-3" /></Button>}
                     </div>
