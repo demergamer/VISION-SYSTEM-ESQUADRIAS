@@ -11,7 +11,7 @@ import { Wallet, Users, Calendar, DollarSign, FileText, Search, ArrowRight, Down
 import PermissionGuard from "@/components/PermissionGuard";
 import ModalContainer from "@/components/modals/ModalContainer";
 import ComissaoDetalhes from "@/components/comissoes/ComissaoDetalhes";
-import JobStatusBadge from "@/components/comissoes/JobStatusBadge";
+import JobStatusBadge from "@/components/comissoes/JobStatusBadge.jsx";
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
