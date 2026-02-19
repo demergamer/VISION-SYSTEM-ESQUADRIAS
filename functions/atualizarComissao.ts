@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
         }
 
         // ─────────────────────────────────────────────────────────────
-        // ACTION 2: Transferir para outro Representante (LIMPEZA DE SNAPSHOT)
+        // ACTION 2: Transferir para outro Representante (3 PASSOS CIRÚRGICOS)
         // ─────────────────────────────────────────────────────────────
         if (action === 'transferir') {
             const { entry_id, pedido_id, novo_representante_codigo, mover_todos } = body;
@@ -82,11 +82,10 @@ Deno.serve(async (req) => {
             }
 
             try {
-                // 1. Busca todos os dados necessários
-                const [todosReps, todosPedidos, todasEntries, todosFechamentos, todosClientes] = await Promise.all([
+                // Busca dados base
+                const [todosReps, todosPedidos, todosFechamentos, todosClientes] = await Promise.all([
                     base44.asServiceRole.entities.Representante.list(),
                     base44.asServiceRole.entities.Pedido.list(),
-                    base44.asServiceRole.entities.CommissionEntry.list(),
                     base44.asServiceRole.entities.FechamentoComissao.list(),
                     base44.asServiceRole.entities.Cliente.list(),
                 ]);
@@ -94,79 +93,134 @@ Deno.serve(async (req) => {
                 const repDestino = todosReps.find(r => String(r.codigo) === String(novo_representante_codigo));
                 if (!repDestino) return Response.json({ error: 'Representante destino não encontrado' }, { status: 404 });
 
-                // Identifica o pedido principal
                 const idBusca = pedido_id || entry_id;
                 const pedidoAlvo = todosPedidos.find(p => String(p.id) === String(idBusca));
                 if (!pedidoAlvo) return Response.json({ error: 'Pedido alvo não encontrado' }, { status: 404 });
 
-                // 2. Determina quais pedidos serão movidos
+                // Determina quais pedidos serão movidos
                 let pedidosParaMover = [];
                 if (mover_todos && pedidoAlvo.cliente_nome) {
                     pedidosParaMover = todosPedidos.filter(p => p.cliente_nome === pedidoAlvo.cliente_nome && !p.comissao_paga);
                 } else {
                     pedidosParaMover = [pedidoAlvo];
                 }
-                const idsPedidosMovidos = pedidosParaMover.map(p => String(p.id));
 
-                // 3. Atualiza os Pedidos (Desvincula do envelope antigo e troca dono)
+                // Helper: recalcula e salva um FechamentoComissao com nova lista
+                const salvarFechamento = async (fechamento, novaLista) => {
+                    const totalVendas    = novaLista.reduce((acc, d) => acc + (Number(d.valor_pedido)  || 0), 0);
+                    const totalComissoes = novaLista.reduce((acc, d) => acc + (Number(d.valor_comissao) || 0), 0);
+                    const vales  = Number(fechamento.vales_adiantamentos) || 0;
+                    const outros = Number(fechamento.outros_descontos)    || 0;
+                    await base44.asServiceRole.entities.FechamentoComissao.update(fechamento.id, {
+                        pedidos_detalhes:      novaLista,
+                        total_vendas:          parseFloat(totalVendas.toFixed(2)),
+                        total_comissoes_bruto: parseFloat(totalComissoes.toFixed(2)),
+                        valor_liquido:         parseFloat((totalComissoes - vales - outros).toFixed(2)),
+                    });
+                };
+
+                // Helper: busca ou cria FechamentoComissao de destino para um mes_ano
+                const envelopeDestinoCache = {};
+                const resolverDestinoEnvelope = async (mesAno) => {
+                    if (envelopeDestinoCache[mesAno]) return envelopeDestinoCache[mesAno];
+                    let fDest = todosFechamentos.find(f =>
+                        String(f.representante_codigo) === String(repDestino.codigo) &&
+                        f.mes_ano === mesAno &&
+                        f.status === 'aberto'
+                    );
+                    if (!fDest) {
+                        fDest = await base44.asServiceRole.entities.FechamentoComissao.create({
+                            mes_ano:               mesAno,
+                            representante_codigo:  repDestino.codigo,
+                            representante_nome:    repDestino.nome,
+                            representante_chave_pix: repDestino.chave_pix || '',
+                            status:                'aberto',
+                            pedidos_detalhes:      [],
+                            total_vendas:          0,
+                            total_comissoes_bruto: 0,
+                            vales_adiantamentos:   0,
+                            outros_descontos:      0,
+                            valor_liquido:         0,
+                        });
+                        todosFechamentos.push(fDest); // Adiciona ao cache local para reuso
+                    }
+                    envelopeDestinoCache[mesAno] = fDest;
+                    return fDest;
+                };
+
+                // ── PASSO 1: Atualiza Pedido(s) e Cliente ──────────────
                 await Promise.all(pedidosParaMover.map(p =>
                     base44.asServiceRole.entities.Pedido.update(p.id, {
                         representante_codigo: repDestino.codigo,
-                        representante_nome: repDestino.nome,
-                        comissao_fechamento_id: null,
-                        comissao_mes_ano_pago: null
+                        representante_nome:   repDestino.nome,
                     })
                 ));
 
-                // 4. Atualiza o Cliente na base
                 const clienteAlvo = todosClientes.find(c => c.nome === pedidoAlvo.cliente_nome);
                 if (clienteAlvo) {
                     await base44.asServiceRole.entities.Cliente.update(clienteAlvo.id, {
                         representante_codigo: repDestino.codigo,
-                        representante_nome: repDestino.nome
+                        representante_nome:   repDestino.nome,
                     });
                 }
 
-                // 5. Atualiza as CommissionEntries atreladas (se houver)
-                const entriesParaMover = todasEntries.filter(e => idsPedidosMovidos.includes(String(e.pedido_id)) && e.status !== 'fechado');
-                await Promise.all(entriesParaMover.map(e =>
-                    base44.asServiceRole.entities.CommissionEntry.update(e.id, {
-                        representante_id: repDestino.codigo,
-                        representante_codigo: repDestino.codigo,
-                        representante_nome: repDestino.nome,
-                        fechamento_id: null
-                    })
-                ));
+                // ── PASSO 2 + 3: Para cada pedido, extrai da origem e injeta no destino ──
+                // Agrupa pedidos por representante_codigo de origem (dono antigo)
+                for (const pedido of pedidosParaMover) {
+                    const repOrigem = pedido.representante_codigo;
 
-                // 6. A FAXINA DO SNAPSHOT (O CORAÇÃO DA CORREÇÃO)
-                // Varre todos os Fechamentos em 'aberto' para limpar o JSON (pedidos_detalhes)
-                const fechamentosAbertos = todosFechamentos.filter(f => f.status === 'aberto');
+                    // Descobre o mes_ano para este pedido (usa data_referencia_comissao ou data_pagamento)
+                    const dataRef = pedido.data_referencia_comissao || pedido.data_pagamento;
+                    const mesAno  = dataRef ? String(dataRef).substring(0, 7) : null;
+                    if (!mesAno) continue; // Pedido sem data de referência não tem envelope
 
-                await Promise.all(fechamentosAbertos.map(async f => {
-                    if (!f.pedidos_detalhes || !Array.isArray(f.pedidos_detalhes)) return;
+                    // Passo 2: Busca fechamento de ORIGEM e extrai o pedido do JSON
+                    const fOrigem = todosFechamentos.find(f =>
+                        String(f.representante_codigo) === String(repOrigem) &&
+                        f.mes_ano === mesAno &&
+                        f.status === 'aberto'
+                    );
 
-                    const snapshotContemPedidoMovido = f.pedidos_detalhes.some(d => idsPedidosMovidos.includes(String(d.pedido_id)));
-
-                    if (snapshotContemPedidoMovido) {
-                        const novaListaDetalhes = f.pedidos_detalhes.filter(d => !idsPedidosMovidos.includes(String(d.pedido_id)));
-
-                        const novoTotalVendas = novaListaDetalhes.reduce((acc, d) => acc + (Number(d.valor_pedido) || 0), 0);
-                        const novoTotalComissoes = novaListaDetalhes.reduce((acc, d) => acc + (Number(d.valor_comissao) || 0), 0);
-                        const vales = Number(f.vales_adiantamentos) || 0;
-                        const outros = Number(f.outros_descontos) || 0;
-
-                        await base44.asServiceRole.entities.FechamentoComissao.update(f.id, {
-                            pedidos_detalhes: novaListaDetalhes,
-                            total_vendas: parseFloat(novoTotalVendas.toFixed(2)),
-                            total_comissoes_bruto: parseFloat(novoTotalComissoes.toFixed(2)),
-                            valor_liquido: parseFloat((novoTotalComissoes - vales - outros).toFixed(2))
-                        });
+                    let pedidoExtraido = null;
+                    if (fOrigem && Array.isArray(fOrigem.pedidos_detalhes)) {
+                        pedidoExtraido = fOrigem.pedidos_detalhes.find(d => String(d.pedido_id) === String(pedido.id));
+                        const listaOrigem = fOrigem.pedidos_detalhes.filter(d => String(d.pedido_id) !== String(pedido.id));
+                        // Atualiza fechamento de origem com lista reduzida
+                        await salvarFechamento(fOrigem, listaOrigem);
+                        // Atualiza cache local para evitar re-leitura
+                        fOrigem.pedidos_detalhes = listaOrigem;
                     }
-                }));
+
+                    // Passo 3: Busca/cria fechamento de DESTINO e insere o pedido extraído
+                    const fDestino = await resolverDestinoEnvelope(mesAno);
+                    const listaDestino = Array.isArray(fDestino.pedidos_detalhes) ? [...fDestino.pedidos_detalhes] : [];
+
+                    // Monta o objeto a inserir (usa o extraído ou reconstrói do pedido)
+                    const percentual     = Number(pedido.porcentagem_comissao) || 5;
+                    const valorBase      = Number(pedido.total_pago) || Number(pedido.valor_pedido) || 0;
+                    const valorComissao  = parseFloat(((valorBase * percentual) / 100).toFixed(2));
+
+                    const itemDestino = pedidoExtraido
+                        ? { ...pedidoExtraido }
+                        : {
+                            pedido_id:          String(pedido.id),
+                            numero_pedido:      pedido.numero_pedido,
+                            cliente_nome:       pedido.cliente_nome,
+                            data_pagamento:     pedido.data_pagamento,
+                            valor_pedido:       valorBase,
+                            percentual_comissao: percentual,
+                            valor_comissao:     valorComissao,
+                          };
+
+                    listaDestino.push(itemDestino);
+                    await salvarFechamento(fDestino, listaDestino);
+                    // Atualiza cache local
+                    fDestino.pedidos_detalhes = listaDestino;
+                }
 
                 return Response.json({
                     ok: true,
-                    mensagem: `Transferência concluída com sucesso. Pedidos removidos do rascunho anterior.`
+                    mensagem: `Transferência concluída: ${pedidosParaMover.length} pedido(s) movidos do rascunho de origem para o destino.`,
                 });
 
             } catch (error) {
