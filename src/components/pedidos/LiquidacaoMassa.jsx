@@ -129,14 +129,12 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       return [...comprovantesManuais, ...arquivosAtuais];
     });
 
-    // Mostra toast apenas se houver sinais detectados
+    // Toast informativo (sem prometer desconto automático)
     if (sinaisArray.length > 0) {
       const totalSinalHerdado = sinaisArray.reduce((sum, s) => sum + s.valor, 0);
-      const totalArquivos = sinaisArray.reduce((sum, s) => sum + s.arquivos, 0);
-      
-      toast.success(
-        `💡 ${sinaisArray.length} sinal(is) detectado(s)! Total: ${formatCurrency(totalSinalHerdado)}. ${totalArquivos} comprovante(s) adicionado(s) automaticamente.`,
-        { duration: 6000 }
+      toast.info(
+        `💰 ${sinaisArray.length} sinal(is) retido(s) detectado(s) (${formatCurrency(totalSinalHerdado)}). O saldo já está deduzido.`,
+        { duration: 5000 }
       );
     }
   }, [selectedPedidos]);
