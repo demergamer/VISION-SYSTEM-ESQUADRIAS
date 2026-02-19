@@ -481,16 +481,16 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
                               className="w-28 h-8"
                               value={p.valorBase}
                               onChange={e => handleUpdateBase(p.id, e.target.value)}
-                              disabled={statusFechamento === 'fechado'}
+                              disabled={statusFechamento === 'fechado' || isPortal}
                             />
-                          </TableCell>
-                          <TableCell>
+                            </TableCell>
+                            <TableCell>
                             <Input
                               type="number"
                               className="w-16 h-8"
                               value={p.percentual}
                               onChange={e => handleUpdatePercentual(p.id, e.target.value)}
-                              disabled={statusFechamento === 'fechado'}
+                              disabled={statusFechamento === 'fechado' || isPortal}
                             />
                           </TableCell>
                           <TableCell className="text-right font-bold text-emerald-600">{formatCurrency(p.valorComissao)}</TableCell>
