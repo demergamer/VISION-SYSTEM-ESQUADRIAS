@@ -519,12 +519,15 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
 
        <div className="flex justify-end gap-2 pt-4 border-t">
            <Button variant="outline" onClick={onClose}>Fechar</Button>
-           {statusFechamento !== 'fechado' ? (
+           {!isPortal && statusFechamento !== 'fechado' && (
                <>
                    <Button onClick={() => handleSave(false)} disabled={loading} className="bg-blue-600 hover:bg-blue-700">{loading ? <Loader2 className="animate-spin w-4 h-4"/> : <Save className="w-4 h-4 mr-2"/>} Salvar Rascunho</Button>
                    <Button onClick={() => handleSave(true)} disabled={loading} className="bg-emerald-600 hover:bg-emerald-700"><Lock className="w-4 h-4 mr-2"/> Finalizar</Button>
                </>
-           ) : (<Button variant="destructive" onClick={() => alert("Reabrir não disponível.")}>Reabrir</Button>)}
+           )}
+           {!isPortal && statusFechamento === 'fechado' && (
+               <Button variant="destructive" onClick={() => alert("Reabrir não disponível.")}>Reabrir</Button>
+           )}
        </div>
        
        <ModalContainer open={!!transferindoId} onClose={() => setTransferindoId(null)} title="Transferir para outro Representante">
