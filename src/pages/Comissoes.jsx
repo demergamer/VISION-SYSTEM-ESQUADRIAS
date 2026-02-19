@@ -111,24 +111,36 @@ export default function Comissoes() {
   // 2. Busca Fechamentos (Rascunhos ou Fechados) do Mês
   const { data: fechamentos = [], isLoading: loadingFechamentos } = useQuery({ 
       queryKey: ['fechamentoComissao', mesAnoSelecionado], 
-      queryFn: () => base44.entities.FechamentoComissao.list({ filters: { mes_ano: mesAnoSelecionado } })
+      staleTime: 0,
+      queryFn: async () => {
+          const todos = await base44.entities.FechamentoComissao.list();
+          return todos.filter(f => f.mes_ano === mesAnoSelecionado);
+      }
   });
 
   // 3. Busca Pedidos "Soltos" do Mês (Para calcular previsão de quem não tem rascunho)
+  // Inclui pedidos vinculados a rascunhos ABERTOS para não sumir dos cards ao salvar rascunho
   const { data: pedidosSoltos = [], isLoading: loadingPedidos } = useQuery({
       queryKey: ['pedidos', 'soltos', mesAnoSelecionado],
-      staleTime: 0, // Sem cache: garante que após remoção o card some imediatamente
+      staleTime: 0,
       queryFn: async () => {
-          const [ano, mes] = mesAnoSelecionado.split('-').map(Number);
-          // Compara só os 7 primeiros chars (YYYY-MM) para evitar bugs de fuso horário
-          const todos = await base44.entities.Pedido.list(); 
-          return todos.filter(p => {
+          const [todosPedidos, todosFechamentos] = await Promise.all([
+              base44.entities.Pedido.list(),
+              base44.entities.FechamentoComissao.list(),
+          ]);
+          // IDs de fechamentos ABERTOS (rascunhos) do mês — pedidos vinculados a eles ainda contam como "soltos"
+          const idsRascunhosAbertos = new Set(
+              todosFechamentos
+                  .filter(f => f.mes_ano === mesAnoSelecionado && f.status === 'aberto')
+                  .map(f => f.id)
+          );
+          return todosPedidos.filter(p => {
              if (p.status !== 'pago') return false;
-             if (p.comissao_fechamento_id) return false;
-             // Usa data_referencia_comissao se disponível, senão data_pagamento
+             // Considera "solto" se: não tem fechamento_id, OU está vinculado a um rascunho aberto
+             const estaEmRascunhoAberto = p.comissao_fechamento_id && idsRascunhosAbertos.has(p.comissao_fechamento_id);
+             if (p.comissao_fechamento_id && !estaEmRascunhoAberto) return false;
              const dataRef = p.data_referencia_comissao || p.data_pagamento;
              if (!dataRef) return false;
-             // Compara somente YYYY-MM para evitar problemas com horário/fuso
              return String(dataRef).substring(0, 7) === mesAnoSelecionado;
           });
       }
