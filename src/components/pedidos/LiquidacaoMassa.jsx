@@ -607,31 +607,31 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
 
       {selectedPedidos.length > 0 && (
         <>
-          {/* ALERTA DE HERANÇA DE SINAL */}
+          {/* AVISO DE SINAL (apenas informativo) */}
           {sinaisHerdados.length > 0 && (
-            <Card className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200 border-2">
+            <Card className="p-4 bg-amber-50 border-amber-200 border-2">
               <div className="flex items-start gap-3">
-                <div className="p-2 bg-blue-600 rounded-lg">
-                  <Sparkles className="w-5 h-5 text-white" />
+                <div className="p-2 bg-amber-500 rounded-lg">
+                  <Info className="w-5 h-5 text-white" />
                 </div>
                 <div className="flex-1">
-                  <h4 className="font-bold text-blue-900 flex items-center gap-2 mb-2">
-                    Dados do Sinal Herdados Automaticamente
+                  <h4 className="font-bold text-amber-900 flex items-center gap-2 mb-2">
+                    Sinais Retidos Detectados (Informativo)
                   </h4>
                   <div className="space-y-1">
                     {sinaisHerdados.map((sinal, idx) => (
-                      <p key={idx} className="text-sm text-blue-800">
+                      <p key={idx} className="text-sm text-amber-800">
                         • Pedido <span className="font-mono font-bold">#{sinal.pedido_numero}</span>: 
-                        <span className="font-bold text-blue-600"> {formatCurrency(sinal.valor)}</span>
+                        <span className="font-bold text-amber-700"> {formatCurrency(sinal.valor)}</span>
                         {sinal.arquivos > 0 && (
-                          <span className="text-xs text-purple-700"> ({sinal.arquivos} comprovante{sinal.arquivos > 1 ? 's' : ''})</span>
+                          <span className="text-xs text-amber-600"> ({sinal.arquivos} comprovante{sinal.arquivos > 1 ? 's' : ''})</span>
                         )}
                       </p>
                     ))}
                   </div>
-                  <div className="mt-3 flex items-center gap-2 text-xs text-slate-600 bg-white/60 p-2 rounded-lg border border-blue-100">
-                    <Info className="w-4 h-4 text-blue-500" />
-                    <span>Os valores e comprovantes foram pré-preenchidos. Você pode ajustar antes de finalizar.</span>
+                  <div className="mt-3 flex items-center gap-2 text-xs text-slate-600 bg-white/60 p-2 rounded-lg border border-amber-100">
+                    <Info className="w-3.5 h-3.5 text-amber-500" />
+                    <span>O saldo exibido já está com o sinal deduzido. Nenhum desconto adicional será aplicado.</span>
                   </div>
                 </div>
               </div>
