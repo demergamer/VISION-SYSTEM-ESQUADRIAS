@@ -4,7 +4,7 @@ import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 /**
- * Badge inline que faz polling no SyncJob e atualiza em tempo real via subscribe.
+ * Badge inline que acompanha o status de um SyncJob via subscribe em tempo real.
  * Desaparece automaticamente 4s após concluir/erro.
  */
 export default function JobStatusBadge({ jobId, onConcluido }) {
@@ -18,12 +18,11 @@ export default function JobStatusBadge({ jobId, onConcluido }) {
       .then(j => j && setStatus(j.status))
       .catch(() => {});
 
-    // Subscribe a mudanças
+    // Subscribe a mudanças em tempo real
     const unsub = base44.entities.SyncJob.subscribe((event) => {
       if (String(event.id) !== String(jobId)) return;
       const novoStatus = event.data?.status;
       if (novoStatus) setStatus(novoStatus);
-
       if (novoStatus === 'concluido' || novoStatus === 'erro') {
         setTimeout(() => onConcluido?.(), 4000);
       }
