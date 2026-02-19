@@ -6,7 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { 
   Bell, CheckCheck, Trash2, ShoppingCart, AlertCircle, 
-  TrendingUp, Star, Check, Clock, XCircle 
+  TrendingUp, Star, Check, Clock, XCircle, RefreshCw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from 'react-router-dom';
