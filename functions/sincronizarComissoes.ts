@@ -54,10 +54,10 @@ async function processarEmBackground(base44, emit, writer) {
   const resultado = { criados: 0, atualizados: 0, ignorados: 0, erros: [] };
 
   try {
-    // ── FASE 1: Coleta de candidatos ──────────────────────────────────────────
-    await emit({ fase: 'iniciando', progresso: 0, mensagem: 'Carregando pedidos pagos...' });
+    // ── FASE 1: Coleta de candidatos (DELTA) ─────────────────────────────────
+    await emit({ fase: 'iniciando', progresso: 0, mensagem: 'Aplicando filtro Delta...' });
 
-    const [pedidosCandidatos, todasEntries] = await Promise.all([
+    const [pedidosPagos, todasEntries] = await Promise.all([
       base44.asServiceRole.entities.Pedido.filter({ status: 'pago' }),
       base44.asServiceRole.entities.CommissionEntry.list(),
     ]);
@@ -68,13 +68,23 @@ async function processarEmBackground(base44, emit, writer) {
       entryPorPedido.set(String(e.pedido_id), e);
     }
 
-    // Filtro cirúrgico
-    const candidatos = pedidosCandidatos.filter(p => {
+    // ── FILTRO DELTA: só processa o que nunca foi sincronizado OU foi alterado
+    //    depois da última sincronização (updated_date > comissao_last_sync).
+    const candidatos = pedidosPagos.filter(p => {
+      // Descarta pedidos cujo entry de comissão já está fechado
       const entry = entryPorPedido.get(String(p.id));
-      if (entry?.status === 'fechado')                  return false;
-      if (parseFloat(p.saldo_restante ?? 0) > 0.01)    return false;
-      if (parseFloat(p.total_pago ?? 0) <= 0)          return false;
-      return true;
+      if (entry?.status === 'fechado')               return false;
+      // Descarta pedidos sem valor pago ou com saldo em aberto
+      if (parseFloat(p.saldo_restante ?? 0) > 0.01) return false;
+      if (parseFloat(p.total_pago     ?? 0) <= 0)   return false;
+
+      // ── REGRA DELTA ──────────────────────────────────────────────────────
+      // 1) Nunca foi sincronizado → inclui sempre
+      if (!p.comissao_last_sync) return true;
+      // 2) Foi alterado após a última sync → inclui
+      const lastSync   = new Date(p.comissao_last_sync).getTime();
+      const lastUpdate = new Date(p.updated_date || 0).getTime();
+      return lastUpdate > lastSync;
     });
 
     const total = candidatos.length;
