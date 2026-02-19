@@ -589,7 +589,15 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
                   <div><p className="text-xs text-slate-500">Cliente</p><p className="font-medium text-sm truncate">{pedido?.cliente_nome || 'Sem nome'}</p></div>
                   <div><p className="text-xs text-slate-500">Código</p><p className="text-sm">{pedido?.cliente_codigo || '-'}</p></div>
                   <div><p className="text-xs text-slate-500">Data Entrega</p><p className="text-sm">{pedido?.data_entrega ? new Date(pedido.data_entrega).toLocaleDateString('pt-BR') : '-'}</p></div>
-                  <div className="text-right"><p className="text-xs text-slate-500">Saldo</p><p className="font-bold text-sm">{formatCurrency(saldo)}</p></div>
+                  <div className="text-right">
+                    <p className="text-xs text-slate-500">Saldo</p>
+                    <p className="font-bold text-sm">{formatCurrency(saldo)}</p>
+                    {Number(pedido.valor_sinal_informado) > 0 && (
+                      <div className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded mt-1 inline-block">
+                        💰 Sinal retido: {formatCurrency(pedido.valor_sinal_informado)}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </Card>
