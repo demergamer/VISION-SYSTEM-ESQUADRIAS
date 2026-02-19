@@ -90,10 +90,10 @@ async function processarEmBackground(base44, emit, writer) {
     const total = candidatos.length;
     console.log(`📋 Delta: ${total} de ${pedidosPagos.length} pedidos pagos precisam de sync`);
 
-    await emit({ fase: 'iniciando', progresso: 0, total, mensagem: `${total} pedido(s) para processar.` });
+    await emit({ fase: 'iniciando', progresso: 0, total, mensagem: `${total} pedido(s) delta para processar (de ${pedidosPagos.length} pagos).` });
 
     if (total === 0) {
-      await emit({ fase: 'concluido', progresso: 100, total: 0, ...resultado, mensagem: 'Nada a sincronizar.' });
+      await emit({ fase: 'concluido', progresso: 100, total: 0, ...resultado, mensagem: `Tudo em dia! Nenhum pedido alterado desde a última sync (${pedidosPagos.length} verificados).` });
       await writer.close();
       return;
     }
