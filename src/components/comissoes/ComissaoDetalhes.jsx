@@ -28,6 +28,15 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
   const [pedidosDisponiveis, setPedidosDisponiveis] = useState([]);
   const [buscaPedido, setBuscaPedido] = useState('');
 
+  // Pesquisa local na tabela
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Transferir representante
+  const [transferindoId, setTransferindoId] = useState(null); // ID do pedido sendo transferido
+  const [representantes, setRepresentantes] = useState([]);
+  const [repDestino, setRepDestino] = useState('');
+  const [salvandoTransfer, setSalvandoTransfer] = useState(false);
+
   const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
   // --- 1. NORMALIZADOR DE DADOS ---
