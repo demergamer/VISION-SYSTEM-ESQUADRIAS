@@ -447,8 +447,12 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
 
       const creditoEfetivamenteUsado = creditoAUsar - creditoRestante;
       const totalPortUsado = portsUsados.reduce((sum, p) => sum + p.valorTotal, 0);
+      const totalSinalHistorico = selectedPedidos.reduce((sum, p) => sum + (parseFloat(p?.valor_sinal_informado) || 0), 0);
       
       let formasFinal = formasPagamentoStr;
+      if (totalSinalHistorico > 0) {
+        formasFinal = `SINAL (Histórico): ${formatCurrency(totalSinalHistorico)}${formasFinal ? ' | ' + formasFinal : ''}`;
+      }
       if (totalPortUsado > 0) {
         formasFinal += ` | SINAL (${portsUsados.map(p => `PORT #${p.numero}`).join(', ')}): ${formatCurrency(totalPortUsado)}`;
       }
