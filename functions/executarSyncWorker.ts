@@ -3,20 +3,34 @@
  *
  * Recebe { job_id } e executa a sincronização Delta completa.
  * Ao final, atualiza o SyncJob e cria uma Notificacao para o solicitante.
- * Acesso: somente admin (chamado internamente pelo despacharSincronizacao).
+ * Pode ser chamado internamente via SDK service-role (sem token de usuário).
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
 const BATCH_SIZE = 50;
 
 Deno.serve(async (req) => {
-  const base44 = createClientFromRequest(req);
-  const user   = await base44.auth.me();
-  if (!user)                 return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  if (user.role !== 'admin') return Response.json({ error: 'Forbidden'    }, { status: 403 });
+  console.log('[SyncWorker] ✅ Worker iniciado — recebendo requisição...');
 
-  const { job_id } = await req.json().catch(() => ({}));
-  if (!job_id) return Response.json({ error: 'job_id obrigatório' }, { status: 400 });
+  const base44 = createClientFromRequest(req);
+
+  // Suporta tanto chamada autenticada (usuário) quanto service-role interna
+  let solicitadoPor = 'sistema';
+  try {
+    const user = await base44.auth.me();
+    if (user) solicitadoPor = user.email;
+  } catch (_) {
+    // Chamada interna sem sessão de usuário — OK
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const { job_id } = body;
+  if (!job_id) {
+    console.error('[SyncWorker] ❌ job_id não informado');
+    return Response.json({ error: 'job_id obrigatório' }, { status: 400 });
+  }
+
+  console.log(`[SyncWorker] 🚀 Iniciando job ${job_id}`);
 
   // Marca job como "processando"
   await base44.asServiceRole.entities.SyncJob.update(job_id, {
@@ -28,10 +42,12 @@ Deno.serve(async (req) => {
 
   try {
     // ── Carrega dados ─────────────────────────────────────────────────────
+    console.log('[SyncWorker] 📥 Carregando pedidos e entries...');
     const [pedidosPagos, todasEntries] = await Promise.all([
       base44.asServiceRole.entities.Pedido.filter({ status: 'pago' }),
       base44.asServiceRole.entities.CommissionEntry.list(),
     ]);
+    console.log(`[SyncWorker] 📦 ${pedidosPagos.length} pedidos pagos, ${todasEntries.length} entries existentes`);
 
     // Mapa O(1) pedido_id → entry
     const entryPorPedido = new Map();
@@ -64,11 +80,12 @@ Deno.serve(async (req) => {
     });
 
     resultado.total = candidatos.length;
-    console.log(`[SyncWorker] Delta: ${resultado.total} de ${pedidosPagos.length} pedidos`);
+    console.log(`[SyncWorker] 🔍 Delta: ${resultado.total} de ${pedidosPagos.length} pedidos para processar`);
 
     // ── Processa em batches ───────────────────────────────────────────────
     for (let i = 0; i < candidatos.length; i += BATCH_SIZE) {
       const batch = candidatos.slice(i, i + BATCH_SIZE);
+      console.log(`[SyncWorker] ⚙️  Processando batch ${Math.floor(i/BATCH_SIZE)+1} (${batch.length} itens)`);
       await Promise.all(batch.map(p => processarPedido(p, entryPorPedido, resolverCompetencia, base44, resultado)));
     }
 
@@ -80,14 +97,16 @@ Deno.serve(async (req) => {
       resultado:    { ...resultado },
     });
 
+    console.log(`[SyncWorker] ✅ Job ${job_id} concluído:`, resultado);
+
     // ── Notificação de conclusão ──────────────────────────────────────────
-    const job = await base44.asServiceRole.entities.SyncJob.get(job_id).catch(() => null);
-    const destinatario = job?.solicitado_por || user.email;
+    const jobData = await base44.asServiceRole.entities.SyncJob.get(job_id).catch(() => null);
+    const destinatario = jobData?.solicitado_por || solicitadoPor;
 
     await base44.asServiceRole.entities.Notificacao.create({
       tipo:                'sincronizacao_comissoes',
       titulo:              '✅ Sincronização de Comissões Concluída',
-      mensagem:            `${resultado.criados} criadas · ${resultado.atualizados} atualizadas · ${resultado.ignorados} ignoradas · ${resultado.erros} erros (${resultado.total} pedidos delta processados).`,
+      mensagem:            `${resultado.criados} criadas · ${resultado.atualizados} atualizadas · ${resultado.ignorados} ignoradas · ${resultado.erros} erros (${resultado.total} pedidos processados).`,
       destinatario_email:  destinatario,
       destinatario_role:   'admin',
       lida:                false,
@@ -98,20 +117,20 @@ Deno.serve(async (req) => {
     return Response.json({ success: true, resultado });
 
   } catch (err) {
-    console.error('[SyncWorker] Erro crítico:', err.message);
+    console.error(`[SyncWorker] ❌ Job ${job_id} falhou:`, err.message, err.stack);
+
     await base44.asServiceRole.entities.SyncJob.update(job_id, {
       status:         'erro',
       concluido_em:   new Date().toISOString(),
       erro_mensagem:  err.message,
     }).catch(() => {});
 
-    // Notifica o erro também
-    const job = await base44.asServiceRole.entities.SyncJob.get(job_id).catch(() => null);
+    const jobData = await base44.asServiceRole.entities.SyncJob.get(job_id).catch(() => null);
     await base44.asServiceRole.entities.Notificacao.create({
       tipo:               'sincronizacao_comissoes',
       titulo:             '❌ Erro na Sincronização de Comissões',
       mensagem:           err.message || 'Falha desconhecida no worker.',
-      destinatario_email: job?.solicitado_por || user.email,
+      destinatario_email: jobData?.solicitado_por || solicitadoPor,
       destinatario_role:  'admin',
       lida:               false,
       prioridade:         'alta',
@@ -160,7 +179,7 @@ async function processarPedido(pedido, entryPorPedido, resolverCompetencia, base
       resultado.ignorados++;
     }
   } catch (err) {
-    console.error(`[SyncWorker] Pedido ${pedido.numero_pedido}: ${err.message}`);
+    console.error(`[SyncWorker] ❌ Pedido ${pedido.numero_pedido}: ${err.message}`);
     resultado.erros++;
   }
 }
