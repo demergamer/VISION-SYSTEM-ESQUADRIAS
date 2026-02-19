@@ -20,7 +20,8 @@ const iconMap = {
   liquidacao_rejeitada: XCircle,
   pedido_atrasado: Clock,
   meta_atingida: TrendingUp,
-  cliente_vip: Star
+  cliente_vip: Star,
+  sincronizacao_comissoes: RefreshCw,
 };
 
 const colorMap = {
