@@ -196,6 +196,7 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
       setRepresentantes(reps.filter(r => !r.bloqueado && String(r.codigo) !== String(representante.codigo)));
     }
     setRepDestino('');
+    setMoverTodos(false);
     setTransferindoId(pedidoId);
   };
 
