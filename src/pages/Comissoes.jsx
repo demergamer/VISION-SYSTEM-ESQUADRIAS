@@ -61,7 +61,7 @@ export default function Comissoes() {
   const [showModalAntecipar, setShowModalAntecipar] = useState(false);
   const [comissoesSelecionadas, setComissoesSelecionadas] = useState([]);
   const [modoVisualizacao, setModoVisualizacao] = useState('representantes'); // 'representantes' | 'competencia'
-  const [syncJob, setSyncJob] = useState(null); // { id, status }
+  const [sincronizando, setSincronizando] = useState(false);
 
   // 1. Busca Representantes
   const { data: representantes = [] } = useQuery({ 
