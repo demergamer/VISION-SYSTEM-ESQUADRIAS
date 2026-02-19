@@ -48,13 +48,11 @@ Deno.serve(async (req) => {
       erros:       [],
     };
 
-    // Processa em chunks para não sobrecarregar a API (máx 10 simultâneos)
-    const CHUNK = 10;
-    for (let i = 0; i < candidatos.length; i += CHUNK) {
-      const chunk = candidatos.slice(i, i + CHUNK);
-      await Promise.all(chunk.map(pedido => processarPedido(
-        pedido, entryPorPedido, base44, resultado
-      )));
+    // Processamento sequencial com pequeno delay para respeitar rate limit da API
+    const DELAY_MS = 80; // ~12 req/s — dentro do limite seguro
+    for (const pedido of candidatos) {
+      await processarPedido(pedido, entryPorPedido, base44, resultado);
+      await new Promise(r => setTimeout(r, DELAY_MS));
     }
 
     console.log(`✅ Sincronização concluída:`, resultado);
