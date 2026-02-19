@@ -174,11 +174,29 @@ export default function Comissoes() {
 
         // CENÁRIO A: Já tem fechamento (Rascunho ou Final) -> Usa dados do banco
         if (fechamento) {
+            // Para rascunhos abertos, recalcula do snapshot se total_vendas estiver zerado
+            let totalVendas = fechamento.total_vendas || 0;
+            let saldoAPagar = fechamento.valor_liquido || 0;
+
+            if (fechamento.status === 'aberto' && totalVendas === 0 && Array.isArray(fechamento.pedidos_detalhes) && fechamento.pedidos_detalhes.length > 0) {
+                totalVendas = fechamento.pedidos_detalhes.reduce((acc, d) => acc + (Number(d.valor_pedido) || 0), 0);
+                const totalComissaoBruta = fechamento.pedidos_detalhes.reduce((acc, d) => acc + (Number(d.valor_comissao) || 0), 0);
+                saldoAPagar = totalComissaoBruta - (Number(fechamento.vales_adiantamentos) || 0) - (Number(fechamento.outros_descontos) || 0);
+            }
+
+            // Se ainda zerado (rascunho sem snapshot), cai para previsão com pedidos soltos
+            if (fechamento.status === 'aberto' && totalVendas === 0) {
+                const meusPedidos = pedidosSoltos.filter(p => String(p.representante_codigo) === String(rep.codigo));
+                totalVendas = meusPedidos.reduce((sum, p) => sum + (parseFloat(p.total_pago) || 0), 0);
+                const totalComissao = meusPedidos.reduce((sum, p) => sum + ((parseFloat(p.total_pago) || 0) * (p.porcentagem_comissao || rep.porcentagem_comissao || 5) / 100), 0);
+                saldoAPagar = totalComissao - (rep.vales || 0);
+            }
+
             return {
                 ...rep,
                 status: fechamento.status === 'fechado' ? 'fechado' : 'rascunho',
-                totalVendas: fechamento.total_vendas || 0,
-                saldoAPagar: fechamento.valor_liquido || 0,
+                totalVendas,
+                saldoAPagar,
                 fechamentoId: fechamento.id
             };
         }
