@@ -32,7 +32,7 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
   const [searchTerm, setSearchTerm] = useState('');
 
   // Transferir representante
-  const [transferindoId, setTransferindoId] = useState(null); // ID do pedido sendo transferido
+  const [transferindoId, setTransferindoId] = useState(null);
   const [representantes, setRepresentantes] = useState([]);
   const [repDestino, setRepDestino] = useState('');
   const [salvandoTransfer, setSalvandoTransfer] = useState(false);
@@ -41,21 +41,15 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
   const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
   // --- 1. NORMALIZADOR DE DADOS ---
-  // Transforma qualquer formato (banco ou snapshot) em um objeto padrão para a tela
   const prepararPedidoParaTela = (p, origem) => {
-      // Valor Base: Tenta 'valor_pedido' (snapshot) ou 'total_pago' (banco)
       const valorBaseRaw = p.valor_pedido !== undefined ? p.valor_pedido : (p.total_pago || 0);
-      
-      // Percentual: Tenta 'percentual_comissao' (snapshot), 'porcentagem_comissao' (banco) ou padrão do rep
       const percentualRaw = p.percentual_comissao ?? p.porcentagem_comissao ?? representante.porcentagem_padrao ?? 5;
-      
-      // Valor Comissão: Usa o salvo ou calcula na hora
       const valorComissaoCalculado = (parseFloat(valorBaseRaw) * parseFloat(percentualRaw)) / 100;
       const valorComissaoFinal = p.valor_comissao !== undefined ? p.valor_comissao : valorComissaoCalculado;
 
       return {
           ...p,
-          id: p.id || p.pedido_id, // Unifica ID
+          id: p.id || p.pedido_id,
           numero_pedido: p.numero_pedido,
           cliente_nome: p.cliente_nome,
           data_pagamento: p.data_pagamento,
@@ -66,14 +60,11 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
       };
   };
 
-  // --- 2. CARREGAMENTO ABRASIVO (FORÇA BRUTA) ---
+  // --- 2. CARREGAMENTO ---
   useEffect(() => {
     const carregar = async () => {
       setLoading(true);
       try {
-        console.log(`--- INICIANDO CARGA PARA ${representante.nome} (${representante.codigo}) EM ${mesAno} ---`);
-
-        // A. Busca Fechamento Salvo (Se houver)
         const todosFechamentos = await base44.entities.FechamentoComissao.list();
         const fechamentoAtual = todosFechamentos.find(f => 
           String(f.representante_codigo).trim().toUpperCase() === String(representante.codigo).trim().toUpperCase() && 
@@ -81,68 +72,44 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
         );
 
         if (fechamentoAtual) {
-           console.log("FECHAMENTO ENCONTRADO (MODO EDIÇÃO):", fechamentoAtual);
            setControleId(fechamentoAtual.id);
            setStatusFechamento(fechamentoAtual.status);
            setVales(fechamentoAtual.vales_adiantamentos || 0);
            setOutrosDescontos(fechamentoAtual.outros_descontos || 0);
            setObservacoes(fechamentoAtual.observacoes || '');
 
-           // Prioriza snapshot, mas também busca pedidos vinculados
            if (fechamentoAtual.pedidos_detalhes && fechamentoAtual.pedidos_detalhes.length > 0) {
-               console.log("Usando SNAPSHOT:", fechamentoAtual.pedidos_detalhes.length, "pedidos");
                setPedidosDaComissao(fechamentoAtual.pedidos_detalhes.map(p => prepararPedidoParaTela(p, 'snapshot')));
            } else {
-               // Busca pedidos vinculados (mesmo que snapshot vazio)
-               console.log("Snapshot vazio. Buscando pedidos vinculados...");
                const todosPedidos = await base44.entities.Pedido.list();
                const pedidosVinculados = todosPedidos.filter(p => 
                  String(p.comissao_fechamento_id) === String(fechamentoAtual.id)
                );
-               console.log("Pedidos vinculados encontrados:", pedidosVinculados.length);
                setPedidosDaComissao(pedidosVinculados.map(p => prepararPedidoParaTela(p, 'vinculado')));
            }
-
         } else {
-           // --- MODO PREVISÃO ---
-           console.log("NENHUM FECHAMENTO SALVO. CALCULANDO PREVISÃO...");
            setControleId(null);
            setStatusFechamento('aberto');
            setVales(representante.vales || 0);
            setOutrosDescontos(0);
            setObservacoes('');
            
-           // Busca todos pedidos pagos e filtra manualmente
            const todosPagos = await base44.entities.Pedido.list();
-           
-           console.log(`TOTAL PEDIDOS BAIXADOS: ${todosPagos.length}`);
-
            const pedidosDoMes = todosPagos.filter(p => {
-              // Status pago
               if (p.status !== 'pago') return false;
-              
-              // Representante (normalizado)
               const repPedido = String(p.representante_codigo || '').trim().toUpperCase();
               const repAtual = String(representante.codigo || '').trim().toUpperCase();
               if (repPedido !== repAtual) return false;
-
-              // Não pode ter comissão já fechada/paga
               if (p.comissao_fechamento_id) return false;
               if (p.comissao_paga === true) return false;
-
-              // Data do mês
               const dataRef = p.data_referencia_comissao || p.data_pagamento;
               if (!dataRef) return false;
-              
-              const pertenceAoMes = String(dataRef).substring(0, 7) === mesAno;
-              return pertenceAoMes;
+              return String(dataRef).substring(0, 7) === mesAno;
            });
 
-           console.log(`PEDIDOS FILTRADOS PARA TELA: ${pedidosDoMes.length}`, pedidosDoMes);
            setPedidosDaComissao(pedidosDoMes.map(p => prepararPedidoParaTela(p, 'previsao')));
         }
       } catch (err) {
-        console.error("ERRO CRÍTICO NO MODAL:", err);
         toast.error("Erro ao carregar dados. Verifique o console.");
       } finally {
         setLoading(false);
@@ -159,7 +126,7 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
     return { vendas, comissaoBruta, liquido };
   }, [pedidosDaComissao, vales, outrosDescontos]);
 
-  // --- 4. AÇÕES ---
+  // --- 4. AÇÕES LOCAIS ---
   const pedidosFiltrados = useMemo(() => {
     if (!searchTerm.trim()) return pedidosDaComissao;
     const s = searchTerm.toLowerCase();
@@ -186,10 +153,10 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
   const handleRemoverPedido = (id) => {
     if (statusFechamento === 'fechado') return;
     setPedidosDaComissao(prev => prev.filter(p => p.id !== id));
-    // Registra o ID para processar no save (mover para próximo mês)
     setPedidosRemovidosIds(prev => [...prev, String(id)]);
   };
 
+  // --- 5. LÓGICA DE TRANSFERÊNCIA 100% FRONTEND ---
   const abrirTransferencia = async (pedidoId) => {
     if (representantes.length === 0) {
       const reps = await base44.entities.Representante.list();
@@ -203,22 +170,95 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
   const confirmarTransferencia = async () => {
     if (!repDestino) return;
     setSalvandoTransfer(true);
+    
     try {
       const repEncontrado = representantes.find(r => String(r.codigo) === String(repDestino));
-      // Chama backend para transferência atômica (Pedido + CommissionEntry se houver)
-      const pedido = pedidosDaComissao.find(p => String(p.id) === String(transferindoId));
-      await base44.functions.invoke('atualizarComissao', {
-        action: 'transferir',
-        pedido_id: transferindoId,
-        entry_id: pedido?._entry_id || null,
-        novo_representante_codigo: repDestino,
-        mover_todos: moverTodos,
+      const pedidoNaTela = pedidosDaComissao.find(p => String(p.id) === String(transferindoId));
+      
+      if (!pedidoNaTela) throw new Error("Pedido não encontrado na tela.");
+
+      // PASSO 1: Atualizar Pedido e Cliente
+      await base44.entities.Pedido.update(pedidoNaTela.id, {
+         representante_codigo: repEncontrado.codigo,
+         representante_nome: repEncontrado.nome,
+         comissao_fechamento_id: null,
+         comissao_mes_ano_pago: null
       });
-      // Remove da lista local
+
+      try {
+         const clientes = await base44.entities.Cliente.list();
+         const clienteAlvo = clientes.find(c => c.nome === pedidoNaTela.cliente_nome);
+         if (clienteAlvo) {
+            await base44.entities.Cliente.update(clienteAlvo.id, {
+               representante_codigo: repEncontrado.codigo,
+               representante_nome: repEncontrado.nome
+            });
+         }
+      } catch(errCli) { console.warn("Cliente não atualizado", errCli); }
+
+      // PASSO 2: Remover do Rascunho Atual (JSON)
+      if (controleId) {
+         const fechamentoOrigem = await base44.entities.FechamentoComissao.get(controleId);
+         let detalhesOrigem = Array.isArray(fechamentoOrigem.pedidos_detalhes) ? fechamentoOrigem.pedidos_detalhes : [];
+         
+         detalhesOrigem = detalhesOrigem.filter(d => String(d.pedido_id) !== String(pedidoNaTela.id));
+         
+         const nvVendasOrigem = detalhesOrigem.reduce((acc, d) => acc + (Number(d.valor_pedido) || 0), 0);
+         const nvComissaoOrigem = detalhesOrigem.reduce((acc, d) => acc + (Number(d.valor_comissao) || 0), 0);
+         const valesOrigem = Number(fechamentoOrigem.vales_adiantamentos) || 0;
+         const outrosOrigem = Number(fechamentoOrigem.outros_descontos) || 0;
+         const nvLiquidoOrigem = nvComissaoOrigem - valesOrigem - outrosOrigem;
+
+         await base44.entities.FechamentoComissao.update(controleId, {
+             pedidos_detalhes: detalhesOrigem,
+             total_vendas: parseFloat(nvVendasOrigem.toFixed(2)),
+             total_comissoes_bruto: parseFloat(nvComissaoOrigem.toFixed(2)),
+             valor_liquido: parseFloat(nvLiquidoOrigem.toFixed(2))
+         });
+      }
+
+      // PASSO 3: Adicionar no Rascunho do Destino (se ele já tiver criado um no mês)
+      const fechamentosGeral = await base44.entities.FechamentoComissao.list();
+      const fechamentoDestino = fechamentosGeral.find(f => 
+          String(f.representante_codigo) === String(repEncontrado.codigo) && 
+          f.mes_ano === mesAno && 
+          f.status === 'aberto'
+      );
+      
+      if (fechamentoDestino) {
+          let detalhesDestino = Array.isArray(fechamentoDestino.pedidos_detalhes) ? fechamentoDestino.pedidos_detalhes : [];
+          detalhesDestino.push({
+              pedido_id: String(pedidoNaTela.id),
+              numero_pedido: String(pedidoNaTela.numero_pedido),
+              cliente_nome: pedidoNaTela.cliente_nome,
+              data_pagamento: pedidoNaTela.data_pagamento,
+              valor_pedido: parseFloat(pedidoNaTela.valorBase),
+              percentual_comissao: parseFloat(pedidoNaTela.percentual),
+              valor_comissao: parseFloat(pedidoNaTela.valorComissao)
+          });
+          
+          const nvVendasDest = detalhesDestino.reduce((acc, d) => acc + (Number(d.valor_pedido) || 0), 0);
+          const nvComissaoDest = detalhesDestino.reduce((acc, d) => acc + (Number(d.valor_comissao) || 0), 0);
+          const valesDest = Number(fechamentoDestino.vales_adiantamentos) || 0;
+          const outrosDest = Number(fechamentoDestino.outros_descontos) || 0;
+          const nvLiquidoDest = nvComissaoDest - valesDest - outrosDest;
+
+          await base44.entities.FechamentoComissao.update(fechamentoDestino.id, {
+              pedidos_detalhes: detalhesDestino,
+              total_vendas: parseFloat(nvVendasDest.toFixed(2)),
+              total_comissoes_bruto: parseFloat(nvComissaoDest.toFixed(2)),
+              valor_liquido: parseFloat(nvLiquidoDest.toFixed(2))
+          });
+      }
+
+      // PASSO 4: Atualiza Tela
       setPedidosDaComissao(prev => prev.filter(p => String(p.id) !== String(transferindoId)));
       setTransferindoId(null);
-      toast.success(`Pedido transferido para ${repEncontrado.nome}!`);
+      toast.success(`Pedido transferido com sucesso para ${repEncontrado.nome}!`);
+      
+      // Força os cards do painel principal (verde/roxo) a atualizar
       if (onSuccessSave) onSuccessSave();
+
     } catch (e) {
       toast.error('Erro ao transferir: ' + e.message);
     } finally {
@@ -226,7 +266,7 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
     }
   };
 
-  // --- 5. SALVAR ---
+  // --- 6. SALVAR RASCUNHO / FINALIZAR ---
   const handleSave = async (isFinalizing = false) => {
     setLoading(true);
     try {
@@ -269,18 +309,14 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
             setControleId(res.id);
         }
 
-        // Vínculo no Banco (Crucial para persistência)
         const pedidosNoBanco = await base44.entities.Pedido.list({ filters: { comissao_fechamento_id: currentId } });
         const idsNaTela = new Set(pedidosDaComissao.map(p => String(p.id)));
         
-        // Solta removidos → move data_referencia_comissao para o 1º dia do mês seguinte
         const [anoAtual, mesAtual] = mesAno.split('-').map(Number);
-        const proximoMesDate = new Date(anoAtual, mesAtual, 1); // JS: mês é 0-based, então mesAtual já é o próximo
+        const proximoMesDate = new Date(anoAtual, mesAtual, 1);
         const proximoMesStr = `${proximoMesDate.getFullYear()}-${String(proximoMesDate.getMonth() + 1).padStart(2, '0')}-01`;
 
         const soltar = pedidosNoBanco.filter(p => !idsNaTela.has(String(p.id)));
-
-        // Também inclui pedidos removidos que não estavam no banco ainda (previsão/snapshot)
         const idsJaSoltos = new Set(soltar.map(p => String(p.id)));
         const removerExtras = pedidosRemovidosIds.filter(id => !idsJaSoltos.has(id));
         const pedidosExtra = removerExtras.length > 0
@@ -294,14 +330,12 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
             comissao_fechamento_id: null,
             comissao_mes_ano_pago: null,
             comissao_paga: false,
-            // Move para o próximo mês para não "sumir"
             data_referencia_comissao: proximoMesStr,
             mes_pagamento: `${proximoMesDate.getFullYear()}-${String(proximoMesDate.getMonth() + 1).padStart(2, '0')}`
           })
         ));
-        setPedidosRemovidosIds([]); // Limpa após save
+        setPedidosRemovidosIds([]); 
 
-        // Vincula atuais
         await Promise.all(pedidosDaComissao.map(p => base44.entities.Pedido.update(p.id, {
             comissao_fechamento_id: currentId,
             comissao_mes_ano_pago: mesAno,
@@ -330,104 +364,19 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
         if (onSuccessSave) onSuccessSave();
 
     } catch (error) {
-        console.error(error);
         toast.error("Erro ao salvar.");
     } finally {
         setLoading(false);
     }
   };
 
-  // --- 6. ADICIONAR (ANTECIPAR / PUXAR DE OUTROS MESES) ---
-  const carregarParaAdicionar = async () => {
-      const repAtual = String(representante.codigo || '').trim().toUpperCase();
-      const idsDaTelaAtual = new Set(pedidosDaComissao.map(p => String(p.id)));
-
-      // Fonte 1: CommissionEntries abertas deste representante em QUALQUER mês ≠ atual
-      // (inclui futuras e passadas atrasadas)
-      const todasEntries = await base44.entities.CommissionEntry.list();
-      const entriesDisponiveis = todasEntries.filter(c => {
-          if (c.status !== 'aberto') return false;
-          if (c.mes_competencia === mesAno) return false; // Já está no mês atual
-          const repEntry = String(c.representante_codigo || '').trim().toUpperCase();
-          if (repEntry !== repAtual) return false;
-          if (idsDaTelaAtual.has(String(c.pedido_id))) return false; // Já na lista
-          return true;
-      });
-
-      // Fonte 2: Pedidos pagos sem nenhuma CommissionEntry ainda (sem comissao_fechamento_id, em mês ≠ atual)
-      const todosPedidos = await base44.entities.Pedido.list();
-      const idsComEntry = new Set(todasEntries.map(c => String(c.pedido_id)));
-      const pedidosSemEntry = todosPedidos.filter(p => {
-          if (p.status !== 'pago') return false;
-          if (p.comissao_paga === true) return false;
-          if (p.comissao_fechamento_id) return false;
-          const repPedido = String(p.representante_codigo || '').trim().toUpperCase();
-          if (repPedido !== repAtual) return false;
-          if (idsDaTelaAtual.has(String(p.id))) return false;
-          if (idsComEntry.has(String(p.id))) return false; // Já tem entry (tratado acima)
-          const dataRef = p.data_referencia_comissao || p.data_pagamento;
-          if (!dataRef) return false;
-          // Deve estar em mês DIFERENTE do atual
-          return String(dataRef).substring(0, 7) !== mesAno;
-      });
-
-      // Normaliza entradas de CommissionEntry para o mesmo formato do modal
-      const entriesNormalizadas = entriesDisponiveis.map(c => ({
-          id: c.pedido_id, // ID do pedido original para adicionar à lista
-          _entry_id: c.id,
-          numero_pedido: c.pedido_numero,
-          cliente_nome: c.cliente_nome,
-          data_pagamento: c.data_pagamento_real,
-          total_pago: c.valor_base,
-          porcentagem_comissao: c.percentual,
-          valor_comissao: c.valor_comissao,
-          _mes_competencia: c.mes_competencia,
-          _origem: c.mes_competencia > mesAno ? 'futuro' : 'passado',
-      }));
-
-      const pedidosNormalizados = pedidosSemEntry.map(p => ({
-          ...p,
-          _mes_competencia: String(p.data_referencia_comissao || p.data_pagamento || '').substring(0, 7),
-          _origem: String(p.data_referencia_comissao || p.data_pagamento || '').substring(0, 7) > mesAno ? 'futuro' : 'passado',
-      }));
-
-      // Ordena: passados primeiro, depois futuros; dentro de cada grupo por mês
-      const todos = [...entriesNormalizadas, ...pedidosNormalizados].sort((a, b) => {
-          if (a._origem !== b._origem) return a._origem === 'passado' ? -1 : 1;
-          return (a._mes_competencia || '').localeCompare(b._mes_competencia || '');
-      });
-
-      setPedidosDisponiveis(todos);
-      setShowAddModal(true);
-  };
-
-  const adicionarManual = async (pedido) => {
-      // Se veio de uma CommissionEntry, atualiza a competência dela para o mês atual
-      if (pedido._entry_id) {
-          try {
-              await base44.entities.CommissionEntry.update(pedido._entry_id, {
-                  data_competencia: `${mesAno}-01`,
-                  mes_competencia: mesAno,
-                  movimentacoes: [] // Limpa histórico de movimentação ao trazer de volta
-              });
-          } catch (e) {
-              console.warn('Não foi possível atualizar CommissionEntry:', e);
-          }
-      }
-      setPedidosDaComissao(prev => [...prev, prepararPedidoParaTela(pedido, 'manual')]);
-      setShowAddModal(false);
-      toast.success("Adicionado!");
-  };
-
   return (
     <div className="space-y-6">
        <div className="flex justify-between items-center bg-slate-50 p-4 rounded-lg border">
            <div className="text-sm">Status: <Badge className={statusFechamento === 'fechado' ? 'bg-emerald-600' : 'bg-amber-500'}>{statusFechamento.toUpperCase()}</Badge></div>
-           {statusFechamento !== 'fechado' && (<Button variant="outline" size="sm" onClick={carregarParaAdicionar}><Plus className="w-4 h-4 mr-2"/> Antecipar Pedidos</Button>)}
        </div>
 
        <div className="border rounded-md overflow-hidden bg-white">
-          {/* Campo de pesquisa local */}
           <div className="p-2 border-b bg-slate-50 flex items-center gap-2">
             <Search className="w-4 h-4 text-slate-400 shrink-0" />
             <Input
@@ -515,10 +464,9 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
            ) : (<Button variant="destructive" onClick={() => alert("Reabrir não disponível.")}>Reabrir</Button>)}
        </div>
        
-       {/* Modal de Transferência de Representante */}
        <ModalContainer open={!!transferindoId} onClose={() => setTransferindoId(null)} title="Transferir para outro Representante">
          <div className="space-y-4 py-2">
-           <p className="text-sm text-slate-600">Selecione o representante de destino. O pedido será removido desta lista imediatamente.</p>
+           <p className="text-sm text-slate-600">Selecione o representante de destino. O pedido será movido e os rascunhos atualizados.</p>
 
            <Select value={repDestino} onValueChange={setRepDestino}>
              <SelectTrigger>
@@ -533,24 +481,10 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
              </SelectContent>
            </Select>
 
-           {/* Aviso automático de atualização de cliente */}
            <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-700">
              <span className="shrink-0 mt-0.5">💡</span>
              <span>O cadastro deste cliente será atualizado automaticamente para o novo representante.</span>
            </div>
-
-           {/* Checkbox de transferência em massa */}
-           <label className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-100 rounded-lg cursor-pointer hover:bg-amber-100 transition-colors">
-             <input
-               type="checkbox"
-               checked={moverTodos}
-               onChange={e => setMoverTodos(e.target.checked)}
-               className="mt-0.5 w-4 h-4 accent-amber-600 shrink-0 cursor-pointer"
-             />
-             <span className="text-sm text-amber-800">
-               🔄 Mover também todos os outros pedidos em aberto/futuros deste cliente para o novo representante.
-             </span>
-           </label>
 
            <div className="flex justify-end gap-2 pt-2">
              <Button variant="outline" onClick={() => setTransferindoId(null)}>Cancelar</Button>
@@ -566,33 +500,6 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
          </div>
        </ModalContainer>
 
-       <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Antecipar / Puxar Pedido">
-           <div className="space-y-3">
-               <p className="text-xs text-slate-500">Pedidos deste representante em outros meses (passados atrasados ou futuros agendados).</p>
-               <Input placeholder="Buscar por pedido ou cliente..." value={buscaPedido} onChange={e => setBuscaPedido(e.target.value)} />
-               <div className="max-h-72 overflow-y-auto border rounded divide-y">
-                   {pedidosDisponiveis.length === 0 ? (
-                       <p className="text-center text-slate-400 py-8 text-sm">Nenhum pedido disponível em outros meses.</p>
-                   ) : pedidosDisponiveis
-                       .filter(p => !buscaPedido || String(p.numero_pedido).includes(buscaPedido) || String(p.cliente_nome || '').toLowerCase().includes(buscaPedido.toLowerCase()))
-                       .map(p => (
-                           <div key={`${p.id}-${p._entry_id || ''}`} className="flex justify-between items-center p-3 hover:bg-slate-50 cursor-pointer" onClick={() => adicionarManual(p)}>
-                               <div className="flex items-center gap-3">
-                                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${p._origem === 'futuro' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
-                                       {p._origem === 'futuro' ? `▶ ${p._mes_competencia}` : `◀ ${p._mes_competencia}`}
-                                   </span>
-                                   <div>
-                                       <p className="font-bold text-sm">#{p.numero_pedido} — {p.cliente_nome}</p>
-                                       <p className="text-xs text-slate-500">{p.data_pagamento ? new Date(p.data_pagamento).toLocaleDateString('pt-BR') : '?'}</p>
-                                   </div>
-                               </div>
-                               <p className="font-bold text-emerald-600 text-sm">{formatCurrency(p.total_pago || p.valor_comissao)}</p>
-                           </div>
-                       ))
-                   }
-               </div>
-           </div>
-       </ModalContainer>
     </div>
   );
 }
