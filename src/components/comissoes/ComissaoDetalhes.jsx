@@ -423,21 +423,73 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
        </div>
 
        <div className="border rounded-md overflow-hidden bg-white">
+          {/* Campo de pesquisa local */}
+          <div className="p-2 border-b bg-slate-50 flex items-center gap-2">
+            <Search className="w-4 h-4 text-slate-400 shrink-0" />
+            <Input
+              placeholder="Buscar pedido ou cliente..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="h-8 border-0 bg-transparent focus-visible:ring-0 shadow-none"
+            />
+            {searchTerm && (
+              <span className="text-xs text-slate-400 shrink-0">{pedidosFiltrados.length} resultado(s)</span>
+            )}
+          </div>
+
           <Table>
               <TableHeader className="bg-slate-100">
-                  <TableRow><TableHead>Pedido</TableHead><TableHead>Data Pgto</TableHead><TableHead>Cliente</TableHead><TableHead>Base Calc.</TableHead><TableHead>%</TableHead><TableHead className="text-right">Comissão</TableHead><TableHead></TableHead></TableRow>
+                  <TableRow>
+                    <TableHead>Pedido</TableHead>
+                    <TableHead>Data Pgto</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Base Calc.</TableHead>
+                    <TableHead>%</TableHead>
+                    <TableHead className="text-right">Comissão</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
               </TableHeader>
               <TableBody>
-                  {pedidosDaComissao.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center text-slate-400 py-8">Nenhum pedido vinculado.</TableCell></TableRow> :
-                  pedidosDaComissao.map(p => (
+                  {pedidosFiltrados.length === 0 ? (
+                    <TableRow><TableCell colSpan={7} className="text-center text-slate-400 py-8">
+                      {searchTerm ? 'Nenhum resultado para a busca.' : 'Nenhum pedido vinculado.'}
+                    </TableCell></TableRow>
+                  ) : pedidosFiltrados.map(p => (
                       <TableRow key={p.id}>
                           <TableCell className="font-bold">#{p.numero_pedido}</TableCell>
                           <TableCell>{p.data_pagamento ? new Date(p.data_pagamento).toLocaleDateString() : '-'}</TableCell>
                           <TableCell className="text-xs">{p.cliente_nome}</TableCell>
-                          <TableCell>{formatCurrency(p.valorBase)}</TableCell>
-                          <TableCell><Input type="number" className="w-16 h-8" value={p.percentual} onChange={e => handleUpdatePercentual(p.id, e.target.value)} disabled={statusFechamento === 'fechado'}/></TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              className="w-28 h-8"
+                              value={p.valorBase}
+                              onChange={e => handleUpdateBase(p.id, e.target.value)}
+                              disabled={statusFechamento === 'fechado'}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              className="w-16 h-8"
+                              value={p.percentual}
+                              onChange={e => handleUpdatePercentual(p.id, e.target.value)}
+                              disabled={statusFechamento === 'fechado'}
+                            />
+                          </TableCell>
                           <TableCell className="text-right font-bold text-emerald-600">{formatCurrency(p.valorComissao)}</TableCell>
-                          <TableCell>{statusFechamento !== 'fechado' && (<Button variant="ghost" size="sm" onClick={() => handleRemoverPedido(p.id)}><Trash2 className="w-4 h-4 text-red-500"/></Button>)}</TableCell>
+                          <TableCell>
+                            {statusFechamento !== 'fechado' && (
+                              <div className="flex items-center gap-1">
+                                <Button variant="ghost" size="sm" title="Transferir para outro representante" onClick={() => abrirTransferencia(p.id)}>
+                                  <ArrowLeftRight className="w-4 h-4 text-blue-500"/>
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleRemoverPedido(p.id)}>
+                                  <Trash2 className="w-4 h-4 text-red-500"/>
+                                </Button>
+                              </div>
+                            )}
+                          </TableCell>
                       </TableRow>
                   ))}
               </TableBody>
