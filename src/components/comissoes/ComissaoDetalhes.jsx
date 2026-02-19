@@ -513,7 +513,7 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
        </div>
 
        <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl">
-           <div><label className="text-xs font-bold text-slate-500">Vales</label><Input type="number" value={vales} onChange={e => setVales(e.target.value)} disabled={statusFechamento === 'fechado'} className="bg-white"/></div>
+           <div><label className="text-xs font-bold text-slate-500">Vales</label><Input type="number" value={vales} onChange={e => setVales(e.target.value)} disabled={statusFechamento === 'fechado' || isPortal} className="bg-white"/></div>
            <div className="text-right"><p className="text-sm font-bold text-slate-500">A Pagar</p><p className="text-3xl font-bold text-emerald-600">{formatCurrency(totais.liquido)}</p></div>
        </div>
 
