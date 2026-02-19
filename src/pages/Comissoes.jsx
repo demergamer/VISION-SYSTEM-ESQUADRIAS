@@ -681,10 +681,7 @@ export default function Comissoes() {
         </ModalContainer>
       </div>
 
-      <SincronizarProgressoModal
-        open={showSincronizarModal}
-        onClose={handleSincronizarClose}
-      />
+
     </PermissionGuard>
   );
 }
