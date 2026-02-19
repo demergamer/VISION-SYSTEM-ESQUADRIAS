@@ -31,7 +31,8 @@ const colorMap = {
   liquidacao_rejeitada: "text-red-600 bg-red-50",
   pedido_atrasado: "text-orange-600 bg-orange-50",
   meta_atingida: "text-purple-600 bg-purple-50",
-  cliente_vip: "text-yellow-600 bg-yellow-50"
+  cliente_vip: "text-yellow-600 bg-yellow-50",
+  sincronizacao_comissoes: "text-indigo-600 bg-indigo-50",
 };
 
 export default function NotificationCenter() {
