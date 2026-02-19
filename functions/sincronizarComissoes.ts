@@ -88,7 +88,7 @@ async function processarEmBackground(base44, emit, writer) {
     });
 
     const total = candidatos.length;
-    console.log(`📋 Candidatos: ${total} de ${pedidosCandidatos.length} pedidos pagos`);
+    console.log(`📋 Delta: ${total} de ${pedidosPagos.length} pedidos pagos precisam de sync`);
 
     await emit({ fase: 'iniciando', progresso: 0, total, mensagem: `${total} pedido(s) para processar.` });
 
