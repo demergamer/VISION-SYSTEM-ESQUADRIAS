@@ -511,6 +511,36 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
            ) : (<Button variant="destructive" onClick={() => alert("Reabrir não disponível.")}>Reabrir</Button>)}
        </div>
        
+       {/* Modal de Transferência de Representante */}
+       <ModalContainer open={!!transferindoId} onClose={() => setTransferindoId(null)} title="Transferir para outro Representante">
+         <div className="space-y-4 py-2">
+           <p className="text-sm text-slate-600">Selecione o representante de destino. O pedido será removido desta lista imediatamente.</p>
+           <Select value={repDestino} onValueChange={setRepDestino}>
+             <SelectTrigger>
+               <SelectValue placeholder="Selecionar representante..." />
+             </SelectTrigger>
+             <SelectContent>
+               {representantes.map(r => (
+                 <SelectItem key={r.codigo} value={String(r.codigo)}>
+                   {r.nome} <span className="text-slate-400 text-xs ml-1">({r.codigo})</span>
+                 </SelectItem>
+               ))}
+             </SelectContent>
+           </Select>
+           <div className="flex justify-end gap-2 pt-2">
+             <Button variant="outline" onClick={() => setTransferindoId(null)}>Cancelar</Button>
+             <Button
+               onClick={confirmarTransferencia}
+               disabled={!repDestino || salvandoTransfer}
+               className="bg-blue-600 hover:bg-blue-700 gap-2"
+             >
+               {salvandoTransfer ? <Loader2 className="w-4 h-4 animate-spin"/> : <Check className="w-4 h-4"/>}
+               Confirmar Transferência
+             </Button>
+           </div>
+         </div>
+       </ModalContainer>
+
        <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Antecipar / Puxar Pedido">
            <div className="space-y-3">
                <p className="text-xs text-slate-500">Pedidos deste representante em outros meses (passados atrasados ou futuros agendados).</p>
