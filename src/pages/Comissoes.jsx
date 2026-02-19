@@ -264,22 +264,14 @@ export default function Comissoes() {
     }
   });
 
-  // Sincronizar todas as comissões
-  const sincronizarMutation = useMutation({
-    mutationFn: () => base44.functions.invoke('sincronizarComissoes', {}),
-    onSuccess: (res) => {
-      const { criados = 0, atualizados = 0, erros = [] } = res?.data || {};
+  const handleSincronizarClose = (stats) => {
+    setShowSincronizarModal(false);
+    if (stats?.criados > 0 || stats?.atualizados > 0) {
       queryClient.invalidateQueries(['commissionEntries']);
       queryClient.invalidateQueries(['pedidos', 'soltos']);
       queryClient.invalidateQueries(['fechamentoComissao']);
-      if (erros.length > 0) {
-        toast.warning(`Sincronização concluída com alertas: ${criados} criadas, ${atualizados} atualizadas, ${erros.length} erros.`);
-      } else {
-        toast.success(`✅ Sincronização concluída! ${criados} criadas, ${atualizados} atualizadas.`);
-      }
-    },
-    onError: () => toast.error('❌ Erro ao sincronizar comissões.')
-  });
+    }
+  };
 
   // Fechar comissão do mês
   const fecharMutation = useMutation({
