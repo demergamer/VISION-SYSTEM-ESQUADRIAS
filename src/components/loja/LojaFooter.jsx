@@ -15,22 +15,45 @@ export default function LojaFooter({ config }) {
           <div>
             <div className="flex items-center gap-3 mb-4">
               {config?.logo_url ? (
-                <img src={config.logo_url} alt={nomeLoja} className="h-10 w-auto object-contain" />
+                <img src={config.logo_url} alt={nomeLoja} className="h-16 w-auto object-contain" />
               ) : (
-                <div className="h-10 w-10 bg-blue-600 rounded-xl flex items-center justify-center">
-                  <Store className="w-6 h-6 text-white" />
-                </div>
-              )}
-              {!config?.logo_url && (
-                <div>
-                  <h3 className="font-extrabold text-white text-lg leading-tight">{nomeLoja}</h3>
-                  <p className="text-xs text-slate-400">Portas & Janelas</p>
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 bg-blue-600 rounded-xl flex items-center justify-center">
+                    <Store className="w-7 h-7 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-white text-lg leading-tight">{nomeLoja}</h3>
+                    <p className="text-xs text-slate-400">Portas & Janelas</p>
+                  </div>
                 </div>
               )}
             </div>
-            <p className="text-slate-400 text-sm leading-relaxed">
+            <p className="text-slate-400 text-sm leading-relaxed mb-4">
               Qualidade e durabilidade em cada produto. Atendemos construtoras, revendas e consumidores finais.
             </p>
+            {/* Redes Sociais dinâmicas */}
+            {(config?.link_instagram || config?.link_facebook || config?.link_site_institucional) && (
+              <div className="flex items-center gap-3">
+                {config?.link_instagram && (
+                  <a href={config.link_instagram} target="_blank" rel="noopener noreferrer"
+                    className="w-9 h-9 rounded-full bg-slate-800 hover:bg-pink-600 flex items-center justify-center transition-colors">
+                    <Instagram className="w-4 h-4 text-white" />
+                  </a>
+                )}
+                {config?.link_facebook && (
+                  <a href={config.link_facebook} target="_blank" rel="noopener noreferrer"
+                    className="w-9 h-9 rounded-full bg-slate-800 hover:bg-blue-600 flex items-center justify-center transition-colors">
+                    <Facebook className="w-4 h-4 text-white" />
+                  </a>
+                )}
+                {config?.link_site_institucional && (
+                  <a href={config.link_site_institucional} target="_blank" rel="noopener noreferrer"
+                    className="w-9 h-9 rounded-full bg-slate-800 hover:bg-slate-600 flex items-center justify-center transition-colors">
+                    <Globe className="w-4 h-4 text-white" />
+                  </a>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Atendimento */}
