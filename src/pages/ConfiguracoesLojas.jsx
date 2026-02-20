@@ -6,8 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
-  Store, Plus, Save, Loader2, Trash2, Image, Upload, X, 
-  Building2, Phone, FileText, Percent, Eye, EyeOff 
+  Store, Plus, Save, Loader2, Trash2, Image, Upload,
+  Building2, Phone, Percent, Eye, EyeOff, Palette, Link2
 } from 'lucide-react';
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
