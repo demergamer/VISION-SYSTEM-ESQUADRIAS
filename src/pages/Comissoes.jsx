@@ -295,87 +295,132 @@ export default function Comissoes() {
   });
 
   const handleExportarPDF = () => {
-    const doc = new jsPDF({ orientation: 'landscape' });
+    const doc = new jsPDF({ orientation: 'landscape', format: 'a4' });
     const mesLabel = format(new Date(mesAnoSelecionado + '-01'), 'MMMM yyyy', { locale: ptBR });
     const dataHoje = new Date().toLocaleDateString('pt-BR');
 
-    // Cabeçalho
-    doc.setFontSize(18);
+    // ═══ CABEÇALHO CORPORATIVO ═══
+    // Logo + Marca J&C Vision
+    doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text('Relatório Geral de Comissões', 14, 20);
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Período: ${mesLabel.toUpperCase()}`, 14, 28);
-    doc.text(`Gerado em: ${dataHoje}`, 14, 34);
+    doc.setTextColor(30, 41, 59); // slate-800
+    doc.text('J&C Vision', 14, 15);
+    
+    // Título principal
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text('Relatório Geral de Comissões', 14, 25);
 
-    // Agrupar dadosConsolidados por representante
+    // Linha horizontal visual
+    doc.setDrawColor(59, 130, 246); // blue-500
+    doc.setLineWidth(0.5);
+    doc.line(14, 28, 286, 28);
+
+    // Informações do período
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105); // slate-600
+    doc.text(`Período: ${mesLabel.toUpperCase()}`, 14, 34);
+    doc.text(`Gerado em: ${dataHoje}`, 14, 40);
+
+    // ═══ DADOS DA TABELA ═══
+    // Mapeamento correto: cada rep com seus pedidos
     const linhas = dadosConsolidados.map(rep => {
       const meusPedidos = pedidosSoltos.filter(p => String(p.representante_codigo) === String(rep.codigo));
-      const qtPedidos = meusPedidos.length;
+      const qtdPedidos = meusPedidos.length || 0; // Garante 0 se vazio
       const chavePix = representantes.find(r => String(r.codigo) === String(rep.codigo))?.chave_pix || '-';
+      
       return [
-        rep.nome,
-        qtPedidos,
-        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(rep.totalVendas),
-        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(rep.saldoAPagar),
+        rep.nome || '-',
+        String(qtdPedidos), // Qtd de pedidos
+        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(rep.totalVendas || 0),
+        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(rep.saldoAPagar || 0),
         chavePix
       ];
     });
 
-    // Linha de totais
-    const totalVendas = dadosConsolidados.reduce((a, r) => a + r.totalVendas, 0);
-    const totalComissoes = dadosConsolidados.reduce((a, r) => a + r.saldoAPagar, 0);
+    // Cálculo de totais com verificação
+    const totalVendas = dadosConsolidados.reduce((a, r) => a + (r.totalVendas || 0), 0);
+    const totalComissoes = dadosConsolidados.reduce((a, r) => a + (r.saldoAPagar || 0), 0);
     const totalPedidos = dadosConsolidados.reduce((a, r) => {
-      return a + pedidosSoltos.filter(p => String(p.representante_codigo) === String(r.codigo)).length;
+      return a + (pedidosSoltos.filter(p => String(p.representante_codigo) === String(r.codigo)).length || 0);
     }, 0);
 
-    // Manual table drawing using jsPDF (no autotable plugin needed)
-    const cols = ['REPRESENTANTE', 'QT PEDIDOS', 'R$ VENDAS', 'COMISSÃO', 'CHAVE PIX'];
-    const colWidths = [60, 25, 45, 45, 60];
+    // ═══ TABELA ZEBRADA ═══
+    const cols = ['REPRESENTANTE', 'QTD. PEDIDOS', 'TOTAL VENDAS', 'TOTAL COMISSÃO', 'CHAVE PIX'];
+    const colWidths = [65, 28, 50, 50, 60];
     const startX = 14;
-    let y = 42;
-    const rowH = 8;
+    let y = 48;
+    const rowH = 7;
+    const pageHeight = doc.internal.pageSize.height;
+    const bottomMargin = 20;
 
-    // Header row
-    doc.setFillColor(37, 99, 235);
+    // Cabeçalho com tema corporativo (slate-800)
+    doc.setFillColor(30, 41, 59); // slate-800
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
     let x = startX;
     cols.forEach((col, i) => {
       doc.rect(x, y, colWidths[i], rowH, 'F');
-      doc.text(col, x + 2, y + 5.5);
+      doc.text(col, x + 2, y + 4.5, { align: 'left' });
       x += colWidths[i];
     });
     y += rowH;
 
-    // Data rows
+    // Linhas com tema zebrado (striped)
     doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
     linhas.forEach((row, ri) => {
-      doc.setFillColor(ri % 2 === 0 ? 248 : 255, ri % 2 === 0 ? 250 : 255, ri % 2 === 0 ? 252 : 255);
-      doc.setTextColor(30, 41, 59);
+      // Zebra: alterna entre branco e cinza muito claro
+      if (ri % 2 === 0) {
+        doc.setFillColor(248, 250, 252); // slate-50
+      } else {
+        doc.setFillColor(255, 255, 255); // white
+      }
+      
+      doc.setTextColor(30, 41, 59); // slate-800
       x = startX;
       row.forEach((cell, i) => {
         doc.rect(x, y, colWidths[i], rowH, 'F');
-        doc.text(String(cell), x + 2, y + 5.5);
+        
+        // Alinhamento condicional: números à direita, texto à esquerda
+        const align = (i > 1 && i < 4) ? 'right' : 'left';
+        const xPos = align === 'right' ? x + colWidths[i] - 2 : x + 2;
+        doc.text(String(cell).substring(0, 30), xPos, y + 4.5, { align });
+        
         x += colWidths[i];
       });
       y += rowH;
     });
 
-    // Footer row
-    doc.setFillColor(15, 23, 42);
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    const footRow = ['TOTAL GERAL', String(totalPedidos),
+    // ═══ RODAPÉ COM TOTAIS DESTACADOS ═══
+    // Linha separadora antes dos totais
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.3);
+    doc.line(startX, y, startX + colWidths.reduce((a, b) => a + b), y);
+    y += 2;
+
+    // Linha de Total Geral com destaque visual
+    const footRow = [
+      'TOTAL GERAL',
+      String(totalPedidos),
       new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalVendas),
       new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalComissoes),
       ''
     ];
+
+    doc.setFillColor(226, 232, 240); // slate-200 (cinza claro)
+    doc.setTextColor(30, 41, 59);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
     x = startX;
     footRow.forEach((cell, i) => {
       doc.rect(x, y, colWidths[i], rowH, 'F');
-      doc.text(String(cell), x + 2, y + 5.5);
+      const align = (i > 1 && i < 4) ? 'right' : 'left';
+      const xPos = align === 'right' ? x + colWidths[i] - 2 : x + 2;
+      doc.text(String(cell), xPos, y + 4.5, { align });
       x += colWidths[i];
     });
 
