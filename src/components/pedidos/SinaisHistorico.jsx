@@ -135,16 +135,41 @@ export default function SinaisHistorico({ sinais = [], onChange, clienteInfo }) 
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-slate-500">Valor (R$)</Label>
-                <div className="relative">
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">R$</span>
-                  <Input
-                    type="number" min="0" step="0.01"
-                    value={sinal.valor}
-                    onChange={(e) => updateSinal(sinal.id, 'valor', parseFloat(e.target.value) || 0)}
-                    disabled={sinal.usado}
-                    className="h-9 pl-8 text-sm font-bold text-blue-700"
-                  />
-                </div>
+                {sinal.tipo_pagamento === 'Cheque' ? (
+                  <div className="space-y-1.5">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={sinal.usado}
+                      onClick={() => setChequeModalSinalId(sinal.id)}
+                      className="w-full h-9 text-xs gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
+                    >
+                      <CreditCard className="w-3.5 h-3.5" />
+                      {sinal.dados_cheque ? 'Editar Cheque' : 'Cadastrar Detalhes do Cheque'}
+                    </Button>
+                    {sinal.dados_cheque && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 text-xs text-blue-800 space-y-0.5">
+                        <p className="font-bold">{sinal.dados_cheque.banco} – Nº {sinal.dados_cheque.numero_cheque}</p>
+                        <p className="text-blue-600">
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sinal.valor)}
+                          {sinal.dados_cheque.data_vencimento && ` · Venc. ${new Date(sinal.dados_cheque.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR')}`}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">R$</span>
+                    <Input
+                      type="number" min="0" step="0.01"
+                      value={sinal.valor}
+                      onChange={(e) => updateSinal(sinal.id, 'valor', parseFloat(e.target.value) || 0)}
+                      disabled={sinal.usado}
+                      className="h-9 pl-8 text-sm font-bold text-blue-700"
+                    />
+                  </div>
+                )}
               </div>
               <div className="col-span-2">
                 <SinalDropzone
