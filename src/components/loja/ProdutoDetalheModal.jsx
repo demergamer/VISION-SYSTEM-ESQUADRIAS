@@ -270,6 +270,8 @@ export default function ProdutoDetalheModal({ open, onClose, produto, tabelaPrec
     temLado && !selLado,
   ].filter(Boolean).length;
 
+  if (!produto) return null;
+
   const handleAdd = () => {
     if (!variacaoExata) { toast.error('Complete as seleções acima'); return; }
     const especificacoes = [selTamanho, selCor, selLado].filter(Boolean).join(' · ');
