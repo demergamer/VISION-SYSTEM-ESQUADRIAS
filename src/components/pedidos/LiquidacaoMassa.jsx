@@ -871,7 +871,17 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
 
       <div className="flex justify-end gap-3 pt-4 border-t">
         <Button variant="outline" onClick={onCancel} disabled={isLoading || isSaving}>Cancelar</Button>
-        <Button onClick={handleLiquidar} disabled={isLoading || isSaving || selectedPedidos.length === 0} className="bg-blue-600 hover:bg-blue-700">
+        <Button
+          onClick={handleLiquidar}
+          disabled={
+            isLoading ||
+            isSaving ||
+            selectedPedidos.length === 0 ||
+            totais.totalPago <= 0 ||
+            totais.totalPago > totais.totalComDesconto
+          }
+          className="bg-blue-600 hover:bg-blue-700"
+        >
           {isSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processando...</> : 'Liquidar em Massa'}
         </Button>
       </div>
