@@ -749,7 +749,13 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
             )}
 
             <div className="pt-4 border-t space-y-2">
-              <div className="flex justify-between text-sm"><span>Total Original:</span><span className="font-medium">{formatCurrency(totais.totalOriginal)}</span></div>
+              <div className="flex justify-between text-sm"><span>Valor Integral dos Pedidos:</span><span className="font-medium">{formatCurrency(totais.totalOriginal)}</span></div>
+              {sinaisInjetados.length > 0 && (
+                <div className="flex justify-between text-sm text-amber-600">
+                  <span>💰 Sinais / Adiantamentos:</span>
+                  <span>- {formatCurrency(sinaisInjetados.reduce((s, x) => s + x.valor, 0))}</span>
+                </div>
+              )}
               {totais.desconto > 0 && <div className="flex justify-between text-sm text-red-600"><span>Desconto:</span><span>- {formatCurrency(totais.desconto)}</span></div>}
               {totais.devolucaoValor > 0 && <div className="flex justify-between text-sm text-orange-600"><span>Devolução:</span><span>- {formatCurrency(totais.devolucaoValor)}</span></div>}
               <div className="flex justify-between font-bold text-lg text-blue-700 border-t pt-2"><span>Total a Pagar:</span><span>{formatCurrency(totais.totalComDesconto)}</span></div>
