@@ -518,5 +518,6 @@ export default function ProdutoDetalheModal({ open, onClose, produto, tabelaPrec
         </div>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
