@@ -2,12 +2,14 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Save, Lock, Trash2, Plus, Loader2, Search, ArrowLeftRight, Check } from "lucide-react";
+import { Save, Lock, Trash2, Plus, Loader2, Search, ArrowLeftRight, Check, Download, AlertTriangle, Percent } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import ModalContainer from "@/components/modals/ModalContainer";
+import jsPDF from 'jspdf';
 
 export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuccessSave, isPortal = false }) {
   const [pedidosDaComissao, setPedidosDaComissao] = useState([]); 
