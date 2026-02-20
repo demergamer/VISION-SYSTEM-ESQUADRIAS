@@ -348,3 +348,11 @@ function LayoutInner({ children, currentPageName }) {
     </div>
   );
 }
+
+export default function Layout({ children, currentPageName }) {
+  return (
+    <AuthProvider>
+      <LayoutInner currentPageName={currentPageName}>{children}</LayoutInner>
+    </AuthProvider>
+  );
+}
