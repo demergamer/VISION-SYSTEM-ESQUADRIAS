@@ -110,7 +110,7 @@ export default function LojaHeader({
   user, corPrimaria
 }) {
   return (
-    <header className="bg-blue-700 sticky top-0 z-50 shadow-lg">
+    <header className="sticky top-0 z-50 shadow-lg" style={{ backgroundColor: corPrimaria || '#1d4ed8' }}>
       {/* FAIXA SUPERIOR */}
       <div className="max-w-[1400px] mx-auto px-4 py-3 flex items-center gap-4">
 
@@ -119,7 +119,7 @@ export default function LojaHeader({
           <img
             src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/936ba5dbe_logo_JCEsquadrias.png"
             alt="J&C Esquadrias"
-            className="h-10 w-auto object-contain"
+            className="h-16 w-auto object-contain"
           />
         </div>
 
