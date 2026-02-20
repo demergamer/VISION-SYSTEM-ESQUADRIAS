@@ -23,7 +23,7 @@ import {
   Building2 // Adicionado para logo
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
-import { useAuth } from '@/components/providers/AuthContext';
+import { AuthProvider, useAuth } from '@/components/providers/AuthContext';
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { usePermissions } from "@/components/hooks/usePermissions";
