@@ -1,5 +1,5 @@
 import React from 'react';
-import { useAuth } from '@/lib/AuthContext';
+import { useAuth } from '@/components/providers/AuthContext';
 
 export default function AuthGuard({ children }) {
   const { user, loading } = useAuth();
