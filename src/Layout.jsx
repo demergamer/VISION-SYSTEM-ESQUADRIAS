@@ -109,7 +109,7 @@ const LiveClock = () => {
   );
 };
 
-export default function Layout({ children, currentPageName }) {
+function LayoutInner({ children, currentPageName }) {
   const location = useLocation();
   const { user, signOut } = useAuth();
   const { canDo } = usePermissions();
