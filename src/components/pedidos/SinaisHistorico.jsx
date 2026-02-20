@@ -197,6 +197,23 @@ export default function SinaisHistorico({ sinais = [], onChange, clienteInfo }) 
         <Plus className="w-4 h-4" /> Adicionar Sinal / Adiantamento
       </Button>
 
+      {/* Modal de Cheque */}
+      <Dialog open={!!chequeModalSinalId} onOpenChange={(open) => !open && setChequeModalSinalId(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Detalhes do Cheque</DialogTitle>
+          </DialogHeader>
+          {chequeModalSinalId && (
+            <AdicionarChequeModal
+              clienteInfo={clienteInfo}
+              onSave={handleSaveCheque}
+              onSaveAndAddAnother={handleSaveCheque}
+              onCancel={() => setChequeModalSinalId(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
       {sinais.length > 0 && (
         <div className="flex justify-between items-center bg-blue-50 border border-blue-100 rounded-lg px-4 py-2">
           <span className="text-sm font-medium text-blue-700">Total dos Sinais:</span>
