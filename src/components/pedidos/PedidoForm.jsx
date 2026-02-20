@@ -108,7 +108,8 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
         desconto_tipo: pedido.desconto_tipo || 'valor',
         desconto_valor: pedido.desconto_valor || 0,
         
-        // Sinal
+        // Sinais
+        sinais_historico: pedido.sinais_historico || [],
         valor_sinal_informado: pedido.valor_sinal_informado || 0,
         arquivos_sinal: pedido.arquivos_sinal || []
       });
