@@ -585,6 +585,7 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
           <Table>
               <TableHeader className="bg-slate-100">
                   <TableRow>
+                    <TableHead className="w-10">✓</TableHead>
                     <TableHead>Pedido</TableHead>
                     <TableHead>Data Pgto</TableHead>
                     <TableHead>Cliente</TableHead>
@@ -596,11 +597,18 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
               </TableHeader>
               <TableBody>
                   {pedidosFiltrados.length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-center text-slate-400 py-8">
+                    <TableRow><TableCell colSpan={8} className="text-center text-slate-400 py-8">
                       {searchTerm ? 'Nenhum resultado para a busca.' : 'Nenhum pedido vinculado.'}
                     </TableCell></TableRow>
                   ) : pedidosFiltrados.map(p => (
-                      <TableRow key={p.id}>
+                      <TableRow key={p.id} className={conferidos[String(p.id)] ? 'bg-green-50' : ''}>
+                          <TableCell>
+                            <Checkbox
+                              checked={!!conferidos[String(p.id)]}
+                              onCheckedChange={() => handleToggleConferido(p.id)}
+                              disabled={statusFechamento === 'fechado'}
+                            />
+                          </TableCell>
                           <TableCell className="font-bold">#{p.numero_pedido}</TableCell>
                           <TableCell>{p.data_pagamento ? new Date(p.data_pagamento).toLocaleDateString() : '-'}</TableCell>
                           <TableCell className="text-xs">{p.cliente_nome}</TableCell>
