@@ -267,10 +267,19 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       return;
     }
 
-    const totais = calcularTotais();
-    const valorPagoReal = totais.totalPago - creditoAUsar;
+    // ── INSTRUÇÃO 1: ISOLAMENTO DO "DINHEIRO NOVO" ──
+    // Filtra formas de pagamento ignorando qualquer item com isSinal ou que venha de sinaisInjetados.
+    // O sinal já está descontado no saldo_restante do banco; ele NÃO deve entrar no pool de abatimento.
+    const formasManuaisAtivas = formasPagamento.filter(fp => !fp.isReadOnly && !fp.isSinal);
+    const dinheirNovoTotal = formasManuaisAtivas.reduce((sum, fp) => sum + (parseFloat(fp?.valor) || 0), 0);
+    const totalSinaisInjetados = sinaisInjetados.reduce((sum, s) => sum + s.valor, 0);
 
-    if (valorPagoReal <= 0 && creditoAUsar <= 0 && totais.desconto <= 0 && totais.devolucaoValor <= 0) {
+    const totais = calcularTotais();
+
+    // ── INSTRUÇÃO 2: VALIDAÇÃO CORRETA ──
+    // Permite prosseguir se houver dinheiro novo, crédito, desconto, devolução OU sinais injetados.
+    const temAlgumPagamento = dinheirNovoTotal > 0 || creditoAUsar > 0 || totais.desconto > 0 || totais.devolucaoValor > 0 || totalSinaisInjetados > 0;
+    if (!temAlgumPagamento) {
       toast.error('Informe algum valor (pagamento, crédito, desconto ou devolução)');
       return;
     }
@@ -279,26 +288,26 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
 
     try {
       const user = await base44.auth.me();
-      
-      // **ALGORITMO WATERFALL COMPLETO COM PORTs**
-      // Preparar pools de recursos
+
+      // Pools de abatimento: usa APENAS o dinheiro novo (não inclui sinais)
       let devolucaoRestante = totais.devolucaoValor;
       let descontoRestante = totais.desconto;
       let creditoRestante = creditoAUsar;
-      let pagamentoRestante = valorPagoReal;
-      
+      let pagamentoRestante = dinheirNovoTotal; // ← SEM sinais
+
       // Preparar PORTs se usar automático
       const portsUsados = [];
       const portsParaUsar = usarPortsAutomatico ? [...pedidosComPort] : [];
-      
+
       const pedidosProcessados = [];
 
-      // Processar cada pedido em sequência
+      // Processar cada pedido em sequência abatendo sobre o saldo_restante atual (já descontado do sinal no DB)
       for (const pedido of selectedPedidos) {
         if (!pedido?.id) continue;
-        // Base = valor_pedido integral (o sinal entra como forma de pagamento abaixo)
-        let saldoAtual = pedido?.valor_pedido || 0;
-        
+
+        // Base = saldo_restante que já vem do banco (sinal já abatido)
+        let saldoAtual = pedido?.saldo_restante ?? Math.max(0, (pedido?.valor_pedido || 0) - (pedido?.total_pago || 0));
+
         let devolucaoAplicada = 0;
         let descontoAplicado = 0;
         let portAplicado = 0;
@@ -306,51 +315,40 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         let pagamentoAplicado = 0;
         let portUsadoInfo = null;
 
-        // **PASSO 1: DEVOLUÇÃO (Máxima Prioridade)**
+        // **PASSO 1: DEVOLUÇÃO**
         if (devolucaoRestante > 0 && saldoAtual > 0) {
-          const devolucaoParaEste = Math.min(saldoAtual, devolucaoRestante);
-          devolucaoAplicada = devolucaoParaEste;
-          saldoAtual -= devolucaoParaEste;
-          devolucaoRestante -= devolucaoParaEste;
+          const v = Math.min(saldoAtual, devolucaoRestante);
+          devolucaoAplicada = v;
+          saldoAtual -= v;
+          devolucaoRestante -= v;
         }
 
         // **PASSO 2: DESCONTO**
         if (descontoRestante > 0 && saldoAtual > 0) {
-          const descontoParaEste = Math.min(saldoAtual, descontoRestante);
-          descontoAplicado = descontoParaEste;
-          saldoAtual -= descontoParaEste;
-          descontoRestante -= descontoParaEste;
+          const v = Math.min(saldoAtual, descontoRestante);
+          descontoAplicado = v;
+          saldoAtual -= v;
+          descontoRestante -= v;
         }
 
-        // **PASSO 2.5a: SINAL DO PEDIDO (pré-pagamento automático)**
-        const sinalDoPedido = parseFloat(pedido.valor_sinal_informado) || 0;
-        if (sinalDoPedido > 0 && saldoAtual > 0) {
-          const sinalAplicar = Math.min(saldoAtual, sinalDoPedido);
-          pagamentoAplicado += sinalAplicar;
-          saldoAtual -= sinalAplicar;
-          pagamentoRestante = Math.max(0, pagamentoRestante); // sinal não consome pool manual
-        }
-
-        // **PASSO 2.5b: SINAL/PORT (Se automático)**
+        // **PASSO 3: PORT (Se automático)**
         if (usarPortsAutomatico && saldoAtual > 0) {
-          const portParaEstePedido = portsParaUsar.find(port => 
+          const portParaEstePedido = portsParaUsar.find(port =>
             port?.pedidos_ids?.includes(pedido?.id) && (port?.saldo_disponivel || 0) > 0
           );
-          
-          if (portParaEstePedido && saldoAtual > 0) {
+          if (portParaEstePedido) {
             const valorUsar = Math.min(saldoAtual, portParaEstePedido?.saldo_disponivel || 0);
             portAplicado = valorUsar;
             saldoAtual -= valorUsar;
             portParaEstePedido.saldo_disponivel -= valorUsar;
             portUsadoInfo = { id: portParaEstePedido?.id, numero: portParaEstePedido?.numero_port, valorUsado: valorUsar };
-            
             const portJaUsado = portsUsados.find(p => p?.id === portParaEstePedido?.id);
             if (portJaUsado) {
               portJaUsado.valorTotal += valorUsar;
             } else {
-              portsUsados.push({ 
-                id: portParaEstePedido?.id, 
-                numero: portParaEstePedido?.numero_port, 
+              portsUsados.push({
+                id: portParaEstePedido?.id,
+                numero: portParaEstePedido?.numero_port,
                 valorTotal: valorUsar,
                 saldoRestante: portParaEstePedido?.saldo_disponivel || 0,
                 comprovantes_urls: portParaEstePedido?.comprovantes_urls || []
@@ -359,23 +357,22 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
           }
         }
 
-        // **PASSO 3: CRÉDITO**
+        // **PASSO 4: CRÉDITO**
         if (creditoRestante > 0 && saldoAtual > 0) {
-          const creditoParaEste = Math.min(saldoAtual, creditoRestante);
-          creditoAplicado = creditoParaEste;
-          saldoAtual -= creditoParaEste;
-          creditoRestante -= creditoParaEste;
+          const v = Math.min(saldoAtual, creditoRestante);
+          creditoAplicado = v;
+          saldoAtual -= v;
+          creditoRestante -= v;
         }
 
-        // **PASSO 4: PAGAMENTO (Dinheiro/Cheque/Pix)**
+        // **PASSO 5: PAGAMENTO NOVO (Dinheiro/Cheque/Pix — sem sinais)**
         if (pagamentoRestante > 0 && saldoAtual > 0) {
-          const pagamentoParaEste = Math.min(saldoAtual, pagamentoRestante);
-          pagamentoAplicado = pagamentoParaEste;
-          saldoAtual -= pagamentoParaEste;
-          pagamentoRestante -= pagamentoParaEste;
+          const v = Math.min(saldoAtual, pagamentoRestante);
+          pagamentoAplicado = v;
+          saldoAtual -= v;
+          pagamentoRestante -= v;
         }
 
-        // Calcular novos valores do pedido
         const novoTotalPago = (pedido?.total_pago || 0) + pagamentoAplicado + creditoAplicado + devolucaoAplicada + portAplicado;
         const novoDescontoTotal = (pedido?.desconto_dado || 0) + descontoAplicado;
         const novoSaldo = Math.max(0, saldoAtual);
@@ -394,7 +391,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         });
       }
 
-      // Verificar sobras e gerar crédito
+      // Verificar sobras de dinheiro NOVO (sinais não entram aqui)
       const sobraTotal = devolucaoRestante + descontoRestante + creditoRestante + pagamentoRestante;
       if (sobraTotal > 0.01) {
         const confirmar = window.confirm(`⚠️ ATENÇÃO!\n\nTodos os pedidos foram quitados.\nSobrou ${formatCurrency(sobraTotal)} que será convertido em CRÉDITO.\n\nDeseja continuar?`);
@@ -404,12 +401,12 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         }
       }
 
-      // Criar Borderô
+      // ── INSTRUÇÃO 3: RECOMPOSIÇÃO NO BORDERÔ ──
       const todosBorderos = await base44.entities.Bordero.list();
       const proximoNumeroBordero = todosBorderos.length > 0 ? Math.max(...todosBorderos.map(b => b.numero_bordero || 0)) + 1 : 1;
 
       let todosChequesUsados = [];
-      const formasManuaisStr = formasPagamento.filter(fp => !fp.isReadOnly && parseFloat(fp.valor) > 0).map(fp => {
+      const formasManuaisStr = formasManuaisAtivas.filter(fp => parseFloat(fp.valor) > 0).map(fp => {
         let str = `${fp.tipo.toUpperCase()}: ${formatCurrency(parseFloat(fp.valor))}`;
         if (fp.tipo === 'credito' && fp.parcelas !== '1') str += ` (${fp.parcelas}x)`;
         if (fp.tipo === 'cheque' && fp.dadosCheque.numero) str += ` | Cheque: ${fp.dadosCheque.numero} - ${fp.dadosCheque.banco}`;
@@ -420,39 +417,29 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         return str;
       }).join(' | ');
 
-      // Sinais injetados no borderô
-      const sinaisStr = sinaisInjetados.map(s => `SINAL/ADIANTAMENTO (${s.referencia}): ${formatCurrency(s.valor)}`).join(' | ');
+      // Sinais históricos incluídos na string de forma de pagamento do borderô (ex: "SINAL (Histórico): R$ 1.453,50")
+      const sinaisStr = sinaisInjetados.map(s => `SINAL (Histórico) · ${s.referencia}: ${formatCurrency(s.valor)}`).join(' | ');
 
       const creditoEfetivamenteUsado = creditoAUsar - creditoRestante;
       const totalPortUsado = portsUsados.reduce((sum, p) => sum + p.valorTotal, 0);
-      
+
       let formasFinal = [sinaisStr, formasManuaisStr].filter(Boolean).join(' | ');
-      if (totalPortUsado > 0) {
-        formasFinal += ` | SINAL PORT (${portsUsados.map(p => `#${p.numero}`).join(', ')}): ${formatCurrency(totalPortUsado)}`;
-      }
+      if (totalPortUsado > 0) formasFinal += ` | SINAL PORT (${portsUsados.map(p => `#${p.numero}`).join(', ')}): ${formatCurrency(totalPortUsado)}`;
       if (creditoEfetivamenteUsado > 0) formasFinal += ` | CRÉDITO: ${formatCurrency(creditoEfetivamenteUsado)}`;
       if (totais.desconto > 0) formasFinal += ` | DESCONTO: ${formatCurrency(totais.desconto)}`;
       if (totais.devolucaoValor > 0) formasFinal += ` | DEVOLUÇÃO: ${formatCurrency(totais.devolucaoValor)}`;
 
       const chequesAnexos = todosChequesUsados.map(ch => ({
-        numero: ch.numero_cheque,
-        banco: ch.banco,
-        agencia: ch.agencia,
-        conta: ch.conta,
-        emitente: ch.emitente,
-        valor: ch.valor,
-        data_vencimento: ch.data_vencimento,
-        anexo_foto_url: ch.anexo_foto_url,
-        anexo_video_url: ch.anexo_video_url
+        numero: ch.numero_cheque, banco: ch.banco, agencia: ch.agencia,
+        conta: ch.conta, emitente: ch.emitente, valor: ch.valor,
+        data_vencimento: ch.data_vencimento, anexo_foto_url: ch.anexo_foto_url, anexo_video_url: ch.anexo_video_url
       }));
 
-      // Copiar comprovantes dos PORTs usados
       let comprovantesFinais = [...comprovantes];
-      portsUsados.forEach(port => {
-        if (port.comprovantes_urls) {
-          comprovantesFinais = [...comprovantesFinais, ...port.comprovantes_urls];
-        }
-      });
+      portsUsados.forEach(port => { if (port.comprovantes_urls) comprovantesFinais = [...comprovantesFinais, ...port.comprovantes_urls]; });
+
+      // valor_total do Borderô = Pagamento Novo + Crédito + PORTs + Sinal Histórico
+      const valorTotalBordero = dinheirNovoTotal + creditoEfetivamenteUsado + totalPortUsado + totalSinaisInjetados;
 
       await base44.entities.Bordero.create({
         numero_bordero: proximoNumeroBordero,
@@ -460,7 +447,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         cliente_codigo: selectedPedidos[0]?.cliente_codigo || '',
         cliente_nome: selectedPedidos[0]?.cliente_nome || '',
         pedidos_ids: selectedPedidos.map(p => p?.id).filter(Boolean),
-        valor_total: valorPagoReal + creditoEfetivamenteUsado + totalPortUsado,
+        valor_total: valorTotalBordero,
         forma_pagamento: formasFinal,
         comprovantes_urls: comprovantesFinais,
         cheques_anexos: chequesAnexos,
