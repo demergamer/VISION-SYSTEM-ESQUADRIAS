@@ -356,123 +356,18 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
           </div>
         </div>
 
-        {/* SEÇÃO: PAGAMENTO ANTECIPADO / SINAL */}
+        {/* SEÇÃO: SINAIS / ADIANTAMENTOS */}
         <div className="md:col-span-2 mt-4 p-6 bg-blue-50 border border-blue-200 rounded-xl space-y-4">
-          <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-blue-100 rounded-lg">
-              <Upload className="w-5 h-5 text-blue-600" />
+              <Plus className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <h3 className="font-bold text-blue-900 text-lg">Pagamento Antecipado / Sinal</h3>
-              <p className="text-xs text-blue-700">Informações sobre entrada já recebida</p>
+              <h3 className="font-bold text-blue-900 text-lg">Sinais / Adiantamentos</h3>
+              <p className="text-xs text-blue-700">Registre um ou mais pagamentos antecipados com comprovantes individuais</p>
             </div>
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="valor_sinal">Valor do Sinal Recebido (R$)</Label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">R$</span>
-              <Input 
-                id="valor_sinal"
-                type="number" 
-                min="0" 
-                step="0.01" 
-                value={form.valor_sinal_informado} 
-                onChange={(e) => updateValores('valor_sinal_informado', parseFloat(e.target.value) || 0)} 
-                className={cn(inputClass, "pl-9 font-bold text-blue-700")} 
-                placeholder="0,00"
-              />
-            </div>
-            {form.valor_sinal_informado > 0 && (
-              <p className="text-xs text-blue-600 flex items-center gap-1">
-                <FileCheck className="w-3 h-3" />
-                Sinal de {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(form.valor_sinal_informado)} será registrado
-              </p>
-            )}
-          </div>
-
-          {/* DROPZONE DE COMPROVANTES */}
-          <div className="space-y-2">
-            <Label>Comprovantes do Sinal</Label>
-            <div 
-              className={cn(
-                "relative border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer",
-                uploadingSinal ? "bg-blue-100 border-blue-300" : "bg-white border-blue-200 hover:border-blue-400 hover:bg-blue-50"
-              )}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                handleUploadSinal(e.dataTransfer.files);
-              }}
-              onClick={() => !uploadingSinal && document.getElementById('file-input-sinal').click()}
-            >
-              <input 
-                id="file-input-sinal"
-                type="file" 
-                multiple 
-                accept="image/*,.pdf" 
-                onChange={(e) => handleUploadSinal(e.target.files)} 
-                className="hidden"
-                disabled={uploadingSinal}
-              />
-              
-              {uploadingSinal ? (
-                <div className="flex flex-col items-center gap-2 text-blue-600">
-                  <Upload className="w-8 h-8 animate-bounce" />
-                  <span className="font-medium">Enviando arquivos...</span>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-2 text-slate-500">
-                  <Upload className="w-8 h-8" />
-                  <span className="font-medium">Arraste aqui os comprovantes do Sinal</span>
-                  <span className="text-xs">ou clique para selecionar (imagens e PDFs)</span>
-                </div>
-              )}
-            </div>
-
-            {/* LISTA DE ARQUIVOS ENVIADOS */}
-            {form.arquivos_sinal.length > 0 && (
-              <div className="space-y-2 mt-3">
-                <p className="text-xs font-bold text-blue-700 uppercase">Arquivos anexados:</p>
-                <div className="space-y-1">
-                  {form.arquivos_sinal.map((url, idx) => (
-                    <div key={idx} className="flex items-center justify-between bg-white p-2 rounded-lg border border-blue-100">
-                      <div className="flex items-center gap-2">
-                        <FileCheck className="w-4 h-4 text-green-600" />
-                        <span className="text-xs text-slate-600">Comprovante {idx + 1}</span>
-                      </div>
-                      <div className="flex gap-1">
-                        <Button 
-                          type="button" 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-7 w-7"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            window.open(url, '_blank');
-                          }}
-                        >
-                          <Eye className="w-3 h-3 text-blue-600" />
-                        </Button>
-                        <Button 
-                          type="button" 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-7 w-7"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveSinal(url);
-                          }}
-                        >
-                          <Trash2 className="w-3 h-3 text-red-600" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          <SinaisHistorico sinais={form.sinais_historico} onChange={handleSinaisChange} />
         </div>
 
         <div className="space-y-2 md:col-span-2">
