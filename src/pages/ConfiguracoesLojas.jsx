@@ -189,6 +189,70 @@ function LojaForm({ loja, onSave, onCancel }) {
         </CardContent>
       </Card>
 
+      {/* Identidade Visual */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Palette className="w-5 h-5 text-blue-600" /> Identidade Visual
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div>
+            <label className="text-xs font-semibold text-slate-500 mb-2 block">Cor Primária (botões e cabeçalhos)</label>
+            <div className="flex items-center gap-3">
+              <input
+                type="color"
+                value={form.cor_primaria}
+                onChange={e => set('cor_primaria', e.target.value)}
+                className="w-12 h-10 rounded-lg border border-slate-200 cursor-pointer p-0.5"
+              />
+              <Input value={form.cor_primaria} onChange={e => set('cor_primaria', e.target.value)} placeholder="#1e40af" className="font-mono text-sm" />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500 mb-2 block">Cor de Destaque (preços e badges)</label>
+            <div className="flex items-center gap-3">
+              <input
+                type="color"
+                value={form.cor_destaque}
+                onChange={e => set('cor_destaque', e.target.value)}
+                className="w-12 h-10 rounded-lg border border-slate-200 cursor-pointer p-0.5"
+              />
+              <Input value={form.cor_destaque} onChange={e => set('cor_destaque', e.target.value)} placeholder="#f59e0b" className="font-mono text-sm" />
+            </div>
+          </div>
+          <div className="sm:col-span-2 flex items-center gap-4 p-3 rounded-xl border border-slate-200 bg-slate-50">
+            <span className="text-xs text-slate-500 font-medium">Pré-visualização:</span>
+            <button className="px-4 py-1.5 rounded-lg text-white text-xs font-bold shadow" style={{ backgroundColor: form.cor_primaria }}>Botão Primário</button>
+            <span className="px-3 py-1 rounded-full text-white text-xs font-bold" style={{ backgroundColor: form.cor_destaque }}>Badge</span>
+            <span className="text-lg font-extrabold" style={{ color: form.cor_destaque }}>R$ 999,00</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Redes Sociais */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Link2 className="w-5 h-5 text-blue-600" /> Redes Sociais
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Instagram</label>
+            <Input value={form.link_instagram} onChange={e => set('link_instagram', e.target.value)} placeholder="https://instagram.com/suaempresa" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Facebook</label>
+            <Input value={form.link_facebook} onChange={e => set('link_facebook', e.target.value)} placeholder="https://facebook.com/suaempresa" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Site Institucional</label>
+            <Input value={form.link_site_institucional} onChange={e => set('link_site_institucional', e.target.value)} placeholder="https://www.suaempresa.com.br" />
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Banners */}
       <Card>
         <CardHeader className="pb-3">
