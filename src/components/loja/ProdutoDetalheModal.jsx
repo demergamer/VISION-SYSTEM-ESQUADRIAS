@@ -216,6 +216,8 @@ export default function ProdutoDetalheModal({ open, onClose, produto, tabelaPrec
   const [selCor, setSelCor] = useState('');
   const [selLado, setSelLado] = useState('');
   const [quantidade, setQtd] = useState(1);
+  const [showListaPopup, setShowListaPopup] = useState(false);
+  const [itemPendente, setItemPendente] = useState(null);
 
   // Reset ao trocar produto
   useEffect(() => {
