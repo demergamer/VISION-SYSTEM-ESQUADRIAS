@@ -532,16 +532,41 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
     }
   };
 
+  const semPix = !representante.chave_pix;
+
   return (
     <div className="space-y-6">
-       <div className="flex justify-between items-center bg-slate-50 p-4 rounded-lg border">
-           <div className="text-sm">Status: <Badge className={statusFechamento === 'fechado' ? 'bg-emerald-600' : 'bg-amber-500'}>{statusFechamento.toUpperCase()}</Badge></div>
+       <div className="flex flex-wrap justify-between items-center bg-slate-50 p-4 rounded-lg border gap-3">
+           <div className="flex items-center gap-3 flex-wrap">
+             <div className="text-sm">Status: <Badge className={statusFechamento === 'fechado' ? 'bg-emerald-600' : 'bg-amber-500'}>{statusFechamento.toUpperCase()}</Badge></div>
+             <Button variant="outline" size="sm" onClick={handleExportarPDFIndividual}>
+               <Download className="w-4 h-4 mr-2"/> Exportar PDF (Resumo)
+             </Button>
+           </div>
            {statusFechamento !== 'fechado' && !isPortal && (
              <Button variant="outline" size="sm" onClick={carregarParaAdicionar}>
                <Plus className="w-4 h-4 mr-2"/> Antecipar / Puxar Pedidos
              </Button>
            )}
        </div>
+
+       {/* Alteração % em massa */}
+       {statusFechamento !== 'fechado' && !isPortal && (
+         <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-lg p-3">
+           <Percent className="w-4 h-4 text-blue-600 shrink-0"/>
+           <span className="text-sm text-blue-700 font-medium">Alterar % em massa:</span>
+           <Input
+             type="number" min="0" max="100" step="0.1"
+             placeholder="ex: 5"
+             value={pctMassa}
+             onChange={e => setPctMassa(e.target.value)}
+             className="w-24 h-8 bg-white"
+           />
+           <Button size="sm" onClick={handleAplicarPctMassa} className="bg-blue-600 hover:bg-blue-700 h-8">
+             Aplicar % a todos
+           </Button>
+         </div>
+       )}
 
        <div className="border rounded-md overflow-hidden bg-white">
           <div className="p-2 border-b bg-slate-50 flex items-center gap-2">
