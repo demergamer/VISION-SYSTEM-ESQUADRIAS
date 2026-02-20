@@ -444,7 +444,8 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
             data_pagamento: p.data_pagamento,
             valor_pedido: parseFloat(p.valorBase),
             percentual_comissao: parseFloat(p.percentual),
-            valor_comissao: parseFloat(p.valorComissao)
+            valor_comissao: parseFloat(p.valorComissao),
+            conferido: !!conferidos[String(p.id)]
         }));
 
         const payload = {
