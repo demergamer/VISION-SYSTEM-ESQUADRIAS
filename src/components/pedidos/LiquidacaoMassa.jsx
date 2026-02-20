@@ -667,19 +667,19 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
                 <Button type="button" size="sm" variant="outline" onClick={adicionarFormaPagamento}><Plus className="w-4 h-4 mr-2" />Adicionar</Button>
               </div>
 
-              {/* Linha read-only do Sinal (histórico) */}
-              {somaSinais > 0 && (
-                <Card className="p-3 bg-slate-100 border-slate-300 border opacity-80">
+              {/* Linhas read-only de Sinal (uma por pedido) */}
+              {sinaisInjetados.map(sinal => (
+                <Card key={sinal.id} className="p-3 bg-amber-50 border-amber-200 border">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-slate-500">💰 Sinal (Adiantamento Histórico)</span>
-                      <Badge className="bg-slate-400 text-white text-[10px] px-2 py-0.5">Já Deduzido</Badge>
+                      <span className="text-sm font-medium text-amber-800">💰 {sinal.forma}</span>
+                      <Badge className="bg-amber-400 text-white text-[10px] px-2 py-0.5">Auto · {sinal.referencia}</Badge>
                     </div>
-                    <span className="font-bold text-slate-500">{formatCurrency(somaSinais)}</span>
+                    <span className="font-bold text-amber-700">{formatCurrency(sinal.valor)}</span>
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-1">Este valor já foi abatido do saldo restante. Consta no borderô apenas como histórico.</p>
+                  <p className="text-[10px] text-amber-600 mt-1">Pré-pagamento registrado. Não pode ser editado ou removido.</p>
                 </Card>
-              )}
+              ))}
 
               {formasPagamento.map((fp, index) => (
                 <Card key={index} className="bg-white p-3">
