@@ -133,9 +133,10 @@ function LojaForm({ loja, onSave, onCancel }) {
           </div>
           <div>
             <label className="text-xs font-semibold text-slate-500 mb-1.5 block">
-              <Phone className="w-3 h-3 inline mr-1" /> Telefone / WhatsApp
+              <Phone className="w-3 h-3 inline mr-1" /> Telefone / WhatsApp <span className="text-red-500">*</span>
             </label>
             <Input value={form.telefone_whatsapp} onChange={e => set('telefone_whatsapp', e.target.value)} placeholder="(11) 99999-9999" />
+            <p className="text-[10px] text-slate-400 mt-1">Obrigatório para telas de bloqueio.</p>
           </div>
           <div className="md:col-span-2">
             <label className="text-xs font-semibold text-slate-500 mb-1.5 block">URL da Logo</label>
