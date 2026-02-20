@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Wallet, Users, Calendar, DollarSign, FileText, Search, ArrowRight, Download, Loader2, Plus, CheckCircle2, Clock, Lock, RefreshCw } from "lucide-react";
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 import PermissionGuard from "@/components/PermissionGuard";
 import ModalContainer from "@/components/modals/ModalContainer";
 import ComissaoDetalhes from "@/components/comissoes/ComissaoDetalhes";
