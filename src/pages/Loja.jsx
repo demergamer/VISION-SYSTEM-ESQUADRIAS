@@ -7,9 +7,9 @@ import CarrinhoDrawer from "@/components/loja/CarrinhoDrawer";
 import LojaHeader from "@/components/loja/LojaHeader.jsx";
 import LojaSidebar from "@/components/loja/LojaSidebar.jsx";
 import ProdutoLojaCard from "@/components/loja/ProdutoLojaCard.jsx";
-import LojaHero from "@/components/loja/LojaHero.jsx";
-import LojaFooter from "@/components/loja/LojaFooter.jsx";
-import CategoriasBar from "@/components/loja/CategoriasBar.jsx";
+import LojaHero from "@/components/loja/LojaHero";
+import LojaFooter from "@/components/loja/LojaFooter";
+import CategoriasBar from "@/components/loja/CategoriasBar";
 
 function getTabelaPreco(cliente) {
   if (!cliente) return null;
