@@ -594,34 +594,13 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
 
       {selectedPedidos.length > 0 && (
         <>
-          {/* AVISO DE SINAL (apenas informativo) */}
-          {sinaisHerdados.length > 0 && (
-            <Card className="p-4 bg-amber-50 border-amber-200 border-2">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-amber-500 rounded-lg">
-                  <Info className="w-5 h-5 text-white" />
-                </div>
-                <div className="flex-1">
-                  <h4 className="font-bold text-amber-900 flex items-center gap-2 mb-2">
-                    Sinais Retidos Detectados (Informativo)
-                  </h4>
-                  <div className="space-y-1">
-                    {sinaisHerdados.map((sinal, idx) => (
-                      <p key={idx} className="text-sm text-amber-800">
-                        • Pedido <span className="font-mono font-bold">#{sinal.pedido_numero}</span>: 
-                        <span className="font-bold text-amber-700"> {formatCurrency(sinal.valor)}</span>
-                        {sinal.arquivos > 0 && (
-                          <span className="text-xs text-amber-600"> ({sinal.arquivos} comprovante{sinal.arquivos > 1 ? 's' : ''})</span>
-                        )}
-                      </p>
-                    ))}
-                  </div>
-                  <div className="mt-3 flex items-center gap-2 text-xs text-slate-600 bg-white/60 p-2 rounded-lg border border-amber-100">
-                    <Info className="w-3.5 h-3.5 text-amber-500" />
-                    <span>O saldo exibido já está com o sinal deduzido. Nenhum desconto adicional será aplicado.</span>
-                  </div>
-                </div>
-              </div>
+          {/* Aviso: base agora é valor_pedido integral */}
+          {sinaisInjetados.length > 0 && (
+            <Card className="p-3 bg-blue-50 border-blue-200 border flex items-start gap-3">
+              <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+              <p className="text-xs text-blue-700">
+                O valor a liquidar usa o <strong>valor integral do pedido</strong>. Os sinais/adiantamentos foram injetados automaticamente como formas de pagamento abaixo.
+              </p>
             </Card>
           )}
 
