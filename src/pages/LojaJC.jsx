@@ -20,6 +20,16 @@ function getTabelaPreco(cliente) {
   return 'preco_consumidor';
 }
 
+function useConfiguracaoLoja(slug) {
+  return useQuery({
+    queryKey: ['configuracao_loja', slug],
+    queryFn: async () => {
+      const lista = await base44.entities.ConfiguracoesLoja.filter({ slug });
+      return lista[0] || null;
+    }
+  });
+}
+
 export default function LojaJC() {
   const [user, setUser] = useState(null);
   const [clienteSelecionado, setClienteSelecionado] = useState(null);
