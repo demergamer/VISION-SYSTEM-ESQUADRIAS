@@ -8,6 +8,8 @@ export const DEFAULT_PREFS = {
   density: 'default',
   language: 'pt-BR',
   privacy_mode: false,
+  tela_inicial: '/Dashboard',
+  notificacoes: 'todas',
 };
 
 export function applyPreferences(prefs) {
@@ -19,6 +21,9 @@ export function applyPreferences(prefs) {
   root.classList.toggle('dark', isDark);
   root.classList.toggle('density-compact', p.density === 'compact');
   document.documentElement.lang = p.language === 'en-US' ? 'en' : 'pt-BR';
+
+  window.__privacyMode = p.privacy_mode;
+  window.dispatchEvent(new CustomEvent('privacyModeChange', { detail: p.privacy_mode }));
 }
 
 export function AuthProvider({ children }) {
