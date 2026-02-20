@@ -354,6 +354,7 @@ export default function Comissoes() {
       startY: 25,
       margin: { top: 25, bottom: 20, left: 14, right: 14 },
       theme: 'striped',
+      showFoot: 'lastPage', // Mostra rodapé apenas na última página
       columnStyles: {
         0: { halign: 'left', cellWidth: 65 },
         1: { halign: 'center', cellWidth: 28 },
