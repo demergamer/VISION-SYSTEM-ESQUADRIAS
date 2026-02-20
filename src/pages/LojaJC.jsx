@@ -183,7 +183,8 @@ export default function LojaJC() {
         tabelaPreco={tabelaPreco}
         isRepresentanteOuAdmin={isRepresentanteOuAdmin}
         totalItens={totalItens}
-        onOpenCarrinho={() => setShowCarrinho(true)}
+        onOpenCarrinho={() => setShowOrcamentos(true)}
+        onOpenCompras={() => setShowCompras(true)}
         onToggleSidebar={() => setSidebarOpen(v => !v)}
         user={user}
         corPrimaria={corPrimaria}
