@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Wallet, Users, Calendar, DollarSign, FileText, Search, ArrowRight, Download, Loader2, Plus, CheckCircle2, Clock, Lock, RefreshCw } from "lucide-react";
 import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import PermissionGuard from "@/components/PermissionGuard";
 import ModalContainer from "@/components/modals/ModalContainer";
 import ComissaoDetalhes from "@/components/comissoes/ComissaoDetalhes";
@@ -329,7 +330,7 @@ export default function Comissoes() {
       return a + pedidosSoltos.filter(p => String(p.representante_codigo) === String(r.codigo)).length;
     }, 0);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: 42,
       head: [['REPRESENTANTE', 'QT DE PEDIDOS', 'R$ DE VENDAS', 'COMISSÃO DAS VENDAS', 'CHAVE PIX']],
       body: linhas,

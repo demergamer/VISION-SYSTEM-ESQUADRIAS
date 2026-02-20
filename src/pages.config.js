@@ -55,6 +55,7 @@ import Cheques from './pages/Cheques';
 import Clientes from './pages/Clientes';
 import Comissoes from './pages/Comissoes';
 import Configuracoes from './pages/Configuracoes';
+import ConfiguracoesLojas from './pages/ConfiguracoesLojas';
 import Creditos from './pages/Creditos';
 import Dashboard from './pages/Dashboard';
 import EntradaCaucao from './pages/EntradaCaucao';
@@ -63,6 +64,7 @@ import FormasPagamento from './pages/FormasPagamento';
 import Fornecedores from './pages/Fornecedores';
 import Logs from './pages/Logs';
 import Loja from './pages/Loja';
+import LojaJC from './pages/LojaJC';
 import Orcamentos from './pages/Orcamentos';
 import Pagamentos from './pages/Pagamentos';
 import Pedidos from './pages/Pedidos';
@@ -74,8 +76,6 @@ import Representantes from './pages/Representantes';
 import Representation from './pages/Representation';
 import Usuarios from './pages/Usuarios';
 import Welcome from './pages/Welcome';
-import LojaJC from './pages/LojaJC';
-import ConfiguracoesLojas from './pages/ConfiguracoesLojas';
 import __Layout from './Layout.jsx';
 
 
@@ -88,6 +88,7 @@ export const PAGES = {
     "Clientes": Clientes,
     "Comissoes": Comissoes,
     "Configuracoes": Configuracoes,
+    "ConfiguracoesLojas": ConfiguracoesLojas,
     "Creditos": Creditos,
     "Dashboard": Dashboard,
     "EntradaCaucao": EntradaCaucao,
@@ -96,6 +97,7 @@ export const PAGES = {
     "Fornecedores": Fornecedores,
     "Logs": Logs,
     "Loja": Loja,
+    "LojaJC": LojaJC,
     "Orcamentos": Orcamentos,
     "Pagamentos": Pagamentos,
     "Pedidos": Pedidos,
@@ -107,8 +109,6 @@ export const PAGES = {
     "Representation": Representation,
     "Usuarios": Usuarios,
     "Welcome": Welcome,
-    "LojaJC": LojaJC,
-    "ConfiguracoesLojas": ConfiguracoesLojas,
 }
 
 export const pagesConfig = {
