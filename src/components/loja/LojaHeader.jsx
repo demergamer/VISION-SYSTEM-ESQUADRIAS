@@ -150,6 +150,17 @@ export default function LojaHeader({
             isRepresentanteOuAdmin={isRepresentanteOuAdmin}
           />
 
+          {/* Histórico de Compras */}
+          {user && (
+            <button
+              onClick={onOpenCompras}
+              className="flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-xl hover:bg-white/20 transition-colors hidden sm:flex"
+            >
+              <History className="w-5 h-5 text-white" />
+              <span className="text-[10px] text-blue-200 font-medium">Compras</span>
+            </button>
+          )}
+
           {/* Menu do Usuário */}
           <UserMenu user={user} />
 
