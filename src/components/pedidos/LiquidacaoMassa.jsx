@@ -409,27 +409,26 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       const proximoNumeroBordero = todosBorderos.length > 0 ? Math.max(...todosBorderos.map(b => b.numero_bordero || 0)) + 1 : 1;
 
       let todosChequesUsados = [];
-      const formasPagamentoStr = formasPagamento.filter(fp => parseFloat(fp.valor) > 0).map(fp => {
+      const formasManuaisStr = formasPagamento.filter(fp => !fp.isReadOnly && parseFloat(fp.valor) > 0).map(fp => {
         let str = `${fp.tipo.toUpperCase()}: ${formatCurrency(parseFloat(fp.valor))}`;
         if (fp.tipo === 'credito' && fp.parcelas !== '1') str += ` (${fp.parcelas}x)`;
         if (fp.tipo === 'cheque' && fp.dadosCheque.numero) str += ` | Cheque: ${fp.dadosCheque.numero} - ${fp.dadosCheque.banco}`;
-        if (fp.chequesSalvos.length > 0) {
+        if (fp.chequesSalvos && fp.chequesSalvos.length > 0) {
           str += ` | ${fp.chequesSalvos.length} cheque(s)`;
           todosChequesUsados = [...todosChequesUsados, ...fp.chequesSalvos];
         }
         return str;
       }).join(' | ');
 
+      // Sinais injetados no borderô
+      const sinaisStr = sinaisInjetados.map(s => `SINAL/ADIANTAMENTO (${s.referencia}): ${formatCurrency(s.valor)}`).join(' | ');
+
       const creditoEfetivamenteUsado = creditoAUsar - creditoRestante;
       const totalPortUsado = portsUsados.reduce((sum, p) => sum + p.valorTotal, 0);
-      const totalSinalHistorico = selectedPedidos.reduce((sum, p) => sum + (parseFloat(p?.valor_sinal_informado) || 0), 0);
       
-      let formasFinal = formasPagamentoStr;
-      if (totalSinalHistorico > 0) {
-        formasFinal = `SINAL (Histórico): ${formatCurrency(totalSinalHistorico)}${formasFinal ? ' | ' + formasFinal : ''}`;
-      }
+      let formasFinal = [sinaisStr, formasManuaisStr].filter(Boolean).join(' | ');
       if (totalPortUsado > 0) {
-        formasFinal += ` | SINAL (${portsUsados.map(p => `PORT #${p.numero}`).join(', ')}): ${formatCurrency(totalPortUsado)}`;
+        formasFinal += ` | SINAL PORT (${portsUsados.map(p => `#${p.numero}`).join(', ')}): ${formatCurrency(totalPortUsado)}`;
       }
       if (creditoEfetivamenteUsado > 0) formasFinal += ` | CRÉDITO: ${formatCurrency(creditoEfetivamenteUsado)}`;
       if (totais.desconto > 0) formasFinal += ` | DESCONTO: ${formatCurrency(totais.desconto)}`;
