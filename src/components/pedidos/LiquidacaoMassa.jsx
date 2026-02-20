@@ -64,78 +64,46 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     setCreditoDisponivelTotal(total);
   }, [creditos]);
 
-  // ✨ INTELIGÊNCIA: HERANÇA AUTOMÁTICA DE SINAL DOS PEDIDOS (SEM DUPLICIDADE)
+  // ✨ PIVOT: Injeta sinais como formas de pagamento read-only e usa valor_pedido integral como base
   React.useEffect(() => {
     if (selectedPedidos.length === 0) {
-      setSinaisHerdados([]);
+      setSinaisInjetados([]);
       setFormasPagamento([{ tipo: 'dinheiro', valor: '', parcelas: '1', dadosCheque: { numero: '', banco: '', agencia: '' }, chequesSalvos: [] }]);
       setComprovantes([]);
       return;
     }
 
-    // Mapeia os sinais detectados por ID do pedido
-    const sinaisMap = new Map();
-    const arquivosDetectados = new Set();
+    // Monta linhas de sinal read-only (uma por pedido com sinal)
+    const novosSinais = selectedPedidos
+      .filter(p => parseFloat(p.valor_sinal_informado) > 0)
+      .map(p => ({
+        id: `sinal-${p.id}`,
+        forma: 'Sinal / Adiantamento',
+        valor: parseFloat(p.valor_sinal_informado),
+        referencia: `Pedido #${p.numero_pedido}`,
+        comprovantes: p.arquivos_sinal || [],
+        isReadOnly: true
+      }));
+    setSinaisInjetados(novosSinais);
 
-    selectedPedidos.forEach(pedido => {
-      const valorSinal = parseFloat(pedido.valor_sinal_informado) || 0;
-      const arquivosSinal = pedido.arquivos_sinal || [];
-
-      if (valorSinal > 0) {
-        sinaisMap.set(pedido.id, {
-          pedido_id: pedido.id,
-          pedido_numero: pedido.numero_pedido,
-          valor: valorSinal,
-          arquivos: arquivosSinal
-        });
-
-        // Adiciona arquivos ao Set (evita duplicação)
-        arquivosSinal.forEach(url => arquivosDetectados.add(url));
-      }
-    });
-
-    // Atualiza sinaisHerdados para exibição (apenas informativo)
-    const sinaisArray = Array.from(sinaisMap.values()).map(s => ({
-      pedido_numero: s.pedido_numero,
-      valor: s.valor,
-      arquivos: s.arquivos.length
-    }));
-    setSinaisHerdados(sinaisArray);
-
-    // NÃO cria formas de pagamento automáticas pelo sinal.
-    // O saldo_restante do banco já vem com o sinal deduzido.
-    // Apenas mantemos as formas manuais já existentes.
+    // Mantém apenas formas manuais (sem sinais anteriores)
     setFormasPagamento(prev => {
-      const formasManuais = prev.filter(fp => !fp.herdadoDeSinal && !fp.pedido_origem_sinal);
+      const formasManuais = prev.filter(fp => !fp.isReadOnly);
       return formasManuais.length > 0
         ? formasManuais
         : [{ tipo: 'dinheiro', valor: '', parcelas: '1', dadosCheque: { numero: '', banco: '', agencia: '' }, chequesSalvos: [] }];
     });
 
-    // Atualiza COMPROVANTES sincronizando com selectedPedidos
+    // Comprovantes: mantém manuais + adiciona arquivos dos sinais
+    const arquivosSinais = selectedPedidos.flatMap(p => p.arquivos_sinal || []);
     setComprovantes(prev => {
-      // Mantém apenas comprovantes que foram adicionados manualmente
-      // ou que pertencem aos pedidos ainda selecionados
-      const arquivosAtuais = Array.from(arquivosDetectados);
-      
-      // Identifica comprovantes manuais (não estão nos pedidos)
-      const comprovantesManuais = prev.filter(url => {
-        // Verifica se o comprovante está em algum pedido selecionado
-        return !selectedPedidos.some(p => 
-          (p.arquivos_sinal || []).includes(url)
-        );
-      });
-
-      return [...comprovantesManuais, ...arquivosAtuais];
+      const manuais = prev.filter(url => !selectedPedidos.some(p => (p.arquivos_sinal || []).includes(url)));
+      return [...manuais, ...arquivosSinais];
     });
 
-    // Toast informativo (sem prometer desconto automático)
-    if (sinaisArray.length > 0) {
-      const totalSinalHerdado = sinaisArray.reduce((sum, s) => sum + s.valor, 0);
-      toast.info(
-        `💰 ${sinaisArray.length} sinal(is) retido(s) detectado(s) (${formatCurrency(totalSinalHerdado)}). O saldo já está deduzido.`,
-        { duration: 5000 }
-      );
+    if (novosSinais.length > 0) {
+      const totalSinal = novosSinais.reduce((sum, s) => sum + s.valor, 0);
+      toast.info(`💰 ${novosSinais.length} sinal(is) injetado(s) automaticamente (${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalSinal)}). Já contabilizados no Total Pago.`, { duration: 5000 });
     }
   }, [selectedPedidos]);
 
