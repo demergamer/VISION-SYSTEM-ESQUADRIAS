@@ -1,5 +1,5 @@
 import React from 'react';
-import { Phone, Mail, MapPin, Store } from 'lucide-react';
+import { Phone, Mail, MapPin, Store, Instagram, Facebook, Globe } from 'lucide-react';
 
 export default function LojaFooter({ config }) {
   const cnpj = config?.cnpj || '00.000.000/0001-00';

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Search, ShoppingCart, Building2, User, ChevronDown, X, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
+import UserMenu from "@/components/loja/UserMenu";
 
 const TABELA_LABELS = {
   preco_consumidor: 'Consumidor',
