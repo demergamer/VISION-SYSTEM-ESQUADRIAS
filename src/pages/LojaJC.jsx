@@ -230,7 +230,7 @@ export default function LojaJC() {
       </div>
 
       {/* FOOTER */}
-      <LojaFooter />
+      <LojaFooter config={configLoja} />
 
       {/* MODAIS */}
       <ProdutoDetalheModal
