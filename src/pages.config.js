@@ -74,6 +74,7 @@ import Representantes from './pages/Representantes';
 import Representation from './pages/Representation';
 import Usuarios from './pages/Usuarios';
 import Welcome from './pages/Welcome';
+import LojaJC from './pages/LojaJC';
 import __Layout from './Layout.jsx';
 
 
@@ -105,6 +106,7 @@ export const PAGES = {
     "Representation": Representation,
     "Usuarios": Usuarios,
     "Welcome": Welcome,
+    "LojaJC": LojaJC,
 }
 
 export const pagesConfig = {

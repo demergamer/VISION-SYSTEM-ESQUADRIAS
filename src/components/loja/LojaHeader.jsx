@@ -112,15 +112,13 @@ export default function LojaHeader({
       {/* FAIXA SUPERIOR */}
       <div className="max-w-[1400px] mx-auto px-4 py-3 flex items-center gap-4">
 
-        {/* Logo */}
-        <div className="flex items-center gap-2.5 shrink-0">
-          <div className="h-10 w-10 bg-white rounded-xl flex items-center justify-center shadow-md">
-            <Store className="w-6 h-6 text-blue-700" />
-          </div>
-          <div className="hidden lg:block">
-            <h1 className="font-extrabold text-white leading-tight text-lg">Loja</h1>
-            <p className="text-[10px] text-blue-200 leading-none">Catálogo B2B/B2C</p>
-          </div>
+        {/* Logo J&C */}
+        <div className="flex items-center shrink-0">
+          <img
+            src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/936ba5dbe_logo_JCEsquadrias.png"
+            alt="J&C Esquadrias"
+            className="h-10 w-auto object-contain"
+          />
         </div>
 
         {/* Busca gigante */}
