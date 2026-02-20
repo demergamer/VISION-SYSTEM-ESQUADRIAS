@@ -300,129 +300,107 @@ export default function Comissoes() {
     const mesLabel = format(new Date(mesAnoSelecionado + '-01'), 'MMMM yyyy', { locale: ptBR });
     const dataHoje = new Date().toLocaleDateString('pt-BR');
 
-    // ═══ CABEÇALHO CORPORATIVO ═══
-    // Logo + Marca J&C Vision
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(30, 41, 59); // slate-800
-    doc.text('J&C Vision', 14, 15);
-    
-    // Título principal
-    doc.setFontSize(20);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(30, 41, 59);
-    doc.text('Relatório Geral de Comissões', 14, 25);
+    // ═══ FUNÇÕES DE CABEÇALHO/RODAPÉ PARA MÚLTIPLAS PÁGINAS ═══
+    const drawHeader = (pageNum, pageCount) => {
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text('J&C Vision — Relatório Geral de Comissões', 14, 12);
+      
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.text(`Período: ${mesLabel.toUpperCase()} | Gerado em: ${dataHoje}`, 14, 19);
+      
+      // Linha visual
+      doc.setDrawColor(59, 130, 246);
+      doc.setLineWidth(0.5);
+      doc.line(14, 21, 286, 21);
+    };
 
-    // Linha horizontal visual
-    doc.setDrawColor(59, 130, 246); // blue-500
-    doc.setLineWidth(0.5);
-    doc.line(14, 28, 286, 28);
+    // Desenha cabeçalho na primeira página
+    drawHeader(1, 1);
 
-    // Informações do período
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(71, 85, 105); // slate-600
-    doc.text(`Período: ${mesLabel.toUpperCase()}`, 14, 34);
-    doc.text(`Gerado em: ${dataHoje}`, 14, 40);
-
-    // ═══ DADOS DA TABELA ═══
-    // Mapeamento correto: cada rep com seus pedidos
+    // ═══ PREPARAÇÃO DOS DADOS ═══
     const linhas = dadosConsolidados.map(rep => {
       const meusPedidos = pedidosSoltos.filter(p => String(p.representante_codigo) === String(rep.codigo));
-      const qtdPedidos = meusPedidos.length || 0; // Garante 0 se vazio
+      const qtdPedidos = meusPedidos.length || 0;
       const chavePix = representantes.find(r => String(r.codigo) === String(rep.codigo))?.chave_pix || '-';
       
       return [
         rep.nome || '-',
-        String(qtdPedidos), // Qtd de pedidos
+        String(qtdPedidos),
         new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(rep.totalVendas || 0),
         new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(rep.saldoAPagar || 0),
         chavePix
       ];
     });
 
-    // Cálculo de totais com verificação
     const totalVendas = dadosConsolidados.reduce((a, r) => a + (r.totalVendas || 0), 0);
     const totalComissoes = dadosConsolidados.reduce((a, r) => a + (r.saldoAPagar || 0), 0);
     const totalPedidos = dadosConsolidados.reduce((a, r) => {
       return a + (pedidosSoltos.filter(p => String(p.representante_codigo) === String(r.codigo)).length || 0);
     }, 0);
 
-    // ═══ TABELA ZEBRADA ═══
-    const cols = ['REPRESENTANTE', 'QTD. PEDIDOS', 'TOTAL VENDAS', 'TOTAL COMISSÃO', 'CHAVE PIX'];
-    const colWidths = [65, 28, 50, 50, 60];
-    const startX = 14;
-    let y = 48;
-    const rowH = 7;
-    const pageHeight = doc.internal.pageSize.height;
-    const bottomMargin = 20;
+    // ═══ TABELA COM AUTOTABLE (quebra de página automática) ═══
+    doc.autoTable({
+      head: [['REPRESENTANTE', 'QTD. PEDIDOS', 'TOTAL VENDAS', 'TOTAL COMISSÃO', 'CHAVE PIX']],
+      body: linhas,
+      foot: [['TOTAL GERAL', String(totalPedidos),
+        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalVendas),
+        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalComissoes),
+        ''
+      ]],
+      startY: 25,
+      margin: { top: 25, bottom: 20, left: 14, right: 14 },
+      theme: 'striped',
+      columnStyles: {
+        0: { halign: 'left', cellWidth: 65 },
+        1: { halign: 'center', cellWidth: 28 },
+        2: { halign: 'right', cellWidth: 50 },
+        3: { halign: 'right', cellWidth: 50 },
+        4: { halign: 'left', cellWidth: 60 }
+      },
+      headStyles: {
+        fillColor: [30, 41, 59], // slate-800
+        textColor: [255, 255, 255], // Branco obrigatório
+        fontStyle: 'bold',
+        fontSize: 9
+      },
+      footStyles: {
+        fillColor: [226, 232, 240], // slate-200
+        textColor: [30, 41, 59], // slate-800
+        fontStyle: 'bold',
+        fontSize: 9
+      },
+      bodyStyles: {
+        textColor: [30, 41, 59],
+        fontSize: 8
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252] // slate-50
+      },
+      didDrawPage: (data) => {
+        const pageCount = doc.internal.pages.length - 1;
+        const currentPage = data.pageNumber;
 
-    // Cabeçalho com tema corporativo (slate-800)
-    doc.setFillColor(30, 41, 59); // slate-800
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    let x = startX;
-    cols.forEach((col, i) => {
-      doc.rect(x, y, colWidths[i], rowH, 'F');
-      doc.text(col, x + 2, y + 4.5, { align: 'left' });
-      x += colWidths[i];
-    });
-    y += rowH;
+        // Redraw header on every page
+        if (currentPage > 1) {
+          drawHeader(currentPage, pageCount);
+        }
 
-    // Linhas com tema zebrado (striped)
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    linhas.forEach((row, ri) => {
-      // Zebra: alterna entre branco e cinza muito claro
-      if (ri % 2 === 0) {
-        doc.setFillColor(248, 250, 252); // slate-50
-      } else {
-        doc.setFillColor(255, 255, 255); // white
+        // Numeração de página no rodapé
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(120, 130, 150);
+        const pageHeight = doc.internal.pageSize.height;
+        doc.text(
+          `Página ${currentPage} de ${pageCount}`,
+          doc.internal.pageSize.width / 2,
+          pageHeight - 10,
+          { align: 'center' }
+        );
       }
-      
-      doc.setTextColor(30, 41, 59); // slate-800
-      x = startX;
-      row.forEach((cell, i) => {
-        doc.rect(x, y, colWidths[i], rowH, 'F');
-        
-        // Alinhamento condicional: números à direita, texto à esquerda
-        const align = (i > 1 && i < 4) ? 'right' : 'left';
-        const xPos = align === 'right' ? x + colWidths[i] - 2 : x + 2;
-        doc.text(String(cell).substring(0, 30), xPos, y + 4.5, { align });
-        
-        x += colWidths[i];
-      });
-      y += rowH;
-    });
-
-    // ═══ RODAPÉ COM TOTAIS DESTACADOS ═══
-    // Linha separadora antes dos totais
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.3);
-    doc.line(startX, y, startX + colWidths.reduce((a, b) => a + b), y);
-    y += 2;
-
-    // Linha de Total Geral com destaque visual
-    const footRow = [
-      'TOTAL GERAL',
-      String(totalPedidos),
-      new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalVendas),
-      new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalComissoes),
-      ''
-    ];
-
-    doc.setFillColor(226, 232, 240); // slate-200 (cinza claro)
-    doc.setTextColor(30, 41, 59);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    x = startX;
-    footRow.forEach((cell, i) => {
-      doc.rect(x, y, colWidths[i], rowH, 'F');
-      const align = (i > 1 && i < 4) ? 'right' : 'left';
-      const xPos = align === 'right' ? x + colWidths[i] - 2 : x + 2;
-      doc.text(String(cell), xPos, y + 4.5, { align });
-      x += colWidths[i];
     });
 
     doc.save(`comissoes-${mesAnoSelecionado}.pdf`);
