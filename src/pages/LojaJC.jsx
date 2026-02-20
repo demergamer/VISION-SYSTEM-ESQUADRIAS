@@ -43,9 +43,12 @@ export default function LojaJC() {
   const [precoMin, setPrecoMin] = useState('');
   const [precoMax, setPrecoMax] = useState('');
   const [produtoDetalhe, setProdutoDetalhe] = useState(null);
-  const [carrinho, setCarrinho] = useState([]);
-  const [showCarrinho, setShowCarrinho] = useState(false);
+  const [orcamentos, setOrcamentos] = useState([]);
+  const [showOrcamentos, setShowOrcamentos] = useState(false);
+  const [showCompras, setShowCompras] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showSelecionarLista, setShowSelecionarLista] = useState(false);
+  const [itemPendenteLista, setItemPendenteLista] = useState(null);
 
   useEffect(() => {
     base44.auth.me().then(u => {
