@@ -91,6 +91,11 @@ function LojaForm({ loja, onSave, onCancel }) {
     banners_urls: loja?.banners_urls || [],
     logo_url: loja?.logo_url || '',
     ativa: loja?.ativa ?? true,
+    cor_primaria: loja?.cor_primaria || '#1e40af',
+    cor_destaque: loja?.cor_destaque || '#f59e0b',
+    link_instagram: loja?.link_instagram || '',
+    link_facebook: loja?.link_facebook || '',
+    link_site_institucional: loja?.link_site_institucional || '',
   });
   const [saving, setSaving] = useState(false);
 
