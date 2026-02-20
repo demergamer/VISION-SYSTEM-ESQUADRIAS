@@ -10,6 +10,7 @@ import ProdutoLojaCard from "@/components/loja/ProdutoLojaCard";
 import LojaHero from "@/components/loja/LojaHero";
 import LojaFooter from "@/components/loja/LojaFooter";
 import CategoriasBar from "@/components/loja/CategoriasBar";
+import LojaManutencao from "@/components/loja/LojaManutencao";
 
 const SLUG_LOJA = 'loja-jc';
 
