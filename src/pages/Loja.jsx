@@ -7,8 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Search, ShoppingCart, Package, Loader2, Store, SlidersHorizontal, X } from "lucide-react";
 import ProdutoDetalheModal from "@/components/loja/ProdutoDetalheModal";
 import CarrinhoDrawer from "@/components/loja/CarrinhoDrawer";
-import LojaHeader from "@/components/loja/LojaHeader";
-import LojaSidebar from "@/components/loja/LojaSidebar";
+import LojaHeader from "@/components/loja/LojaHeader.jsx";
+import LojaSidebar from "@/components/loja/LojaSidebar.jsx";
 import ProdutoLojaCard from "@/components/loja/ProdutoLojaCard";
 
 function getTabelaPreco(cliente) {
