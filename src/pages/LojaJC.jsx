@@ -107,9 +107,58 @@ export default function LojaJC() {
     setClienteSelecionado({ ...cliente, _tabela: getTabelaPreco(cliente) });
   };
 
-  const handleAddCarrinho = (item) => setCarrinho(prev => [...prev, item]);
-  const handleRemoveCarrinho = (idx) => setCarrinho(prev => prev.filter((_, i) => i !== idx));
-  const totalItens = carrinho.reduce((acc, i) => acc + i.quantidade, 0);
+  const criarOrcamento = (nome) => {
+    const id = `orc_${Date.now()}`;
+    setOrcamentos(prev => [...prev, { id, nome, itens: [] }]);
+    return id;
+  };
+
+  const deletarOrcamento = (id) => setOrcamentos(prev => prev.filter(o => o.id !== id));
+
+  const adicionarItemOrcamento = (item, listaId) => {
+    setOrcamentos(prev => prev.map(o =>
+      o.id === listaId ? { ...o, itens: [...o.itens, item] } : o
+    ));
+  };
+
+  const removerItemOrcamento = (orcId, idx) => setOrcamentos(prev => prev.map(o =>
+    o.id === orcId ? { ...o, itens: o.itens.filter((_, i) => i !== idx) } : o
+  ));
+
+  const limparOrcamento = (orcId) => setOrcamentos(prev => prev.map(o =>
+    o.id === orcId ? { ...o, itens: [] } : o
+  ));
+
+  // Handler para o ProdutoDetalheModal
+  const handleAddCarrinho = (item, listaId, nomeLista) => {
+    // Se chamado para criar lista (item=null), retorna novo id
+    if (!item && nomeLista) return criarOrcamento(nomeLista);
+    // Se temos lista alvo, adiciona direto
+    if (listaId) { adicionarItemOrcamento(item, listaId); return; }
+    // Caso sem lista: abre popup seletor
+    setItemPendenteLista(item);
+    setShowSelecionarLista(true);
+  };
+  // Anexa orcamentos ao handler para o popup interno do modal
+  handleAddCarrinho.__orcamentos__ = orcamentos;
+
+  const handleRecomprar = (pedido) => {
+    const novaId = criarOrcamento(`Recompra - Pedido #${pedido.numero_pedido}`);
+    // Cria um item simbólico a partir dos dados do pedido
+    const item = {
+      produto_id: null,
+      sku: '-',
+      nome_base: `Pedido #${pedido.numero_pedido}`,
+      nome_completo: `Recompra Pedido #${pedido.numero_pedido} — ${pedido.cliente_nome || ''}`,
+      quantidade: 1,
+      preco_unitario: pedido.valor_pedido || 0,
+      tabela_aplicada: 'recompra',
+    };
+    adicionarItemOrcamento(item, novaId);
+    setShowOrcamentos(true);
+  };
+
+  const totalItens = orcamentos.reduce((acc, o) => acc + o.itens.reduce((a, i) => a + i.quantidade, 0), 0);
 
   const corPrimaria = configLoja?.cor_primaria || '#1d4ed8';
   const corDestaque = configLoja?.cor_destaque || '#f59e0b';
