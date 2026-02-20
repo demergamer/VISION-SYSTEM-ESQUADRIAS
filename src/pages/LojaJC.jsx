@@ -11,6 +11,8 @@ import LojaHero from "@/components/loja/LojaHero";
 import LojaFooter from "@/components/loja/LojaFooter";
 import CategoriasBar from "@/components/loja/CategoriasBar";
 
+const SLUG_LOJA = 'loja-jc';
+
 function getTabelaPreco(cliente) {
   if (!cliente) return null;
   if (cliente.tipo_preco) return cliente.tipo_preco;
