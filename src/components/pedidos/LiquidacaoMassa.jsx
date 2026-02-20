@@ -32,8 +32,8 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = React.useRef(null);
   
-  // Controle de Herança de Sinal
-  const [sinaisHerdados, setSinaisHerdados] = useState([]);
+  // Sinais injetados como formas de pagamento read-only (um por pedido com sinal)
+  const [sinaisInjetados, setSinaisInjetados] = useState([]);
 
   const { data: creditos = [] } = useQuery({
     queryKey: ['creditos', selectedPedidos[0]?.cliente_codigo],
