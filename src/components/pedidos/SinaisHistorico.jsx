@@ -68,8 +68,9 @@ function SinalDropzone({ sinalId, comprovante_url, onUpload, onRemove, uploading
   );
 }
 
-export default function SinaisHistorico({ sinais = [], onChange }) {
+export default function SinaisHistorico({ sinais = [], onChange, clienteInfo }) {
   const [uploadingId, setUploadingId] = useState(null);
+  const [chequeModalSinalId, setChequeModalSinalId] = useState(null);
 
   const addSinal = () => {
     const novo = {
