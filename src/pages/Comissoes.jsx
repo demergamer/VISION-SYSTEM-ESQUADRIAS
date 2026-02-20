@@ -454,6 +454,14 @@ export default function Comissoes() {
                {sincronizando ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                {sincronizando ? 'Sincronizando...' : 'Sincronizar'}
              </Button>
+             <Button
+               variant="outline"
+               onClick={handleExportarPDF}
+               className="gap-2 bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+             >
+               <Download className="w-4 h-4" />
+               Exportar PDF
+             </Button>
           </div>
         </div>
 
