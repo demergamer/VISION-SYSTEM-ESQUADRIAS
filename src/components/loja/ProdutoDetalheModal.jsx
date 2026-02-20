@@ -222,9 +222,7 @@ export default function ProdutoDetalheModal({ open, onClose, produto, tabelaPrec
     setSelTamanho(''); setSelCor(''); setSelLado(''); setQtd(1);
   }, [produto?.id]);
 
-  if (!produto) return null;
-
-  const variacoes = produto.variacoes || [];
+  const variacoes = produto?.variacoes || [];
   const fotos = produto.fotos_urls?.filter(Boolean) || (produto.foto_url ? [produto.foto_url] : []);
   const nome = produto.nome_base || produto.nome || 'Produto';
 
