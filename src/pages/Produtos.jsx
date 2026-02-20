@@ -16,7 +16,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import ProdutoForm from "@/components/produtos/ProdutoForm";
 import ProdutoCard from "@/components/produtos/ProdutoCard";
 
-const CATEGORIAS = ["Todas", "Portas", "Janelas", "Esquadrias", "Vidros", "Acessórios", "Ferragens", "Serviços", "Outros"];
+const CATEGORIAS = ["Todas", "Porta", "Janela", "Servico", "Reembalar", "Acessorio"];
+const CAT_LABELS = { Porta: "Porta", Janela: "Janela", Servico: "Serviço", Reembalar: "Reembalar", Acessorio: "Acessório" };
 
 export default function Produtos() {
   const queryClient = useQueryClient();
