@@ -54,6 +54,7 @@ import CaixaDiario from './pages/CaixaDiario';
 import Cheques from './pages/Cheques';
 import Clientes from './pages/Clientes';
 import Comissoes from './pages/Comissoes';
+import Configuracoes from './pages/Configuracoes';
 import Creditos from './pages/Creditos';
 import Dashboard from './pages/Dashboard';
 import EntradaCaucao from './pages/EntradaCaucao';
@@ -72,7 +73,6 @@ import Representantes from './pages/Representantes';
 import Representation from './pages/Representation';
 import Usuarios from './pages/Usuarios';
 import Welcome from './pages/Welcome';
-import Configuracoes from './pages/Configuracoes';
 import __Layout from './Layout.jsx';
 
 
@@ -84,6 +84,7 @@ export const PAGES = {
     "Cheques": Cheques,
     "Clientes": Clientes,
     "Comissoes": Comissoes,
+    "Configuracoes": Configuracoes,
     "Creditos": Creditos,
     "Dashboard": Dashboard,
     "EntradaCaucao": EntradaCaucao,
@@ -102,7 +103,6 @@ export const PAGES = {
     "Representation": Representation,
     "Usuarios": Usuarios,
     "Welcome": Welcome,
-    "Configuracoes": Configuracoes,
 }
 
 export const pagesConfig = {
