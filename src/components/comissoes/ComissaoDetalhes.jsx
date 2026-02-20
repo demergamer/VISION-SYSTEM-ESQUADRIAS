@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import ModalContainer from "@/components/modals/ModalContainer";
 import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuccessSave, isPortal = false }) {
   const [pedidosDaComissao, setPedidosDaComissao] = useState([]); 
