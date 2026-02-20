@@ -494,6 +494,17 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         });
       }
 
+      // Marcar sinais como usado: true em sinais_historico
+      for (const sinalInj of sinaisInjetados) {
+        if (!sinalInj._sinalId || !sinalInj._pedidoId) continue;
+        const pedidoOriginal = selectedPedidos.find(p => p.id === sinalInj._pedidoId);
+        if (!pedidoOriginal || !pedidoOriginal.sinais_historico) continue;
+        const novoHistorico = pedidoOriginal.sinais_historico.map(s =>
+          s.id === sinalInj._sinalId ? { ...s, usado: true } : s
+        );
+        await base44.entities.Pedido.update(sinalInj._pedidoId, { sinais_historico: novoHistorico });
+      }
+
       // Atualizar PORTs usados
       for (const portUsado of portsUsados) {
         if (!portUsado?.id) continue;
