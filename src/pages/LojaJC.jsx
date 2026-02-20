@@ -309,12 +309,33 @@ export default function LojaJC() {
         onAddCarrinho={handleAddCarrinho}
       />
 
-      <CarrinhoDrawer
-        open={showCarrinho}
-        onClose={() => setShowCarrinho(false)}
-        itens={carrinho}
-        onRemove={handleRemoveCarrinho}
-        onLimpar={() => setCarrinho([])}
+      <OrcamentosManager
+        open={showOrcamentos}
+        onClose={() => setShowOrcamentos(false)}
+        orcamentos={orcamentos}
+        onCreateOrcamento={criarOrcamento}
+        onDeleteOrcamento={deletarOrcamento}
+        onRemoveItem={removerItemOrcamento}
+        onLimparOrcamento={limparOrcamento}
+      />
+
+      <ComprasModal
+        open={showCompras}
+        onClose={() => setShowCompras(false)}
+        userEmail={user?.email}
+        onRecomprar={handleRecomprar}
+      />
+
+      <SelecionarListaPopup
+        open={showSelecionarLista}
+        onClose={() => setShowSelecionarLista(false)}
+        orcamentos={orcamentos}
+        onSelecionar={(listaId) => {
+          if (itemPendenteLista) adicionarItemOrcamento(itemPendenteLista, listaId);
+          setItemPendenteLista(null);
+          setShowSelecionarLista(false);
+        }}
+        onCriarNova={(nome) => criarOrcamento(nome)}
       />
     </div>
   );
