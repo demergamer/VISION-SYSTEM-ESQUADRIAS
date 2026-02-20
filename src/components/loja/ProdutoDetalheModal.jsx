@@ -312,6 +312,14 @@ export default function ProdutoDetalheModal({ open, onClose, produto, tabelaPrec
   let seletorNum = 1;
 
   return (
+    <>
+    <SelecionarListaPopup
+      open={showListaPopup}
+      onClose={() => setShowListaPopup(false)}
+      orcamentos={onAddCarrinho.__orcamentos__ || []}
+      onSelecionar={handleConfirmarLista}
+      onCriarNova={handleCriarNovaLista}
+    />
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-6xl w-[96vw] max-h-[94vh] overflow-y-auto p-0 rounded-2xl">
 
