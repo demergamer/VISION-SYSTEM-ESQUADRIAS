@@ -132,7 +132,7 @@ export default function LojaJC() {
 
       {/* HERO BANNER */}
       <div className="max-w-[1400px] mx-auto w-full px-4 mt-6">
-        <LojaHero />
+        <LojaHero bannersUrls={configLoja?.banners_urls} />
       </div>
 
       {/* CORPO PRINCIPAL */}
