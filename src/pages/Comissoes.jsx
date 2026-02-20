@@ -295,6 +295,66 @@ export default function Comissoes() {
     }
   });
 
+  const handleExportarPDF = () => {
+    const doc = new jsPDF({ orientation: 'landscape' });
+    const mesLabel = format(new Date(mesAnoSelecionado + '-01'), 'MMMM yyyy', { locale: ptBR });
+    const dataHoje = new Date().toLocaleDateString('pt-BR');
+
+    // Cabeçalho
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Relatório Geral de Comissões', 14, 20);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Período: ${mesLabel.toUpperCase()}`, 14, 28);
+    doc.text(`Gerado em: ${dataHoje}`, 14, 34);
+
+    // Agrupar dadosConsolidados por representante
+    const linhas = dadosConsolidados.map(rep => {
+      const meusPedidos = pedidosSoltos.filter(p => String(p.representante_codigo) === String(rep.codigo));
+      const qtPedidos = meusPedidos.length;
+      const chavePix = representantes.find(r => String(r.codigo) === String(rep.codigo))?.chave_pix || '-';
+      return [
+        rep.nome,
+        qtPedidos,
+        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(rep.totalVendas),
+        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(rep.saldoAPagar),
+        chavePix
+      ];
+    });
+
+    // Linha de totais
+    const totalVendas = dadosConsolidados.reduce((a, r) => a + r.totalVendas, 0);
+    const totalComissoes = dadosConsolidados.reduce((a, r) => a + r.saldoAPagar, 0);
+    const totalPedidos = dadosConsolidados.reduce((a, r) => {
+      return a + pedidosSoltos.filter(p => String(p.representante_codigo) === String(r.codigo)).length;
+    }, 0);
+
+    doc.autoTable({
+      startY: 42,
+      head: [['REPRESENTANTE', 'QT DE PEDIDOS', 'R$ DE VENDAS', 'COMISSÃO DAS VENDAS', 'CHAVE PIX']],
+      body: linhas,
+      foot: [['TOTAL GERAL', totalPedidos,
+        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalVendas),
+        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalComissoes),
+        ''
+      ]],
+      styles: { fontSize: 9, cellPadding: 4 },
+      headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
+      footStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: {
+        0: { cellWidth: 55 },
+        1: { halign: 'center' },
+        2: { halign: 'right' },
+        3: { halign: 'right' },
+        4: { cellWidth: 55 }
+      }
+    });
+
+    doc.save(`comissoes-${mesAnoSelecionado}.pdf`);
+  };
+
   const handleSincronizar = async () => {
     setSincronizando(true);
     try {
