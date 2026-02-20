@@ -196,58 +196,99 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
   };
 
   const handleExportarPDFIndividual = () => {
-    const doc = new jsPDF({ orientation: 'landscape' });
+    const doc = new jsPDF({ orientation: 'landscape', format: 'a4' });
     const nomeRep = representante.nome || 'Representante';
     const chavePix = representante.chave_pix || 'Não cadastrada';
     const dataHoje = new Date().toLocaleDateString('pt-BR');
 
-    doc.setFontSize(18); doc.setFont('helvetica', 'bold');
-    doc.text(`Comissão — ${nomeRep}`, 14, 20);
-    doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-    doc.text(`Período: ${mesAno}   |   Gerado em: ${dataHoje}`, 14, 28);
+    // ═══ CABEÇALHO REUTILIZÁVEL ═══
+    const drawHeader = (pageNum) => {
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text(`J&C Vision — Comissão: ${nomeRep}`, 14, 12);
 
-    // Cabeçalho da tabela
-    const cols = ['Nº PEDIDO', 'CLIENTE', 'R$ DA VENDA', '% VENDA', 'R$ COMISSÃO'];
-    const colWidths = [30, 80, 45, 25, 45];
-    const startX = 14;
-    let y = 38;
-    const rowH = 8;
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.text(`Período: ${mesAno} | Gerado em: ${dataHoje}`, 14, 19);
 
-    doc.setFillColor(37, 99, 235); doc.setTextColor(255, 255, 255);
-    doc.setFontSize(8); doc.setFont('helvetica', 'bold');
-    let x = startX;
-    cols.forEach((col, i) => {
-      doc.rect(x, y, colWidths[i], rowH, 'F');
-      doc.text(col, x + 2, y + 5.5);
-      x += colWidths[i];
+      // Linha visual
+      doc.setDrawColor(59, 130, 246);
+      doc.setLineWidth(0.5);
+      doc.line(14, 21, 286, 21);
+    };
+
+    drawHeader(1);
+
+    // ═══ DADOS PARA AUTOTABLE ═══
+    const linhas = pedidosDaComissao.map(p => [
+      `#${p.numero_pedido}`,
+      p.cliente_nome || '-',
+      new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.valorBase),
+      `${p.percentual}%`,
+      new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.valorComissao)
+    ]);
+
+    // ═══ TABELA COM AUTOTABLE ═══
+    doc.autoTable({
+      head: [['Nº PEDIDO', 'CLIENTE', 'R$ DA VENDA', '% VENDA', 'R$ COMISSÃO']],
+      body: linhas,
+      startY: 25,
+      margin: { top: 25, bottom: 40, left: 14, right: 14 },
+      theme: 'striped',
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 30 },
+        1: { halign: 'left', cellWidth: 80 },
+        2: { halign: 'right', cellWidth: 45 },
+        3: { halign: 'center', cellWidth: 25 },
+        4: { halign: 'right', cellWidth: 45 }
+      },
+      headStyles: {
+        fillColor: [30, 41, 59], // slate-800
+        textColor: [255, 255, 255], // Branco obrigatório
+        fontStyle: 'bold',
+        fontSize: 9
+      },
+      bodyStyles: {
+        textColor: [30, 41, 59],
+        fontSize: 8
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252] // slate-50
+      },
+      didDrawPage: (data) => {
+        const pageCount = doc.internal.pages.length - 1;
+        const currentPage = data.pageNumber;
+
+        // Redraw header on every page
+        if (currentPage > 1) {
+          drawHeader(currentPage);
+        }
+
+        // Numeração de página
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(120, 130, 150);
+        const pageHeight = doc.internal.pageSize.height;
+        doc.text(
+          `Página ${currentPage} de ${pageCount}`,
+          doc.internal.pageSize.width / 2,
+          pageHeight - 10,
+          { align: 'center' }
+        );
+      }
     });
-    y += rowH;
 
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(30, 41, 59);
-    pedidosDaComissao.forEach((p, ri) => {
-      doc.setFillColor(ri % 2 === 0 ? 248 : 255, ri % 2 === 0 ? 250 : 255, ri % 2 === 0 ? 252 : 255);
-      x = startX;
-      const row = [
-        `#${p.numero_pedido}`,
-        p.cliente_nome || '-',
-        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.valorBase),
-        `${p.percentual}%`,
-        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.valorComissao),
-      ];
-      row.forEach((cell, i) => {
-        doc.rect(x, y, colWidths[i], rowH, 'F');
-        doc.text(String(cell).substring(0, 35), x + 2, y + 5.5);
-        x += colWidths[i];
-      });
-      y += rowH;
-    });
+    // ═══ RODAPÉ COM TOTAIS (após tabela) ═══
+    const finalY = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text(`Total a Pagar: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totais.liquido)}`, 14, finalY);
 
-    // Rodapé
-    y += 4;
-    doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 41, 59);
-    doc.text(`Total a Pagar: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totais.liquido)}`, 14, y);
-    y += 7;
-    doc.text(`Chave PIX: ${chavePix}`, 14, y);
+    doc.setFontSize(9);
+    doc.text(`Chave PIX: ${chavePix}`, 14, finalY + 7);
 
     doc.save(`comissao-${representante.codigo}-${mesAno}.pdf`);
   };
