@@ -186,27 +186,6 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     }
   };
 
-  // Upload de Comprovantes de Sinal
-  const handleUploadSinal = async (files) => {
-    if (!files || files.length === 0) return;
-    setUploadingSinal(true);
-    try {
-      const uploads = Array.from(files).map(file => base44.integrations.Core.UploadFile({ file }));
-      const results = await Promise.all(uploads);
-      const urls = results.map(r => r.file_url);
-      setForm(prev => ({ ...prev, arquivos_sinal: [...prev.arquivos_sinal, ...urls] }));
-      toast.success(`${urls.length} arquivo(s) enviado(s)!`);
-    } catch (error) {
-      toast.error('Erro ao enviar comprovantes');
-    } finally {
-      setUploadingSinal(false);
-    }
-  };
-
-  const handleRemoveSinal = (url) => {
-    setForm(prev => ({ ...prev, arquivos_sinal: prev.arquivos_sinal.filter(u => u !== url) }));
-  };
-
   const inputClass = "h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all";
 
   return (
