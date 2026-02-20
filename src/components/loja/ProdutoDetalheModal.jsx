@@ -278,7 +278,7 @@ export default function ProdutoDetalheModal({ open, onClose, produto, tabelaPrec
   const handleAdd = () => {
     if (!variacaoExata) { toast.error('Complete as seleções acima'); return; }
     const especificacoes = [selTamanho, selCor, selLado].filter(Boolean).join(' · ');
-    onAddCarrinho({
+    const item = {
       produto_id: produto.id,
       id_variacao: variacaoExata.id_variacao,
       sku: variacaoExata.sku,
@@ -290,9 +290,23 @@ export default function ProdutoDetalheModal({ open, onClose, produto, tabelaPrec
       quantidade,
       preco_unitario: preco,
       tabela_aplicada: tabelaPreco
-    });
-    toast.success('✓ Adicionado ao orçamento!');
-    onClose();
+    };
+    setItemPendente(item);
+    setShowListaPopup(true);
+  };
+
+  const handleConfirmarLista = (listaId) => {
+    if (itemPendente) {
+      onAddCarrinho(itemPendente, listaId);
+      toast.success('✓ Adicionado ao orçamento!');
+      setItemPendente(null);
+      setShowListaPopup(false);
+      onClose();
+    }
+  };
+
+  const handleCriarNovaLista = (nome) => {
+    return onAddCarrinho(null, null, nome); // retorna o id da nova lista
   };
 
   let seletorNum = 1;
