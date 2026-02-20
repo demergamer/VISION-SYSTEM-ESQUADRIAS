@@ -169,10 +169,10 @@ export default function LojaHeader({
             <SlidersHorizontal className="w-5 h-5" />
           </Button>
 
-          {/* Carrinho */}
+          {/* Carrinho / Orçamentos */}
           <button
             onClick={onOpenCarrinho}
-            className="relative flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-xl hover:bg-blue-600 transition-colors group"
+            className="relative flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-xl hover:bg-white/20 transition-colors group"
           >
             <div className="relative">
               <ShoppingCart className="w-6 h-6 text-white" />
