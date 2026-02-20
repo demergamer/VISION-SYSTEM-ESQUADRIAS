@@ -3,7 +3,8 @@ import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from "lucide-react";
 import ProdutoDetalheModal from "@/components/loja/ProdutoDetalheModal";
-import CarrinhoDrawer from "@/components/loja/CarrinhoDrawer";
+import OrcamentosManager from "@/components/loja/OrcamentosManager";
+import ComprasModal from "@/components/loja/ComprasModal";
 import LojaHeader from "@/components/loja/LojaHeader";
 import LojaSidebar from "@/components/loja/LojaSidebar";
 import ProdutoLojaCard from "@/components/loja/ProdutoLojaCard";
@@ -11,6 +12,7 @@ import LojaHero from "@/components/loja/LojaHero";
 import LojaFooter from "@/components/loja/LojaFooter";
 import CategoriasBar from "@/components/loja/CategoriasBar";
 import LojaManutencao from "@/components/loja/LojaManutencao";
+import SelecionarListaPopup from "@/components/loja/SelecionarListaPopup";
 
 const SLUG_LOJA = 'loja-jc';
 
