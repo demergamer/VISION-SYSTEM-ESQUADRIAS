@@ -305,8 +305,8 @@ export default function ProdutoDetalheModal({ open, onClose, produto, tabelaPrec
     }
   };
 
-  const handleCriarNovaLista = (nome) => {
-    return onAddCarrinho(null, null, nome); // retorna o id da nova lista
+  const handleCriarNovaLista = (nomeLista) => {
+    return onAddCarrinho(null, null, nomeLista); // retorna o id da nova lista
   };
 
   let seletorNum = 1;
