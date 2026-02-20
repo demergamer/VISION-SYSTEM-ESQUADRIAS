@@ -223,7 +223,7 @@ export default function Layout({ children, currentPageName }) {
                   <p className="text-[10px] text-slate-400 truncate capitalize">{user?.role || 'Visitante'}</p>
                 </div>
               )}
-              <Settings className="w-4 h-4 text-slate-300 group-hover:text-slate-500" />
+              <SettingsIcon className="w-4 h-4 text-slate-300 group-hover:text-slate-500" />
             </div>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
