@@ -87,7 +87,14 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
            setObservacoes(fechamentoAtual.observacoes || '');
 
            if (fechamentoAtual.pedidos_detalhes && fechamentoAtual.pedidos_detalhes.length > 0) {
-               setPedidosDaComissao(fechamentoAtual.pedidos_detalhes.map(p => prepararPedidoParaTela(p, 'snapshot')));
+               const preparados = fechamentoAtual.pedidos_detalhes.map(p => prepararPedidoParaTela(p, 'snapshot'));
+               setPedidosDaComissao(preparados);
+               // Carrega estado de conferência
+               const confMap = {};
+               fechamentoAtual.pedidos_detalhes.forEach(p => {
+                 if (p.conferido) confMap[String(p.pedido_id)] = true;
+               });
+               setConferidos(confMap);
            } else {
                const todosPedidos = await base44.entities.Pedido.list();
                const pedidosVinculados = todosPedidos.filter(p => String(p.comissao_fechamento_id) === String(fechamentoAtual.id));
