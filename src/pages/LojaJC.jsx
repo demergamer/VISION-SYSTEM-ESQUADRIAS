@@ -106,8 +106,18 @@ export default function LojaJC() {
   const handleRemoveCarrinho = (idx) => setCarrinho(prev => prev.filter((_, i) => i !== idx));
   const totalItens = carrinho.reduce((acc, i) => acc + i.quantidade, 0);
 
+  const corPrimaria = configLoja?.cor_primaria || '#1d4ed8';
+  const corDestaque = configLoja?.cor_destaque || '#f59e0b';
+
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
+    <div
+      className="min-h-screen bg-gray-100 flex flex-col"
+      style={{ '--color-primary': corPrimaria, '--color-destaque': corDestaque }}
+    >
+      {/* TELA DE MANUTENÇÃO */}
+      {configLoja && configLoja.ativa === false && (
+        <LojaManutencao telefone={configLoja.telefone_whatsapp} />
+      )}
 
       {/* MEGA HEADER */}
       <LojaHeader
@@ -121,6 +131,8 @@ export default function LojaJC() {
         totalItens={totalItens}
         onOpenCarrinho={() => setShowCarrinho(true)}
         onToggleSidebar={() => setSidebarOpen(v => !v)}
+        user={user}
+        corPrimaria={corPrimaria}
       />
 
       {/* BARRA DE CATEGORIAS */}
