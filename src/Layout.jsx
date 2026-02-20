@@ -109,13 +109,6 @@ const LiveClock = () => {
   );
 };
 
-export default function Layout({ children, currentPageName }) {
-  return (
-    <AuthProvider>
-      <LayoutInner currentPageName={currentPageName}>{children}</LayoutInner>
-    </AuthProvider>
-  );
-}
 
 function LayoutInner({ children, currentPageName }) {
   const location = useLocation();
