@@ -152,21 +152,26 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
       }));
   };
 
-  const updateValores = (field, value) => {
-    const newForm = { ...form, [field]: value };
-    let valorDescontoReais = 0;
-    const valorTotal = parseFloat(newForm.valor_pedido) || 0;
-    const descontoInput = parseFloat(newForm.desconto_valor) || 0;
+  const recalcularSaldo = (baseForm) => {
+    const valorTotal = parseFloat(baseForm.valor_pedido) || 0;
+    const descontoInput = parseFloat(baseForm.desconto_valor) || 0;
+    const valorDescontoReais = baseForm.desconto_tipo === 'valor'
+      ? descontoInput
+      : (valorTotal * descontoInput) / 100;
+    const totalSinais = (baseForm.sinais_historico || []).reduce((sum, s) => sum + (parseFloat(s.valor) || 0), 0);
+    return {
+      ...baseForm,
+      saldo_restante: Math.max(0, valorTotal - valorDescontoReais - totalSinais),
+      valor_sinal_informado: totalSinais
+    };
+  };
 
-    if (newForm.desconto_tipo === 'valor') {
-        valorDescontoReais = descontoInput;
-    } else {
-        valorDescontoReais = (valorTotal * descontoInput) / 100;
-    }
-    
-    const valorSinal = parseFloat(newForm.valor_sinal_informado) || 0;
-    newForm.saldo_restante = Math.max(0, valorTotal - valorDescontoReais - valorSinal);
-    setForm(newForm);
+  const updateValores = (field, value) => {
+    setForm(prev => recalcularSaldo({ ...prev, [field]: value }));
+  };
+
+  const handleSinaisChange = (novosSinais) => {
+    setForm(prev => recalcularSaldo({ ...prev, sinais_historico: novosSinais }));
   };
 
   const handleSave = () => {
