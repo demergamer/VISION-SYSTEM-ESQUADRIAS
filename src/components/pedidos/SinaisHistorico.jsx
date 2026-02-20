@@ -92,6 +92,16 @@ export default function SinaisHistorico({ sinais = [], onChange, clienteInfo }) 
     onChange(sinais.filter(s => s.id !== id));
   };
 
+  const handleSaveCheque = (dadosCheque) => {
+    const valor = parseFloat(dadosCheque.valor) || 0;
+    onChange(sinais.map(s => s.id === chequeModalSinalId
+      ? { ...s, valor, dados_cheque: dadosCheque }
+      : s
+    ));
+    setChequeModalSinalId(null);
+    toast.success('Cheque registrado no sinal!');
+  };
+
   const handleUpload = async (id, file) => {
     setUploadingId(id);
     try {
