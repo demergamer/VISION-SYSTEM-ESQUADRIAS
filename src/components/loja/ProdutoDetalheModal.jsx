@@ -307,6 +307,8 @@ export default function ProdutoDetalheModal({ open, onClose, produto, tabelaPrec
     return onAddCarrinho(null, null, nomeLista); // retorna o id da nova lista
   };
 
+  if (!produto) return null;
+
   let seletorNum = 1;
 
   return (
