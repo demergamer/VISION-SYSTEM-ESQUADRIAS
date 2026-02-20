@@ -9,7 +9,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Wallet, Users, Calendar, DollarSign, FileText, Search, ArrowRight, Download, Loader2, Plus, CheckCircle2, Clock, Lock, RefreshCw } from "lucide-react";
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import PermissionGuard from "@/components/PermissionGuard";
 import ModalContainer from "@/components/modals/ModalContainer";
 import ComissaoDetalhes from "@/components/comissoes/ComissaoDetalhes";
@@ -330,7 +329,57 @@ export default function Comissoes() {
       return a + pedidosSoltos.filter(p => String(p.representante_codigo) === String(r.codigo)).length;
     }, 0);
 
-    autoTable(doc, {
+    // Manual table drawing using jsPDF (no autotable plugin needed)
+    const cols = ['REPRESENTANTE', 'QT PEDIDOS', 'R$ VENDAS', 'COMISSÃO', 'CHAVE PIX'];
+    const colWidths = [60, 25, 45, 45, 60];
+    const startX = 14;
+    let y = 42;
+    const rowH = 8;
+
+    // Header row
+    doc.setFillColor(37, 99, 235);
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    let x = startX;
+    cols.forEach((col, i) => {
+      doc.rect(x, y, colWidths[i], rowH, 'F');
+      doc.text(col, x + 2, y + 5.5);
+      x += colWidths[i];
+    });
+    y += rowH;
+
+    // Data rows
+    doc.setFont('helvetica', 'normal');
+    linhas.forEach((row, ri) => {
+      doc.setFillColor(ri % 2 === 0 ? 248 : 255, ri % 2 === 0 ? 250 : 255, ri % 2 === 0 ? 252 : 255);
+      doc.setTextColor(30, 41, 59);
+      x = startX;
+      row.forEach((cell, i) => {
+        doc.rect(x, y, colWidths[i], rowH, 'F');
+        doc.text(String(cell), x + 2, y + 5.5);
+        x += colWidths[i];
+      });
+      y += rowH;
+    });
+
+    // Footer row
+    doc.setFillColor(15, 23, 42);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    const footRow = ['TOTAL GERAL', String(totalPedidos),
+      new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalVendas),
+      new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalComissoes),
+      ''
+    ];
+    x = startX;
+    footRow.forEach((cell, i) => {
+      doc.rect(x, y, colWidths[i], rowH, 'F');
+      doc.text(String(cell), x + 2, y + 5.5);
+      x += colWidths[i];
+    });
+
+    const fakeAutoTable = {
       startY: 42,
       head: [['REPRESENTANTE', 'QT DE PEDIDOS', 'R$ DE VENDAS', 'COMISSÃO DAS VENDAS', 'CHAVE PIX']],
       body: linhas,
