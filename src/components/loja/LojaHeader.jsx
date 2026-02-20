@@ -106,7 +106,8 @@ function ClienteSelector({ clientes, clienteSelecionado, onSelectCliente, tabela
 export default function LojaHeader({
   searchTerm, onSearch,
   clientes, clienteSelecionado, onSelectCliente, tabelaPreco, isRepresentanteOuAdmin,
-  totalItens, onOpenCarrinho, onToggleSidebar
+  totalItens, onOpenCarrinho, onToggleSidebar,
+  user, corPrimaria
 }) {
   return (
     <header className="bg-blue-700 sticky top-0 z-50 shadow-lg">
