@@ -3,7 +3,7 @@ import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { 
   Eye, 
   EyeOff, 
-  Settings, 
+  Settings as SettingsIcon, 
   LogOut, 
   Clock, 
   Calendar,
