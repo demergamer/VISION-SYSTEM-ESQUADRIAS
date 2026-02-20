@@ -73,8 +73,6 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
   const [buscaCliente, setBuscaCliente] = useState(""); 
   const [novosClientesLocais, setNovosClientesLocais] = useState([]);
   
-  // Estados para Sinal
-  const [uploadingSinal, setUploadingSinal] = useState(false);
   
   // NOVO: Estado para loading ao salvar cliente novo
   const [savingCliente, setSavingCliente] = useState(false);
