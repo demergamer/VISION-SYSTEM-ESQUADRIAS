@@ -337,7 +337,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
             port?.pedidos_ids?.includes(pedido?.id) && (port?.saldo_disponivel || 0) > 0
           );
           
-          if (portParaEstePedido) {
+          if (portParaEstePedido && saldoAtual > 0) {
             const valorUsar = Math.min(saldoAtual, portParaEstePedido?.saldo_disponivel || 0);
             portAplicado = valorUsar;
             saldoAtual -= valorUsar;
