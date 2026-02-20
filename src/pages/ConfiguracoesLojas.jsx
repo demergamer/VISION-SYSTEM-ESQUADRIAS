@@ -103,6 +103,7 @@ function LojaForm({ loja, onSave, onCancel }) {
 
   const handleSave = async () => {
     if (!form.nome_loja || !form.slug) { toast.error('Nome e Slug são obrigatórios'); return; }
+    if (!form.telefone_whatsapp) { toast.error('WhatsApp é obrigatório'); return; }
     setSaving(true);
     await onSave(form);
     setSaving(false);
