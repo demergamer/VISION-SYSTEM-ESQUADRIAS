@@ -296,7 +296,8 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       // Processar cada pedido em sequência
       for (const pedido of selectedPedidos) {
         if (!pedido?.id) continue;
-        let saldoAtual = pedido?.saldo_restante || ((pedido?.valor_pedido || 0) - (pedido?.total_pago || 0));
+        // Base = valor_pedido integral (o sinal entra como forma de pagamento abaixo)
+        let saldoAtual = pedido?.valor_pedido || 0;
         
         let devolucaoAplicada = 0;
         let descontoAplicado = 0;
