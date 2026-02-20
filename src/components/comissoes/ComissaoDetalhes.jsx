@@ -175,23 +175,39 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
 
   const handleToggleConferido = async (pedidoId) => {
     if (statusFechamento === 'fechado') return;
+    
     const novoValor = !conferidos[String(pedidoId)];
+    
+    // Optimistic Update: muda imediatamente na UI
     setConferidos(prev => ({ ...prev, [String(pedidoId)]: novoValor }));
 
-    // Salva silenciosamente no BD se já existe um fechamento salvo
-    if (controleId) {
-      try {
-        const fechamento = await base44.entities.FechamentoComissao.filter({ id: controleId });
-        const atual = fechamento[0] || await base44.entities.FechamentoComissao.get(controleId);
+    // Salva no banco de dados
+    try {
+      // Se já existe um fechamento em rascunho/fechado, atualiza o snapshot pedidos_detalhes
+      if (controleId) {
+        const atual = await base44.entities.FechamentoComissao.get(controleId);
         if (atual && Array.isArray(atual.pedidos_detalhes)) {
           const novosDetalhes = atual.pedidos_detalhes.map(p =>
             String(p.pedido_id) === String(pedidoId) ? { ...p, conferido: novoValor } : p
           );
           await base44.entities.FechamentoComissao.update(controleId, { pedidos_detalhes: novosDetalhes });
         }
-      } catch (e) {
-        console.warn('Erro ao salvar conferência:', e);
       }
+      
+      // Também atualiza o pedido original se tiver coluna conferido
+      const pedido = pedidosDaComissao.find(p => String(p.id) === String(pedidoId));
+      if (pedido && pedido.id) {
+        try {
+          await base44.entities.Pedido.update(pedido.id, { conferido: novoValor });
+        } catch (e) {
+          // Coluna pode não existir, apenas registra o aviso
+          console.warn('Coluna conferido não existe em Pedido:', e);
+        }
+      }
+    } catch (e) {
+      console.error('Erro ao salvar conferência:', e);
+      // Desfaz o otimistic update em caso de erro crítico
+      setConferidos(prev => ({ ...prev, [String(pedidoId)]: !novoValor }));
     }
   };
 
