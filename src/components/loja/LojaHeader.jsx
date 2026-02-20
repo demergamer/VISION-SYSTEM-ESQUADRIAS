@@ -106,7 +106,7 @@ function ClienteSelector({ clientes, clienteSelecionado, onSelectCliente, tabela
 export default function LojaHeader({
   searchTerm, onSearch,
   clientes, clienteSelecionado, onSelectCliente, tabelaPreco, isRepresentanteOuAdmin,
-  totalItens, onOpenCarrinho, onToggleSidebar,
+  totalItens, onOpenCarrinho, onOpenCompras, onToggleSidebar,
   user, corPrimaria
 }) {
   return (
