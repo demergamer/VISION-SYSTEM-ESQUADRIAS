@@ -33,6 +33,12 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
   // Pesquisa local na tabela
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Alteração % em massa
+  const [pctMassa, setPctMassa] = useState('');
+
+  // Pedidos conferidos (persistido no BD via campo no snapshot)
+  const [conferidos, setConferidos] = useState({});
+
   // Transferir representante
   const [transferindoId, setTransferindoId] = useState(null);
   const [representantes, setRepresentantes] = useState([]);
