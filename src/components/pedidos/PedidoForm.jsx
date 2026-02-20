@@ -346,7 +346,11 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
               <p className="text-xs text-blue-700">Registre um ou mais pagamentos antecipados com comprovantes individuais</p>
             </div>
           </div>
-          <SinaisHistorico sinais={form.sinais_historico} onChange={handleSinaisChange} />
+          <SinaisHistorico
+            sinais={form.sinais_historico}
+            onChange={handleSinaisChange}
+            clienteInfo={{ cliente_nome: form.cliente_nome, cliente_codigo: form.cliente_codigo }}
+          />
         </div>
 
         <div className="space-y-2 md:col-span-2">
