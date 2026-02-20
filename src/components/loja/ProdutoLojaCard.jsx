@@ -1,7 +1,7 @@
 import React from 'react';
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Package, Tag } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Package, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const CAT_COLORS = {
@@ -21,69 +21,87 @@ export default function ProdutoLojaCard({ produto, tabelaPreco, clienteSeleciona
   const variacoes = produto.variacoes || [];
 
   const menorPreco = tabelaPreco && variacoes.length > 0
-    ? Math.min(...variacoes.map(v => parseFloat(v[tabelaPreco]) || 0).filter(p => p > 0))
+    ? (() => {
+        const precos = variacoes.map(v => parseFloat(v[tabelaPreco]) || 0).filter(p => p > 0);
+        return precos.length ? Math.min(...precos) : null;
+      })()
     : null;
 
   const semCliente = !clienteSelecionado;
 
   return (
-    <Card
-      className={cn("overflow-hidden cursor-pointer group hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5 border border-slate-100", semCliente && "opacity-80")}
-      onClick={() => !semCliente && onClick(produto)}
+    <div
+      className={cn(
+        "bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col",
+        "transition-all duration-200 hover:shadow-xl hover:-translate-y-1 cursor-pointer group"
+      )}
+      onClick={() => onClick(produto)}
     >
       {/* Imagem */}
-      <div className="relative h-48 bg-gradient-to-br from-slate-100 to-slate-50 overflow-hidden">
+      <div className="relative aspect-square bg-gradient-to-br from-slate-50 to-slate-100 overflow-hidden">
         {fotos[0] ? (
-          <img src={fotos[0]} alt={nome} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+          <img
+            src={fotos[0]}
+            alt={nome}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <Package className="w-16 h-16 text-slate-200" />
           </div>
         )}
-        {variacoes.length > 0 && (
-          <Badge className="absolute top-2 right-2 text-[10px] bg-black/50 text-white border-0 backdrop-blur-sm">
-            {variacoes.length} var.
+
+        {/* Badge categoria (overlay) */}
+        {produto.categoria && (
+          <Badge className={cn(
+            "absolute top-2.5 left-2.5 text-[10px] border-0 shadow-sm font-semibold",
+            CAT_COLORS[produto.categoria] || 'bg-slate-100 text-slate-600'
+          )}>
+            {CAT_LABELS[produto.categoria] || produto.categoria}
+          </Badge>
+        )}
+
+        {/* Badge linha */}
+        {produto.linha_produto && produto.linha_produto !== '—' && (
+          <Badge className="absolute top-2.5 right-2.5 text-[10px] bg-white/90 text-slate-700 border-0 shadow-sm font-medium backdrop-blur-sm">
+            {produto.linha_produto}
           </Badge>
         )}
       </div>
 
-      {/* Info */}
-      <div className="p-4">
-        <div className="flex items-start gap-2 mb-2">
-          {produto.categoria && (
-            <Badge className={cn("text-[10px] border-0 shrink-0", CAT_COLORS[produto.categoria] || 'bg-slate-100 text-slate-600')}>
-              {CAT_LABELS[produto.categoria] || produto.categoria}
-            </Badge>
-          )}
-        </div>
+      {/* Conteúdo */}
+      <div className="p-4 flex flex-col flex-1">
+        <h3 className="font-bold text-slate-800 text-sm leading-snug line-clamp-2 mb-2 flex-1">
+          {nome}
+        </h3>
 
-        <h3 className="font-bold text-slate-800 leading-tight mb-1 line-clamp-2">{nome}</h3>
-
-        {produto.linha_produto && produto.linha_produto !== '—' && (
-          <p className="text-xs text-slate-400 mb-3">Linha <span className="text-slate-600 font-medium">{produto.linha_produto}</span></p>
-        )}
-
-        <div className="border-t border-slate-100 pt-3">
+        {/* Preço */}
+        <div className="mt-auto">
           {semCliente ? (
-            <p className="text-xs text-slate-400 italic">Selecione um cliente para ver os preços</p>
+            <p className="text-xs text-slate-400 italic py-1">Selecione um cliente para ver preços</p>
           ) : variacoes.length === 0 ? (
-            <p className="text-xs text-slate-400 italic">Sem variações cadastradas</p>
+            <p className="text-xs text-slate-400 italic py-1">Sem variações cadastradas</p>
           ) : menorPreco != null && menorPreco > 0 ? (
-            <div>
-              <p className="text-[10px] text-slate-400 mb-0.5">A partir de</p>
-              <p className="text-xl font-bold text-blue-700">{fmt(menorPreco)}</p>
+            <div className="mb-3">
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide font-medium">A partir de</p>
+              <p className="text-xl font-extrabold text-blue-700 leading-tight">{fmt(menorPreco)}</p>
             </div>
           ) : (
-            <p className="text-xs text-slate-400 italic">Preço não definido</p>
+            <p className="text-xs text-slate-400 italic py-1 mb-2">Preço não definido</p>
           )}
-        </div>
 
-        {!semCliente && (
-          <button className="mt-3 w-full text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center justify-center gap-1.5 py-1.5 rounded-lg hover:bg-blue-50 transition-colors">
-            <Tag className="w-3.5 h-3.5" /> Ver opções
-          </button>
-        )}
+          {/* CTA */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full text-sm font-semibold text-blue-600 border-blue-200 hover:bg-blue-50 hover:border-blue-400 gap-1.5 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-all"
+            onClick={e => { e.stopPropagation(); onClick(produto); }}
+          >
+            Ver opções
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Button>
+        </div>
       </div>
-    </Card>
+    </div>
   );
 }
