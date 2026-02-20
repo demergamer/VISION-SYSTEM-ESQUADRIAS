@@ -136,7 +136,7 @@ export default function Produtos() {
                   <SelectValue placeholder="Categoria" />
                 </SelectTrigger>
                 <SelectContent>
-                  {CATEGORIAS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {CATEGORIAS.map(c => <SelectItem key={c} value={c}>{c === 'Todas' ? 'Todas' : CAT_LABELS[c] || c}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
