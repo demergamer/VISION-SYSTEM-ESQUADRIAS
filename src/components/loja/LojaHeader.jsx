@@ -150,8 +150,11 @@ export default function LojaHeader({
             isRepresentanteOuAdmin={isRepresentanteOuAdmin}
           />
 
+          {/* Menu do Usuário */}
+          <UserMenu user={user} />
+
           {/* Filtros mobile */}
-          <Button variant="ghost" size="icon" className="lg:hidden h-10 w-10 text-white hover:bg-blue-600" onClick={onToggleSidebar}>
+          <Button variant="ghost" size="icon" className="lg:hidden h-10 w-10 text-white hover:bg-white/20" onClick={onToggleSidebar}>
             <SlidersHorizontal className="w-5 h-5" />
           </Button>
 
