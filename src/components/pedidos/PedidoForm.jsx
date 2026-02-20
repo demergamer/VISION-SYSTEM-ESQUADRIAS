@@ -10,7 +10,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Save, X, Plus, Eye, Truck, User, Search, Lock, Upload, FileCheck, Trash2, Loader2 } from "lucide-react";
+import { Save, X, Plus, Eye, Truck, User, Search, Lock } from "lucide-react";
+import SinaisHistorico from "@/components/pedidos/SinaisHistorico";
 import { cn } from "@/lib/utils";
 import ModalContainer from "@/components/modals/ModalContainer";
 import { useQuery } from '@tanstack/react-query';
