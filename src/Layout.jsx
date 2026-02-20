@@ -144,17 +144,23 @@ function LayoutInner({ children, currentPageName }) {
   const renderMenuContent = (isHorizontal = false) => (
     <>
       {/* Header do Menu */}
-      <div className={cn("flex items-center gap-3 shrink-0", isHorizontal ? "border-r border-slate-200 pr-6 mr-2" : "mb-4 border-b border-slate-200 pb-4 p-4")}>
-        <div className="h-10 w-10 rounded-lg bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-200">
-          <Building2 className="text-white w-6 h-6" />
-        </div>
-        {!isHorizontal && (
-          <div>
-            <h1 className="font-bold text-slate-800 leading-tight">Gestão B2B</h1>
-            <p className="text-xs text-slate-500">Financeiro & Vendas</p>
-          </div>
-        )}
-      </div>
+      <Link
+          to="/Dashboard"
+          onClick={() => setMobileMenuOpen(false)}
+          className={cn("flex items-center gap-3 shrink-0 hover:opacity-80 transition-opacity", isHorizontal ? "border-r border-slate-200 pr-6 mr-2" : "mb-4 border-b border-slate-200 pb-4 p-4")}
+        >
+          <img
+            src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png"
+            alt="J&C Vision"
+            className="h-8 w-auto object-contain"
+          />
+          {!isHorizontal && (
+            <div>
+              <h1 className="font-extrabold text-slate-800 text-lg leading-tight tracking-tight">J&C <span className="text-blue-600">Vision</span></h1>
+              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">Sistema de Gestão</p>
+            </div>
+          )}
+        </Link>
 
       {!isHorizontal && <div className="px-2"><LiveClock /></div>}
 
