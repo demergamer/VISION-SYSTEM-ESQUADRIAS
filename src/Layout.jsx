@@ -229,6 +229,12 @@ export default function Layout({ children, currentPageName }) {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link to="/Configuracoes" className="cursor-pointer">
+                <SettingsIcon className="mr-2 h-4 w-4" /> Configurações
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem 
               className="text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer"
               onClick={signOut}
