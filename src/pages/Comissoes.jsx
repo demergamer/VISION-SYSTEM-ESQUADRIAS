@@ -379,28 +379,6 @@ export default function Comissoes() {
       x += colWidths[i];
     });
 
-    const fakeAutoTable = {
-      startY: 42,
-      head: [['REPRESENTANTE', 'QT DE PEDIDOS', 'R$ DE VENDAS', 'COMISSÃO DAS VENDAS', 'CHAVE PIX']],
-      body: linhas,
-      foot: [['TOTAL GERAL', totalPedidos,
-        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalVendas),
-        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalComissoes),
-        ''
-      ]],
-      styles: { fontSize: 9, cellPadding: 4 },
-      headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
-      footStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-      columnStyles: {
-        0: { cellWidth: 55 },
-        1: { halign: 'center' },
-        2: { halign: 'right' },
-        3: { halign: 'right' },
-        4: { cellWidth: 55 }
-      }
-    });
-
     doc.save(`comissoes-${mesAnoSelecionado}.pdf`);
   };
 
