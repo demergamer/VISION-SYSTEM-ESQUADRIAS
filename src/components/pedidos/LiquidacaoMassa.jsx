@@ -73,17 +73,40 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       return;
     }
 
-    // Monta linhas de sinal read-only (uma por pedido com sinal)
-    const novosSinais = selectedPedidos
-      .filter(p => parseFloat(p.valor_sinal_informado) > 0)
-      .map(p => ({
-        id: `sinal-${p.id}`,
-        forma: 'Sinal / Adiantamento',
-        valor: parseFloat(p.valor_sinal_informado),
-        referencia: `Pedido #${p.numero_pedido}`,
-        comprovantes: p.arquivos_sinal || [],
-        isReadOnly: true
-      }));
+    // Monta linhas de sinal read-only a partir de sinais_historico (não usados)
+    // Fallback para valor_sinal_informado legado se sinais_historico não existir
+    const novosSinais = selectedPedidos.flatMap(p => {
+      const historico = p.sinais_historico;
+      if (historico && historico.length > 0) {
+        return historico
+          .filter(s => !s.usado && (parseFloat(s.valor) || 0) > 0)
+          .map(s => ({
+            id: `sinal-${p.id}-${s.id}`,
+            _sinalId: s.id,
+            _pedidoId: p.id,
+            forma: `Sinal / ${s.tipo_pagamento}`,
+            valor: parseFloat(s.valor),
+            referencia: `Pedido #${p.numero_pedido}`,
+            comprovantes: s.comprovante_url ? [s.comprovante_url] : [],
+            isReadOnly: true
+          }));
+      }
+      // Legado
+      const valorLegado = parseFloat(p.valor_sinal_informado) || 0;
+      if (valorLegado > 0) {
+        return [{
+          id: `sinal-${p.id}`,
+          _sinalId: null,
+          _pedidoId: p.id,
+          forma: 'Sinal / Adiantamento',
+          valor: valorLegado,
+          referencia: `Pedido #${p.numero_pedido}`,
+          comprovantes: p.arquivos_sinal || [],
+          isReadOnly: true
+        }];
+      }
+      return [];
+    });
     setSinaisInjetados(novosSinais);
 
     // Mantém apenas formas manuais (sem sinais anteriores)
