@@ -760,8 +760,16 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
               {totais.devolucaoValor > 0 && <div className="flex justify-between text-sm text-orange-600"><span>Devolução:</span><span>- {formatCurrency(totais.devolucaoValor)}</span></div>}
               <div className="flex justify-between font-bold text-lg text-blue-700 border-t pt-2"><span>Total a Pagar:</span><span>{formatCurrency(totais.totalComDesconto)}</span></div>
               <div className="flex justify-between font-bold text-lg text-green-700"><span>Total Pago:</span><span>{formatCurrency(totais.totalPago)}</span></div>
-              {totais.totalPago < totais.totalComDesconto && (
-                <div className="flex justify-between font-bold text-base text-red-600 border-t pt-2 border-red-100"><span>Faltam Pagar:</span><span>{formatCurrency(totais.totalComDesconto - totais.totalPago)}</span></div>
+                      {totais.totalPago < totais.totalComDesconto && (
+                <div className="flex justify-between font-bold text-base text-amber-600 border-t pt-2 border-amber-100">
+                  <span>Falta Pagar:</span>
+                  <span>{formatCurrency(totais.totalComDesconto - totais.totalPago)}</span>
+                </div>
+              )}
+              {totais.totalPago < totais.totalComDesconto && totais.totalPago > 0 && (
+                <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded-lg">
+                  ⚠️ Liquidação parcial — o pedido ficará com status <strong>Parcial</strong>.
+                </p>
               )}
             </div>
           </Card>
