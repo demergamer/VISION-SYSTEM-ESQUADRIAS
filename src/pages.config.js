@@ -62,6 +62,7 @@ import Financeiro from './pages/Financeiro';
 import FormasPagamento from './pages/FormasPagamento';
 import Fornecedores from './pages/Fornecedores';
 import Logs from './pages/Logs';
+import Loja from './pages/Loja';
 import Orcamentos from './pages/Orcamentos';
 import Pagamentos from './pages/Pagamentos';
 import Pedidos from './pages/Pedidos';
@@ -73,7 +74,6 @@ import Representantes from './pages/Representantes';
 import Representation from './pages/Representation';
 import Usuarios from './pages/Usuarios';
 import Welcome from './pages/Welcome';
-import Loja from './pages/Loja';
 import __Layout from './Layout.jsx';
 
 
@@ -93,6 +93,7 @@ export const PAGES = {
     "FormasPagamento": FormasPagamento,
     "Fornecedores": Fornecedores,
     "Logs": Logs,
+    "Loja": Loja,
     "Orcamentos": Orcamentos,
     "Pagamentos": Pagamentos,
     "Pedidos": Pedidos,
@@ -104,7 +105,6 @@ export const PAGES = {
     "Representation": Representation,
     "Usuarios": Usuarios,
     "Welcome": Welcome,
-    "Loja": Loja,
 }
 
 export const pagesConfig = {
