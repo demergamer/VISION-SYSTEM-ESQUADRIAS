@@ -81,6 +81,7 @@ const menuStructure = [
     items: [
       { name: "Relatorios", icon: BarChart3 },
       { name: "Logs", icon: ScrollText },
+      { name: "Configuracoes", icon: Settings, public: true },
     ]
   }
 ];
