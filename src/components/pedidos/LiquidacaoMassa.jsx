@@ -322,7 +322,16 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
           descontoRestante -= descontoParaEste;
         }
 
-        // **PASSO 2.5: SINAL/PORT (Se automático)**
+        // **PASSO 2.5a: SINAL DO PEDIDO (pré-pagamento automático)**
+        const sinalDoPedido = parseFloat(pedido.valor_sinal_informado) || 0;
+        if (sinalDoPedido > 0 && saldoAtual > 0) {
+          const sinalAplicar = Math.min(saldoAtual, sinalDoPedido);
+          pagamentoAplicado += sinalAplicar;
+          saldoAtual -= sinalAplicar;
+          pagamentoRestante = Math.max(0, pagamentoRestante); // sinal não consome pool manual
+        }
+
+        // **PASSO 2.5b: SINAL/PORT (Se automático)**
         if (usarPortsAutomatico && saldoAtual > 0) {
           const portParaEstePedido = portsParaUsar.find(port => 
             port?.pedidos_ids?.includes(pedido?.id) && (port?.saldo_disponivel || 0) > 0
