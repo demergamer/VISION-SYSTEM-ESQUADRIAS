@@ -56,7 +56,9 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     desconto_tipo: 'valor',
     desconto_valor: 0,
     
-    // Sinal (Pagamento Antecipado)
+    // Sinais (novo modelo array)
+    sinais_historico: [],
+    // Campos legado mantidos para compatibilidade
     valor_sinal_informado: 0,
     arquivos_sinal: []
   });
