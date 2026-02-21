@@ -21,16 +21,16 @@ import { cn } from "@/lib/utils";
 
 // Componentes Internos
 import ModalContainer from "@/components/modals/ModalContainer";
-import SolicitarNovoCliente from "@/components/portais/SolicitarNovoCliente";
-import LiquidacaoSelfService from "@/components/portais/LiquidacaoSelfService";
-import NovaLiquidacaoRepresentante from "@/components/portais/NovaLiquidacaoRepresentante";
-import ClienteDetailsModal from "@/components/portais/ClienteDetailsModal";
-import EditClienteModal from "@/components/portais/EditClienteModal";
-import ConviteClienteModal from "@/components/portais/ConviteClienteModal";
-import BorderoDetailsModal from "@/components/portais/BorderoDetailsModal";
-import SolicitarOrcamentoModal from "@/components/portais/SolicitarOrcamentoModal";
-import ComissaoModal from "@/components/portais/ComissaoModal";
-import MinhasAutorizacoesModal from "@/components/portais/MinhasAutorizacoesModal";
+import SolicitarNovoCliente from "@/components/portais/representante/SolicitarNovoCliente";
+import LiquidacaoSelfService from "@/components/portais/cliente/LiquidacaoSelfService";
+import NovaLiquidacaoRepresentante from "@/components/portais/representante/NovaLiquidacaoRepresentante";
+import ClienteDetailsModal from "@/components/portais/representante/ClienteDetailsModal";
+import EditClienteModal from "@/components/portais/representante/EditClienteModal";
+import ConviteClienteModal from "@/components/portais/representante/ConviteClienteModal";
+import BorderoDetailsModal from "@/components/portais/representante/BorderoDetailsModal";
+import SolicitarOrcamentoModal from "@/components/portais/representante/SolicitarOrcamentoModal";
+import ComissaoModal from "@/components/portais/representante/ComissaoModal";
+import MinhasAutorizacoesModal from "@/components/portais/representante/MinhasAutorizacoesModal";
 
 // --- UTILITÁRIOS ---
 const realizarLogout = () => {

@@ -13,8 +13,8 @@ import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO } from "date
 import { motion, AnimatePresence } from "framer-motion";
 import ModalContainer from "@/components/modals/ModalContainer";
 import ChequeDetails from "@/components/cheques/ChequeDetails";
-import LiquidacaoSelfService from "@/components/portais/LiquidacaoSelfService";
-import BorderoDetailsModal from "@/components/portais/BorderoDetailsModal"; // IMPORTADO
+import LiquidacaoSelfService from "@/components/portais/cliente/LiquidacaoSelfService";
+import BorderoDetailsModal from "@/components/portais/cliente/BorderoDetailsModal";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
