@@ -577,11 +577,12 @@ export default function ComissaoDetalhes({ representante, mesAno, onClose, onSuc
             await base44.entities.FechamentoComissao.update(currentId, { pagamento_id: conta.id });
             setStatusFechamento('fechado');
             toast.success("Finalizado com sucesso! Lançamento gerado no Contas a Pagar.");
+            if (onSuccessSave) onSuccessSave();
         } else {
-            toast.success("Rascunho Salvo!");
+            toast.success("Rascunho salvo com sucesso!");
+            if (onSuccessSave) onSuccessSave();
+            onClose(); // Fecha o modal após salvar rascunho
         }
-        
-        if (onSuccessSave) onSuccessSave();
 
     } catch (error) {
         toast.error("Erro ao salvar o rascunho.");
