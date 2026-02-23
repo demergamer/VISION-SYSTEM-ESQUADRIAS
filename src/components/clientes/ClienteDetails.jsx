@@ -81,9 +81,37 @@ export default function ClienteDetails({ cliente, stats, creditos, onEdit, onClo
       {/* Header Fixo */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-md">
-            <Building2 className="w-8 h-8 text-white" />
+          {/* Avatar Interativo com Upload */}
+          <div
+            className="relative group cursor-pointer w-20 h-20 rounded-2xl shadow-md overflow-hidden shrink-0"
+            onClick={() => logoInputRef.current?.click()}
+          >
+            {logoUrl ? (
+              <img src={logoUrl} alt={cliente.nome} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
+                <span className="text-white font-extrabold text-2xl tracking-tight">
+                  {getInitials(cliente.nome_fantasia || cliente.razao_social || cliente.nome)}
+                </span>
+              </div>
+            )}
+            {/* Overlay de hover */}
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              {uploadingLogo
+                ? <Loader2 className="w-7 h-7 text-white animate-spin" />
+                : <Camera className="w-7 h-7 text-white" />
+              }
+            </div>
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleLogoUpload}
+              disabled={uploadingLogo}
+            />
           </div>
+
           <div>
             <h2 className="text-2xl font-bold text-slate-800">{cliente.nome}</h2>
             <p className="text-slate-500 font-mono text-sm">Cód: {cliente.codigo}</p>
