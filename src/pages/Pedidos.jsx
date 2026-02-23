@@ -44,7 +44,6 @@ import AdicionarRepresentanteModal from "@/components/pedidos/AdicionarRepresent
 import PermissionGuard from "@/components/PermissionGuard";
 import { usePermissions } from "@/components/hooks/usePermissions";
 import PaginacaoControles, { SeletorItensPorPagina } from "@/components/pedidos/PaginacaoControles";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // --- PAINEL DE FILTROS ---
 const FilterPanel = ({ filters, setFilters, onClear, isOpen }) => {
