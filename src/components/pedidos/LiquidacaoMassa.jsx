@@ -521,6 +521,15 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     const temAlgumPagamento = dinheirNovoTotal > 0 || creditoAUsar > 0 || totais.desconto > 0 || totais.devolucaoValor > 0 || totalSinaisInjetados > 0;
     if (!temAlgumPagamento) { toast.error('Informe algum valor (pagamento, crédito, desconto ou devolução)'); return; }
 
+    // Validação de comprovante obrigatório
+    const tiposComComprovanteObrigatorio = { pix: 'PIX', c_debito: 'C. Débito', c_credito: 'C. Crédito', link_pagamento: 'Link de Pagamento', credito_manual: 'Crédito Manual' };
+    for (const fp of formasPagamento.filter(f => !f.isReadOnly)) {
+      if (tiposComComprovanteObrigatorio[fp.tipo] && parseFloat(fp.valor) > 0 && !fp.comprovante) {
+        toast.error(`O comprovante é obrigatório para pagamentos via ${tiposComComprovanteObrigatorio[fp.tipo]}`);
+        return;
+      }
+    }
+
     // Validação de devolução
     const temDevolucao = parseFloat(devolucao) > 0;
     if (temDevolucao && !devolucaoMotivo.trim() && !devolucaoComprovante) {
