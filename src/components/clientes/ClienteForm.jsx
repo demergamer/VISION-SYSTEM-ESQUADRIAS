@@ -391,74 +391,80 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
             </AccordionContent>
           </AccordionItem>
 
-          <AccordionItem value="analise_financeira" className="border rounded-xl bg-white px-4 shadow-sm">
-            <AccordionTrigger className="hover:no-underline py-4"><div className="flex items-center gap-2 text-slate-800"><Wallet className="w-5 h-5 text-green-600" /><span className="font-semibold text-base">Financeiro & Cobrança</span></div></AccordionTrigger>
-            <AccordionContent className="pb-4 pt-2 space-y-6">
-              <div className="space-y-2">
-                 <Label className={labelClass}>Formas de Pagamento Autorizadas</Label>
-                 <FormasPagamentoSelector formasSelecionadas={form.formas_pagamento} onChange={(newVal) => setForm(prev => ({...prev, formas_pagamento: newVal}))} />
-              </div>
-              <div className="h-px bg-slate-100 my-2"></div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-amber-50 p-4 rounded-xl border border-amber-100">
-                  <div className="space-y-1">
-                     <Label className={labelClass}>Aceita Cobrança Posterior?</Label>
-                     <Select value={form.permite_cobranca_posterior} onValueChange={(val) => setForm(prev => ({...prev, permite_cobranca_posterior: val}))}>
-                        <SelectTrigger className={cn(inputClass, "bg-white")}><SelectValue /></SelectTrigger>
-                        <SelectContent><SelectItem value="nao">Não (Pagamento na Entrega/Antecipado)</SelectItem><SelectItem value="sim">Sim (Cobrador passa depois)</SelectItem></SelectContent>
-                     </Select>
-                  </div>
-                  {form.permite_cobranca_posterior === 'sim' && (
-                      <div className="space-y-1 animate-in fade-in slide-in-from-left-2">
-                         <Label className={labelClass}>Dia da Cobrança</Label>
-                         <div className="relative">
-                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-amber-600" />
-                            <Select value={form.dia_cobranca} onValueChange={(val) => setForm(prev => ({...prev, dia_cobranca: val}))}>
-                                <SelectTrigger className={cn(inputClass, "pl-9 bg-white border-amber-300")}><SelectValue placeholder="Selecione o dia..." /></SelectTrigger>
-                                <SelectContent>{['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'].map(dia => (<SelectItem key={dia} value={dia}>{dia}</SelectItem>))}</SelectContent>
-                            </Select>
-                         </div>
-                      </div>
-                  )}
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div className="space-y-1"><Label className={labelClass}>Limite de Crédito (R$)</Label><Input type="number" value={form.limite_credito} onChange={handleInputChange} name="limite_credito" className={inputClass} /></div>
-                 <div className="space-y-1"><Label className={labelClass}>Score Serasa</Label><Input value={form.score} onChange={handleInputChange} name="score" className={inputClass} /></div>
-              </div>
-              <div className="space-y-1">
-                 <Label className={labelClass}>Arquivo Serasa (PDF)</Label>
-                 <div className="flex items-center gap-3">
-                    <label className={cn("flex-1 flex items-center justify-between gap-3 h-12 px-4 rounded-xl border-2 border-dashed cursor-pointer transition-all", form.serasa_file_url ? "border-green-300 bg-green-50" : "border-slate-200 bg-slate-50")}>
-                        {serasaUploading ? <span className="text-sm text-blue-600 flex gap-2"><Loader2 className="animate-spin w-4 h-4"/> Enviando...</span> : form.serasa_file_url ? <span className="text-sm font-bold text-green-700 flex gap-2"><CheckCircle className="w-4 h-4"/> Arquivo Salvo</span> : <span className="text-sm text-slate-500 flex gap-2"><Upload className="w-4 h-4"/> Clique para enviar PDF</span>}
-                        <input type="file" accept=".pdf" onChange={handleSerasaUpload} className="hidden" disabled={serasaUploading} />
-                    </label>
-                    {form.serasa_file_url && <Button type="button" variant="ghost" size="icon" onClick={() => window.open(form.serasa_file_url, '_blank')}><Eye className="w-4 h-4 text-blue-600"/></Button>}
-                    {form.serasa_file_url && <Button type="button" variant="ghost" size="icon" onClick={() => setForm(p => ({...p, serasa_file_url: null}))}><Trash2 className="w-4 h-4 text-red-600"/></Button>}
-                 </div>
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-
-          <AccordionItem value="vendas" className="border rounded-xl bg-white px-4 shadow-sm">
-             <AccordionTrigger className="hover:no-underline py-4"><div className="flex items-center gap-2 text-slate-800"><Briefcase className="w-5 h-5 text-purple-600"/><span className="font-semibold text-base">Vendas</span></div></AccordionTrigger>
-             <AccordionContent className="pb-4 pt-2">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-1">
-                        <Label className={labelClass}>Representante</Label>
-                        <Select value={form.representante_codigo} onValueChange={handleRepresentanteChange}>
-                            <SelectTrigger className={inputClass}><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                            <SelectContent>{representantes.map(r => <SelectItem key={r.codigo} value={r.codigo}>{r.nome}</SelectItem>)}</SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-1"><Label className={labelClass}>Comissão Padrão (%)</Label><Input type="number" name="porcentagem_comissao" value={form.porcentagem_comissao} onChange={handleInputChange} className={inputClass} /></div>
+          {!isClientMode && (
+            <AccordionItem value="analise_financeira" className="border rounded-xl bg-white px-4 shadow-sm">
+              <AccordionTrigger className="hover:no-underline py-4"><div className="flex items-center gap-2 text-slate-800"><Wallet className="w-5 h-5 text-green-600" /><span className="font-semibold text-base">Financeiro & Cobrança</span></div></AccordionTrigger>
+              <AccordionContent className="pb-4 pt-2 space-y-6">
+                <div className="space-y-2">
+                   <Label className={labelClass}>Formas de Pagamento Autorizadas</Label>
+                   <FormasPagamentoSelector formasSelecionadas={form.formas_pagamento} onChange={(newVal) => setForm(prev => ({...prev, formas_pagamento: newVal}))} />
                 </div>
-             </AccordionContent>
-          </AccordionItem>
+                <div className="h-px bg-slate-100 my-2"></div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-amber-50 p-4 rounded-xl border border-amber-100">
+                    <div className="space-y-1">
+                       <Label className={labelClass}>Aceita Cobrança Posterior?</Label>
+                       <Select value={form.permite_cobranca_posterior} onValueChange={(val) => setForm(prev => ({...prev, permite_cobranca_posterior: val}))}>
+                          <SelectTrigger className={cn(inputClass, "bg-white")}><SelectValue /></SelectTrigger>
+                          <SelectContent><SelectItem value="nao">Não (Pagamento na Entrega/Antecipado)</SelectItem><SelectItem value="sim">Sim (Cobrador passa depois)</SelectItem></SelectContent>
+                       </Select>
+                    </div>
+                    {form.permite_cobranca_posterior === 'sim' && (
+                        <div className="space-y-1 animate-in fade-in slide-in-from-left-2">
+                           <Label className={labelClass}>Dia da Cobrança</Label>
+                           <div className="relative">
+                              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-amber-600" />
+                              <Select value={form.dia_cobranca} onValueChange={(val) => setForm(prev => ({...prev, dia_cobranca: val}))}>
+                                  <SelectTrigger className={cn(inputClass, "pl-9 bg-white border-amber-300")}><SelectValue placeholder="Selecione o dia..." /></SelectTrigger>
+                                  <SelectContent>{['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'].map(dia => (<SelectItem key={dia} value={dia}>{dia}</SelectItem>))}</SelectContent>
+                              </Select>
+                           </div>
+                        </div>
+                    )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <div className="space-y-1"><Label className={labelClass}>Limite de Crédito (R$)</Label><Input type="number" value={form.limite_credito} onChange={handleInputChange} name="limite_credito" className={inputClass} /></div>
+                   <div className="space-y-1"><Label className={labelClass}>Score Serasa</Label><Input value={form.score} onChange={handleInputChange} name="score" className={inputClass} /></div>
+                </div>
+                <div className="space-y-1">
+                   <Label className={labelClass}>Arquivo Serasa (PDF)</Label>
+                   <div className="flex items-center gap-3">
+                      <label className={cn("flex-1 flex items-center justify-between gap-3 h-12 px-4 rounded-xl border-2 border-dashed cursor-pointer transition-all", form.serasa_file_url ? "border-green-300 bg-green-50" : "border-slate-200 bg-slate-50")}>
+                          {serasaUploading ? <span className="text-sm text-blue-600 flex gap-2"><Loader2 className="animate-spin w-4 h-4"/> Enviando...</span> : form.serasa_file_url ? <span className="text-sm font-bold text-green-700 flex gap-2"><CheckCircle className="w-4 h-4"/> Arquivo Salvo</span> : <span className="text-sm text-slate-500 flex gap-2"><Upload className="w-4 h-4"/> Clique para enviar PDF</span>}
+                          <input type="file" accept=".pdf" onChange={handleSerasaUpload} className="hidden" disabled={serasaUploading} />
+                      </label>
+                      {form.serasa_file_url && <Button type="button" variant="ghost" size="icon" onClick={() => window.open(form.serasa_file_url, '_blank')}><Eye className="w-4 h-4 text-blue-600"/></Button>}
+                      {form.serasa_file_url && <Button type="button" variant="ghost" size="icon" onClick={() => setForm(p => ({...p, serasa_file_url: null}))}><Trash2 className="w-4 h-4 text-red-600"/></Button>}
+                   </div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          )}
+
+          {!isClientMode && (
+            <AccordionItem value="vendas" className="border rounded-xl bg-white px-4 shadow-sm">
+               <AccordionTrigger className="hover:no-underline py-4"><div className="flex items-center gap-2 text-slate-800"><Briefcase className="w-5 h-5 text-purple-600"/><span className="font-semibold text-base">Vendas</span></div></AccordionTrigger>
+               <AccordionContent className="pb-4 pt-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-1">
+                          <Label className={labelClass}>Representante</Label>
+                          <Select value={form.representante_codigo} onValueChange={handleRepresentanteChange}>
+                              <SelectTrigger className={inputClass}><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                              <SelectContent>{representantes.map(r => <SelectItem key={r.codigo} value={r.codigo}>{r.nome}</SelectItem>)}</SelectContent>
+                          </Select>
+                      </div>
+                      <div className="space-y-1"><Label className={labelClass}>Comissão Padrão (%)</Label><Input type="number" name="porcentagem_comissao" value={form.porcentagem_comissao} onChange={handleInputChange} className={inputClass} /></div>
+                  </div>
+               </AccordionContent>
+            </AccordionItem>
+          )}
         </Accordion>
 
-        <div className="mt-4 bg-slate-50 border border-slate-100 rounded-2xl p-5 flex items-center justify-between">
-          <div><Label htmlFor="bloqueado" className="text-base font-semibold text-slate-800 cursor-pointer">Bloquear Cliente</Label><p className="text-sm text-slate-500 mt-0.5">Impede a criação de novos pedidos</p></div>
-          <Switch id="bloqueado" checked={form.bloqueado_manual} onCheckedChange={(checked) => setForm({ ...form, bloqueado_manual: checked })} />
-        </div>
+        {!isClientMode && (
+          <div className="mt-4 bg-slate-50 border border-slate-100 rounded-2xl p-5 flex items-center justify-between">
+            <div><Label htmlFor="bloqueado" className="text-base font-semibold text-slate-800 cursor-pointer">Bloquear Cliente</Label><p className="text-sm text-slate-500 mt-0.5">Impede a criação de novos pedidos</p></div>
+            <Switch id="bloqueado" checked={form.bloqueado_manual} onCheckedChange={(checked) => setForm({ ...form, bloqueado_manual: checked })} />
+          </div>
+        )}
       </div>
 
       <div className="flex justify-end gap-3 pt-6 border-t mt-4 bg-white sticky bottom-0 z-10">
