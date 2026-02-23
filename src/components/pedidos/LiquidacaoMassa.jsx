@@ -612,7 +612,19 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
               </div>
 
               {devolucaoValorNum > 0 && (
-                <Card className="p-3 bg-orange-50 border-orange-200 space-y-3 mt-2">
+                <Card
+                  className="p-3 bg-orange-50 border-orange-200 space-y-3 mt-2 relative overflow-hidden"
+                  onDragOver={(e) => { e.preventDefault(); setIsDraggingDevolucao(true); }}
+                  onDragEnter={(e) => { e.preventDefault(); setIsDraggingDevolucao(true); }}
+                  onDragLeave={(e) => { e.preventDefault(); if (!e.currentTarget.contains(e.relatedTarget)) setIsDraggingDevolucao(false); }}
+                  onDrop={(e) => { e.preventDefault(); setIsDraggingDevolucao(false); if (e.dataTransfer.files?.[0]) processDevolucaoFile(e.dataTransfer.files[0]); }}
+                >
+                  {isDraggingDevolucao && (
+                    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm border-2 border-dashed border-emerald-500 rounded-lg pointer-events-none">
+                      <Upload className="w-8 h-8 text-emerald-600 mb-1" />
+                      <span className="text-emerald-700 font-semibold text-sm">Solte o comprovante aqui</span>
+                    </div>
+                  )}
                   <p className="text-xs font-semibold text-orange-700 flex items-center gap-1.5">
                     <AlertTriangle className="w-3.5 h-3.5" />
                     Preencha ao menos um campo abaixo para registrar a devolução
@@ -628,7 +640,6 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Comprovante da Devolução</Label>
-                    
                     {devolucaoComprovante ? (
                       <div className="flex items-center gap-2 p-2 bg-white border border-emerald-200 rounded-lg">
                         <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -636,33 +647,20 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
                         <Button type="button" size="icon" variant="ghost" onClick={() => setDevolucaoComprovante('')} className="h-6 w-6 text-red-500 hover:bg-red-50"><X className="w-3 h-3" /></Button>
                       </div>
                     ) : (
-                      <div
-                        className="relative rounded-lg"
-                        onDragOver={handleDevolucaoDragOver}
-                        onDragEnter={handleDevolucaoDragOver}
-                        onDragLeave={handleDevolucaoDragLeave}
-                        onDrop={handleDevolucaoDrop}
-                      >
-                        {isDraggingDevolucao && (
-                          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[2px] border-2 border-dashed border-emerald-500 rounded-lg">
-                            <span className="text-emerald-700 font-semibold text-xs flex items-center gap-2">
-                              <Upload className="w-4 h-4" /> Solte para anexar
-                            </span>
-                          </div>
-                        )}
+                      <>
                         <input ref={devolucaoComprovanteRef} type="file" accept="image/*,.pdf" onChange={handleUploadDevolucaoComprovante} className="hidden" />
-                        <Button 
-                          type="button" 
-                          size="sm" 
-                          variant="outline" 
-                          disabled={uploadingDevolucao} 
-                          onClick={() => devolucaoComprovanteRef.current?.click()} 
-                          className={cn("w-full h-8 text-xs gap-1.5 border-dashed bg-white", isDraggingDevolucao ? "opacity-0" : "")}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={uploadingDevolucao}
+                          onClick={() => devolucaoComprovanteRef.current?.click()}
+                          className="w-full h-8 text-xs gap-1.5 border-dashed bg-white"
                         >
                           {uploadingDevolucao ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
                           {uploadingDevolucao ? 'Enviando...' : 'Anexar Comprovante'}
                         </Button>
-                      </div>
+                      </>
                     )}
                   </div>
                 </Card>
