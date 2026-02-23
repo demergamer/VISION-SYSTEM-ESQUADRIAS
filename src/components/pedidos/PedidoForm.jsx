@@ -268,7 +268,33 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
 
         <div className="space-y-2">
           <Label htmlFor="numero_pedido">Número do Pedido *</Label>
-          <Input id="numero_pedido" value={form.numero_pedido} onChange={(e) => setForm({ ...form, numero_pedido: e.target.value })} placeholder="Ex: PED001" className={inputClass} />
+          <Input 
+            id="numero_pedido" 
+            value={form.numero_pedido} 
+            onChange={(e) => setForm({ ...form, numero_pedido: e.target.value })} 
+            onBlur={(e) => {
+              const raw = e.target.value.trim();
+              if (!raw) return;
+              // Formata com pontos de milhar
+              const semPontos = raw.replace(/\./g, '');
+              const n = parseInt(semPontos, 10);
+              const formatado = !isNaN(n) ? n.toLocaleString('pt-BR').replace(/,/g, '.') : raw;
+              // Verifica duplicidade (com e sem ponto)
+              const duplicado = todosPedidos.find(p => 
+                p.id !== pedido?.id && (
+                  String(p.numero_pedido) === formatado || 
+                  String(p.numero_pedido) === raw ||
+                  String(p.numero_pedido).replace(/\./g, '') === semPontos
+                )
+              );
+              if (duplicado) {
+                toast.error(`Pedido #${formatado} já existe no sistema! (Status: ${duplicado.status})`, { duration: 5000 });
+              }
+              setForm(prev => ({ ...prev, numero_pedido: formatado }));
+            }}
+            placeholder="Ex: 53.000" 
+            className={inputClass} 
+          />
         </div>
 
         <div className="space-y-2">
