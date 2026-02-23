@@ -321,36 +321,59 @@ export default function Pedidos() {
   useEffect(() => { setCurrentPage(1); }, [searchTerm, activeTab, abertosSubTab, filters, showFilters]);
   useEffect(() => { setCurrentPageBorderos(1); }, [searchTerm]);
 
-  // --- STATS DINÂMICOS (reagem ao searchTerm via processedPedidos) ---
-  const stats = useMemo(() => {
-    const transitoCount = pedidos.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado').length;
-    const abertosCount = pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial').length;
-    const autorizacoesCount = liquidacoesPendentes.filter(lp => lp.status === 'pendente').length;
-    const rotasAtivasCount = rotas.filter(r => r.status === 'pendente' || r.status === 'parcial').length;
-    const trocasCount = pedidos.filter(p => p.status === 'troca').length;
-    const repRecebeCount = pedidos.filter(p => p.status === 'representante_recebe').length;
+  // --- STATS DINÂMICOS ---
+  // pedidosFiltradosBusca: todos os pedidos filtrados apenas pela busca (sem filtro de aba/sub-aba)
+  // Usado para badges das abas e totalizadores financeiros que devem reagir à busca global
+  const pedidosFiltradosBusca = useMemo(() => {
+    if (!searchTerm) return pedidos;
+    const lower = searchTerm.toLowerCase();
+    return pedidos.filter(p =>
+      p.cliente_nome?.toLowerCase().includes(lower) ||
+      p.cliente_codigo?.toLowerCase().includes(lower) ||
+      p.numero_pedido?.toLowerCase().includes(lower) ||
+      p.bordero_numero?.toString().includes(lower)
+    );
+  }, [pedidos, searchTerm]);
 
+  const stats = useMemo(() => {
     const hoje = new Date();
     hoje.setHours(0,0,0,0);
 
-    // Financeiros: usam processedPedidos (reagem à busca)
-    const abertosNaBusca = processedPedidos.filter(p =>
+    // Contagens de abas: reagem à busca global
+    const transitoCount = pedidosFiltradosBusca.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado').length;
+    const abertosCount = pedidosFiltradosBusca.filter(p => p.status === 'aberto' || p.status === 'parcial').length;
+    const trocasCount = pedidosFiltradosBusca.filter(p => p.status === 'troca').length;
+    const repRecebeCount = pedidosFiltradosBusca.filter(p => p.status === 'representante_recebe').length;
+
+    // Sub-abas de "Abertos": reagem à busca
+    const abertosBase = pedidosFiltradosBusca.filter(p =>
+      (p.status === 'aberto' || p.status === 'parcial') && p.status !== 'representante_recebe'
+    );
+    const emDiaCount = abertosBase.filter(p => !p.data_entrega || differenceInDays(hoje, parseISO(p.data_entrega)) <= 15).length;
+    const atrasadoCount = abertosBase.filter(p => p.data_entrega && differenceInDays(hoje, parseISO(p.data_entrega)) > 15).length;
+
+    // Contagens fixas (não reagem à busca - contexto global do sistema)
+    const autorizacoesCount = liquidacoesPendentes.filter(lp => lp.status === 'pendente').length;
+    const rotasAtivasCount = rotas.filter(r => r.status === 'pendente' || r.status === 'parcial').length;
+
+    // Totalizadores financeiros: usam pedidosFiltradosBusca
+    const abertosNaBusca = pedidosFiltradosBusca.filter(p =>
       (p.status === 'aberto' || p.status === 'parcial') &&
       p.status !== 'troca' && p.status !== 'representante_recebe'
     );
-    const totalAReceber = abertosNaBusca.reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
+    const totalAReceber = abertosNaBusca.reduce((sum, p) => sum + (p.saldo_restante !== undefined ? p.saldo_restante : (p.valor_pedido - (p.total_pago || 0))), 0);
     const totalVencido = abertosNaBusca
       .filter(p => p.data_entrega && differenceInDays(hoje, parseISO(p.data_entrega)) > 15)
-      .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
-    const valorEmTransito = processedPedidos
+      .reduce((sum, p) => sum + (p.saldo_restante !== undefined ? p.saldo_restante : (p.valor_pedido - (p.total_pago || 0))), 0);
+    const valorEmTransito = pedidosFiltradosBusca
       .filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado')
       .reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
-    const repRecebeValor = processedPedidos
+    const repRecebeValor = pedidosFiltradosBusca
       .filter(p => p.status === 'representante_recebe')
-      .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
+      .reduce((sum, p) => sum + (p.saldo_restante !== undefined ? p.saldo_restante : (p.valor_pedido - (p.total_pago || 0))), 0);
 
-    return { transitoCount, abertosCount, autorizacoesCount, rotasAtivasCount, totalAReceber, totalVencido, valorEmTransito, trocasCount, repRecebeCount, repRecebeValor };
-  }, [pedidos, processedPedidos, liquidacoesPendentes, rotas]);
+    return { transitoCount, abertosCount, autorizacoesCount, rotasAtivasCount, totalAReceber, totalVencido, valorEmTransito, trocasCount, repRecebeCount, repRecebeValor, emDiaCount, atrasadoCount };
+  }, [pedidos, pedidosFiltradosBusca, liquidacoesPendentes, rotas, searchTerm]);
 
   // --- PEDIDOS PAGINADOS ---
   const totalPages = Math.ceil(processedPedidos.length / itemsPerPage);
