@@ -890,9 +890,15 @@ export default function Pedidos() {
             {activeTab === 'abertos' && (
                 <div className="flex justify-center md:justify-start animate-in fade-in slide-in-from-top-1">
                     <div className="bg-white p-1 rounded-lg border border-slate-200 inline-flex shadow-sm flex-wrap gap-0.5">
-                        <button onClick={() => setAbertosSubTab('todos')} className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-all", abertosSubTab === 'todos' ? "bg-blue-50 text-blue-700 shadow-sm" : "text-slate-600 hover:bg-slate-50")}>Todos</button>
-                        <button onClick={() => setAbertosSubTab('em_dia')} className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-all", abertosSubTab === 'em_dia' ? "bg-emerald-50 text-emerald-700 shadow-sm" : "text-slate-600 hover:bg-slate-50")}>Em Dia</button>
-                        <button onClick={() => setAbertosSubTab('atrasado')} className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-all", abertosSubTab === 'atrasado' ? "bg-red-50 text-red-700 shadow-sm" : "text-slate-600 hover:bg-slate-50")}>Em Atraso (+15 dias)</button>
+                        <button onClick={() => setAbertosSubTab('todos')} className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-1.5", abertosSubTab === 'todos' ? "bg-blue-50 text-blue-700 shadow-sm" : "text-slate-600 hover:bg-slate-50")}>
+                            Todos <span className="bg-blue-100 text-blue-700 px-1.5 rounded-full text-[10px]">{stats.abertosCount + stats.repRecebeCount}</span>
+                        </button>
+                        <button onClick={() => setAbertosSubTab('em_dia')} className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-1.5", abertosSubTab === 'em_dia' ? "bg-emerald-50 text-emerald-700 shadow-sm" : "text-slate-600 hover:bg-slate-50")}>
+                            Em Dia {stats.emDiaCount > 0 && <span className="bg-emerald-100 text-emerald-700 px-1.5 rounded-full text-[10px]">{stats.emDiaCount}</span>}
+                        </button>
+                        <button onClick={() => setAbertosSubTab('atrasado')} className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-1.5", abertosSubTab === 'atrasado' ? "bg-red-50 text-red-700 shadow-sm" : "text-slate-600 hover:bg-slate-50")}>
+                            Em Atraso {stats.atrasadoCount > 0 && <span className="bg-red-100 text-red-700 px-1.5 rounded-full text-[10px]">{stats.atrasadoCount}</span>}
+                        </button>
                         <div className="w-px h-6 bg-slate-200 mx-1 self-center" />
                         <button onClick={() => setAbertosSubTab('representante_recebe')} className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-1.5", abertosSubTab === 'representante_recebe' ? "bg-purple-50 text-purple-700 shadow-sm" : "text-slate-600 hover:bg-slate-50")}>
                             <UserCheck className="w-3.5 h-3.5" /> Rep. Recebe {stats.repRecebeCount > 0 && <span className="bg-purple-100 text-purple-700 px-1.5 rounded-full text-[10px]">{stats.repRecebeCount}</span>}
