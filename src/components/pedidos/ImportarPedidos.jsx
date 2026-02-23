@@ -118,9 +118,12 @@ export default function ImportarPedidos({ clientes, pedidosExistentes = [], onIm
           rotaCodigo,
           nome_rota: rotaCodigo || '',
           motorista: '',
+          motorista_codigo: '',
           codigo_rota: rotaCodigo || '',
           selected: false,
-          merged: false
+          merged: false,
+          modo_rota: 'nova', // 'nova' ou 'existente'
+          rota_existente_id: ''
         });
       } catch (err) {
         console.error('Erro ao ler:', file.name, err);
