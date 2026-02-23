@@ -156,9 +156,12 @@ export default function ImportarPedidos({ clientes, pedidosExistentes = [], onIm
       rotaCodigo: toMerge[0].rotaCodigo,
       nome_rota: toMerge[0].nome_rota,
       motorista: toMerge[0].motorista,
+      motorista_codigo: toMerge[0].motorista_codigo || '',
       codigo_rota: toMerge[0].codigo_rota,
       selected: false,
-      merged: true
+      merged: true,
+      modo_rota: 'nova',
+      rota_existente_id: ''
     };
     const remaining = arquivos.filter((_, i) => !selectedForMerge.includes(i));
     setArquivos([...remaining, merged]);
