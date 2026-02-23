@@ -312,36 +312,84 @@ export default function ImportarPedidos({ clientes, pedidosExistentes = [], onIm
                         </div>
                       </div>
 
-                      {/* Inputs obrigatórios */}
-                      <div className="grid grid-cols-3 gap-2 mb-3">
-                        <div>
-                          <Label className="text-xs text-slate-500 mb-1 block">Nome da Rota *</Label>
-                          <Input
-                            value={arq.nome_rota}
-                            onChange={e => updateArquivo(index, 'nome_rota', e.target.value)}
-                            placeholder="Ex: Zona Sul A"
-                            className="h-8 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-xs text-slate-500 mb-1 block">Motorista *</Label>
-                          <Input
-                            value={arq.motorista}
-                            onChange={e => updateArquivo(index, 'motorista', e.target.value)}
-                            placeholder="Nome do motorista"
-                            className="h-8 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-xs text-slate-500 mb-1 block">Código da Rota *</Label>
-                          <Input
-                            value={arq.codigo_rota}
-                            onChange={e => updateArquivo(index, 'codigo_rota', e.target.value)}
-                            placeholder="Ex: 001"
-                            className="h-8 text-sm"
-                          />
-                        </div>
+                      {/* Modo de rota */}
+                      <div className="flex gap-2 mb-2">
+                        <button
+                          onClick={() => updateArquivo(index, 'modo_rota', 'nova')}
+                          className={cn("flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-all",
+                            arq.modo_rota !== 'existente' ? "bg-blue-50 border-blue-300 text-blue-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                          )}
+                        >
+                          <Plus className="w-3 h-3" /> Nova Rota
+                        </button>
+                        <button
+                          onClick={() => updateArquivo(index, 'modo_rota', 'existente')}
+                          className={cn("flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-all",
+                            arq.modo_rota === 'existente' ? "bg-purple-50 border-purple-300 text-purple-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                          )}
+                        >
+                          <Link className="w-3 h-3" /> Adicionar a Rota Existente
+                        </button>
                       </div>
+
+                      {/* Inputs obrigatórios */}
+                      {arq.modo_rota === 'existente' ? (
+                        <div className="mb-3">
+                          <Label className="text-xs text-slate-500 mb-1 block">Selecionar Rota Existente *</Label>
+                          <Select
+                            value={arq.rota_existente_id}
+                            onValueChange={(val) => {
+                              const r = rotasExistentes.find(r => r.id === val);
+                              setArquivos(prev => prev.map((a, i) => i === index ? {
+                                ...a,
+                                rota_existente_id: val,
+                                nome_rota: r?.codigo_rota || '',
+                                motorista: r?.motorista_nome || '',
+                                motorista_codigo: r?.motorista_codigo || '',
+                                codigo_rota: r?.codigo_rota || '',
+                              } : a));
+                            }}
+                          >
+                            <SelectTrigger className="h-8 text-sm">
+                              <SelectValue placeholder="Selecione uma rota ativa..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {rotasExistentes.map(r => (
+                                <SelectItem key={r.id} value={r.id}>
+                                  <span className="font-semibold">{r.codigo_rota}</span>
+                                  {r.motorista_nome && <span className="text-xs text-slate-400 ml-2">· {r.motorista_nome}</span>}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {arq.rota_existente_id && (
+                            <div className="grid grid-cols-3 gap-2 mt-2">
+                              <div><Label className="text-[10px] text-slate-400 block">Motorista (auto)</Label><Input value={arq.motorista} readOnly className="h-7 text-xs bg-slate-100 opacity-70" /></div>
+                              <div><Label className="text-[10px] text-slate-400 block">Cód. Motorista (auto)</Label><Input value={arq.motorista_codigo} readOnly className="h-7 text-xs bg-slate-100 opacity-70" /></div>
+                              <div><Label className="text-[10px] text-slate-400 block">Cód. Rota (auto)</Label><Input value={arq.codigo_rota} readOnly className="h-7 text-xs bg-slate-100 opacity-70" /></div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-4 gap-2 mb-3">
+                          <div>
+                            <Label className="text-xs text-slate-500 mb-1 block">Nome da Rota *</Label>
+                            <Input value={arq.nome_rota} onChange={e => updateArquivo(index, 'nome_rota', e.target.value)} placeholder="Ex: Zona Sul A" className="h-8 text-sm" />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-slate-500 mb-1 block">Motorista *</Label>
+                            <Input value={arq.motorista} onChange={e => updateArquivo(index, 'motorista', e.target.value)} placeholder="Nome do motorista" className="h-8 text-sm" />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-slate-500 mb-1 block">Cód. Motorista</Label>
+                            <Input value={arq.motorista_codigo} onChange={e => updateArquivo(index, 'motorista_codigo', e.target.value)} placeholder="Ex: 045" className="h-8 text-sm" />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-slate-500 mb-1 block">Código da Rota *</Label>
+                            <Input value={arq.codigo_rota} onChange={e => updateArquivo(index, 'codigo_rota', e.target.value)} placeholder="Ex: 001" className="h-8 text-sm" />
+                          </div>
+                        </div>
+                      )}
 
                       {/* Preview toggle */}
                       {arq.pedidos.length > 0 && (
