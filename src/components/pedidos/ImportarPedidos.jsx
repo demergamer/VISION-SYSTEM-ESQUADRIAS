@@ -91,11 +91,16 @@ function parseExcelFile(arrayBuffer, clientes, pedidosExistentes) {
 }
 
 export default function ImportarPedidos({ clientes, pedidosExistentes = [], onImportComplete, onCancel }) {
-  const [arquivos, setArquivos] = useState([]); // [{fileName, pedidos, rotaCodigo, selected}]
+  const [arquivos, setArquivos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingFile, setLoadingFile] = useState(false);
   const [expandedIndex, setExpandedIndex] = useState(null);
   const [selectedForMerge, setSelectedForMerge] = useState([]);
+
+  const { data: rotasExistentes = [] } = useQuery({
+    queryKey: ['rotas_importar'],
+    queryFn: () => base44.entities.RotaImportada.filter({ status: 'pendente' })
+  });
 
   const handleFilesChange = useCallback(async (e) => {
     const files = Array.from(e.target.files || []);
