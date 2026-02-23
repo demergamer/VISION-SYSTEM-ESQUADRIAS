@@ -989,6 +989,7 @@ export default function Pedidos() {
                         )) : <p className="col-span-full text-center py-10 text-slate-500">Nenhum borderô encontrado.</p>}
                     </div>
                 ) : (
+                    <>
                     <PedidoTable 
                         pedidos={currentPedidos} 
                         onEdit={handleEdit} 
@@ -1000,6 +1001,7 @@ export default function Pedidos() {
                         showBorderoRef={true}
                     />
                     <PaginacaoControles currentPage={currentPage} totalPages={totalPages} totalItems={processedPedidos.length} itemsPerPage={itemsPerPage} onPageChange={setCurrentPage} />
+                    </>
                 )}
             </TabsContent>
 
