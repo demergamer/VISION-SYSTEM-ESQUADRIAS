@@ -35,7 +35,6 @@ import RepresentanteDetails from "@/components/representantes/RepresentanteDetai
 import RepresentanteForm from "@/components/representantes/RepresentanteForm";
 import ClienteDetails from "@/components/clientes/ClienteDetails";
 import ClienteForm from "@/components/clientes/ClienteForm";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 // --- UTILITÁRIOS ---
 const realizarLogout = () => {
