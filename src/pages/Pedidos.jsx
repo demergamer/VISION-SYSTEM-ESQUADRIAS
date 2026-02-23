@@ -1139,9 +1139,8 @@ export default function Pedidos() {
           <ModalContainer open={showImportModal} onClose={() => setShowImportModal(false)} title="Importar Pedidos" size="lg">
             <ImportarPedidos 
                 clientes={clientes} 
-                rotas={rotas} 
                 pedidosExistentes={pedidos} 
-                onImportComplete={() => { queryClient.invalidateQueries({queryKey:['pedidos']}); setShowImportModal(false); toast.success('Importado!'); }} 
+                onImportComplete={() => { queryClient.invalidateQueries({queryKey:['pedidos']}); queryClient.invalidateQueries({queryKey:['rotas']}); setShowImportModal(false); toast.success('Importado!'); }} 
                 onCancel={() => setShowImportModal(false)} 
             />
           </ModalContainer>
