@@ -29,6 +29,14 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     queryFn: () => base44.entities.Representante.list() 
   });
 
+  const { data: motoristasAtivos = [] } = useQuery({
+    queryKey: ['motoristas_ativos_form'],
+    queryFn: async () => {
+      const all = await base44.entities.Motorista.list();
+      return all.filter(m => m.ativo !== false);
+    }
+  });
+
   // Busca pedidos para extrair rotas únicas existentes
   const { data: todosPedidos = [] } = useQuery({
     queryKey: ['pedidos_rotas_form'],
@@ -338,41 +346,58 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
             </Select>
         </div>
 
-        {/* --- MOTORISTA (AUTO-FILL BASEADO NA ROTA) --- */}
+        {/* --- MOTORISTA (SELECT DINÂMICO) --- */}
         <div className="space-y-2 md:col-span-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
             <Label className="mb-2 block text-slate-600 font-semibold flex items-center gap-2">
-                Dados Logísticos (Motorista)
+                <User className="w-4 h-4" /> Motorista Responsável
                 {form.rota_entrega && <Lock className="w-3.5 h-3.5 text-amber-500" />}
             </Label>
-            <div className="grid grid-cols-3 gap-4">
-                <div className="col-span-1">
-                    <Label htmlFor="motorista_codigo" className="text-xs text-slate-400">Cód. Motorista</Label>
-                    <Input 
-                        id="motorista_codigo" 
-                        value={form.motorista_codigo} 
-                        readOnly={!!form.rota_entrega}
-                        placeholder="000" 
-                        className={cn(inputClass, form.rota_entrega && "bg-slate-100 cursor-not-allowed opacity-70")} 
-                    />
-                </div>
-                <div className="col-span-2">
-                    <Label htmlFor="motorista_atual" className="text-xs text-slate-400">Nome do Motorista</Label>
-                    <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                        <Input 
-                            id="motorista_atual" 
-                            value={form.motorista_atual} 
-                            readOnly={!!form.rota_entrega}
-                            placeholder="Nome do motorista responsável" 
-                            className={cn(inputClass, "pl-9", form.rota_entrega && "bg-slate-100 cursor-not-allowed opacity-70")} 
-                        />
+            {form.rota_entrega ? (
+                <div className="grid grid-cols-3 gap-4">
+                    <div className="col-span-1">
+                        <Label className="text-xs text-slate-400">Cód. Motorista</Label>
+                        <Input value={form.motorista_codigo} readOnly className={cn(inputClass, "bg-slate-100 cursor-not-allowed opacity-70")} />
                     </div>
+                    <div className="col-span-2">
+                        <Label className="text-xs text-slate-400">Nome do Motorista</Label>
+                        <Input value={form.motorista_atual} readOnly className={cn(inputClass, "bg-slate-100 cursor-not-allowed opacity-70")} />
+                    </div>
+                    <p className="col-span-3 text-xs text-amber-600 flex items-center gap-1">
+                        <Lock className="w-3 h-3" /> Preenchido automaticamente pela rota selecionada
+                    </p>
                 </div>
-            </div>
-            {form.rota_entrega && (
-                <p className="text-xs text-amber-600 flex items-center gap-1">
-                    <Lock className="w-3 h-3" /> Motorista preenchido automaticamente pela rota selecionada
-                </p>
+            ) : (
+                <Select
+                    value={form.motorista_codigo || ''}
+                    onValueChange={(val) => {
+                        const m = motoristasAtivos.find(x => x.codigo === val || x.id === val);
+                        setForm(prev => ({
+                            ...prev,
+                            motorista_codigo: m?.codigo || val,
+                            motorista_atual: m?.nome_social || m?.nome || ''
+                        }));
+                    }}
+                >
+                    <SelectTrigger className={inputClass}>
+                        <div className="flex items-center gap-2">
+                            <Truck className="h-4 w-4 text-slate-400 shrink-0" />
+                            <SelectValue placeholder="Selecionar motorista..." />
+                        </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                        {motoristasAtivos.length === 0
+                            ? <div className="py-4 text-center text-sm text-slate-400">Nenhum motorista ativo cadastrado</div>
+                            : motoristasAtivos.map(m => (
+                                <SelectItem key={m.id} value={m.codigo || m.id}>
+                                    <div className="flex flex-col text-left">
+                                        <span className="font-semibold">{m.nome_social || m.nome}</span>
+                                        {m.codigo && <span className="text-xs text-slate-400">Cód: {m.codigo}</span>}
+                                    </div>
+                                </SelectItem>
+                            ))
+                        }
+                    </SelectContent>
+                </Select>
             )}
         </div>
 
