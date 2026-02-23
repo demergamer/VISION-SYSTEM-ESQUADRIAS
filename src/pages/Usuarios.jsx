@@ -170,7 +170,20 @@ export default function Usuarios() {
                   ) : (
                     filteredUsers.map((user) => (
                       <tr key={user.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-4 font-medium text-slate-700">{user.full_name}</td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="w-8 h-8 shrink-0">
+                              {user.avatar_url && <AvatarImage src={user.avatar_url} className="object-cover" />}
+                              <AvatarFallback className="bg-blue-100 text-blue-700 text-xs font-bold">
+                                {(user.preferred_name || user.full_name || user.email || 'U').split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="font-medium text-slate-700">{user.preferred_name || user.full_name || user.email}</p>
+                              {user.preferred_name && <p className="text-xs text-slate-400">{user.full_name}</p>}
+                            </div>
+                          </div>
+                        </td>
                         <td className="p-4 text-slate-500">{user.email}</td>
                         <td className="p-4 text-slate-500">{user.setor || '-'}</td>
                         <td className="p-4">
