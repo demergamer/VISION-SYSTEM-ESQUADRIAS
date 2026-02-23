@@ -10,7 +10,8 @@ import {
   ShoppingCart, Plus, Search, RefreshCw, DollarSign, AlertTriangle,
   FileText, ArrowLeft, Filter, Upload, Truck, Clock, CheckCircle, XCircle,
   MoreHorizontal, LayoutGrid, List, MapPin, Calendar, Edit, Eye, RotateCcw,
-  SlidersHorizontal, X as XIcon, Loader2, Factory, Split, UserPlus, AlertCircle
+  SlidersHorizontal, X as XIcon, Loader2, Factory, Split, UserPlus, AlertCircle,
+  RepeatIcon, UserCheck
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
