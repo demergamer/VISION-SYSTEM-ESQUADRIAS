@@ -159,6 +159,10 @@ export default function Pedidos() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(30);
 
+  // --- PAGINAÇÃO DE BORDERÔS (independente) ---
+  const [currentPageBorderos, setCurrentPageBorderos] = useState(1);
+  const [borderosPerPage] = useState(12);
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [refreshingData, setRefreshingData] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState('Conectando...');
@@ -197,25 +201,27 @@ export default function Pedidos() {
   const { data: borderos = [], isLoading: loadingBorderos, refetch: refetchBorderos } = useQuery({ queryKey: ['borderos'], queryFn: () => base44.entities.Bordero.list('-created_date') });
   const { data: liquidacoesPendentes = [], isLoading: loadingAutorizacoes, refetch: refetchAutorizacoes } = useQuery({ queryKey: ['liquidacoesPendentes'], queryFn: () => base44.entities.LiquidacaoPendente.list('-created_date') });
 
-  // --- STATS CORRIGIDOS ---
+  // --- STATS CORRIGIDOS (excluindo troca e representante_recebe dos financeiros) ---
   const stats = useMemo(() => {
+    const EXCLUIDOS_FINANCEIRO = ['troca', 'representante_recebe', 'pago', 'cancelado', 'aguardando'];
     const transitoCount = pedidos.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado').length;
     const abertosCount = pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial').length;
     
-    // Total a Receber: Soma de TODOS os saldos em aberto
+    // Total a Receber: EXCLUI troca e representante_recebe
     const totalAReceber = pedidos
-        .filter(p => p.status === 'aberto' || p.status === 'parcial')
+        .filter(p => (p.status === 'aberto' || p.status === 'parcial') && p.status !== 'troca' && p.status !== 'representante_recebe')
         .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
     
     const autorizacoesCount = liquidacoesPendentes.filter(lp => lp.status === 'pendente').length;
     const rotasAtivasCount = rotas.filter(r => r.status === 'pendente' || r.status === 'parcial').length;
     
-    // CORREÇÃO: Em Atraso soma o SALDO e só se dias > 15
     const hoje = new Date();
     hoje.setHours(0,0,0,0);
+    // Em Atraso: EXCLUI troca e representante_recebe
     const totalVencido = pedidos
         .filter(p => {
             if ((p.status !== 'aberto' && p.status !== 'parcial') || !p.data_entrega) return false;
+            if (p.status === 'troca' || p.status === 'representante_recebe') return false;
             const entrega = parseISO(p.data_entrega);
             return differenceInDays(hoje, entrega) > 15;
         })
@@ -225,6 +231,13 @@ export default function Pedidos() {
         .filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado')
         .reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
 
+    // Novos cards
+    const trocasCount = pedidos.filter(p => p.status === 'troca').length;
+    const repRecebeCount = pedidos.filter(p => p.status === 'representante_recebe').length;
+    const repRecebeValor = pedidos
+        .filter(p => p.status === 'representante_recebe')
+        .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
+
     return { 
         transitoCount, 
         abertosCount, 
@@ -232,7 +245,10 @@ export default function Pedidos() {
         rotasAtivasCount,
         totalAReceber,
         totalVencido,
-        valorEmTransito
+        valorEmTransito,
+        trocasCount,
+        repRecebeCount,
+        repRecebeValor
     };
   }, [pedidos, liquidacoesPendentes, rotas]);
 
@@ -272,31 +288,39 @@ export default function Pedidos() {
     // 1. Filtro Principal
     switch (activeTab) {
       case 'transito': data = data.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado'); break;
-      case 'abertos': data = data.filter(p => p.status === 'aberto' || p.status === 'parcial'); break;
+      case 'abertos': data = data.filter(p => p.status === 'aberto' || p.status === 'parcial' || p.status === 'representante_recebe'); break;
+      case 'trocas': data = data.filter(p => p.status === 'troca'); break;
       case 'liquidacoes': data = data.filter(p => p.status === 'pago'); break;
       case 'cancelados': data = data.filter(p => p.status === 'cancelado'); break;
       default: break; 
     }
 
-    // 2. Sub-Filtro (CORREÇÃO DE LÓGICA DE DATAS)
+    // 2. Sub-Filtro
     if (activeTab === 'abertos') {
         const hoje = new Date();
         hoje.setHours(0,0,0,0);
         
-        if (abertosSubTab === 'em_dia') {
-            data = data.filter(p => {
-                if (!p.data_entrega) return true;
-                const entrega = parseISO(p.data_entrega);
-                const diff = differenceInDays(hoje, entrega);
-                return diff <= 15;
-            });
-        } else if (abertosSubTab === 'atrasado') {
-            data = data.filter(p => {
-                if (!p.data_entrega) return false;
-                const entrega = parseISO(p.data_entrega);
-                const diff = differenceInDays(hoje, entrega);
-                return diff > 15;
-            });
+        if (abertosSubTab === 'representante_recebe') {
+            data = data.filter(p => p.status === 'representante_recebe');
+        } else {
+            // Todos os sub-filtros normais excluem representante_recebe
+            data = data.filter(p => p.status !== 'representante_recebe');
+
+            if (abertosSubTab === 'em_dia') {
+                data = data.filter(p => {
+                    if (!p.data_entrega) return true;
+                    const entrega = parseISO(p.data_entrega);
+                    const diff = differenceInDays(hoje, entrega);
+                    return diff <= 15;
+                });
+            } else if (abertosSubTab === 'atrasado') {
+                data = data.filter(p => {
+                    if (!p.data_entrega) return false;
+                    const entrega = parseISO(p.data_entrega);
+                    const diff = differenceInDays(hoje, entrega);
+                    return diff > 15;
+                });
+            }
         }
     }
 
