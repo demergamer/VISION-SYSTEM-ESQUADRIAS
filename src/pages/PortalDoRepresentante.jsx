@@ -443,6 +443,10 @@ export default function PainelRepresentante() {
   const [showComissaoModal, setShowComissaoModal] = useState(false);
   const [showAutorizacoesModal, setShowAutorizacoesModal] = useState(false);
 
+  // Perfil do representante
+  const [showPerfilModal, setShowPerfilModal] = useState(false);
+  const [showEditPerfilModal, setShowEditPerfilModal] = useState(false);
+
   useEffect(() => {
     let mounted = true;
     async function loadData() {
