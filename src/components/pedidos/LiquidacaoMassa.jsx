@@ -751,10 +751,10 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
                 <Card
                   key={index}
                   className="bg-white p-3 relative overflow-hidden"
-                  onDragOver={(e) => { e.preventDefault(); setDraggingIndex(index); }}
-                  onDragEnter={(e) => { e.preventDefault(); setDraggingIndex(index); }}
-                  onDragLeave={(e) => { e.preventDefault(); if (!e.currentTarget.contains(e.relatedTarget)) setDraggingIndex(null); }}
-                  onDrop={(e) => { e.preventDefault(); setDraggingIndex(null); handleDropFile(index, e.dataTransfer.files[0]); }}
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDraggingIndex(index); }}
+                  onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setDraggingIndex(index); }}
+                  onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); if (!e.currentTarget.contains(e.relatedTarget)) setDraggingIndex(null); }}
+                  onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setDraggingIndex(null); handleDropFile(index, e.dataTransfer.files[0]); }}
                 >
                   {draggingIndex === index && (
                     <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm border-2 border-dashed border-emerald-500 rounded-lg pointer-events-none">
