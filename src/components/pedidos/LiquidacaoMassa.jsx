@@ -690,7 +690,20 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
               ))}
 
               {formasPagamento.map((fp, index) => (
-                <Card key={index} className="bg-white p-3">
+                <Card
+                  key={index}
+                  className="bg-white p-3 relative overflow-hidden"
+                  onDragOver={(e) => { e.preventDefault(); setDraggingIndex(index); }}
+                  onDragEnter={(e) => { e.preventDefault(); setDraggingIndex(index); }}
+                  onDragLeave={(e) => { e.preventDefault(); if (!e.currentTarget.contains(e.relatedTarget)) setDraggingIndex(null); }}
+                  onDrop={(e) => { e.preventDefault(); setDraggingIndex(null); handleDropFile(index, e.dataTransfer.files[0]); }}
+                >
+                  {draggingIndex === index && (
+                    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm border-2 border-dashed border-emerald-500 rounded-lg pointer-events-none">
+                      <Upload className="w-8 h-8 text-emerald-600 mb-1" />
+                      <span className="text-emerald-700 font-semibold text-sm">Solte o comprovante aqui</span>
+                    </div>
+                  )}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium">Forma {index + 1}</span>
