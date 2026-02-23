@@ -60,6 +60,7 @@ export default function PortalCliente() {
   const [showFiltrosPedidos, setShowFiltrosPedidos] = useState(false);
   const [showFiltrosCheques, setShowFiltrosCheques] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const queryClient = useQueryClient();
 
   const [filtros, setFiltros] = useState({ numeroPedido: '', rota: '', dataEntregaInicio: '', dataEntregaFim: '', valorMin: '', valorMax: '' });
