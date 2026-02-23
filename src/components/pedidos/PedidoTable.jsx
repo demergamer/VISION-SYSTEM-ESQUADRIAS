@@ -8,6 +8,7 @@ import {
   Edit, Eye, DollarSign, RotateCcw, 
   ArrowUpDown, ArrowUp, ArrowDown, X, MoreHorizontal, RepeatIcon, UserCheck
 } from "lucide-react";
+
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
@@ -131,61 +132,58 @@ export default function PedidoTable({
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-blue-600" onClick={() => onView(pedido)} title="Ver Detalhes">
                     <Eye className="w-4 h-4" />
                   </Button>
-                  
-                  {pedido.status === 'pago' && onReverter && (
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-amber-600" onClick={() => onReverter(pedido)} title="Reverter">
-                      <RotateCcw className="w-4 h-4" />
-                    </Button>
-                  )}
 
-                  {pedido.status !== 'pago' && pedido.status !== 'cancelado' && (
-                    <>
-                      {onEdit && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-blue-600" onClick={() => onEdit(pedido)} title="Editar">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                      )}
-                      {onLiquidar && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-emerald-600" onClick={() => onLiquidar(pedido)} title="Liquidar">
-                          <DollarSign className="w-4 h-4" />
-                        </Button>
-                      )}
-                      {onCancelar && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-600" onClick={() => onCancelar(pedido)} title="Cancelar">
-                          <X className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </>
-                  )}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-700" title="Mais ações">
+                        <MoreHorizontal className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
 
-                  {/* Ações especiais de status */}
-                  {onMudarStatus && pedido.status !== 'pago' && pedido.status !== 'cancelado' && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-700" title="Mais ações">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Alterar Natureza</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => onMudarStatus(pedido, 'troca')} className="gap-2">
-                          <RepeatIcon className="w-4 h-4 text-orange-500" /> Pedido de Troca
+                      {pedido.status !== 'pago' && pedido.status !== 'cancelado' && onEdit && (
+                        <DropdownMenuItem onClick={() => onEdit(pedido)} className="gap-2">
+                          <Edit className="w-4 h-4 text-blue-500" /> Editar
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onMudarStatus(pedido, 'representante_recebe')} className="gap-2">
-                          <UserCheck className="w-4 h-4 text-purple-500" /> Representante Recebe
+                      )}
+                      {pedido.status !== 'pago' && pedido.status !== 'cancelado' && onLiquidar && (
+                        <DropdownMenuItem onClick={() => onLiquidar(pedido)} className="gap-2">
+                          <DollarSign className="w-4 h-4 text-emerald-500" /> Liquidar
                         </DropdownMenuItem>
-                        {(pedido.status === 'troca' || pedido.status === 'representante_recebe') && (
-                          <>
-                            <DropdownMenuSeparator />
+                      )}
+                      {pedido.status !== 'pago' && pedido.status !== 'cancelado' && onCancelar && (
+                        <DropdownMenuItem onClick={() => onCancelar(pedido)} className="gap-2 text-red-600 focus:text-red-600 focus:bg-red-50">
+                          <X className="w-4 h-4" /> Cancelar
+                        </DropdownMenuItem>
+                      )}
+
+                      {pedido.status === 'pago' && onReverter && (
+                        <DropdownMenuItem onClick={() => onReverter(pedido)} className="gap-2">
+                          <RotateCcw className="w-4 h-4 text-amber-500" /> Reverter
+                        </DropdownMenuItem>
+                      )}
+
+                      {onMudarStatus && pedido.status !== 'pago' && pedido.status !== 'cancelado' && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuLabel className="text-xs text-slate-400">Alterar Natureza</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => onMudarStatus(pedido, 'troca')} className="gap-2">
+                            <RepeatIcon className="w-4 h-4 text-orange-500" /> Pedido de Troca
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onMudarStatus(pedido, 'representante_recebe')} className="gap-2">
+                            <UserCheck className="w-4 h-4 text-purple-500" /> Representante Recebe
+                          </DropdownMenuItem>
+                          {(pedido.status === 'troca' || pedido.status === 'representante_recebe') && (
                             <DropdownMenuItem onClick={() => onMudarStatus(pedido, 'aberto')} className="gap-2 text-slate-600">
                               <X className="w-4 h-4" /> Reverter para Aberto
                             </DropdownMenuItem>
-                          </>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
+                          )}
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </TableCell>
             </TableRow>
