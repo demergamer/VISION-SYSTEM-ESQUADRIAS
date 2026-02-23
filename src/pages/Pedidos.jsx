@@ -273,13 +273,13 @@ export default function Pedidos() {
         }
     }
 
-    // 3. Busca Texto
+    // 3. Busca Texto (AGNÓSTICA DE PONTOS)
     if (searchTerm) {
-      const lower = searchTerm.toLowerCase();
+      const lower = searchTerm.toLowerCase().replace(/\./g, '');
       data = data.filter(p =>
         p.cliente_nome?.toLowerCase().includes(lower) ||
         p.cliente_codigo?.toLowerCase().includes(lower) ||
-        p.numero_pedido?.toLowerCase().includes(lower) ||
+        (p.numero_pedido?.replace(/\./g, '')?.toLowerCase().includes(lower)) ||
         p.bordero_numero?.toString().includes(lower)
       );
     }
@@ -326,11 +326,11 @@ export default function Pedidos() {
   // Usado para badges das abas e totalizadores financeiros que devem reagir à busca global
   const pedidosFiltradosBusca = useMemo(() => {
     if (!searchTerm) return pedidos;
-    const lower = searchTerm.toLowerCase();
+    const lower = searchTerm.toLowerCase().replace(/\./g, '');
     return pedidos.filter(p =>
       p.cliente_nome?.toLowerCase().includes(lower) ||
       p.cliente_codigo?.toLowerCase().includes(lower) ||
-      p.numero_pedido?.toLowerCase().includes(lower) ||
+      (p.numero_pedido?.replace(/\./g, '')?.toLowerCase().includes(lower)) ||
       p.bordero_numero?.toString().includes(lower)
     );
   }, [pedidos, searchTerm]);
