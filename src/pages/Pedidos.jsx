@@ -986,6 +986,7 @@ export default function Pedidos() {
                         </div>
                     )}
                 </div>
+                <PaginacaoControles currentPage={currentPage} totalPages={totalPages} totalItems={processedPedidos.length} itemsPerPage={itemsPerPage} onPageChange={setCurrentPage} />
             </TabsContent>
 
             <TabsContent value="autorizacoes">
@@ -1027,8 +1028,9 @@ export default function Pedidos() {
                 </div>
 
                 {liquidacaoView === 'bordero' ? (
+                    <>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {filteredBorderos.length > 0 ? filteredBorderos.map(bordero => (
+                        {currentBorderos.length > 0 ? currentBorderos.map(bordero => (
                             <Card key={bordero.id} className="p-5 hover:shadow-md transition-all cursor-pointer border-slate-200" onClick={() => { setSelectedPedido({...bordero, isBordero: true}); setShowDetailsModal(true); }}>
                                 <div className="flex justify-between mb-2">
                                     <span className="font-bold text-slate-700">Borderô #{bordero.numero_bordero}</span>
@@ -1043,6 +1045,8 @@ export default function Pedidos() {
                             </Card>
                         )) : <p className="col-span-full text-center py-10 text-slate-500">Nenhum borderô encontrado.</p>}
                     </div>
+                    <PaginacaoControles currentPage={currentPageBorderos} totalPages={totalPagesBorderos} totalItems={filteredBorderos.length} itemsPerPage={borderosPerPage} onPageChange={setCurrentPageBorderos} />
+                    </>
                 ) : (
                     <>
                     <PedidoTable 
