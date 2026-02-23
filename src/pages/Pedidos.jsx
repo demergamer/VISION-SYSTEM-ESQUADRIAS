@@ -1007,7 +1007,7 @@ export default function Pedidos() {
             <TabsContent value="abertos">
                 {viewMode === 'table' ? (
                     <PedidoTable 
-                        pedidos={processedPedidos} 
+                        pedidos={currentPedidos} 
                         onEdit={handleEdit} 
                         onView={handleView} 
                         onLiquidar={handleLiquidar} 
@@ -1019,7 +1019,7 @@ export default function Pedidos() {
                     />
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {processedPedidos.map(pedido => (
+                        {currentPedidos.map(pedido => (
                             <PedidoGridCard 
                                 key={pedido.id} 
                                 pedido={pedido} 
@@ -1032,12 +1032,13 @@ export default function Pedidos() {
                         ))}
                     </div>
                 )}
+                <PaginacaoControles currentPage={currentPage} totalPages={totalPages} totalItems={processedPedidos.length} itemsPerPage={itemsPerPage} onPageChange={setCurrentPage} />
             </TabsContent>
 
             <TabsContent value="cancelados">
                 {viewMode === 'table' ? (
                     <PedidoTable 
-                        pedidos={processedPedidos} 
+                        pedidos={currentPedidos} 
                         onEdit={handleEdit} 
                         onView={handleView} 
                         onLiquidar={handleLiquidar} 
@@ -1047,7 +1048,7 @@ export default function Pedidos() {
                     />
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {processedPedidos.map(pedido => (
+                        {currentPedidos.map(pedido => (
                             <PedidoGridCard 
                                 key={pedido.id} 
                                 pedido={pedido} 
@@ -1060,6 +1061,7 @@ export default function Pedidos() {
                         ))}
                     </div>
                 )}
+                <PaginacaoControles currentPage={currentPage} totalPages={totalPages} totalItems={processedPedidos.length} itemsPerPage={itemsPerPage} onPageChange={setCurrentPage} />
             </TabsContent>
 
           </Tabs>
