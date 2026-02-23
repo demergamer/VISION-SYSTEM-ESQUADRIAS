@@ -321,6 +321,37 @@ export default function Pedidos() {
   useEffect(() => { setCurrentPage(1); }, [searchTerm, activeTab, abertosSubTab, filters, showFilters]);
   useEffect(() => { setCurrentPageBorderos(1); }, [searchTerm]);
 
+  // --- STATS DINÂMICOS (reagem ao searchTerm via processedPedidos) ---
+  const stats = useMemo(() => {
+    const transitoCount = pedidos.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado').length;
+    const abertosCount = pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial').length;
+    const autorizacoesCount = liquidacoesPendentes.filter(lp => lp.status === 'pendente').length;
+    const rotasAtivasCount = rotas.filter(r => r.status === 'pendente' || r.status === 'parcial').length;
+    const trocasCount = pedidos.filter(p => p.status === 'troca').length;
+    const repRecebeCount = pedidos.filter(p => p.status === 'representante_recebe').length;
+
+    const hoje = new Date();
+    hoje.setHours(0,0,0,0);
+
+    // Financeiros: usam processedPedidos (reagem à busca)
+    const abertosNaBusca = processedPedidos.filter(p =>
+      (p.status === 'aberto' || p.status === 'parcial') &&
+      p.status !== 'troca' && p.status !== 'representante_recebe'
+    );
+    const totalAReceber = abertosNaBusca.reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
+    const totalVencido = abertosNaBusca
+      .filter(p => p.data_entrega && differenceInDays(hoje, parseISO(p.data_entrega)) > 15)
+      .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
+    const valorEmTransito = processedPedidos
+      .filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado')
+      .reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
+    const repRecebeValor = processedPedidos
+      .filter(p => p.status === 'representante_recebe')
+      .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
+
+    return { transitoCount, abertosCount, autorizacoesCount, rotasAtivasCount, totalAReceber, totalVencido, valorEmTransito, trocasCount, repRecebeCount, repRecebeValor };
+  }, [pedidos, processedPedidos, liquidacoesPendentes, rotas]);
+
   // --- PEDIDOS PAGINADOS ---
   const totalPages = Math.ceil(processedPedidos.length / itemsPerPage);
   const indexOfFirst = (currentPage - 1) * itemsPerPage;
