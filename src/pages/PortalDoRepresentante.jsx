@@ -11,26 +11,31 @@ import {
   Users, ShoppingCart, CreditCard, AlertCircle, 
   Search, Briefcase, LogOut, Loader2, 
   ChevronDown, ChevronRight, MapPin, Truck, Eye, Wallet, CalendarClock, DollarSign,
-  Lock, UserPlus, Edit, FileText, Building2, Mail, Package, Factory
+  Lock, UserPlus, Edit, FileText, Building2, Mail, Package, Factory, User
 } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { format, differenceInDays, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 // Componentes Internos
 import ModalContainer from "@/components/modals/ModalContainer";
 import SolicitarNovoCliente from "@/components/portais/representante/SolicitarNovoCliente";
 import LiquidacaoSelfService from "@/components/portais/cliente/LiquidacaoSelfService";
 import NovaLiquidacaoRepresentante from "@/components/portais/representante/NovaLiquidacaoRepresentante";
-import ClienteDetailsModal from "@/components/portais/representante/ClienteDetailsModal";
-import EditClienteModal from "@/components/portais/representante/EditClienteModal";
 import ConviteClienteModal from "@/components/portais/representante/ConviteClienteModal";
 import BorderoDetailsModal from "@/components/portais/representante/BorderoDetailsModal";
 import SolicitarOrcamentoModal from "@/components/portais/representante/SolicitarOrcamentoModal";
 import ComissaoModal from "@/components/portais/representante/ComissaoModal";
 import MinhasAutorizacoesModal from "@/components/portais/representante/MinhasAutorizacoesModal";
+import RepresentanteDetails from "@/components/representantes/RepresentanteDetails";
+import RepresentanteForm from "@/components/representantes/RepresentanteForm";
+import ClienteDetails from "@/components/clientes/ClienteDetails";
+import ClienteForm from "@/components/clientes/ClienteForm";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 // --- UTILITÁRIOS ---
 const realizarLogout = () => {
