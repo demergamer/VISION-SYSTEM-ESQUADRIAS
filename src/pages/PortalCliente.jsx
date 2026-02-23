@@ -159,6 +159,13 @@ export default function PortalCliente() {
     setBorderoModal({ open: true, bordero });
   };
 
+  const handleSaveCliente = async (data) => {
+    await base44.entities.Cliente.update(clienteData.id, data);
+    queryClient.invalidateQueries({ queryKey: ['clientes'] });
+    toast.success('Cadastro atualizado com sucesso!');
+    setShowEditModal(false);
+  };
+
   const handleViewPedido = (pedido) => {
       // Aqui você pode adicionar um modal de detalhes do pedido se quiser, ou expandir a linha
       console.log("Ver pedido", pedido);
