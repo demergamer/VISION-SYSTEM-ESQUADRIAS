@@ -220,14 +220,14 @@ function LayoutInner({ children, currentPageName }) {
           <DropdownMenuTrigger asChild>
             <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-white cursor-pointer transition-all border border-transparent hover:border-slate-200 hover:shadow-sm">
               <Avatar className="h-9 w-9 border border-white shadow-sm ring-2 ring-slate-100">
-                <AvatarImage src={user?.photoURL} />
+                <AvatarImage src={user?.avatar_url || user?.photoURL} className="object-cover" />
                 <AvatarFallback className="bg-blue-600 text-white font-bold text-xs">
-                  {user?.email?.substring(0, 2).toUpperCase()}
+                  {(user?.preferred_name || user?.full_name || user?.email || 'U').split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               {!isHorizontal && (
                 <div className="flex-1 overflow-hidden hidden sm:block text-left">
-                  <p className="text-xs font-bold text-slate-700 truncate">{user?.displayName || 'Usuário'}</p>
+                  <p className="text-xs font-bold text-slate-700 truncate">{user?.preferred_name || user?.full_name || 'Usuário'}</p>
                   <p className="text-[10px] text-slate-400 truncate capitalize">{user?.role || 'Visitante'}</p>
                 </div>
               )}
