@@ -211,6 +211,26 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     } catch (error) { toast.error('Erro no upload'); } finally { setSerasaUploading(false); }
   };
 
+  const [logoUploading, setLogoUploading] = useState(false);
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setLogoUploading(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setForm(prev => ({ ...prev, logo_url: file_url }));
+      toast.success('Logo enviada!');
+    } catch (error) { toast.error('Erro no upload da logo'); } finally { setLogoUploading(false); }
+  };
+
+  const adicionarContato = () => setForm(prev => ({ ...prev, contatos_lista: [...(prev.contatos_lista || []), { telefone: '', nome_responsavel: '', setor: '' }] }));
+  const removerContato = (i) => setForm(prev => ({ ...prev, contatos_lista: prev.contatos_lista.filter((_, idx) => idx !== i) }));
+  const atualizarContato = (i, field, value) => setForm(prev => {
+    const lista = [...(prev.contatos_lista || [])];
+    lista[i] = { ...lista[i], [field]: value };
+    return { ...prev, contatos_lista: lista };
+  });
+
   const validate = () => {
     const newErrors = {};
     if (!form.codigo) newErrors.codigo = "Código obrigatório.";
