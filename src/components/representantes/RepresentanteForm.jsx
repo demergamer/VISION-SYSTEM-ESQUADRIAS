@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
-import { Save, X, Loader2, CreditCard, Wallet, Lock } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Save, X, Loader2, CreditCard, Wallet, Lock, Camera, ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { base44 } from "@/api/base44Client";
+import { toast } from "sonner";
 
 export default function RepresentanteForm({ representante, onSave, onCancel, isLoading, isSelfEditMode = false }) {
   const [isSaving, setIsSaving] = React.useState(false);

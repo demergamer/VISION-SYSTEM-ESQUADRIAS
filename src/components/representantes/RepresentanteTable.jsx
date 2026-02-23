@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Edit, Eye, Phone, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/components/hooks/usePermissions";
