@@ -249,6 +249,41 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     setFormasPagamento(novasFormas);
   };
 
+  const handleGlobalDrop = async (e) => {
+    e.preventDefault();
+    globalDragCounter.current = 0;
+    setIsGlobalDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+    setIsProcessingGlobalDrop(true);
+    try {
+      const novasFormas = [...formasPagamento];
+      // Verifica se a primeira linha está completamente vazia
+      const primeiraVazia = novasFormas.length === 1 &&
+        !novasFormas[0].comprovante &&
+        !novasFormas[0].valor &&
+        novasFormas[0].tipo === 'dinheiro';
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        try {
+          const res = await base44.integrations.Core.UploadFile({ file });
+          if (i === 0 && primeiraVazia) {
+            novasFormas[0].comprovante = res.file_url;
+          } else {
+            novasFormas.push({ tipo: 'pix', valor: '', parcelas: '1', dadosCheque: { numero: '', banco: '', agencia: '' }, chequesSalvos: [], comprovante: res.file_url });
+          }
+        } catch {
+          toast.error(`Erro ao enviar ${file.name}`);
+        }
+      }
+      setFormasPagamento(novasFormas);
+      toast.success(`${files.length} arquivo(s) processado(s)! Preencha os valores.`);
+    } finally {
+      setIsProcessingGlobalDrop(false);
+    }
+  };
+
   const handleDropFile = async (index, file) => {
     if (!file) return;
     setUploadingFormaIndex(index);
