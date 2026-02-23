@@ -251,6 +251,24 @@ export default function ImportarPedidos({ clientes, pedidosExistentes = [], onIm
         }));
 
         await base44.entities.Pedido.bulkCreate(payload);
+
+        // REGRA 11: após importar, atualiza PORTs vinculados para "Em Separação"
+        try {
+          const todosPortsAtivos = await base44.entities.Port.list();
+          const numerosImportados = pedidosParaImportar.map(p => String(p.numero_pedido).replace(/\./g, ''));
+          const portsParaAtualizar = todosPortsAtivos.filter(port =>
+            port.status === 'aguardando_vinculo' &&
+            port.itens_port?.some(item =>
+              numerosImportados.includes(String(item.numero_pedido_manual || '').replace(/\./g, ''))
+            )
+          );
+          await Promise.all(portsParaAtualizar.map(port =>
+            base44.entities.Port.update(port.id, { status: 'em_separacao' })
+          ));
+          if (portsParaAtualizar.length > 0) {
+            console.log(`[Importação] ${portsParaAtualizar.length} PORT(s) atualizados para Em Separação.`);
+          }
+        } catch(e) { /* non-critical */ }
       }
       onImportComplete();
     } catch (error) {
