@@ -789,18 +789,20 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
                             <SelectItem value="pix">PIX</SelectItem>
                             <SelectItem value="cheque">Cheque</SelectItem>
                             <SelectItem value="servicos">Serviços</SelectItem>
-                            <SelectItem value="debito">Débito</SelectItem>
-                            <SelectItem value="credito">Crédito</SelectItem>
+                            <SelectItem value="c_debito">C. Débito</SelectItem>
+                            <SelectItem value="c_credito">C. Crédito</SelectItem>
+                            <SelectItem value="link_pagamento">Link de Pagamento</SelectItem>
+                            <SelectItem value="credito_manual">Crédito Manual</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-2">
                         <Label>Valor (R$) *</Label>
-                        <Input type="number" step="0.01" value={fp.valor} onChange={(e) => atualizarFormaPagamento(index, 'valor', e.target.value)} disabled={fp.tipo === 'cheque' && fp.chequesSalvos.length > 0} />
+                        <Input type="number" step="0.01" value={fp.valor} onChange={(e) => atualizarFormaPagamento(index, 'valor', e.target.value)} disabled={fp.tipo === 'cheque'} />
                       </div>
                     </div>
 
-                    {fp.tipo === 'credito' && (
+                    {(fp.tipo === 'c_credito' || fp.tipo === 'link_pagamento') && (
                       <div className="space-y-2">
                         <Label>Parcelas</Label>
                         <Select value={fp.parcelas} onValueChange={(v) => atualizarFormaPagamento(index, 'parcelas', v)}>
@@ -812,14 +814,30 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
 
                     {fp.tipo === 'cheque' && (
                       <div className="space-y-2">
-                        <div className="grid grid-cols-3 gap-2">
-                          <div><Label className="text-xs">Nº Cheque</Label><Input value={fp.dadosCheque.numero} onChange={(e) => atualizarFormaPagamento(index, 'dadosCheque.numero', e.target.value)} /></div>
-                          <div><Label className="text-xs">Banco</Label><Input value={fp.dadosCheque.banco} onChange={(e) => atualizarFormaPagamento(index, 'dadosCheque.banco', e.target.value)} /></div>
-                          <div><Label className="text-xs">Agência</Label><Input value={fp.dadosCheque.agencia} onChange={(e) => atualizarFormaPagamento(index, 'dadosCheque.agencia', e.target.value)} /></div>
-                        </div>
                         <Button type="button" variant="outline" onClick={() => { setChequeModalIndex(index); setShowChequeModal(true); }} className="w-full text-xs h-8">
-                          {fp.chequesSalvos.length > 0 ? `${fp.chequesSalvos.length} Cheque(s) Salvos - Adicionar` : 'Cadastrar Cheque Completo'}
+                          {fp.chequesSalvos.length > 0 ? `+ Adicionar mais cheques (${fp.chequesSalvos.length} salvo(s))` : 'Cadastrar Cheque'}
                         </Button>
+                        {fp.chequesSalvos.length > 0 && (
+                          <div className="space-y-1">
+                            {fp.chequesSalvos.map((ch, ci) => (
+                              <div key={ci} className="flex items-center justify-between text-xs bg-slate-50 border rounded px-2 py-1.5">
+                                <span className="text-slate-700">Cheque #{ch.numero_cheque} · {ch.banco} · <strong>{formatCurrency(ch.valor)}</strong></span>
+                                <Button
+                                  type="button" size="icon" variant="ghost"
+                                  className="h-5 w-5 text-red-500 hover:bg-red-50"
+                                  onClick={() => {
+                                    const novasFormas = [...formasPagamento];
+                                    novasFormas[index].chequesSalvos = novasFormas[index].chequesSalvos.filter((_, i) => i !== ci);
+                                    novasFormas[index].valor = String(novasFormas[index].chequesSalvos.reduce((s, c) => s + (parseFloat(c.valor) || 0), 0));
+                                    setFormasPagamento(novasFormas);
+                                  }}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
 
