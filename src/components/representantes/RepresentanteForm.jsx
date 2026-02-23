@@ -4,13 +4,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
-import { Save, X, Loader2, CreditCard, Wallet } from "lucide-react";
+import { Save, X, Loader2, CreditCard, Wallet, Lock } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-export default function RepresentanteForm({ representante, onSave, onCancel, isLoading }) {
+export default function RepresentanteForm({ representante, onSave, onCancel, isLoading, isSelfEditMode = false }) {
   const [isSaving, setIsSaving] = React.useState(false);
   const [form, setForm] = useState({
     codigo: '',
     nome: '',
+    nome_social: '',
     email: '',
     regiao: '',
     telefone: '',
@@ -27,6 +29,7 @@ export default function RepresentanteForm({ representante, onSave, onCancel, isL
       setForm({
         codigo: representante.codigo || '',
         nome: representante.nome || '',
+        nome_social: representante.nome_social || '',
         email: representante.email || '',
         regiao: representante.regiao || '',
         telefone: representante.telefone || '',
@@ -39,6 +42,8 @@ export default function RepresentanteForm({ representante, onSave, onCancel, isL
       });
     }
   }, [representante]);
+
+  const readonlyClass = "bg-slate-100 cursor-not-allowed opacity-70";
 
   return (
     <div className="space-y-6">
