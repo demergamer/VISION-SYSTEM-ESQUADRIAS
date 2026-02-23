@@ -10,6 +10,7 @@ import { base44 } from '@/api/base44Client';
 import { cn } from "@/lib/utils";
 import { useQuery } from '@tanstack/react-query';
 import * as XLSX from 'xlsx';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 // Formata número do pedido com pontos de milhar: 53000 -> 53.000
 function formatarNumeroPedido(num) {
@@ -100,6 +101,14 @@ export default function ImportarPedidos({ clientes, pedidosExistentes = [], onIm
   const { data: rotasExistentes = [] } = useQuery({
     queryKey: ['rotas_importar'],
     queryFn: () => base44.entities.RotaImportada.filter({ status: 'pendente' })
+  });
+
+  const { data: motoristasAtivos = [] } = useQuery({
+    queryKey: ['motoristas_ativos'],
+    queryFn: async () => {
+      const all = await base44.entities.Motorista.list();
+      return all.filter(m => m.ativo !== false);
+    }
   });
 
   const handleFilesChange = useCallback(async (e) => {
@@ -376,13 +385,31 @@ export default function ImportarPedidos({ clientes, pedidosExistentes = [], onIm
                             <Label className="text-xs text-slate-500 mb-1 block">Nome da Rota *</Label>
                             <Input value={arq.nome_rota} onChange={e => updateArquivo(index, 'nome_rota', e.target.value)} placeholder="Ex: Zona Sul A" className="h-8 text-sm" />
                           </div>
-                          <div>
+                          <div className="col-span-2">
                             <Label className="text-xs text-slate-500 mb-1 block">Motorista *</Label>
-                            <Input value={arq.motorista} onChange={e => updateArquivo(index, 'motorista', e.target.value)} placeholder="Nome do motorista" className="h-8 text-sm" />
-                          </div>
-                          <div>
-                            <Label className="text-xs text-slate-500 mb-1 block">Cód. Motorista</Label>
-                            <Input value={arq.motorista_codigo} onChange={e => updateArquivo(index, 'motorista_codigo', e.target.value)} placeholder="Ex: 045" className="h-8 text-sm" />
+                            <Select
+                              value={arq.motorista_codigo || ''}
+                              onValueChange={(val) => {
+                                const m = motoristasAtivos.find(x => x.codigo === val || x.id === val);
+                                updateArquivo(index, 'motorista', m?.nome_social || m?.nome || '');
+                                updateArquivo(index, 'motorista_codigo', m?.codigo || val);
+                              }}
+                            >
+                              <SelectTrigger className="h-8 text-sm">
+                                <SelectValue placeholder="Selecionar motorista..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {motoristasAtivos.map(m => (
+                                  <SelectItem key={m.id} value={m.codigo || m.id}>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium">{m.nome_social || m.nome}</span>
+                                      {m.codigo && <span className="text-xs text-slate-400">({m.codigo})</span>}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {arq.motorista && <p className="text-[10px] text-slate-500 mt-0.5">✓ {arq.motorista}</p>}
                           </div>
                           <div>
                             <Label className="text-xs text-slate-500 mb-1 block">Código da Rota *</Label>
