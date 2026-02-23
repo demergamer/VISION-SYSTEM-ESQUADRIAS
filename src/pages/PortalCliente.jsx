@@ -457,8 +457,29 @@ export default function PortalCliente() {
         open={borderoModal.open} 
         onClose={() => setBorderoModal({ open: false, bordero: null })} 
         bordero={borderoModal.bordero} 
-        pedidos={pedidos} // Passando todos os pedidos para o modal filtrar
+        pedidos={pedidos}
       />
+
+      {/* Modal de Edição de Cadastro */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="p-6 pb-4 border-b shrink-0">
+            <DialogTitle className="text-lg font-semibold flex items-center gap-2">
+              <Edit className="w-5 h-5 text-blue-600" /> Editar Meu Cadastro
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto px-6 pb-2">
+            {clienteData && (
+              <ClienteForm
+                cliente={clienteData}
+                isClientMode={true}
+                onSave={handleSaveCliente}
+                onCancel={() => setShowEditModal(false)}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );
