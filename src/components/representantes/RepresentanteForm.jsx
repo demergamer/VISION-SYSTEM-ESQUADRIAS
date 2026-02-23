@@ -12,6 +12,8 @@ import { toast } from "sonner";
 
 export default function RepresentanteForm({ representante, onSave, onCancel, isLoading, isSelfEditMode = false }) {
   const [isSaving, setIsSaving] = React.useState(false);
+  const [isUploadingFoto, setIsUploadingFoto] = useState(false);
+  const fotoInputRef = useRef(null);
   const [form, setForm] = useState({
     codigo: '',
     nome: '',
@@ -19,6 +21,7 @@ export default function RepresentanteForm({ representante, onSave, onCancel, isL
     email: '',
     regiao: '',
     telefone: '',
+    foto_url: '',
     chave_pix: '',
     banco_nome: '',
     agencia: '',
@@ -36,6 +39,7 @@ export default function RepresentanteForm({ representante, onSave, onCancel, isL
         email: representante.email || '',
         regiao: representante.regiao || '',
         telefone: representante.telefone || '',
+        foto_url: representante.foto_url || '',
         chave_pix: representante.chave_pix || '',
         banco_nome: representante.banco_nome || '',
         agencia: representante.agencia || '',
@@ -46,10 +50,53 @@ export default function RepresentanteForm({ representante, onSave, onCancel, isL
     }
   }, [representante]);
 
+  const handleFotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingFoto(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setForm(prev => ({ ...prev, foto_url: file_url }));
+      toast.success('Foto carregada! Salve para confirmar.');
+    } catch {
+      toast.error('Erro ao fazer upload da foto.');
+    } finally {
+      setIsUploadingFoto(false);
+    }
+  };
+
   const readonlyClass = "bg-slate-100 cursor-not-allowed opacity-70";
 
   return (
     <div className="space-y-6">
+      {/* Upload de Foto de Perfil */}
+      <Card className="p-5 bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+        <div className="flex items-center gap-4">
+          <div className="relative group cursor-pointer shrink-0" onClick={() => fotoInputRef.current?.click()}>
+            <Avatar className="w-20 h-20 border-2 border-white shadow-md">
+              {form.foto_url && <AvatarImage src={form.foto_url} className="object-cover" />}
+              <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-600 text-white text-xl font-bold">
+                {(form.nome_social || form.nome || '').split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase() || 'R'}
+              </AvatarFallback>
+            </Avatar>
+            <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              {isUploadingFoto ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Camera className="w-5 h-5 text-white" />}
+            </div>
+            <input ref={fotoInputRef} type="file" accept="image/*" className="hidden" onChange={handleFotoUpload} />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <ImageIcon className="w-4 h-4 text-blue-600" />
+              <p className="font-semibold text-slate-800">Foto de Perfil</p>
+            </div>
+            <p className="text-sm text-slate-500 mb-3">Clique no avatar para selecionar uma imagem</p>
+            <Button type="button" variant="outline" size="sm" onClick={() => fotoInputRef.current?.click()} disabled={isUploadingFoto} className="border-blue-200 text-blue-600 hover:bg-blue-50">
+              {isUploadingFoto ? <><Loader2 className="w-3 h-3 mr-2 animate-spin" /> Enviando...</> : <><Camera className="w-3 h-3 mr-2" /> {form.foto_url ? 'Trocar Foto' : 'Adicionar Foto'}</>}
+            </Button>
+          </div>
+        </div>
+      </Card>
+
       {isSelfEditMode && (
         <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2">
           <Lock className="w-3.5 h-3.5 shrink-0" /> Código, Email e Região só podem ser alterados pelo administrador.

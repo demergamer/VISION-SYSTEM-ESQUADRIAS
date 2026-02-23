@@ -82,7 +82,20 @@ export default function RepresentanteTable({
             return (
               <TableRow key={rep.id} className="hover:bg-slate-50/50">
                 <TableCell className="font-mono text-sm">{rep.codigo}</TableCell>
-                <TableCell className="font-medium">{rep.nome}</TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-3">
+                    <Avatar className="w-8 h-8 shrink-0">
+                      {rep.foto_url && <AvatarImage src={rep.foto_url} className="object-cover" />}
+                      <AvatarFallback className="bg-blue-100 text-blue-700 text-xs font-bold">
+                        {(rep.nome || '').split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-medium text-slate-800">{rep.nome_social || rep.nome}</p>
+                      {rep.nome_social && <p className="text-xs text-slate-400">{rep.nome}</p>}
+                    </div>
+                  </div>
+                </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1.5 text-slate-600">
                     <MapPin className="w-3.5 h-3.5" />
