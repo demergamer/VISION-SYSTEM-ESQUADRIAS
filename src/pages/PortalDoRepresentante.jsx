@@ -551,8 +551,28 @@ export default function PainelRepresentante() {
   return (
     <div className="min-h-screen bg-[#F2F2F7] pb-20 font-sans text-slate-900">
       <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-black/5 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all">
-        <div><h1 className="text-2xl font-bold tracking-tight text-slate-900">Olá, <span className="text-blue-600">{representante.nome.split(' ')[0]}</span></h1><p className="text-sm text-slate-500 font-medium">Portal do Representante</p></div>
-        <div className="flex items-center gap-3"><div className="relative w-full md:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><Input placeholder="Buscar Cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 rounded-full bg-slate-100 border-transparent focus:bg-white transition-all" /></div><Button onClick={realizarLogout} variant="ghost" size="icon" className="rounded-full hover:bg-red-50 hover:text-red-600"><LogOut className="w-5 h-5" /></Button></div>
+        <div className="flex items-center gap-4">
+          <Avatar className="w-12 h-12 border-2 border-white shadow-md cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setShowPerfilModal(true)}>
+            {representante.foto_url && <AvatarImage src={representante.foto_url} className="object-cover" />}
+            <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-600 text-white font-bold">
+              {(representante.nome_social || representante.nome || '').split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Olá, <span className="text-blue-600">{(representante.nome_social || representante.nome).split(' ')[0]}</span></h1>
+            <p className="text-sm text-slate-500 font-medium">Portal do Representante</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" onClick={() => setShowPerfilModal(true)} className="gap-2 text-slate-600 border-slate-200 hidden md:flex">
+            <User className="w-4 h-4" /> Meus Dados
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowEditPerfilModal(true)} className="gap-2 text-blue-600 border-blue-200 hover:bg-blue-50 hidden md:flex">
+            <Edit className="w-4 h-4" /> Editar Perfil
+          </Button>
+          <div className="relative w-full md:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><Input placeholder="Buscar Cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 rounded-full bg-slate-100 border-transparent focus:bg-white transition-all" /></div>
+          <Button onClick={realizarLogout} variant="ghost" size="icon" className="rounded-full hover:bg-red-50 hover:text-red-600"><LogOut className="w-5 h-5" /></Button>
+        </div>
       </div>
       <div className="max-w-[1600px] mx-auto p-6 md:p-8 space-y-8">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
