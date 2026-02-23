@@ -639,6 +639,49 @@ export default function PainelRepresentante() {
       <SolicitarOrcamentoModal open={showOrcamentoModal} onClose={() => setShowOrcamentoModal(false)} clientes={meusClientes} representanteCodigo={representante?.codigo} representanteNome={representante?.nome} />
       <ComissaoModal open={showComissaoModal} onClose={() => setShowComissaoModal(false)} pedidos={meusPedidos} representante={representante} />
       <MinhasAutorizacoesModal open={showAutorizacoesModal} onClose={() => setShowAutorizacoesModal(false)} representanteLogado={representante} pedidosAbertos={meusPedidosAbertos} />
+
+      {/* Modal Meus Dados (RepresentanteDetails) */}
+      <Dialog open={showPerfilModal} onOpenChange={setShowPerfilModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="p-6 pb-4 border-b shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <User className="w-5 h-5 text-slate-600" /> Meus Dados
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto px-6 pb-4">
+            {representante && (
+              <RepresentanteDetails
+                representante={representante}
+                stats={{ totalClientes: meusClientes.length }}
+                onEdit={() => { setShowPerfilModal(false); setShowEditPerfilModal(true); }}
+                onClose={() => setShowPerfilModal(false)}
+                onAvatarUpdate={(url) => setRepresentante(prev => ({ ...prev, foto_url: url }))}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Editar Perfil (RepresentanteForm com isSelfEditMode) */}
+      <Dialog open={showEditPerfilModal} onOpenChange={setShowEditPerfilModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="p-6 pb-4 border-b shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="w-5 h-5 text-blue-600" /> Editar Meu Perfil
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto p-6">
+            {representante && (
+              <RepresentanteForm
+                representante={representante}
+                isSelfEditMode={true}
+                onSave={handleSaveRepresentante}
+                onCancel={() => setShowEditPerfilModal(false)}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
