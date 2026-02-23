@@ -65,14 +65,24 @@ export default function RepresentanteDetails({ representante, stats, onEdit, onC
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-            <User className="w-8 h-8 text-white" />
+          {/* Avatar Interativo */}
+          <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+            <Avatar className="w-16 h-16 border-2 border-white shadow-md">
+              {localFotoUrl && <AvatarImage src={localFotoUrl} className="object-cover" />}
+              <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-600 text-white text-lg font-bold">
+                {(representante.nome_social || representante.nome || '').split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              {isUploadingAvatar ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Camera className="w-5 h-5 text-white" />}
+            </div>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-slate-800">{representante.nome}</h2>
+            <h2 className="text-2xl font-bold text-slate-800">{representante.nome_social || representante.nome}</h2>
+            {representante.nome_social && <p className="text-sm text-slate-500">{representante.nome}</p>}
             <div className="flex items-center gap-2 text-slate-500">
                <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-sm">{representante.codigo}</span>
-               {/* Exibe o email abaixo do nome */}
                <span className="text-sm">• {representante.email}</span>
             </div>
           </div>
