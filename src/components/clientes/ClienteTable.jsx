@@ -181,7 +181,8 @@ export default function ClienteTable({
                 {/* COLUNA 1: IDENTIDADE */}
                 <TableCell className="align-top py-4">
                   <div className="flex items-start gap-3">
-                    <Avatar className={cn("h-10 w-10 border border-slate-100 shadow-sm", getAvatarColor(cli.nome))}>
+                    <Avatar className={cn("h-10 w-10 border border-slate-100 shadow-sm", !cli.logo_url && getAvatarColor(cli.nome))}>
+                      {cli.logo_url && <AvatarImage src={cli.logo_url} className="object-cover" />}
                       <AvatarFallback className="font-bold text-xs">{getInitials(cli.nome)}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col gap-0.5">
