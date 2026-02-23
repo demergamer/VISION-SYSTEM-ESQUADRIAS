@@ -674,10 +674,10 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
               {devolucaoValorNum > 0 && (
                 <Card
                   className="p-3 bg-orange-50 border-orange-200 space-y-3 mt-2 relative overflow-hidden"
-                  onDragOver={(e) => { e.preventDefault(); setIsDraggingDevolucao(true); }}
-                  onDragEnter={(e) => { e.preventDefault(); setIsDraggingDevolucao(true); }}
-                  onDragLeave={(e) => { e.preventDefault(); if (!e.currentTarget.contains(e.relatedTarget)) setIsDraggingDevolucao(false); }}
-                  onDrop={(e) => { e.preventDefault(); setIsDraggingDevolucao(false); if (e.dataTransfer.files?.[0]) processDevolucaoFile(e.dataTransfer.files[0]); }}
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingDevolucao(true); }}
+                  onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingDevolucao(true); }}
+                  onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); if (!e.currentTarget.contains(e.relatedTarget)) setIsDraggingDevolucao(false); }}
+                  onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingDevolucao(false); if (e.dataTransfer.files?.[0]) processDevolucaoFile(e.dataTransfer.files[0]); }}
                 >
                   {isDraggingDevolucao && (
                     <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm border-2 border-dashed border-emerald-500 rounded-lg pointer-events-none">
