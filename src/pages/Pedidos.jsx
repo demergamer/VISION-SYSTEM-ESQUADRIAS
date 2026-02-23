@@ -201,42 +201,42 @@ export default function Pedidos() {
   const { data: borderos = [], isLoading: loadingBorderos, refetch: refetchBorderos } = useQuery({ queryKey: ['borderos'], queryFn: () => base44.entities.Bordero.list('-created_date') });
   const { data: liquidacoesPendentes = [], isLoading: loadingAutorizacoes, refetch: refetchAutorizacoes } = useQuery({ queryKey: ['liquidacoesPendentes'], queryFn: () => base44.entities.LiquidacaoPendente.list('-created_date') });
 
-  // --- STATS CORRIGIDOS (excluindo troca e representante_recebe dos financeiros) ---
+  // --- STATS DINÂMICOS (reagem ao searchTerm via processedPedidos) ---
   const stats = useMemo(() => {
-    const EXCLUIDOS_FINANCEIRO = ['troca', 'representante_recebe', 'pago', 'cancelado', 'aguardando'];
+    // Base para contadores gerais (sem filtro de busca, mas com filtro de tab quando aplicável)
+    const todosAbertos = pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial');
     const transitoCount = pedidos.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado').length;
-    const abertosCount = pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial').length;
-    
-    // Total a Receber: EXCLUI troca e representante_recebe
-    const totalAReceber = pedidos
-        .filter(p => (p.status === 'aberto' || p.status === 'parcial') && p.status !== 'troca' && p.status !== 'representante_recebe')
-        .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
-    
+    const abertosCount = todosAbertos.length;
     const autorizacoesCount = liquidacoesPendentes.filter(lp => lp.status === 'pendente').length;
     const rotasAtivasCount = rotas.filter(r => r.status === 'pendente' || r.status === 'parcial').length;
-    
-    const hoje = new Date();
-    hoje.setHours(0,0,0,0);
-    // Em Atraso: EXCLUI troca e representante_recebe
-    const totalVencido = pedidos
-        .filter(p => {
-            if ((p.status !== 'aberto' && p.status !== 'parcial') || !p.data_entrega) return false;
-            if (p.status === 'troca' || p.status === 'representante_recebe') return false;
-            const entrega = parseISO(p.data_entrega);
-            return differenceInDays(hoje, entrega) > 15;
-        })
-        .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
-
-    const valorEmTransito = pedidos
-        .filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado')
-        .reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
-
-    // Novos cards
     const trocasCount = pedidos.filter(p => p.status === 'troca').length;
     const repRecebeCount = pedidos.filter(p => p.status === 'representante_recebe').length;
-    const repRecebeValor = pedidos
-        .filter(p => p.status === 'representante_recebe')
-        .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
+
+    // Financeiros: usam processedPedidos (reagem à busca)
+    const hoje = new Date();
+    hoje.setHours(0,0,0,0);
+
+    const abertosNaBusca = processedPedidos.filter(p =>
+      (p.status === 'aberto' || p.status === 'parcial') &&
+      p.status !== 'troca' && p.status !== 'representante_recebe'
+    );
+
+    const totalAReceber = abertosNaBusca
+      .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
+
+    const totalVencido = abertosNaBusca
+      .filter(p => {
+        if (!p.data_entrega) return false;
+        return differenceInDays(hoje, parseISO(p.data_entrega)) > 15;
+      })
+      .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
+
+    const transitoNaBusca = processedPedidos.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado');
+    const valorEmTransito = transitoNaBusca.reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
+
+    const repRecebeValor = processedPedidos
+      .filter(p => p.status === 'representante_recebe')
+      .reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
 
     return { 
         transitoCount, 
@@ -250,7 +250,7 @@ export default function Pedidos() {
         repRecebeCount,
         repRecebeValor
     };
-  }, [pedidos, liquidacoesPendentes, rotas]);
+  }, [pedidos, processedPedidos, liquidacoesPendentes, rotas]);
 
   // --- MUTAÇÕES ---
   const createMutation = useMutation({ mutationFn: (data) => base44.entities.Pedido.create(data), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['pedidos'] }); setShowAddModal(false); toast.success('Pedido cadastrado!'); } });
