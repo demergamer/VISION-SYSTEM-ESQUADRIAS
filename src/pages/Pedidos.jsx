@@ -201,8 +201,11 @@ export default function Pedidos() {
   const { data: borderos = [], isLoading: loadingBorderos, refetch: refetchBorderos } = useQuery({ queryKey: ['borderos'], queryFn: () => base44.entities.Bordero.list('-created_date') });
   const { data: liquidacoesPendentes = [], isLoading: loadingAutorizacoes, refetch: refetchAutorizacoes } = useQuery({ queryKey: ['liquidacoesPendentes'], queryFn: () => base44.entities.LiquidacaoPendente.list('-created_date') });
 
-  // --- STATS DINÂMICOS (reagem ao searchTerm via processedPedidos) ---
-  const stats = useMemo(() => {
+  // --- STATS DINÂMICOS - definido APÓS processedPedidos (ver abaixo) ---
+  // placeholder - real stats defined after processedPedidos
+  const _statsPlaceholder = null;
+
+  // --- FILTROS DE DADOS & ORDENAÇÃO ---
     // Base para contadores gerais (sem filtro de busca, mas com filtro de tab quando aplicável)
     const todosAbertos = pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial');
     const transitoCount = pedidos.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado').length;
