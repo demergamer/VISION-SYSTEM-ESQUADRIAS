@@ -617,14 +617,25 @@ export default function Pedidos() {
       } catch (e) { toast.error("Erro ao salvar rota."); }
   };
 
+  // REGRA 8: Após liquidação em massa, apenas fecha modal e refresca — sem redirecionar
   const handleLiquidacaoMassa = async () => {
       await Promise.all([refetchPedidos(), refetchBorderos()]);
       setShowLiquidacaoMassaModal(false);
-      setActiveTab('liquidacoes');
-      setLiquidacaoView('bordero');
+      // NÃO redireciona de aba — usuário permanece onde estava
   };
 
+  const [pedidoJaPagoAlerta, setPedidoJaPagoAlerta] = useState(null);
+
   const handleConfirmarEntrega = async (pedido) => {
+      // REGRA 9: Alerta se pedido já consta como pago
+      if (pedido.status === 'pago' && pedido.bordero_numero) {
+          setPedidoJaPagoAlerta(pedido);
+          return;
+      }
+      await doConfirmarEntrega(pedido);
+  };
+
+  const doConfirmarEntrega = async (pedido) => {
       setIsProcessing(true);
       try {
           const novoStatus = pedido.status === 'pago' ? 'pago' : 'aberto';
@@ -632,6 +643,23 @@ export default function Pedidos() {
               confirmado_entrega: true,
               status: novoStatus
           });
+
+          // REGRA 11: Atualiza PORT/Caução vinculado para "Em Separação"
+          try {
+              const todosPortsAtivos = await base44.entities.Port.list();
+              const portVinculado = todosPortsAtivos.find(port =>
+                  port.status === 'aguardando_vinculo' &&
+                  port.itens_port?.some(item =>
+                      item.numero_pedido_manual &&
+                      item.numero_pedido_manual.replace(/\./g, '') === String(pedido.numero_pedido).replace(/\./g, '')
+                  )
+              );
+              if (portVinculado) {
+                  await base44.entities.Port.update(portVinculado.id, { status: 'em_separacao' });
+                  toast.info(`💰 PORT #${portVinculado.numero_port} atualizado para "Em Separação".`);
+              }
+          } catch(e) { /* non-critical */ }
+
           await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
           toast.success('Entrega confirmada com sucesso!');
       } catch (error) {
