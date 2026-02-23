@@ -991,7 +991,7 @@ export default function Pedidos() {
                     </div>
                 ) : (
                     <PedidoTable 
-                        pedidos={processedPedidos} 
+                        pedidos={currentPedidos} 
                         onEdit={handleEdit} 
                         onView={handleView} 
                         onLiquidar={handleLiquidar} 
@@ -1000,6 +1000,7 @@ export default function Pedidos() {
                         isLoading={loadingPedidos}
                         showBorderoRef={true}
                     />
+                    <PaginacaoControles currentPage={currentPage} totalPages={totalPages} totalItems={processedPedidos.length} itemsPerPage={itemsPerPage} onPageChange={setCurrentPage} />
                 )}
             </TabsContent>
 
