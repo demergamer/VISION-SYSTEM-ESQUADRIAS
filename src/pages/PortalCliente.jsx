@@ -465,6 +465,29 @@ export default function PortalCliente() {
         pedidos={pedidos}
       />
 
+      {/* Modal Meus Dados (Details - Read-Only) */}
+      <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="p-6 pb-4 border-b shrink-0">
+            <DialogTitle className="text-lg font-semibold flex items-center gap-2">
+              <Eye className="w-5 h-5 text-slate-600" /> Meus Dados Cadastrais
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto px-6 pb-4">
+            {clienteData && (
+              <ClienteDetails
+                cliente={clienteData}
+                stats={{}}
+                creditos={meusCreditos}
+                onEdit={() => { setShowDetailsModal(false); setShowEditModal(true); }}
+                onClose={() => setShowDetailsModal(false)}
+                onViewPedidos={() => setShowDetailsModal(false)}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Modal de Edição de Cadastro */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
         <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0">
