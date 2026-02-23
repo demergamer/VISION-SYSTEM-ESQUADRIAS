@@ -7,7 +7,7 @@ import {
   Briefcase, Banknote, ScrollText, CreditCard, ShieldCheck, 
   Calendar as CalendarIcon, Settings2, ShieldAlert, LogOut, User as UserIcon
 } from "lucide-react";
-import { useAuth } from '@/lib/AuthContext';
+import { useAuth } from '@/components/providers/AuthContext';
 import { usePermissions } from "@/components/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 
