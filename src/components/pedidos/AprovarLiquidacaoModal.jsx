@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { 
   DollarSign, Loader2, Plus, X, Upload, FileText, Trash2, 
-  ShoppingCart, Calculator, ExternalLink, CheckCircle, Wallet, CreditCard, Banknote
+  ShoppingCart, Calculator, ExternalLink, CheckCircle, Wallet, CreditCard, Banknote, Search
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -65,6 +65,23 @@ export default function AprovarLiquidacaoModal({
         c.valor > 0
     )
   });
+
+  // --- GESTÃO DINÂMICA DE PEDIDOS ---
+  const [buscaPedidoAdd, setBuscaPedidoAdd] = useState('');
+  const [showBuscarPedido, setShowBuscarPedido] = useState(false);
+
+  const pedidosParaAdicionar = useMemo(() => {
+    if (!buscaPedidoAdd || buscaPedidoAdd.length < 2) return [];
+    const lower = buscaPedidoAdd.toLowerCase().replace(/\./g, '');
+    return todosPedidos.filter(p =>
+      !pedidosSelecionados.find(s => s.id === p.id) &&
+      (p.status === 'aberto' || p.status === 'parcial') &&
+      (
+        p.numero_pedido?.replace(/\./g, '')?.toLowerCase().includes(lower) ||
+        p.cliente_nome?.toLowerCase().includes(lower)
+      )
+    ).slice(0, 8);
+  }, [buscaPedidoAdd, todosPedidos, pedidosSelecionados]);
 
   // --- 1. INICIALIZAÇÃO SEGURA ---
   useEffect(() => {
@@ -270,22 +287,73 @@ export default function AprovarLiquidacaoModal({
             </span>
           </div>
 
-          <div className="flex-1 overflow-y-auto border rounded-xl bg-slate-50 p-2 space-y-2 max-h-[400px]">
+          <div className="flex-1 overflow-y-auto border rounded-xl bg-slate-50 p-2 space-y-2 max-h-[350px]">
             {pedidosSelecionados.map(p => (
               <Card key={p.id} className="p-3 bg-white flex justify-between items-center shadow-sm">
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="font-bold text-xs text-slate-500">#{p.numero_pedido}</p>
-                  <p className="text-sm font-medium text-slate-700 truncate w-32">{p.cliente_nome}</p>
+                  <p className="text-sm font-medium text-slate-700 truncate">{p.cliente_nome}</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-slate-400">Saldo</p>
-                  <p className="font-bold text-emerald-600">
-                    {formatCurrency(p.saldo_restante || (p.valor_pedido - (p.total_pago || 0)))}
-                  </p>
+                <div className="flex items-center gap-2">
+                  <div className="text-right">
+                    <p className="text-xs text-slate-400">Saldo</p>
+                    <p className="font-bold text-emerald-600">
+                      {formatCurrency(p.saldo_restante || (p.valor_pedido - (p.total_pago || 0)))}
+                    </p>
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 text-red-400 hover:bg-red-50 shrink-0"
+                    title="Remover pedido"
+                    onClick={() => setPedidosSelecionados(prev => prev.filter(x => x.id !== p.id))}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
                 </div>
               </Card>
             ))}
           </div>
+
+          {/* Adicionar Pedido */}
+          {!showBuscarPedido ? (
+            <Button size="sm" variant="outline" className="w-full text-blue-600 border-dashed border-blue-200 hover:bg-blue-50" onClick={() => setShowBuscarPedido(true)}>
+              <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar Pedido Esquecido
+            </Button>
+          ) : (
+            <div className="border border-blue-200 rounded-xl p-3 bg-blue-50/40 space-y-2">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                <Input
+                  value={buscaPedidoAdd}
+                  onChange={e => setBuscaPedidoAdd(e.target.value)}
+                  placeholder="Nº pedido ou cliente..."
+                  className="pl-8 h-8 text-sm"
+                  autoFocus
+                />
+              </div>
+              {pedidosParaAdicionar.length > 0 && (
+                <div className="space-y-1 max-h-40 overflow-y-auto">
+                  {pedidosParaAdicionar.map(p => (
+                    <div
+                      key={p.id}
+                      className="flex justify-between items-center p-2 bg-white rounded-lg border border-blue-100 cursor-pointer hover:bg-blue-50"
+                      onClick={() => { setPedidosSelecionados(prev => [...prev, p]); setBuscaPedidoAdd(''); setShowBuscarPedido(false); }}
+                    >
+                      <div>
+                        <span className="text-xs font-bold text-slate-500">#{p.numero_pedido}</span>
+                        <span className="text-sm ml-2 text-slate-700">{p.cliente_nome}</span>
+                      </div>
+                      <span className="text-xs font-bold text-emerald-600">{formatCurrency(p.saldo_restante || p.valor_pedido)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Button size="sm" variant="ghost" className="text-xs text-slate-500" onClick={() => { setShowBuscarPedido(false); setBuscaPedidoAdd(''); }}>
+                Cancelar
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* DIREITA: PAGAMENTO & CRÉDITOS */}
