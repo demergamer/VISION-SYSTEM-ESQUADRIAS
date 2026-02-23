@@ -246,6 +246,20 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     setFormasPagamento(novasFormas);
   };
 
+  const handleDropFile = async (index, file) => {
+    if (!file) return;
+    setUploadingFormaIndex(index);
+    try {
+      const res = await base44.integrations.Core.UploadFile({ file });
+      setComprovanteForma(index, res.file_url);
+      toast.success('Comprovante anexado!');
+    } catch {
+      toast.error('Erro ao enviar arquivo');
+    } finally {
+      setUploadingFormaIndex(null);
+    }
+  };
+
   const handleSaveCheque = async (chequeData) => {
     const novoCheque = await base44.entities.Cheque.create(chequeData);
     const novasFormas = [...formasPagamento];
