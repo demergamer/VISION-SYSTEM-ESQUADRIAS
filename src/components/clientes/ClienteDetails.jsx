@@ -37,7 +37,28 @@ import {
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
-export default function ClienteDetails({ cliente, stats, creditos, onEdit, onClose, onViewPedidos }) {
+export default function ClienteDetails({ cliente, stats, creditos, onEdit, onClose, onViewPedidos, onLogoUpdate }) {
+  const [logoUrl, setLogoUrl] = useState(cliente.logo_url || null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoInputRef = useRef(null);
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingLogo(true);
+    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+    await base44.entities.Cliente.update(cliente.id, { logo_url: file_url });
+    setLogoUrl(file_url);
+    if (onLogoUpdate) onLogoUpdate(file_url);
+    toast.success('Logo atualizada com sucesso!');
+    setUploadingLogo(false);
+  };
+
+  const getInitials = (name) => {
+    if (!name) return 'CL';
+    return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+  };
+
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
