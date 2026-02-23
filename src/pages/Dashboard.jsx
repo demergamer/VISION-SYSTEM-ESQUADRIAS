@@ -90,17 +90,18 @@ const MiniCalendar = () => {
 };
 
 export default function Dashboard() {
-  const { user, logout } = useAuth(); // Incluindo logout caso exista no seu AuthContext
+  const { user, signOut } = useAuth();
   const { canDo } = usePermissions();
   const navigate = useNavigate();
   const [time, setTime] = useState(new Date());
   const [clockType, setClockType] = useState(() => localStorage.getItem('jc_clock_pref') || 'digital');
 
   // --- DADOS DO PERFIL DO USUÁRIO ---
-  const metadata = user?.user_metadata || {};
-  const avatarUrl = metadata.avatar_url;
-  const preferredName = metadata.preferred_name || user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || 'Administrador';
-  const initials = preferredName.substring(0, 2).toUpperCase();
+  // O base44 retorna os campos diretamente na raiz do objeto user
+  const avatarUrl = user?.avatar_url || null;
+  const preferredName = user?.preferred_name || user?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Administrador';
+  const initials = (user?.preferred_name || user?.full_name || user?.email || 'AD')
+    .split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
