@@ -142,8 +142,25 @@ export default function AdicionarChequeModal({ clienteInfo, onSave, onCancel, on
           <Label>CPF/CNPJ do Emitente</Label>
           <Input
             value={formData.emitente_cpf_cnpj}
-            onChange={(e) => setFormData({ ...formData, emitente_cpf_cnpj: e.target.value })}
-            placeholder="000.000.000-00"
+            onChange={(e) => {
+              const raw = e.target.value.replace(/\D/g, '');
+              let masked = raw;
+              if (raw.length <= 11) {
+                // Máscara CPF: 000.000.000-00
+                masked = raw.replace(/(\d{3})(\d)/, '$1.$2')
+                            .replace(/(\d{3})(\d)/, '$1.$2')
+                            .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+              } else {
+                // Máscara CNPJ: 00.000.000/0000-00
+                masked = raw.replace(/^(\d{2})(\d)/, '$1.$2')
+                            .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+                            .replace(/\.(\d{3})(\d)/, '.$1/$2')
+                            .replace(/(\d{4})(\d)/, '$1-$2');
+              }
+              setFormData({ ...formData, emitente_cpf_cnpj: masked });
+            }}
+            placeholder="000.000.000-00 ou CNPJ"
+            maxLength={18}
           />
         </div>
       </div>
