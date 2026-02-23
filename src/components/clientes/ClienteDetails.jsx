@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { base44 } from "@/api/base44Client";
+import { toast } from "sonner";
 import { 
   Building2, 
   Phone, 
@@ -22,7 +24,9 @@ import {
   AlertCircle,
   Factory,
   Briefcase,
-  Mail
+  Mail,
+  Camera,
+  Loader2
 } from "lucide-react";
 import {
   Accordion,
