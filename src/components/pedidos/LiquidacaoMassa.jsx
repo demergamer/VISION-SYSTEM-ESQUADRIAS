@@ -183,7 +183,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
 
   const filteredPedidos = useMemo(() => {
     return pedidos.filter(p =>
-      p && ['aberto', 'parcial', 'aguardando'].includes(p?.status) &&
+      p && ['aberto', 'parcial', 'aguardando', 'troca', 'representante_recebe'].includes(p?.status) &&
       (p?.cliente_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p?.cliente_codigo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p?.numero_pedido?.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -596,6 +596,8 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
             <Card key={pedido?.id} className={cn("p-4 cursor-pointer transition-all relative", isSelected ? "bg-blue-50 border-blue-300" : "hover:bg-slate-50")} onClick={() => togglePedido(pedido)}>
               <div className="absolute top-2 right-2 flex gap-1">
                 {pedido?.status === 'aguardando' && <Badge className="bg-blue-100 text-blue-700 text-xs">🚚 Em Trânsito</Badge>}
+                {pedido?.status === 'troca' && <Badge className="bg-orange-100 text-orange-700 text-xs border border-orange-200">🔄 Troca</Badge>}
+                {pedido?.status === 'representante_recebe' && <Badge className="bg-purple-100 text-purple-700 text-xs border border-purple-200">👤 Rep. Recebe</Badge>}
                 {temPort && <Badge className="bg-amber-100 text-amber-700 text-xs">💰 PORT</Badge>}
               </div>
               <div className="flex items-center gap-4">
