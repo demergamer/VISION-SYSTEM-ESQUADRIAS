@@ -19,43 +19,19 @@ import { toast } from "sonner";
 
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
-// --- Sub-componente: Upload inline por forma de pagamento ---
-function UploadInline({ comprovante, onUpload, onRemove }) {
+// --- Sub-componente: Upload inline por forma de pagamento (só click, drag no Card pai) ---
+function UploadInline({ comprovante, onUpload, onRemove, uploading }) {
   const ref = useRef(null);
-  const [uploading, setUploading] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
 
-  const handleFile = async (file) => {
+  const handleChange = async (e) => {
+    const file = e.target.files[0];
     if (!file) return;
-    setUploading(true);
     try {
       const res = await base44.integrations.Core.UploadFile({ file });
       onUpload(res.file_url);
       toast.success('Comprovante anexado!');
     } catch {
       toast.error('Erro ao enviar arquivo');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleChange = (e) => handleFile(e.target.files[0]);
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFile(e.dataTransfer.files[0]);
     }
   };
 
@@ -74,20 +50,7 @@ function UploadInline({ comprovante, onUpload, onRemove }) {
   }
 
   return (
-    <div 
-      className="mt-2 relative rounded-lg"
-      onDragOver={handleDragOver}
-      onDragEnter={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
-      {isDragging && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[2px] border-2 border-dashed border-emerald-500 rounded-lg">
-          <span className="text-emerald-700 font-semibold text-xs flex items-center gap-2">
-            <Upload className="w-4 h-4" /> Solte para anexar
-          </span>
-        </div>
-      )}
+    <div className="mt-2">
       <input ref={ref} type="file" accept="image/*,.pdf" onChange={handleChange} className="hidden" />
       <Button
         type="button"
@@ -95,7 +58,7 @@ function UploadInline({ comprovante, onUpload, onRemove }) {
         variant="outline"
         disabled={uploading}
         onClick={() => ref.current?.click()}
-        className={cn("w-full h-8 text-xs gap-1.5 border-dashed", isDragging ? "opacity-0" : "")}
+        className="w-full h-8 text-xs gap-1.5 border-dashed"
       >
         {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
         {uploading ? 'Enviando...' : 'Anexar Comprovante'}
