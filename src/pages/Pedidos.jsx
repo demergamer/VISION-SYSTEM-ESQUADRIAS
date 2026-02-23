@@ -1285,6 +1285,36 @@ export default function Pedidos() {
              }} onCancel={() => setShowAddRepresentanteModal(false)} />
           </ModalContainer>
           
+          {/* ALERTA: PEDIDO JÁ PAGO */}
+          <AlertDialog open={!!pedidoJaPagoAlerta} onOpenChange={(open) => { if (!open) setPedidoJaPagoAlerta(null); }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2 text-amber-700">
+                  <AlertCircle className="w-5 h-5" /> ATENÇÃO: Pedido Já Pago
+                </AlertDialogTitle>
+                <AlertDialogDescription className="text-slate-700 leading-relaxed">
+                  Este pedido já consta como <strong>Pago</strong> no sistema.
+                  {pedidoJaPagoAlerta?.data_pagamento && (
+                    <><br />Data: <strong>{new Date(pedidoJaPagoAlerta.data_pagamento).toLocaleDateString('pt-BR')}</strong></>
+                  )}
+                  {pedidoJaPagoAlerta?.bordero_numero && (
+                    <><br />Borderô: <strong>#{pedidoJaPagoAlerta.bordero_numero}</strong></>
+                  )}
+                  <br /><br />Deseja confirmar a entrega mesmo assim?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setPedidoJaPagoAlerta(null)}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-amber-600 hover:bg-amber-700"
+                  onClick={() => { doConfirmarEntrega(pedidoJaPagoAlerta); setPedidoJaPagoAlerta(null); }}
+                >
+                  Confirmar Mesmo Assim
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
           <ModalContainer open={showCancelarPedidoModal} onClose={() => setShowCancelarPedidoModal(false)} title="Cancelar Pedido" description="Informe o motivo do cancelamento">
             {pedidoParaCancelar && (
               <CancelarPedidoModal 
