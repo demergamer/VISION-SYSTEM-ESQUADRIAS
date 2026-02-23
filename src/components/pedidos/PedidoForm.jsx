@@ -24,11 +24,31 @@ import ClienteForm from "@/components/clientes/ClienteForm";
 
 export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, onCadastrarCliente, isLoading }) {
   
-  // Busca representantes para preencher o select (caso esteja editável)
   const { data: representantes = [] } = useQuery({ 
     queryKey: ['representantes_pedido_form'], 
     queryFn: () => base44.entities.Representante.list() 
   });
+
+  // Busca pedidos para extrair rotas únicas existentes
+  const { data: todosPedidos = [] } = useQuery({
+    queryKey: ['pedidos_rotas_form'],
+    queryFn: () => base44.entities.Pedido.list()
+  });
+
+  // Rotas únicas derivadas dos pedidos existentes
+  const rotasUnicas = useMemo(() => {
+    const map = new Map();
+    todosPedidos.forEach(p => {
+      if (p.rota_entrega && !map.has(p.rota_entrega)) {
+        map.set(p.rota_entrega, {
+          rota_entrega: p.rota_entrega,
+          motorista_atual: p.motorista_atual || '',
+          motorista_codigo: p.motorista_codigo || ''
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [todosPedidos]);
 
   const [form, setForm] = useState({
     cliente_codigo: '',
