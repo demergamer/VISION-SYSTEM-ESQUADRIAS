@@ -189,22 +189,42 @@ export default function ImportarPedidos({ clientes, pedidosExistentes = [], onIm
         const pedidosParaImportar = arq.pedidos.filter(p => !p.duplicado);
         const valorTotal = pedidosParaImportar.reduce((s, p) => s + p.valor_pedido, 0);
 
-        const novaRota = await base44.entities.RotaImportada.create({
-          codigo_rota: arq.codigo_rota || arq.rotaCodigo,
-          data_importacao: new Date().toISOString().split('T')[0],
-          motorista_codigo: '',
-          motorista_nome: arq.motorista,
-          total_pedidos: pedidosParaImportar.length,
-          pedidos_confirmados: 0,
-          valor_total: valorTotal,
-          status: 'pendente'
-        });
+        let rotaId;
+        if (arq.modo_rota === 'existente' && arq.rota_existente_id) {
+          // Adicionar à rota existente: atualiza contagem
+          rotaId = arq.rota_existente_id;
+          const rotaExistente = rotasExistentes.find(r => r.id === rotaId);
+          if (rotaExistente) {
+            await base44.entities.RotaImportada.update(rotaId, {
+              total_pedidos: (rotaExistente.total_pedidos || 0) + pedidosParaImportar.length,
+              valor_total: (rotaExistente.valor_total || 0) + valorTotal,
+            });
+          }
+        } else {
+          // Criar nova rota
+          const novaRota = await base44.entities.RotaImportada.create({
+            codigo_rota: arq.codigo_rota || arq.rotaCodigo,
+            data_importacao: new Date().toISOString().split('T')[0],
+            motorista_codigo: arq.motorista_codigo || '',
+            motorista_nome: arq.motorista,
+            total_pedidos: pedidosParaImportar.length,
+            pedidos_confirmados: 0,
+            valor_total: valorTotal,
+            status: 'pendente'
+          });
+          rotaId = novaRota.id;
+        }
+
+        const rotaInfo = arq.modo_rota === 'existente'
+          ? rotasExistentes.find(r => r.id === rotaId)
+          : null;
 
         const payload = pedidosParaImportar.map(p => ({
-          rota_importada_id: novaRota.id,
-          rota_codigo: arq.codigo_rota || arq.rotaCodigo,
-          rota_entrega: arq.nome_rota || arq.codigo_rota,
-          motorista_atual: arq.motorista,
+          rota_importada_id: rotaId,
+          rota_codigo: rotaInfo ? rotaInfo.codigo_rota : (arq.codigo_rota || arq.rotaCodigo),
+          rota_entrega: rotaInfo ? rotaInfo.codigo_rota : (arq.nome_rota || arq.codigo_rota),
+          motorista_atual: rotaInfo ? rotaInfo.motorista_nome : arq.motorista,
+          motorista_codigo: rotaInfo ? rotaInfo.motorista_codigo : (arq.motorista_codigo || ''),
           cliente_nome: p.cliente_nome,
           cliente_codigo: p.cliente_codigo,
           cliente_regiao: p.cliente_regiao,
