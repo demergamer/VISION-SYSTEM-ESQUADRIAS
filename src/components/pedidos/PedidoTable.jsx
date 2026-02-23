@@ -5,9 +5,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Edit, Trash2, Eye, DollarSign, RotateCcw, 
-  ArrowUpDown, ArrowUp, ArrowDown, X 
+  Edit, Eye, DollarSign, RotateCcw, 
+  ArrowUpDown, ArrowUp, ArrowDown, X, MoreHorizontal, RepeatIcon, UserCheck
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 import { format, differenceInDays, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +43,7 @@ export default function PedidoTable({
   onLiquidar, 
   onCancelar, 
   onReverter,
+  onMudarStatus,
   isLoading,
   showBorderoRef = false,
   sortConfig = { key: null, direction: null }, 
@@ -51,6 +55,8 @@ export default function PedidoTable({
     if (pedido.status === 'pago') return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-emerald-200">Liquidado</Badge>;
     if (pedido.status === 'cancelado') return <Badge className="bg-slate-100 text-slate-600 hover:bg-slate-100 border-slate-200">Cancelado</Badge>;
     if (pedido.status === 'aguardando') return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200">Em Trânsito</Badge>;
+    if (pedido.status === 'troca') return <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 border-orange-200">Troca</Badge>;
+    if (pedido.status === 'representante_recebe') return <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100 border-purple-200">Rep. Recebe</Badge>;
     
     // Regra de Atraso > 15 dias
     const now = new Date();
@@ -150,6 +156,35 @@ export default function PedidoTable({
                         </Button>
                       )}
                     </>
+                  )}
+
+                  {/* Ações especiais de status */}
+                  {onMudarStatus && pedido.status !== 'pago' && pedido.status !== 'cancelado' && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-700" title="Mais ações">
+                          <MoreHorizontal className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Alterar Natureza</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => onMudarStatus(pedido, 'troca')} className="gap-2">
+                          <RepeatIcon className="w-4 h-4 text-orange-500" /> Pedido de Troca
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onMudarStatus(pedido, 'representante_recebe')} className="gap-2">
+                          <UserCheck className="w-4 h-4 text-purple-500" /> Representante Recebe
+                        </DropdownMenuItem>
+                        {(pedido.status === 'troca' || pedido.status === 'representante_recebe') && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => onMudarStatus(pedido, 'aberto')} className="gap-2 text-slate-600">
+                              <X className="w-4 h-4" /> Reverter para Aberto
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
                 </div>
               </TableCell>
