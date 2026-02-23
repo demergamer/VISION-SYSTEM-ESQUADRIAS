@@ -780,6 +780,10 @@ export default function Pedidos() {
             </div>
             <div className="flex items-center gap-3">
                 <Button variant="outline" onClick={handleRefresh} disabled={refreshingData} className="bg-white border-slate-200"><RefreshCw className={cn("w-4 h-4 mr-2", refreshingData && "animate-spin")} /> Atualizar</Button>
+                <Button variant="outline" onClick={() => setActiveTab('rotas')} className={cn("bg-white border-slate-200", activeTab === 'rotas' && "bg-purple-50 border-purple-300 text-purple-700")}>
+                    <Truck className="w-4 h-4 mr-2 text-purple-500" /> Rotas
+                    {stats.rotasAtivasCount > 0 && <span className="ml-1.5 bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full text-[10px] font-bold">{stats.rotasAtivasCount}</span>}
+                </Button>
                 {canDo('Pedidos', 'adicionar') && (
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild><Button variant="outline" className="bg-white"><MoreHorizontal className="w-4 h-4 mr-2" /> Ferramentas</Button></DropdownMenuTrigger>
