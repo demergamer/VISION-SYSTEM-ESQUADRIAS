@@ -744,6 +744,18 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
                     <span className="font-bold text-amber-700">{formatCurrency(sinal.valor)}</span>
                   </div>
                   <p className="text-[10px] text-amber-600 mt-1">Pré-pagamento registrado. Não pode ser editado ou removido.</p>
+                  {sinal.comprovantes && sinal.comprovantes.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {sinal.comprovantes.map((url, i) => (
+                        <div key={i} className="flex items-center gap-2 p-1.5 bg-amber-100 border border-amber-200 rounded-lg">
+                          <FileText className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                          <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-amber-800 hover:underline flex-1 truncate">
+                            Ver comprovante {sinal.comprovantes.length > 1 ? `(${i + 1})` : ''}
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </Card>
               ))}
 
