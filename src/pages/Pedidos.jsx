@@ -370,6 +370,7 @@ export default function Pedidos() {
 
   // Reset page on filter/tab/search change
   useEffect(() => { setCurrentPage(1); }, [searchTerm, activeTab, abertosSubTab, filters, showFilters]);
+  useEffect(() => { setCurrentPageBorderos(1); }, [searchTerm]);
 
   // --- PEDIDOS PAGINADOS ---
   const totalPages = Math.ceil(processedPedidos.length / itemsPerPage);
@@ -387,6 +388,28 @@ export default function Pedidos() {
     }
     return filtered;
   }, [borderos, searchTerm]);
+
+  // Paginação de borderôs (independente)
+  const totalPagesBorderos = Math.ceil(filteredBorderos.length / borderosPerPage);
+  const currentBorderos = filteredBorderos.slice(
+    (currentPageBorderos - 1) * borderosPerPage,
+    currentPageBorderos * borderosPerPage
+  );
+
+  // Handler para mudar status especial
+  const handleMudarStatusEspecial = async (pedido, novoStatus) => {
+    setIsProcessing(true);
+    try {
+      await base44.entities.Pedido.update(pedido.id, { status: novoStatus });
+      await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+      const labels = { troca: 'Pedido de Troca', representante_recebe: 'Representante Recebe' };
+      toast.success(`Pedido #${pedido.numero_pedido} marcado como "${labels[novoStatus]}"`);
+    } catch (e) {
+      toast.error('Erro ao atualizar status.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   // --- HANDLERS ---
   const handleEdit = (pedido) => { setSelectedPedido(pedido); setShowEditModal(true); };
