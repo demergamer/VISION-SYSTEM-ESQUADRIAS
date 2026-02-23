@@ -360,7 +360,9 @@ function LayoutInner({ children, currentPageName }) {
 export default function Layout({ children, currentPageName }) {
   return (
     <AuthProvider>
-      <LayoutInner currentPageName={currentPageName}>{children}</LayoutInner>
+      <SecurityProvider>
+        <LayoutInner currentPageName={currentPageName}>{children}</LayoutInner>
+      </SecurityProvider>
     </AuthProvider>
   );
 }
