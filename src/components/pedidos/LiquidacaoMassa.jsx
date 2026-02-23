@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
@@ -6,34 +6,103 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, DollarSign, Percent, Wallet, Loader2, Plus, X, Upload, FileText, Trash2, Sparkles, Info } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Search, DollarSign, Percent, Wallet, Loader2, Plus, X, Upload, FileText, Trash2, Info, AlertTriangle, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ModalContainer from "@/components/modals/ModalContainer";
 import AdicionarChequeModal from "@/components/pedidos/AdicionarChequeModal";
 import { toast } from "sonner";
+
+const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
+
+// --- Sub-componente: Upload inline por forma de pagamento ---
+function UploadInline({ comprovante, onUpload, onRemove }) {
+  const ref = useRef(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const res = await base44.integrations.Core.UploadFile({ file });
+      onUpload(res.file_url);
+      toast.success('Comprovante anexado!');
+    } catch {
+      toast.error('Erro ao enviar arquivo');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  if (comprovante) {
+    return (
+      <div className="flex items-center gap-2 mt-2 p-2 bg-emerald-50 border border-emerald-200 rounded-lg">
+        <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+        <a href={comprovante} target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-700 hover:underline flex-1 truncate">
+          Ver comprovante
+        </a>
+        <Button type="button" size="icon" variant="ghost" onClick={onRemove} className="h-6 w-6 text-red-500 hover:bg-red-50">
+          <X className="w-3 h-3" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2">
+      <input ref={ref} type="file" accept="image/*,.pdf" onChange={handleChange} className="hidden" />
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={uploading}
+        onClick={() => ref.current?.click()}
+        className="w-full h-8 text-xs gap-1.5 border-dashed"
+      >
+        {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+        {uploading ? 'Enviando...' : 'Anexar Comprovante'}
+      </Button>
+    </div>
+  );
+}
 
 export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPedidos, setSelectedPedidos] = useState([]);
   const [descontoTipo, setDescontoTipo] = useState('reais');
   const [descontoValor, setDescontoValor] = useState('');
+
+  // --- DEVOLUÇÃO com campos condicionais ---
   const [devolucao, setDevolucao] = useState('');
-  const [formasPagamento, setFormasPagamento] = useState([{ tipo: 'dinheiro', valor: '', parcelas: '1', dadosCheque: { numero: '', banco: '', agencia: '' }, chequesSalvos: [] }]);
+  const [devolucaoMotivo, setDevolucaoMotivo] = useState('');
+  const [devolucaoComprovante, setDevolucaoComprovante] = useState('');
+  const devolucaoComprovanteRef = useRef(null);
+  const [uploadingDevolucao, setUploadingDevolucao] = useState(false);
+
+  // --- Formas de pagamento COM comprovante inline ---
+  const [formasPagamento, setFormasPagamento] = useState([
+    { tipo: 'dinheiro', valor: '', parcelas: '1', dadosCheque: { numero: '', banco: '', agencia: '' }, chequesSalvos: [], comprovante: '' }
+  ]);
+
   const [showChequeModal, setShowChequeModal] = useState(false);
   const [chequeModalIndex, setChequeModalIndex] = useState(0);
-  const [creditoDisponivelTotal, setCreditoDisponivelTotal] = useState(0);
-  const [creditoAUsar, setCreditoAUsar] = useState(0);
+
+  // --- CRÉDITOS via checkbox ---
+  const [creditosSelecionados, setCreditosSelecionados] = useState([]);
+
   const [isSaving, setIsSaving] = useState(false);
-  const [comprovantes, setComprovantes] = useState([]);
-  const [uploadingFile, setUploadingFile] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = React.useRef(null);
-  
-  // Sinais injetados como formas de pagamento read-only (um por pedido com sinal)
   const [sinaisInjetados, setSinaisInjetados] = useState([]);
+
+  // --- Pop-up de crédito excedente ---
+  const [showCreditoModal, setShowCreditoModal] = useState(false);
+  const [excedentePendente, setExcedentePendente] = useState(0);
+
+  const [usarPortsAutomatico, setUsarPortsAutomatico] = useState(false);
 
   const { data: creditos = [] } = useQuery({
     queryKey: ['creditos', selectedPedidos[0]?.cliente_codigo],
@@ -49,103 +118,73 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     queryKey: ['ports-massa'],
     queryFn: async () => {
       const allPorts = await base44.entities.Port.list();
-      return allPorts.filter(port => 
-        port && 
-        (port?.saldo_disponivel || 0) > 0 &&
-        !['devolvido', 'finalizado'].includes(port?.status)
+      return allPorts.filter(port =>
+        port && (port?.saldo_disponivel || 0) > 0 && !['devolvido', 'finalizado'].includes(port?.status)
       );
     }
   });
 
-  const [usarPortsAutomatico, setUsarPortsAutomatico] = useState(false);
+  const creditoAUsar = useMemo(() => {
+    return creditosSelecionados.reduce((sum, id) => {
+      const cred = creditos.find(c => c.id === id);
+      return sum + (cred?.valor || 0);
+    }, 0);
+  }, [creditosSelecionados, creditos]);
 
-  React.useEffect(() => {
-    const total = creditos.reduce((sum, c) => sum + (c?.valor || 0), 0);
-    setCreditoDisponivelTotal(total);
-  }, [creditos]);
-
-  // ✨ PIVOT: Injeta sinais como formas de pagamento read-only e usa valor_pedido integral como base
   React.useEffect(() => {
     if (selectedPedidos.length === 0) {
       setSinaisInjetados([]);
-      setFormasPagamento([{ tipo: 'dinheiro', valor: '', parcelas: '1', dadosCheque: { numero: '', banco: '', agencia: '' }, chequesSalvos: [] }]);
-      setComprovantes([]);
+      setFormasPagamento([{ tipo: 'dinheiro', valor: '', parcelas: '1', dadosCheque: { numero: '', banco: '', agencia: '' }, chequesSalvos: [], comprovante: '' }]);
+      setCreditosSelecionados([]);
       return;
     }
 
-    // Monta linhas de sinal read-only a partir de sinais_historico (não usados)
-    // Fallback para valor_sinal_informado legado se sinais_historico não existir
     const novosSinais = selectedPedidos.flatMap(p => {
       const historico = p.sinais_historico;
       if (historico && historico.length > 0) {
-        return historico
-          .filter(s => !s.usado && (parseFloat(s.valor) || 0) > 0)
-          .map(s => ({
-            id: `sinal-${p.id}-${s.id}`,
-            _sinalId: s.id,
-            _pedidoId: p.id,
-            forma: `Sinal / ${s.tipo_pagamento}`,
-            valor: parseFloat(s.valor),
-            referencia: `Pedido #${p.numero_pedido}`,
-            comprovantes: s.comprovante_url ? [s.comprovante_url] : [],
-            isReadOnly: true
-          }));
+        return historico.filter(s => !s.usado && (parseFloat(s.valor) || 0) > 0).map(s => ({
+          id: `sinal-${p.id}-${s.id}`,
+          _sinalId: s.id,
+          _pedidoId: p.id,
+          forma: `Sinal / ${s.tipo_pagamento}`,
+          valor: parseFloat(s.valor),
+          referencia: `Pedido #${p.numero_pedido}`,
+          comprovantes: s.comprovante_url ? [s.comprovante_url] : [],
+          isReadOnly: true
+        }));
       }
-      // Legado
       const valorLegado = parseFloat(p.valor_sinal_informado) || 0;
       if (valorLegado > 0) {
-        return [{
-          id: `sinal-${p.id}`,
-          _sinalId: null,
-          _pedidoId: p.id,
-          forma: 'Sinal / Adiantamento',
-          valor: valorLegado,
-          referencia: `Pedido #${p.numero_pedido}`,
-          comprovantes: p.arquivos_sinal || [],
-          isReadOnly: true
-        }];
+        return [{ id: `sinal-${p.id}`, _sinalId: null, _pedidoId: p.id, forma: 'Sinal / Adiantamento', valor: valorLegado, referencia: `Pedido #${p.numero_pedido}`, comprovantes: p.arquivos_sinal || [], isReadOnly: true }];
       }
       return [];
     });
     setSinaisInjetados(novosSinais);
 
-    // Mantém apenas formas manuais (sem sinais anteriores)
     setFormasPagamento(prev => {
       const formasManuais = prev.filter(fp => !fp.isReadOnly);
       return formasManuais.length > 0
         ? formasManuais
-        : [{ tipo: 'dinheiro', valor: '', parcelas: '1', dadosCheque: { numero: '', banco: '', agencia: '' }, chequesSalvos: [] }];
-    });
-
-    // Comprovantes: mantém manuais + adiciona arquivos dos sinais
-    const arquivosSinais = selectedPedidos.flatMap(p => p.arquivos_sinal || []);
-    setComprovantes(prev => {
-      const manuais = prev.filter(url => !selectedPedidos.some(p => (p.arquivos_sinal || []).includes(url)));
-      return [...manuais, ...arquivosSinais];
+        : [{ tipo: 'dinheiro', valor: '', parcelas: '1', dadosCheque: { numero: '', banco: '', agencia: '' }, chequesSalvos: [], comprovante: '' }];
     });
 
     if (novosSinais.length > 0) {
       const totalSinal = novosSinais.reduce((sum, s) => sum + s.valor, 0);
-      toast.info(`💰 ${novosSinais.length} sinal(is) injetado(s) automaticamente (${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalSinal)}). Já contabilizados no Total Pago.`, { duration: 5000 });
+      toast.info(`💰 ${novosSinais.length} sinal(is) injetado(s) (${formatCurrency(totalSinal)})`, { duration: 4000 });
     }
   }, [selectedPedidos]);
 
   const pedidosComPort = useMemo(() => {
     const pedidosIds = selectedPedidos.map(p => p?.id).filter(Boolean);
-    return todosPortsDisponiveis.filter(port => 
-      port?.pedidos_ids?.some(pid => pedidosIds.includes(pid))
-    );
+    return todosPortsDisponiveis.filter(port => port?.pedidos_ids?.some(pid => pedidosIds.includes(pid)));
   }, [selectedPedidos, todosPortsDisponiveis]);
 
-  const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
-
   const filteredPedidos = useMemo(() => {
-    return pedidos.filter(p => 
-      p && 
-      (['aberto', 'parcial', 'aguardando'].includes(p?.status)) &&
-      (p?.cliente_nome?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-       p?.cliente_codigo?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-       p?.numero_pedido?.toLowerCase().includes(searchTerm.toLowerCase()))
+    return pedidos.filter(p =>
+      p && ['aberto', 'parcial', 'aguardando'].includes(p?.status) &&
+      (p?.cliente_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p?.cliente_codigo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p?.numero_pedido?.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   }, [pedidos, searchTerm]);
 
@@ -158,58 +197,33 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
   };
 
   const toggleAll = () => {
-    if (selectedPedidos.length === filteredPedidos.length) {
-      setSelectedPedidos([]);
-    } else {
-      setSelectedPedidos(filteredPedidos);
-    }
+    if (selectedPedidos.length === filteredPedidos.length) setSelectedPedidos([]);
+    else setSelectedPedidos(filteredPedidos);
+  };
+
+  const toggleCredito = (id) => {
+    setCreditosSelecionados(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
   const calcularTotais = () => {
-    // Base integral: usa valor_pedido (sinal não subtraído aqui, pois será contabilizado como forma de pagamento)
     const totalOriginal = selectedPedidos.reduce((sum, p) => sum + (p?.valor_pedido || 0), 0);
     let desconto = 0;
     if (descontoValor) {
-      if (descontoTipo === 'reais') {
-        desconto = parseFloat(descontoValor) || 0;
-      } else {
-        desconto = (totalOriginal * (parseFloat(descontoValor) || 0)) / 100;
-      }
+      if (descontoTipo === 'reais') desconto = parseFloat(descontoValor) || 0;
+      else desconto = (totalOriginal * (parseFloat(descontoValor) || 0)) / 100;
     }
     const devolucaoValor = parseFloat(devolucao) || 0;
     const totalComDesconto = totalOriginal - desconto - devolucaoValor;
-    // Total pago = sinais injetados (read-only) + formas manuais + crédito
     const totalSinais = sinaisInjetados.reduce((sum, s) => sum + s.valor, 0);
     const totalFormasManuais = formasPagamento
       .filter(fp => !fp.isReadOnly)
       .reduce((sum, fp) => sum + (parseFloat(fp?.valor) || 0), 0);
-    const totalPago = totalSinais + totalFormasManuais + (creditoAUsar || 0);
+    const totalPago = totalSinais + totalFormasManuais + creditoAUsar;
     return { totalOriginal, desconto, devolucaoValor, totalComDesconto, totalPago };
   };
 
-  const handleSaveCheque = async (chequeData) => {
-    const novoCheque = await base44.entities.Cheque.create(chequeData);
-    const novasFormas = [...formasPagamento];
-    novasFormas[chequeModalIndex].chequesSalvos.push(novoCheque);
-    const totalCheques = novasFormas[chequeModalIndex].chequesSalvos.reduce((sum, ch) => sum + (parseFloat(ch.valor) || 0), 0);
-    novasFormas[chequeModalIndex].valor = String(totalCheques);
-    setFormasPagamento(novasFormas);
-    setShowChequeModal(false);
-    toast.success('Cheque cadastrado!');
-  };
-
-  const handleSaveChequeAndAddAnother = async (chequeData) => {
-    const novoCheque = await base44.entities.Cheque.create(chequeData);
-    const novasFormas = [...formasPagamento];
-    novasFormas[chequeModalIndex].chequesSalvos.push(novoCheque);
-    const totalCheques = novasFormas[chequeModalIndex].chequesSalvos.reduce((sum, ch) => sum + (parseFloat(ch.valor) || 0), 0);
-    novasFormas[chequeModalIndex].valor = String(totalCheques);
-    setFormasPagamento(novasFormas);
-    toast.success('Cheque cadastrado! Adicione outro.');
-  };
-
   const adicionarFormaPagamento = () => {
-    setFormasPagamento([...formasPagamento, { tipo: 'dinheiro', valor: '', parcelas: '1', dadosCheque: { numero: '', banco: '', agencia: '' }, chequesSalvos: [] }]);
+    setFormasPagamento([...formasPagamento, { tipo: 'dinheiro', valor: '', parcelas: '1', dadosCheque: { numero: '', banco: '', agencia: '' }, chequesSalvos: [], comprovante: '' }]);
   };
 
   const removerFormaPagamento = (index) => {
@@ -227,204 +241,93 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     setFormasPagamento(novasFormas);
   };
 
-  const handleFileUpload = async (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length === 0) return;
+  const setComprovanteForma = (index, url) => {
+    const novasFormas = [...formasPagamento];
+    novasFormas[index].comprovante = url;
+    setFormasPagamento(novasFormas);
+  };
 
-    setUploadingFile(true);
+  const handleSaveCheque = async (chequeData) => {
+    const novoCheque = await base44.entities.Cheque.create(chequeData);
+    const novasFormas = [...formasPagamento];
+    novasFormas[chequeModalIndex].chequesSalvos.push(novoCheque);
+    novasFormas[chequeModalIndex].valor = String(novasFormas[chequeModalIndex].chequesSalvos.reduce((sum, ch) => sum + (parseFloat(ch.valor) || 0), 0));
+    setFormasPagamento(novasFormas);
+    setShowChequeModal(false);
+    toast.success('Cheque cadastrado!');
+  };
+
+  const handleSaveChequeAndAddAnother = async (chequeData) => {
+    const novoCheque = await base44.entities.Cheque.create(chequeData);
+    const novasFormas = [...formasPagamento];
+    novasFormas[chequeModalIndex].chequesSalvos.push(novoCheque);
+    novasFormas[chequeModalIndex].valor = String(novasFormas[chequeModalIndex].chequesSalvos.reduce((sum, ch) => sum + (parseFloat(ch.valor) || 0), 0));
+    setFormasPagamento(novasFormas);
+    toast.success('Cheque cadastrado! Adicione outro.');
+  };
+
+  const handleUploadDevolucaoComprovante = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingDevolucao(true);
     try {
-      const uploadPromises = files.map(file => base44.integrations.Core.UploadFile({ file }));
-      const results = await Promise.all(uploadPromises);
-      const urls = results.map(r => r.file_url);
-      setComprovantes(prev => [...prev, ...urls]);
-      toast.success(`${files.length} arquivo(s) anexado(s)!`);
-    } catch (error) {
-      toast.error('Erro ao enviar arquivo(s)');
+      const res = await base44.integrations.Core.UploadFile({ file });
+      setDevolucaoComprovante(res.file_url);
+      toast.success('Comprovante de devolução anexado!');
+    } catch {
+      toast.error('Erro ao enviar comprovante');
     } finally {
-      setUploadingFile(false);
+      setUploadingDevolucao(false);
     }
   };
 
-  const removerComprovante = (index) => {
-    setComprovantes(prev => prev.filter((_, i) => i !== index));
-    toast.success('Arquivo removido');
-  };
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-  };
-
-  const handleDrop = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-
-    const files = Array.from(e.dataTransfer.files);
-    if (files.length === 0) return;
-
-    setUploadingFile(true);
-    try {
-      const uploadPromises = files.map(file => base44.integrations.Core.UploadFile({ file }));
-      const results = await Promise.all(uploadPromises);
-      const urls = results.map(r => r.file_url);
-      setComprovantes(prev => [...prev, ...urls]);
-      toast.success(`${files.length} arquivo(s) anexado(s)!`);
-    } catch (error) {
-      toast.error('Erro ao enviar arquivo(s)');
-    } finally {
-      setUploadingFile(false);
-    }
-  };
-
-  const handleLiquidar = async () => {
-    if (selectedPedidos.length === 0) {
-      toast.error('Selecione pelo menos um pedido');
-      return;
-    }
-
-    // ── INSTRUÇÃO 1: ISOLAMENTO DO "DINHEIRO NOVO" ──
-    // Filtra formas de pagamento ignorando qualquer item com isSinal ou que venha de sinaisInjetados.
-    // O sinal já está descontado no saldo_restante do banco; ele NÃO deve entrar no pool de abatimento.
-    const formasManuaisAtivas = formasPagamento.filter(fp => !fp.isReadOnly && !fp.isSinal);
-    const dinheirNovoTotal = formasManuaisAtivas.reduce((sum, fp) => sum + (parseFloat(fp?.valor) || 0), 0);
-    const totalSinaisInjetados = sinaisInjetados.reduce((sum, s) => sum + s.valor, 0);
-
-    const totais = calcularTotais();
-
-    // ── INSTRUÇÃO 2: VALIDAÇÃO CORRETA ──
-    // Permite prosseguir se houver dinheiro novo, crédito, desconto, devolução OU sinais injetados.
-    const temAlgumPagamento = dinheirNovoTotal > 0 || creditoAUsar > 0 || totais.desconto > 0 || totais.devolucaoValor > 0 || totalSinaisInjetados > 0;
-    if (!temAlgumPagamento) {
-      toast.error('Informe algum valor (pagamento, crédito, desconto ou devolução)');
-      return;
-    }
-
+  // --- Executa a liquidação de fato ---
+  const executarLiquidacao = async (sobraParaCredito = 0) => {
+    setShowCreditoModal(false);
     setIsSaving(true);
-
     try {
       const user = await base44.auth.me();
+      const totais = calcularTotais();
+      const formasManuaisAtivas = formasPagamento.filter(fp => !fp.isReadOnly && !fp.isSinal);
+      const dinheirNovoTotal = formasManuaisAtivas.reduce((sum, fp) => sum + (parseFloat(fp?.valor) || 0), 0);
+      const totalSinaisInjetados = sinaisInjetados.reduce((sum, s) => sum + s.valor, 0);
 
-      // Pools de abatimento: usa APENAS o dinheiro novo (não inclui sinais)
       let devolucaoRestante = totais.devolucaoValor;
       let descontoRestante = totais.desconto;
       let creditoRestante = creditoAUsar;
-      let pagamentoRestante = dinheirNovoTotal; // ← SEM sinais
+      let pagamentoRestante = dinheirNovoTotal;
 
-      // Preparar PORTs se usar automático
       const portsUsados = [];
       const portsParaUsar = usarPortsAutomatico ? [...pedidosComPort] : [];
-
       const pedidosProcessados = [];
 
-      // Processar cada pedido em sequência abatendo sobre o saldo_restante atual (já descontado do sinal no DB)
       for (const pedido of selectedPedidos) {
         if (!pedido?.id) continue;
-
-        // Base = saldo_restante que já vem do banco (sinal já abatido)
         let saldoAtual = pedido?.saldo_restante ?? Math.max(0, (pedido?.valor_pedido || 0) - (pedido?.total_pago || 0));
+        let devolucaoAplicada = 0, descontoAplicado = 0, portAplicado = 0, creditoAplicado = 0, pagamentoAplicado = 0, portUsadoInfo = null;
 
-        let devolucaoAplicada = 0;
-        let descontoAplicado = 0;
-        let portAplicado = 0;
-        let creditoAplicado = 0;
-        let pagamentoAplicado = 0;
-        let portUsadoInfo = null;
+        if (devolucaoRestante > 0 && saldoAtual > 0) { const v = Math.min(saldoAtual, devolucaoRestante); devolucaoAplicada = v; saldoAtual -= v; devolucaoRestante -= v; }
+        if (descontoRestante > 0 && saldoAtual > 0) { const v = Math.min(saldoAtual, descontoRestante); descontoAplicado = v; saldoAtual -= v; descontoRestante -= v; }
 
-        // **PASSO 1: DEVOLUÇÃO**
-        if (devolucaoRestante > 0 && saldoAtual > 0) {
-          const v = Math.min(saldoAtual, devolucaoRestante);
-          devolucaoAplicada = v;
-          saldoAtual -= v;
-          devolucaoRestante -= v;
-        }
-
-        // **PASSO 2: DESCONTO**
-        if (descontoRestante > 0 && saldoAtual > 0) {
-          const v = Math.min(saldoAtual, descontoRestante);
-          descontoAplicado = v;
-          saldoAtual -= v;
-          descontoRestante -= v;
-        }
-
-        // **PASSO 3: PORT (Se automático)**
         if (usarPortsAutomatico && saldoAtual > 0) {
-          const portParaEstePedido = portsParaUsar.find(port =>
-            port?.pedidos_ids?.includes(pedido?.id) && (port?.saldo_disponivel || 0) > 0
-          );
+          const portParaEstePedido = portsParaUsar.find(port => port?.pedidos_ids?.includes(pedido?.id) && (port?.saldo_disponivel || 0) > 0);
           if (portParaEstePedido) {
             const valorUsar = Math.min(saldoAtual, portParaEstePedido?.saldo_disponivel || 0);
-            portAplicado = valorUsar;
-            saldoAtual -= valorUsar;
-            portParaEstePedido.saldo_disponivel -= valorUsar;
+            portAplicado = valorUsar; saldoAtual -= valorUsar; portParaEstePedido.saldo_disponivel -= valorUsar;
             portUsadoInfo = { id: portParaEstePedido?.id, numero: portParaEstePedido?.numero_port, valorUsado: valorUsar };
             const portJaUsado = portsUsados.find(p => p?.id === portParaEstePedido?.id);
-            if (portJaUsado) {
-              portJaUsado.valorTotal += valorUsar;
-            } else {
-              portsUsados.push({
-                id: portParaEstePedido?.id,
-                numero: portParaEstePedido?.numero_port,
-                valorTotal: valorUsar,
-                saldoRestante: portParaEstePedido?.saldo_disponivel || 0,
-                comprovantes_urls: portParaEstePedido?.comprovantes_urls || []
-              });
-            }
+            if (portJaUsado) portJaUsado.valorTotal += valorUsar;
+            else portsUsados.push({ id: portParaEstePedido?.id, numero: portParaEstePedido?.numero_port, valorTotal: valorUsar, saldoRestante: portParaEstePedido?.saldo_disponivel || 0, comprovantes_urls: portParaEstePedido?.comprovantes_urls || [] });
           }
         }
 
-        // **PASSO 4: CRÉDITO**
-        if (creditoRestante > 0 && saldoAtual > 0) {
-          const v = Math.min(saldoAtual, creditoRestante);
-          creditoAplicado = v;
-          saldoAtual -= v;
-          creditoRestante -= v;
-        }
+        if (creditoRestante > 0 && saldoAtual > 0) { const v = Math.min(saldoAtual, creditoRestante); creditoAplicado = v; saldoAtual -= v; creditoRestante -= v; }
+        if (pagamentoRestante > 0 && saldoAtual > 0) { const v = Math.min(saldoAtual, pagamentoRestante); pagamentoAplicado = v; saldoAtual -= v; pagamentoRestante -= v; }
 
-        // **PASSO 5: PAGAMENTO NOVO (Dinheiro/Cheque/Pix — sem sinais)**
-        if (pagamentoRestante > 0 && saldoAtual > 0) {
-          const v = Math.min(saldoAtual, pagamentoRestante);
-          pagamentoAplicado = v;
-          saldoAtual -= v;
-          pagamentoRestante -= v;
-        }
-
-        const novoTotalPago = (pedido?.total_pago || 0) + pagamentoAplicado + creditoAplicado + devolucaoAplicada + portAplicado;
-        const novoDescontoTotal = (pedido?.desconto_dado || 0) + descontoAplicado;
-        const novoSaldo = Math.max(0, saldoAtual);
-
-        pedidosProcessados.push({
-          pedido,
-          novoTotalPago,
-          novoDescontoTotal,
-          novoSaldo,
-          devolucaoAplicada,
-          descontoAplicado,
-          portAplicado,
-          portUsadoInfo,
-          creditoAplicado,
-          pagamentoAplicado
-        });
+        pedidosProcessados.push({ pedido, novoTotalPago: (pedido?.total_pago || 0) + pagamentoAplicado + creditoAplicado + devolucaoAplicada + portAplicado, novoDescontoTotal: (pedido?.desconto_dado || 0) + descontoAplicado, novoSaldo: Math.max(0, saldoAtual), devolucaoAplicada, descontoAplicado, portAplicado, portUsadoInfo, creditoAplicado, pagamentoAplicado });
       }
 
-      // Verificar sobras de dinheiro NOVO (sinais não entram aqui)
-      const sobraTotal = devolucaoRestante + descontoRestante + creditoRestante + pagamentoRestante;
-      if (sobraTotal > 0.01) {
-        const confirmar = window.confirm(`⚠️ ATENÇÃO!\n\nTodos os pedidos foram quitados.\nSobrou ${formatCurrency(sobraTotal)} que será convertido em CRÉDITO.\n\nDeseja continuar?`);
-        if (!confirmar) {
-          setIsSaving(false);
-          return;
-        }
-      }
-
-      // ── INSTRUÇÃO 3: RECOMPOSIÇÃO NO BORDERÔ ──
+      // Borderô
       const todosBorderos = await base44.entities.Bordero.list();
       const proximoNumeroBordero = todosBorderos.length > 0 ? Math.max(...todosBorderos.map(b => b.numero_bordero || 0)) + 1 : 1;
 
@@ -432,17 +335,11 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       const formasManuaisStr = formasManuaisAtivas.filter(fp => parseFloat(fp.valor) > 0).map(fp => {
         let str = `${fp.tipo.toUpperCase()}: ${formatCurrency(parseFloat(fp.valor))}`;
         if (fp.tipo === 'credito' && fp.parcelas !== '1') str += ` (${fp.parcelas}x)`;
-        if (fp.tipo === 'cheque' && fp.dadosCheque.numero) str += ` | Cheque: ${fp.dadosCheque.numero} - ${fp.dadosCheque.banco}`;
-        if (fp.chequesSalvos && fp.chequesSalvos.length > 0) {
-          str += ` | ${fp.chequesSalvos.length} cheque(s)`;
-          todosChequesUsados = [...todosChequesUsados, ...fp.chequesSalvos];
-        }
+        if (fp.chequesSalvos && fp.chequesSalvos.length > 0) { str += ` | ${fp.chequesSalvos.length} cheque(s)`; todosChequesUsados = [...todosChequesUsados, ...fp.chequesSalvos]; }
         return str;
       }).join(' | ');
 
-      // Sinais históricos incluídos na string de forma de pagamento do borderô (ex: "SINAL (Histórico): R$ 1.453,50")
       const sinaisStr = sinaisInjetados.map(s => `SINAL (Histórico) · ${s.referencia}: ${formatCurrency(s.valor)}`).join(' | ');
-
       const creditoEfetivamenteUsado = creditoAUsar - creditoRestante;
       const totalPortUsado = portsUsados.reduce((sum, p) => sum + p.valorTotal, 0);
 
@@ -452,17 +349,17 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       if (totais.desconto > 0) formasFinal += ` | DESCONTO: ${formatCurrency(totais.desconto)}`;
       if (totais.devolucaoValor > 0) formasFinal += ` | DEVOLUÇÃO: ${formatCurrency(totais.devolucaoValor)}`;
 
-      const chequesAnexos = todosChequesUsados.map(ch => ({
-        numero: ch.numero_cheque, banco: ch.banco, agencia: ch.agencia,
-        conta: ch.conta, emitente: ch.emitente, valor: ch.valor,
-        data_vencimento: ch.data_vencimento, anexo_foto_url: ch.anexo_foto_url, anexo_video_url: ch.anexo_video_url
-      }));
-
-      let comprovantesFinais = [...comprovantes];
+      // Comprovantes = todos os comprovantes inline das formas + comprovante de devolução + ports
+      let comprovantesFinais = formasManuaisAtivas.map(fp => fp.comprovante).filter(Boolean);
+      if (devolucaoComprovante) comprovantesFinais.push(devolucaoComprovante);
       portsUsados.forEach(port => { if (port.comprovantes_urls) comprovantesFinais = [...comprovantesFinais, ...port.comprovantes_urls]; });
 
-      // valor_total do Borderô = Pagamento Novo + Crédito + PORTs + Sinal Histórico
+      const chequesAnexos = todosChequesUsados.map(ch => ({ numero: ch.numero_cheque, banco: ch.banco, agencia: ch.agencia, conta: ch.conta, emitente: ch.emitente, valor: ch.valor, data_vencimento: ch.data_vencimento, anexo_foto_url: ch.anexo_foto_url, anexo_video_url: ch.anexo_video_url }));
       const valorTotalBordero = dinheirNovoTotal + creditoEfetivamenteUsado + totalPortUsado + totalSinaisInjetados;
+
+      let observacaoBordero = `Desconto: ${formatCurrency(totais.desconto)} | Devolução: ${formatCurrency(totais.devolucaoValor)} | ${selectedPedidos.length} pedidos`;
+      if (devolucaoMotivo) observacaoBordero += ` | Motivo devolução: ${devolucaoMotivo}`;
+      if (totalPortUsado > 0) observacaoBordero += ` | PORTs usados: ${portsUsados.map(p => `#${p?.numero || 'N/A'}`).join(', ')}`;
 
       await base44.entities.Bordero.create({
         numero_bordero: proximoNumeroBordero,
@@ -474,14 +371,12 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         forma_pagamento: formasFinal,
         comprovantes_urls: comprovantesFinais,
         cheques_anexos: chequesAnexos,
-        observacao: `Desconto: ${formatCurrency(totais.desconto)} | Devolução: ${formatCurrency(totais.devolucaoValor)} | ${selectedPedidos.length} pedidos${totalPortUsado > 0 ? ` | PORTs usados: ${portsUsados.map(p => `#${p?.numero || 'N/A'}`).join(', ')}` : ''}`,
+        observacao: observacaoBordero,
         liquidado_por: user?.email || ''
       });
 
-      // Atualizar cada pedido
       for (const proc of pedidosProcessados) {
         if (!proc?.pedido?.id) continue;
-        const historicoPort = (proc?.portAplicado || 0) > 0 ? ` | PORT=${formatCurrency(proc.portAplicado)}` : '';
         await base44.entities.Pedido.update(proc.pedido.id, {
           total_pago: proc?.novoTotalPago || 0,
           desconto_dado: proc?.novoDescontoTotal || 0,
@@ -490,63 +385,49 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
           data_pagamento: (proc?.novoSaldo || 0) <= 0 ? new Date().toISOString().split('T')[0] : proc?.pedido?.data_pagamento,
           mes_pagamento: (proc?.novoSaldo || 0) <= 0 ? new Date().toISOString().slice(0, 7) : proc?.pedido?.mes_pagamento,
           bordero_numero: proximoNumeroBordero,
-          outras_informacoes: (proc?.pedido?.outras_informacoes || '') + `\n[${new Date().toLocaleDateString('pt-BR')}] Borderô #${proximoNumeroBordero}: Dev=${formatCurrency(proc?.devolucaoAplicada || 0)} | Desc=${formatCurrency(proc?.descontoAplicado || 0)}${historicoPort} | Créd=${formatCurrency(proc?.creditoAplicado || 0)} | Pago=${formatCurrency(proc?.pagamentoAplicado || 0)}`
+          outras_informacoes: (proc?.pedido?.outras_informacoes || '') + `\n[${new Date().toLocaleDateString('pt-BR')}] Borderô #${proximoNumeroBordero}: Dev=${formatCurrency(proc?.devolucaoAplicada || 0)} | Desc=${formatCurrency(proc?.descontoAplicado || 0)} | Créd=${formatCurrency(proc?.creditoAplicado || 0)} | Pago=${formatCurrency(proc?.pagamentoAplicado || 0)}`
         });
       }
 
-      // Marcar sinais como usado: true em sinais_historico
       for (const sinalInj of sinaisInjetados) {
         if (!sinalInj._sinalId || !sinalInj._pedidoId) continue;
         const pedidoOriginal = selectedPedidos.find(p => p.id === sinalInj._pedidoId);
         if (!pedidoOriginal || !pedidoOriginal.sinais_historico) continue;
-        const novoHistorico = pedidoOriginal.sinais_historico.map(s =>
-          s.id === sinalInj._sinalId ? { ...s, usado: true } : s
-        );
-        await base44.entities.Pedido.update(sinalInj._pedidoId, { sinais_historico: novoHistorico });
+        await base44.entities.Pedido.update(sinalInj._pedidoId, { sinais_historico: pedidoOriginal.sinais_historico.map(s => s.id === sinalInj._sinalId ? { ...s, usado: true } : s) });
       }
 
-      // Atualizar PORTs usados
       for (const portUsado of portsUsados) {
         if (!portUsado?.id) continue;
-        const novoStatusPort = (portUsado?.saldoRestante || 0) <= 0 ? 'finalizado' : 'parcialmente_usado';
         const portOriginal = await base44.entities.Port.get(portUsado.id);
-        
         await base44.entities.Port.update(portUsado.id, {
           saldo_disponivel: portUsado?.saldoRestante || 0,
-          status: novoStatusPort,
+          status: (portUsado?.saldoRestante || 0) <= 0 ? 'finalizado' : 'parcialmente_usado',
           observacao: `${portOriginal?.observacao || ''}\n[${new Date().toLocaleDateString('pt-BR')}] Usado ${formatCurrency(portUsado?.valorTotal || 0)} no Borderô #${proximoNumeroBordero}`.trim()
         });
       }
 
-      // Marcar créditos como usados
       if (creditoEfetivamenteUsado > 0) {
         let valorAMarcar = creditoEfetivamenteUsado;
-        for (const credito of creditos) {
-          if (!credito?.id || valorAMarcar <= 0) break;
-          const valorUsar = Math.min(credito?.valor || 0, valorAMarcar);
-          await base44.entities.Credito.update(credito.id, {
-            status: 'usado',
-            pedido_uso_id: selectedPedidos[0]?.id || '',
-            data_uso: new Date().toISOString().split('T')[0]
-          });
-          valorAMarcar -= valorUsar;
+        for (const credito of creditosSelecionados.map(id => creditos.find(c => c.id === id)).filter(Boolean)) {
+          if (valorAMarcar <= 0) break;
+          await base44.entities.Credito.update(credito.id, { status: 'usado', pedido_uso_id: selectedPedidos[0]?.id || '', data_uso: new Date().toISOString().split('T')[0] });
+          valorAMarcar -= credito.valor || 0;
         }
       }
 
-      // Gerar crédito se sobrou
-      if (sobraTotal > 0.01) {
+      // Gerar crédito pelo excedente (confirmado pelo usuário)
+      if (sobraParaCredito > 0.01) {
         const todosCreditos = await base44.entities.Credito.list();
         const proximoNumero = todosCreditos.length > 0 ? Math.max(...todosCreditos.map(c => c?.numero_credito || 0)) + 1 : 1;
-        
         await base44.entities.Credito.create({
           numero_credito: proximoNumero,
           cliente_codigo: selectedPedidos[0]?.cliente_codigo || '',
           cliente_nome: selectedPedidos[0]?.cliente_nome || '',
-          valor: sobraTotal,
+          valor: sobraParaCredito,
           origem: `Excedente Liquidação Massa - Borderô #${proximoNumeroBordero}`,
           status: 'disponivel'
         });
-        toast.success(`Crédito #${proximoNumero} de ${formatCurrency(sobraTotal)} gerado!`);
+        toast.success(`Crédito #${proximoNumero} de ${formatCurrency(sobraParaCredito)} gerado!`);
       }
 
       await onSave();
@@ -560,10 +441,40 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     }
   };
 
+  const handleLiquidar = async () => {
+    if (selectedPedidos.length === 0) { toast.error('Selecione pelo menos um pedido'); return; }
+
+    const totais = calcularTotais();
+    const formasManuaisAtivas = formasPagamento.filter(fp => !fp.isReadOnly && !fp.isSinal);
+    const dinheirNovoTotal = formasManuaisAtivas.reduce((sum, fp) => sum + (parseFloat(fp?.valor) || 0), 0);
+    const totalSinaisInjetados = sinaisInjetados.reduce((sum, s) => sum + s.valor, 0);
+    const temAlgumPagamento = dinheirNovoTotal > 0 || creditoAUsar > 0 || totais.desconto > 0 || totais.devolucaoValor > 0 || totalSinaisInjetados > 0;
+    if (!temAlgumPagamento) { toast.error('Informe algum valor (pagamento, crédito, desconto ou devolução)'); return; }
+
+    // Validação de devolução
+    const temDevolucao = parseFloat(devolucao) > 0;
+    if (temDevolucao && !devolucaoMotivo.trim() && !devolucaoComprovante) {
+      toast.error('⚠️ Devolução requer um Motivo preenchido OU um Comprovante anexado.');
+      return;
+    }
+
+    // Verificar se total pago > total devido → pop-up
+    const excedente = totais.totalPago - totais.totalComDesconto;
+    if (excedente > 0.01) {
+      setExcedentePendente(excedente);
+      setShowCreditoModal(true);
+      return;
+    }
+
+    executarLiquidacao(0);
+  };
+
   const totais = calcularTotais();
+  const devolucaoValorNum = parseFloat(devolucao) || 0;
 
   return (
     <div className="space-y-6">
+      {/* BUSCA */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         <Input placeholder="Buscar por cliente, código ou número do pedido..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
@@ -574,21 +485,17 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
         <Label htmlFor="selectAll" className="cursor-pointer">Selecionar todos ({selectedPedidos.length}/{filteredPedidos.length})</Label>
       </div>
 
+      {/* LISTA DE PEDIDOS */}
       <div className="max-h-96 overflow-y-auto space-y-2">
         {filteredPedidos.map((pedido) => {
           const saldo = pedido?.saldo_restante || ((pedido?.valor_pedido || 0) - (pedido?.total_pago || 0));
           const isSelected = selectedPedidos.find(p => p?.id === pedido?.id);
           const temPort = todosPortsDisponiveis.some(port => port?.pedidos_ids?.includes(pedido?.id));
-          
           return (
             <Card key={pedido?.id} className={cn("p-4 cursor-pointer transition-all relative", isSelected ? "bg-blue-50 border-blue-300" : "hover:bg-slate-50")} onClick={() => togglePedido(pedido)}>
               <div className="absolute top-2 right-2 flex gap-1">
-                {pedido?.status === 'aguardando' && (
-                  <Badge className="bg-blue-100 text-blue-700 text-xs">🚚 Em Trânsito</Badge>
-                )}
-                {temPort && (
-                  <Badge className="bg-amber-100 text-amber-700 text-xs">💰 PORT</Badge>
-                )}
+                {pedido?.status === 'aguardando' && <Badge className="bg-blue-100 text-blue-700 text-xs">🚚 Em Trânsito</Badge>}
+                {temPort && <Badge className="bg-amber-100 text-amber-700 text-xs">💰 PORT</Badge>}
               </div>
               <div className="flex items-center gap-4">
                 <Checkbox checked={!!isSelected} />
@@ -600,11 +507,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
                   <div className="text-right">
                     <p className="text-xs text-slate-500">Saldo</p>
                     <p className="font-bold text-sm">{formatCurrency(saldo)}</p>
-                    {Number(pedido.valor_sinal_informado) > 0 && (
-                      <div className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded mt-1 inline-block">
-                        💰 Sinal retido: {formatCurrency(pedido.valor_sinal_informado)}
-                      </div>
-                    )}
+                    {Number(pedido.valor_sinal_informado) > 0 && <div className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded mt-1 inline-block">💰 Sinal: {formatCurrency(pedido.valor_sinal_informado)}</div>}
                   </div>
                 </div>
               </div>
@@ -615,12 +518,11 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
 
       {selectedPedidos.length > 0 && (
         <>
-          {/* Aviso: base agora é valor_pedido integral */}
           {sinaisInjetados.length > 0 && (
             <Card className="p-3 bg-blue-50 border-blue-200 border flex items-start gap-3">
               <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
               <p className="text-xs text-blue-700">
-                O valor a liquidar usa o <strong>valor integral do pedido</strong>. Os sinais/adiantamentos foram injetados automaticamente como formas de pagamento abaixo.
+                O valor a liquidar usa o <strong>valor integral do pedido</strong>. Os sinais/adiantamentos foram injetados automaticamente como formas de pagamento.
               </p>
             </Card>
           )}
@@ -632,20 +534,12 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
                   <Wallet className="w-5 h-5 text-amber-600" />
                   <div>
                     <p className="font-bold text-amber-700">💰 Sinais Disponíveis Detectados</p>
-                    <p className="text-xs text-slate-600">
-                      {pedidosComPort.length} PORT(s) vinculado(s) aos pedidos selecionados
-                    </p>
+                    <p className="text-xs text-slate-600">{pedidosComPort.length} PORT(s) vinculado(s) aos pedidos selecionados</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="usarPorts"
-                    checked={usarPortsAutomatico}
-                    onCheckedChange={setUsarPortsAutomatico}
-                  />
-                  <Label htmlFor="usarPorts" className="cursor-pointer font-medium">
-                    Abater automaticamente
-                  </Label>
+                  <Checkbox id="usarPorts" checked={usarPortsAutomatico} onCheckedChange={setUsarPortsAutomatico} />
+                  <Label htmlFor="usarPorts" className="cursor-pointer font-medium">Abater automaticamente</Label>
                 </div>
               </div>
               {usarPortsAutomatico && (
@@ -663,6 +557,8 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
 
           <Card className="p-4 bg-slate-50 space-y-4">
             <h3 className="font-semibold">Ajustes de Pagamento</h3>
+
+            {/* DESCONTO */}
             <div className="space-y-2">
               <Label>Desconto</Label>
               <RadioGroup value={descontoTipo} onValueChange={setDescontoTipo} className="flex gap-4">
@@ -674,21 +570,57 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
                 <Input type="number" step="0.01" min="0" value={descontoValor} onChange={(e) => setDescontoValor(e.target.value)} className="pl-10" />
               </div>
             </div>
+
+            {/* DEVOLUÇÃO + CAMPOS CONDICIONAIS */}
             <div className="space-y-2">
               <Label>Devolução (R$)</Label>
               <div className="relative">
                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <Input type="number" step="0.01" min="0" value={devolucao} onChange={(e) => setDevolucao(e.target.value)} className="pl-10" />
               </div>
+
+              {devolucaoValorNum > 0 && (
+                <Card className="p-3 bg-orange-50 border-orange-200 space-y-3 mt-2">
+                  <p className="text-xs font-semibold text-orange-700 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    Preencha ao menos um campo abaixo para registrar a devolução
+                  </p>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Motivo da Devolução</Label>
+                    <Textarea
+                      value={devolucaoMotivo}
+                      onChange={(e) => setDevolucaoMotivo(e.target.value)}
+                      placeholder="Descreva o motivo da devolução..."
+                      className="h-20 resize-none text-sm bg-white"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Comprovante da Devolução</Label>
+                    <input ref={devolucaoComprovanteRef} type="file" accept="image/*,.pdf" onChange={handleUploadDevolucaoComprovante} className="hidden" />
+                    {devolucaoComprovante ? (
+                      <div className="flex items-center gap-2 p-2 bg-white border border-emerald-200 rounded-lg">
+                        <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <a href={devolucaoComprovante} target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-700 hover:underline flex-1 truncate">Ver comprovante</a>
+                        <Button type="button" size="icon" variant="ghost" onClick={() => setDevolucaoComprovante('')} className="h-6 w-6 text-red-500 hover:bg-red-50"><X className="w-3 h-3" /></Button>
+                      </div>
+                    ) : (
+                      <Button type="button" size="sm" variant="outline" disabled={uploadingDevolucao} onClick={() => devolucaoComprovanteRef.current?.click()} className="w-full h-8 text-xs gap-1.5 border-dashed">
+                        {uploadingDevolucao ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                        {uploadingDevolucao ? 'Enviando...' : 'Anexar Comprovante'}
+                      </Button>
+                    )}
+                  </div>
+                </Card>
+              )}
             </div>
 
+            {/* FORMAS DE PAGAMENTO COM COMPROVANTE INLINE */}
             <div className="space-y-3 pt-3 border-t">
               <div className="flex items-center justify-between">
                 <Label className="text-base font-semibold">Formas de Pagamento</Label>
                 <Button type="button" size="sm" variant="outline" onClick={adicionarFormaPagamento}><Plus className="w-4 h-4 mr-2" />Adicionar</Button>
               </div>
 
-              {/* Linhas read-only de Sinal (uma por pedido) */}
               {sinaisInjetados.map(sinal => (
                 <Card key={sinal.id} className="p-3 bg-amber-50 border-amber-200 border">
                   <div className="flex items-center justify-between">
@@ -706,9 +638,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
                 <Card key={index} className="bg-white p-3">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">Forma {index + 1}</span>
-                      </div>
+                      <span className="text-sm font-medium">Forma {index + 1}</span>
                       {formasPagamento.length > 1 && <Button type="button" size="sm" variant="ghost" onClick={() => removerFormaPagamento(index)} className="text-red-600 h-6"><X className="w-3 h-3" /></Button>}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
@@ -737,7 +667,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
                         <Label>Parcelas</Label>
                         <Select value={fp.parcelas} onValueChange={(v) => atualizarFormaPagamento(index, 'parcelas', v)}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>{Array.from({length: 18}, (_, i) => i + 1).map(n => (<SelectItem key={n} value={String(n)}>{n}x</SelectItem>))}</SelectContent>
+                          <SelectContent>{Array.from({ length: 18 }, (_, i) => i + 1).map(n => (<SelectItem key={n} value={String(n)}>{n}x</SelectItem>))}</SelectContent>
                         </Select>
                       </div>
                     )}
@@ -754,21 +684,55 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
                         </Button>
                       </div>
                     )}
+
+                    {/* COMPROVANTE INLINE POR FORMA */}
+                    <UploadInline
+                      comprovante={fp.comprovante}
+                      onUpload={(url) => setComprovanteForma(index, url)}
+                      onRemove={() => setComprovanteForma(index, '')}
+                    />
                   </div>
                 </Card>
               ))}
             </div>
 
-            {creditoDisponivelTotal > 0 && (
+            {/* CRÉDITOS VIA CHECKBOX */}
+            {creditos.length > 0 && (
               <Card className="p-4 bg-green-50 border-green-200">
-                <div className="flex items-center gap-2 mb-2"><Wallet className="w-4 h-4 text-green-700"/><span className="font-bold text-green-700">Crédito Disponível: {formatCurrency(creditoDisponivelTotal)}</span></div>
-                <div className="flex items-center gap-2">
-                  <Label>Usar:</Label>
-                  <Input type="number" className="w-32 h-8" value={creditoAUsar} onChange={(e) => setCreditoAUsar(parseFloat(e.target.value)||0)} max={creditoDisponivelTotal} />
+                <div className="flex items-center gap-2 mb-3">
+                  <Wallet className="w-4 h-4 text-green-700" />
+                  <span className="font-bold text-green-700">Créditos Disponíveis do Cliente</span>
                 </div>
+                <div className="space-y-2">
+                  {creditos.map(cred => (
+                    <div key={cred.id} className="flex items-center gap-3 p-2.5 bg-white rounded-lg border border-green-100">
+                      <Checkbox
+                        id={`cred-${cred.id}`}
+                        checked={creditosSelecionados.includes(cred.id)}
+                        onCheckedChange={() => toggleCredito(cred.id)}
+                      />
+                      <Label htmlFor={`cred-${cred.id}`} className="flex-1 cursor-pointer text-sm">
+                        <span className="font-medium text-slate-800">{cred.origem || 'Crédito'}</span>
+                        {cred.created_date && (
+                          <span className="text-slate-500 ml-1 text-xs">
+                            — {new Date(cred.created_date).toLocaleDateString('pt-BR')}
+                          </span>
+                        )}
+                      </Label>
+                      <span className="font-bold text-green-700 text-sm">{formatCurrency(cred.valor)}</span>
+                    </div>
+                  ))}
+                </div>
+                {creditoAUsar > 0 && (
+                  <div className="mt-2 pt-2 border-t border-green-200 flex justify-between items-center text-sm">
+                    <span className="text-green-700 font-medium">Total de créditos selecionados:</span>
+                    <span className="font-bold text-green-800">{formatCurrency(creditoAUsar)}</span>
+                  </div>
+                )}
               </Card>
             )}
 
+            {/* TOTALIZADOR */}
             <div className="pt-4 border-t space-y-2">
               <div className="flex justify-between text-sm"><span>Valor Integral dos Pedidos:</span><span className="font-medium">{formatCurrency(totais.totalOriginal)}</span></div>
               {sinaisInjetados.length > 0 && (
@@ -779,151 +743,97 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
               )}
               {totais.desconto > 0 && <div className="flex justify-between text-sm text-red-600"><span>Desconto:</span><span>- {formatCurrency(totais.desconto)}</span></div>}
               {totais.devolucaoValor > 0 && <div className="flex justify-between text-sm text-orange-600"><span>Devolução:</span><span>- {formatCurrency(totais.devolucaoValor)}</span></div>}
+              {creditoAUsar > 0 && <div className="flex justify-between text-sm text-green-600"><span>Créditos Usados:</span><span>- {formatCurrency(creditoAUsar)}</span></div>}
               <div className="flex justify-between font-bold text-lg text-blue-700 border-t pt-2"><span>Total a Pagar:</span><span>{formatCurrency(totais.totalComDesconto)}</span></div>
               <div className="flex justify-between font-bold text-lg text-green-700"><span>Total Pago:</span><span>{formatCurrency(totais.totalPago)}</span></div>
-                      {totais.totalPago < totais.totalComDesconto && (
+              {totais.totalPago < totais.totalComDesconto && (
                 <div className="flex justify-between font-bold text-base text-amber-600 border-t pt-2 border-amber-100">
                   <span>Falta Pagar:</span>
                   <span>{formatCurrency(totais.totalComDesconto - totais.totalPago)}</span>
                 </div>
               )}
+              {totais.totalPago > totais.totalComDesconto + 0.01 && (
+                <div className="flex justify-between font-bold text-base text-indigo-600 border-t pt-2 border-indigo-100">
+                  <span>💳 Excedente (vira crédito):</span>
+                  <span>{formatCurrency(totais.totalPago - totais.totalComDesconto)}</span>
+                </div>
+              )}
               {totais.totalPago < totais.totalComDesconto && totais.totalPago > 0 && (
-                <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded-lg">
-                  ⚠️ Liquidação parcial — o pedido ficará com status <strong>Parcial</strong>.
-                </p>
+                <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded-lg">⚠️ Liquidação parcial — o pedido ficará com status <strong>Parcial</strong>.</p>
               )}
             </div>
           </Card>
         </>
       )}
 
-      {/* SEÇÃO DE ANEXOS DO BORDERÔ */}
-      {selectedPedidos.length > 0 && (
-        <Card className="p-6 space-y-4 bg-gradient-to-br from-slate-50 to-white border-slate-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-emerald-600" />
-                Comprovantes do Borderô
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">Anexe comprovantes de pagamento desta liquidação em massa</p>
-            </div>
-            <div>
-              <input 
-                ref={fileInputRef}
-                type="file" 
-                multiple 
-                accept="image/*,.pdf" 
-                onChange={handleFileUpload}
-                disabled={uploadingFile}
-                className="hidden" 
-              />
-              <Button 
-                type="button" 
-                size="sm" 
-                variant="outline" 
-                disabled={uploadingFile}
-                className="gap-2"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {uploadingFile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                {uploadingFile ? 'Enviando...' : 'Anexar Arquivos'}
-              </Button>
-            </div>
-          </div>
-
-          {comprovantes.length > 0 && (
-            <div className="space-y-2">
-              {comprovantes.map((url, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg hover:border-emerald-300 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center">
-                      <FileText className="w-5 h-5 text-emerald-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-700">Comprovante {index + 1}</p>
-                      <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-600 hover:underline">
-                        Ver arquivo
-                      </a>
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => removerComprovante(index)}
-                    className="text-red-600 hover:bg-red-50"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {comprovantes.length === 0 && (
-            <div 
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              className={cn(
-                "text-center py-8 border-2 border-dashed rounded-lg transition-all cursor-pointer",
-                isDragging 
-                  ? "border-emerald-400 bg-emerald-50/50 scale-[1.02]" 
-                  : uploadingFile 
-                    ? "border-slate-300 bg-slate-50" 
-                    : "border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/30"
-              )}
-              onClick={() => !uploadingFile && fileInputRef.current?.click()}
-            >
-              {uploadingFile ? (
-                <>
-                  <Loader2 className="w-10 h-10 text-emerald-500 mx-auto mb-3 animate-spin" />
-                  <p className="text-sm font-medium text-slate-600">Enviando arquivos...</p>
-                </>
-              ) : isDragging ? (
-                <>
-                  <Upload className="w-10 h-10 text-emerald-500 mx-auto mb-3" />
-                  <p className="text-sm font-medium text-emerald-700">Solte os arquivos aqui</p>
-                </>
-              ) : (
-                <>
-                  <Upload className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                  <p className="text-sm font-medium text-slate-600 mb-1">Arraste arquivos aqui ou clique para selecionar</p>
-                  <p className="text-xs text-slate-400">Suporta PDF, JPG, PNG</p>
-                </>
-              )}
-            </div>
-          )}
-        </Card>
-      )}
-
+      {/* BOTÕES */}
       <div className="flex justify-end gap-3 pt-4 border-t">
         <Button variant="outline" onClick={onCancel} disabled={isLoading || isSaving}>Cancelar</Button>
         <Button
           onClick={handleLiquidar}
-          disabled={
-            isLoading ||
-            isSaving ||
-            selectedPedidos.length === 0 ||
-            totais.totalPago <= 0 ||
-            totais.totalPago > totais.totalComDesconto
-          }
+          disabled={isLoading || isSaving || selectedPedidos.length === 0 || totais.totalPago <= 0}
           className="bg-blue-600 hover:bg-blue-700"
         >
           {isSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processando...</> : 'Liquidar em Massa'}
         </Button>
       </div>
 
+      {/* OVERLAY DE LOADING */}
       {isSaving && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm">
           <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4">
             <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
-            <div className="text-center"><h3 className="text-lg font-bold text-slate-800">Processando Liquidação em Massa</h3><p className="text-sm text-slate-500">Gerando Borderô e atualizando {selectedPedidos.length} pedidos...</p></div>
+            <div className="text-center">
+              <h3 className="text-lg font-bold text-slate-800">Processando Liquidação em Massa</h3>
+              <p className="text-sm text-slate-500">Gerando Borderô e atualizando {selectedPedidos.length} pedidos...</p>
+            </div>
           </div>
         </div>
       )}
 
+      {/* POP-UP: PAGAMENTO A MAIOR → GERAR CRÉDITO */}
+      <Dialog open={showCreditoModal} onOpenChange={setShowCreditoModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-700">
+              <Sparkles className="w-5 h-5" />
+              Pagamento a Maior Detectado
+            </DialogTitle>
+            <DialogDescription>
+              Confirme como deseja tratar o valor excedente
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-center">
+              <p className="text-sm text-indigo-700 mb-1">Valor informado é</p>
+              <p className="text-3xl font-extrabold text-indigo-800">{formatCurrency(excedentePendente)}</p>
+              <p className="text-sm text-indigo-700 mt-1">maior que o total devido</p>
+            </div>
+            <p className="text-sm text-slate-600">
+              Deseja gerar esse valor como um <strong>Crédito</strong> para o cliente{' '}
+              <strong>{selectedPedidos[0]?.cliente_nome}</strong> utilizar em compras futuras?
+            </p>
+            <div className="flex flex-col gap-2 pt-2">
+              <Button
+                onClick={() => executarLiquidacao(excedentePendente)}
+                className="bg-indigo-600 hover:bg-indigo-700 gap-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                Sim, Gerar Crédito e Liquidar
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowCreditoModal(false)}
+                className="text-slate-600"
+              >
+                Não, vou corrigir os valores
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL CHEQUE */}
       <ModalContainer open={showChequeModal} onClose={() => setShowChequeModal(false)} title="Adicionar Cheque" size="lg">
         {selectedPedidos[0] && (
           <AdicionarChequeModal
