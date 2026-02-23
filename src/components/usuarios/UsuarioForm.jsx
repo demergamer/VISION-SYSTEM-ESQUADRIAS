@@ -141,11 +141,55 @@ export default function UsuarioForm({ user, currentUser, onSave, onCancel, isLoa
 
       <TabsContent value="dados" className="space-y-4 mt-4 p-1">
         {isSelf && (
-          <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex items-start gap-3 text-amber-800 text-sm animate-in fade-in slide-in-from-top-2">
+          <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex items-start gap-3 text-amber-800 text-sm">
             <AlertTriangle className="w-5 h-5 shrink-0 text-amber-600" />
             <p>Você está editando seu próprio perfil. Alterações de permissão ou perfil terão efeito imediato.</p>
           </div>
         )}
+
+        {/* Avatar Upload */}
+        <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+          <div className="relative group cursor-pointer shrink-0" onClick={() => avatarInputRef.current?.click()}>
+            <Avatar className="w-16 h-16 border-2 border-white shadow-md">
+              {form.avatar_url && <AvatarImage src={form.avatar_url} className="object-cover" />}
+              <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-600 text-white text-lg font-bold">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              {isUploadingAvatar ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Camera className="w-4 h-4 text-white" />}
+            </div>
+            <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-slate-700">Foto de Perfil</p>
+            <p className="text-xs text-slate-400 mb-2">Clique no avatar para trocar a foto</p>
+            <Button type="button" variant="outline" size="sm" onClick={() => avatarInputRef.current?.click()} disabled={isUploadingAvatar} className="text-xs h-7">
+              {isUploadingAvatar ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Enviando...</> : <><Camera className="w-3 h-3 mr-1" />{form.avatar_url ? 'Trocar' : 'Adicionar'}</>}
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="preferred_name" className="flex items-center gap-1.5"><User className="w-3.5 h-3.5 text-blue-500" /> Nome de Preferência</Label>
+            <Input
+              id="preferred_name"
+              value={form.preferred_name}
+              onChange={(e) => setForm({ ...form, preferred_name: e.target.value })}
+              placeholder="Como prefere ser chamado"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="phone" className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-blue-500" /> Telefone</Label>
+            <Input
+              id="phone"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              placeholder="(00) 00000-0000"
+            />
+          </div>
+        </div>
 
         <div className="space-y-2">
           <Label htmlFor="full_name">Nome Completo *</Label>
