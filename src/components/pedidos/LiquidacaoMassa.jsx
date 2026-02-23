@@ -543,7 +543,29 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
   const devolucaoValorNum = parseFloat(devolucao) || 0;
 
   return (
-    <div className="space-y-6">
+    <div
+      className="space-y-6 relative"
+      onDragEnter={(e) => { e.preventDefault(); globalDragCounter.current += 1; setIsGlobalDragging(true); }}
+      onDragOver={(e) => { e.preventDefault(); }}
+      onDragLeave={(e) => { globalDragCounter.current -= 1; if (globalDragCounter.current <= 0) { globalDragCounter.current = 0; setIsGlobalDragging(false); } }}
+      onDrop={handleGlobalDrop}
+    >
+      {/* OVERLAY GLOBAL DE DRAG */}
+      {isGlobalDragging && (
+        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-blue-900/25 backdrop-blur-sm pointer-events-none border-4 border-dashed border-blue-500 rounded-lg">
+          <Upload className="w-16 h-16 text-blue-400 mb-4" />
+          <p className="text-xl font-extrabold text-white text-center px-8 drop-shadow-lg">
+            Solte os comprovantes aqui para criar as formas de pagamento automaticamente
+          </p>
+          <p className="text-sm text-blue-200 mt-2">Cada arquivo vira uma nova linha de pagamento</p>
+        </div>
+      )}
+      {isProcessingGlobalDrop && (
+        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/30 backdrop-blur-sm pointer-events-none">
+          <Loader2 className="w-12 h-12 text-white animate-spin mb-3" />
+          <p className="text-white font-semibold text-lg">Processando arquivos...</p>
+        </div>
+      )}
       {/* BUSCA */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
