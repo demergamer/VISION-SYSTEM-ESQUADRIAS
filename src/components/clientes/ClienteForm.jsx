@@ -278,19 +278,38 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
           <AccordionItem value="dados_cadastrais" className="border rounded-xl bg-white px-4 shadow-sm">
             <AccordionTrigger className="hover:no-underline py-4"><div className="flex items-center gap-2 text-slate-800"><Building className="w-5 h-5 text-blue-600" /><span className="font-semibold text-base">Dados Cadastrais</span></div></AccordionTrigger>
             <AccordionContent className="pb-4 pt-2">
+              {/* Logo Upload */}
+              <div className="mb-6 flex items-center gap-5">
+                <div className="w-20 h-20 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0">
+                  {form.logo_url ? <img src={form.logo_url} alt="Logo" className="w-full h-full object-cover" /> : <ImageIcon className="w-8 h-8 text-slate-300" />}
+                </div>
+                <div>
+                  <Label className={labelClass}>Logo / Foto da Empresa</Label>
+                  <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-600 hover:bg-slate-50 transition-all">
+                    {logoUploading ? <><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</> : <><Upload className="w-4 h-4" /> Enviar imagem</>}
+                    <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" disabled={logoUploading} />
+                  </label>
+                  {form.logo_url && <button type="button" onClick={() => setForm(p => ({...p, logo_url: null}))} className="ml-2 text-xs text-red-500 hover:underline">Remover</button>}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="space-y-1">
-                  <Label htmlFor="codigo" className={labelClass}>Código *</Label>
-                  <Input id="codigo" value={form.codigo} onChange={handleInputChange} name="codigo" disabled={!!cliente?.id} className={cn(inputClass, errors.codigo && "border-red-300")} placeholder="Ex: CLI001" />
-                  {errors.codigo && <p className="text-xs text-red-500">{errors.codigo}</p>}
-                </div>
-                <div className="space-y-1 lg:col-span-2">
-                  <Label htmlFor="cnpj" className={labelClass}>CPF/CNPJ (Busca Auto)</Label>
-                  <div className="relative">
-                    <InputCpfCnpj id="cnpj" value={form.cnpj} onChange={handleCnpjChange} className={inputClass} placeholder="Digite para buscar..." />
-                    {isConsulting && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-600 animate-spin" />}
+                {!isClientMode && (
+                  <div className="space-y-1">
+                    <Label htmlFor="codigo" className={labelClass}>Código *</Label>
+                    <Input id="codigo" value={form.codigo} onChange={handleInputChange} name="codigo" disabled={!!cliente?.id} className={cn(inputClass, errors.codigo && "border-red-300")} placeholder="Ex: CLI001" />
+                    {errors.codigo && <p className="text-xs text-red-500">{errors.codigo}</p>}
                   </div>
-                </div>
+                )}
+                {!isClientMode && (
+                  <div className="space-y-1 lg:col-span-2">
+                    <Label htmlFor="cnpj" className={labelClass}>CPF/CNPJ (Busca Auto)</Label>
+                    <div className="relative">
+                      <InputCpfCnpj id="cnpj" value={form.cnpj} onChange={handleCnpjChange} className={inputClass} placeholder="Digite para buscar..." />
+                      {isConsulting && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-600 animate-spin" />}
+                    </div>
+                  </div>
+                )}
                 
                 {/* 3 CAMPOS DE NOME SEPARADOS */}
                 <div className="space-y-1 lg:col-span-3">
