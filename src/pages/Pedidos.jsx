@@ -1064,6 +1064,31 @@ export default function Pedidos() {
                 )}
             </TabsContent>
 
+            {/* ABA TROCAS */}
+            <TabsContent value="trocas">
+                {viewMode === 'table' ? (
+                    <PedidoTable 
+                        pedidos={currentPedidos} 
+                        onEdit={handleEdit} 
+                        onView={handleView} 
+                        onLiquidar={handleLiquidar} 
+                        onCancelar={handleCancelar} 
+                        onReverter={null}
+                        onMudarStatus={handleMudarStatusEspecial}
+                        isLoading={loadingPedidos}
+                        sortConfig={sortConfig} 
+                        onSort={handleSort}
+                    />
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {currentPedidos.map(pedido => (
+                            <PedidoGridCard key={pedido.id} pedido={pedido} onEdit={handleEdit} onView={handleView} onLiquidar={handleLiquidar} onCancelar={handleCancelar} canDo={canDo} />
+                        ))}
+                    </div>
+                )}
+                <PaginacaoControles currentPage={currentPage} totalPages={totalPages} totalItems={processedPedidos.length} itemsPerPage={itemsPerPage} onPageChange={setCurrentPage} />
+            </TabsContent>
+
             {/* ABERTOS & CANCELADOS */}
             <TabsContent value="abertos">
                 {viewMode === 'table' ? (
@@ -1074,6 +1099,7 @@ export default function Pedidos() {
                         onLiquidar={handleLiquidar} 
                         onCancelar={handleCancelar} 
                         onReverter={null}
+                        onMudarStatus={handleMudarStatusEspecial}
                         isLoading={loadingPedidos}
                         sortConfig={sortConfig} 
                         onSort={handleSort}     
