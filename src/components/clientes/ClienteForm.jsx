@@ -20,7 +20,7 @@ import {
 import { 
   Save, X, AlertCircle, Upload, Loader2, Factory, 
   CheckCircle, Lock, MapPin, Briefcase, Phone, FileText, Building,
-  Eye, Trash2, Calendar, Wallet, CheckSquare
+  Eye, Trash2, Calendar, Wallet, CheckSquare, Plus, Image as ImageIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
