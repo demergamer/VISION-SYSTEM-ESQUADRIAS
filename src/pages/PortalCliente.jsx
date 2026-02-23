@@ -196,24 +196,26 @@ export default function PortalCliente() {
       <div className="max-w-7xl mx-auto space-y-8">
         
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            {clienteData.logo_url && (
-              <img src={clienteData.logo_url} alt="Logo" className="w-14 h-14 rounded-2xl object-cover border border-slate-200 shadow-sm" />
-            )}
-            <div className="space-y-1">
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900">Olá, <span className="text-blue-600">{clienteData.nome}</span></h1>
-              <p className="text-slate-500 text-lg">Bem-vindo ao seu portal financeiro</p>
+            <Avatar className="w-16 h-16 border-2 border-white shadow-md shrink-0">
+              {clienteData.logo_url && <AvatarImage src={clienteData.logo_url} className="object-cover" />}
+              <AvatarFallback className="bg-blue-600 text-white text-xl font-bold">
+                {(clienteData.nome_fantasia || clienteData.nome || '').split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900">Olá, <span className="text-blue-600">{clienteData.nome}</span></h1>
+              <p className="text-slate-500">Bem-vindo ao seu portal financeiro</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <Button variant="outline" size="sm" onClick={() => setShowEditModal(true)} className="gap-2 border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-200">
+          <div className="flex items-center gap-3">
+            <Button variant="outline" size="sm" onClick={() => setShowDetailsModal(true)} className="gap-2 border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300">
+              <Eye className="w-4 h-4" /> Meus Dados
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowEditModal(true)} className="gap-2 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300">
               <Edit className="w-4 h-4" /> Editar Cadastro
             </Button>
-            <div className="text-right hidden md:block">
-              <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Última atualização</p>
-              <p className="text-sm text-slate-600">{format(new Date(), "dd 'de' MMMM, HH:mm")}</p>
-            </div>
           </div>
         </div>
 
