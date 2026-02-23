@@ -370,8 +370,14 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
       
       <div className="p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div onClick={() => setIsExpanded(!isExpanded)} className="flex items-center gap-4 cursor-pointer flex-1 hover:opacity-80 transition-opacity">
-          <div className={cn("w-12 h-12 rounded-full flex items-center justify-center transition-colors shrink-0", temAtraso ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-600")}>
-            {temAtraso ? <AlertCircle className="w-6 h-6" /> : <Users className="w-6 h-6" />}
+          <div className="relative shrink-0">
+            <Avatar className="w-12 h-12 border border-slate-200 shadow-sm">
+              {cliente.logo_url && <AvatarImage src={cliente.logo_url} className="object-cover" />}
+              <AvatarFallback className={cn("text-sm font-bold", temAtraso ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-600")}>
+                {(cliente.nome_fantasia || cliente.nome || '').split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            {temAtraso && <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white" />}
           </div>
           <div>
             <h4 className="text-lg font-bold text-slate-800">{cliente.nome}</h4>
