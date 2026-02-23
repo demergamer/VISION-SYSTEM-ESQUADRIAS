@@ -57,6 +57,8 @@ const TabButton = ({ active, onClick, icon: Icon, label, count, colorClass, bgAc
 export default function PortalCliente() {
   const [showFiltrosPedidos, setShowFiltrosPedidos] = useState(false);
   const [showFiltrosCheques, setShowFiltrosCheques] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const queryClient = useQueryClient();
 
   const [filtros, setFiltros] = useState({ numeroPedido: '', rota: '', dataEntregaInicio: '', dataEntregaFim: '', valorMin: '', valorMax: '' });
   const [filtrosCheques, setFiltrosCheques] = useState({ numeroCheque: '', banco: '', dataVencimentoInicio: '', dataVencimentoFim: '' });
