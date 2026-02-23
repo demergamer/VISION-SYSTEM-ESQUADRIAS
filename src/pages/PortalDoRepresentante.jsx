@@ -591,8 +591,49 @@ export default function PainelRepresentante() {
       <ModalContainer open={showSolicitarClienteModal} onClose={() => setShowSolicitarClienteModal(false)} title="Solicitar Cadastro de Cliente" description="Preencha os dados do novo cliente" size="lg"><SolicitarNovoCliente representante={representante} onSuccess={() => { setShowSolicitarClienteModal(false); toast.success('Solicitação enviada!'); }} onCancel={() => setShowSolicitarClienteModal(false)} /></ModalContainer>
       <ModalContainer open={showLiquidacaoModal} onClose={() => { setShowLiquidacaoModal(false); setClienteParaLiquidacao(null); }} title="Solicitar Liquidação" description={clienteParaLiquidacao ? `Cliente: ${clienteParaLiquidacao.nome}` : ''} size="xl">{clienteParaLiquidacao && (<LiquidacaoSelfService pedidos={clienteParaLiquidacao.pedidos.filter(p => ['aberto', 'parcial', 'aguardando'].includes(p.status))} clienteCodigo={clienteParaLiquidacao.codigo} clienteNome={clienteParaLiquidacao.nome} onSuccess={() => { setShowLiquidacaoModal(false); setClienteParaLiquidacao(null); }} onCancel={() => { setShowLiquidacaoModal(false); setClienteParaLiquidacao(null); }} />)}</ModalContainer>
       <NovaLiquidacaoRepresentante open={showLiquidacaoGlobalModal} onClose={() => setShowLiquidacaoGlobalModal(false)} pedidos={meusPedidosAbertos} onSuccess={() => { setShowLiquidacaoGlobalModal(false); refetchPedidos(); }} />
-      <ClienteDetailsModal cliente={clienteDetailsModal.cliente} pedidos={clienteDetailsModal.cliente ? todosPedidos.filter(p => p.cliente_codigo === clienteDetailsModal.cliente.codigo) : []} cheques={clienteDetailsModal.cliente ? todosCheques.filter(c => c.cliente_codigo === clienteDetailsModal.cliente.codigo) : []} creditos={clienteDetailsModal.cliente ? todosCreditos.filter(c => c.cliente_codigo === clienteDetailsModal.cliente.codigo) : []} open={clienteDetailsModal.open} onClose={() => setClienteDetailsModal({ open: false, cliente: null })} />
-      <EditClienteModal cliente={editClienteModal.cliente} open={editClienteModal.open} onClose={() => setEditClienteModal({ open: false, cliente: null })} onSuccess={() => { refetchClientes(); setEditClienteModal({ open: false, cliente: null }); }} />
+      {/* Modal Ver Cliente - usa ClienteDetails oficial */}
+      <Dialog open={clienteDetailsModal.open} onOpenChange={(o) => !o && setClienteDetailsModal({ open: false, cliente: null })}>
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="p-6 pb-4 border-b shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5 text-slate-600" /> Dados do Cliente
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto px-6 pb-4">
+            {clienteDetailsModal.cliente && (
+              <ClienteDetails
+                cliente={clienteDetailsModal.cliente}
+                stats={{}}
+                creditos={todosCreditos.filter(c => c.cliente_codigo === clienteDetailsModal.cliente.codigo)}
+                onEdit={() => { setClienteDetailsModal({ open: false, cliente: null }); setEditClienteModal({ open: true, cliente: clienteDetailsModal.cliente }); }}
+                onClose={() => setClienteDetailsModal({ open: false, cliente: null })}
+                onViewPedidos={() => setClienteDetailsModal({ open: false, cliente: null })}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Editar Cliente - usa ClienteForm com isClientMode */}
+      <Dialog open={editClienteModal.open} onOpenChange={(o) => !o && setEditClienteModal({ open: false, cliente: null })}>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="p-6 pb-4 border-b shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="w-5 h-5 text-blue-600" /> Editar Cadastro do Cliente
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto">
+            {editClienteModal.cliente && (
+              <ClienteForm
+                cliente={editClienteModal.cliente}
+                isClientMode={true}
+                onSave={() => { refetchClientes(); setEditClienteModal({ open: false, cliente: null }); toast.success('Cadastro atualizado!'); }}
+                onCancel={() => setEditClienteModal({ open: false, cliente: null })}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
       <ConviteClienteModal cliente={inviteClienteModal.cliente} open={inviteClienteModal.open} onClose={() => setInviteClienteModal({ open: false, cliente: null })} onSuccess={() => { refetchClientes(); setInviteClienteModal({ open: false, cliente: null }); }} />
       <BorderoDetailsModal bordero={borderoModal.bordero} pedidos={todosPedidos} open={borderoModal.open} onClose={() => setBorderoModal({ open: false, bordero: null })} />
       <SolicitarOrcamentoModal open={showOrcamentoModal} onClose={() => setShowOrcamentoModal(false)} clientes={meusClientes} representanteCodigo={representante?.codigo} representanteNome={representante?.nome} />
