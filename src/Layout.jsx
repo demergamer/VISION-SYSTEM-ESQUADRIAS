@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { AuthProvider, useAuth } from '@/components/providers/AuthContext';
+import { SecurityProvider } from '@/components/providers/SecurityProvider';
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { usePermissions } from "@/components/hooks/usePermissions";
