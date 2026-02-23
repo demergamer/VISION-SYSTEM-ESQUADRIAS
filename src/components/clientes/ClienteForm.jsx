@@ -233,7 +233,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
 
   const validate = () => {
     const newErrors = {};
-    if (!form.codigo) newErrors.codigo = "Código obrigatório.";
+    if (!isClientMode && !form.codigo) newErrors.codigo = "Código obrigatório.";
     if (!form.nome) newErrors.nome = "Apelido obrigatório.";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -243,7 +243,24 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     if (validate()) {
       setIsSaving(true);
       try {
-        const dataToSave = { ...form, porcentagem_comissao: parseFloat(form.porcentagem_comissao) || 0, limite_credito: parseFloat(form.limite_credito) || 0 };
+        // Em modo cliente, só salva campos permitidos
+        let dataToSave;
+        if (isClientMode) {
+          dataToSave = {
+            nome: form.nome,
+            nome_fantasia: form.nome_fantasia,
+            email: form.email,
+            telefone_1: form.telefone_1, responsavel_1: form.responsavel_1,
+            telefone_2: form.telefone_2, responsavel_2: form.responsavel_2,
+            telefone_3: form.telefone_3, responsavel_3: form.responsavel_3,
+            contatos_lista: form.contatos_lista || [],
+            logo_url: form.logo_url,
+            cep: form.cep, endereco: form.endereco, numero: form.numero,
+            bairro: form.bairro, cidade: form.cidade, estado: form.estado, complemento: form.complemento,
+          };
+        } else {
+          dataToSave = { ...form, porcentagem_comissao: parseFloat(form.porcentagem_comissao) || 0, limite_credito: parseFloat(form.limite_credito) || 0 };
+        }
         if (onSave) await onSave(dataToSave);
         else if (onSuccess) onSuccess(dataToSave); 
       } catch (error) { toast.error("Erro ao salvar."); } finally { setIsSaving(false); }
