@@ -564,32 +564,61 @@ export default function PainelRepresentante() {
   return (
     <div className="min-h-screen bg-[#F2F2F7] pb-20 font-sans text-slate-900">
       <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-black/5 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all">
-        <div className="flex items-center gap-4">
-          <Avatar className="w-12 h-12 border-2 border-white shadow-md cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setShowPerfilModal(true)}>
+        <div className="flex items-center gap-5">
+          <Avatar className="w-20 h-20 border-4 border-white shadow-lg cursor-pointer hover:opacity-90 transition-opacity shrink-0" onClick={() => setShowPerfilModal(true)}>
             {representante.foto_url && <AvatarImage src={representante.foto_url} className="object-cover" />}
-            <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-600 text-white font-bold">
+            <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-600 text-white text-2xl font-bold">
               {(representante.nome_social || representante.nome || '').split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">Olá, <span className="text-blue-600">{(representante.nome_social || representante.nome).split(' ')[0]}</span></h1>
             <p className="text-sm text-slate-500 font-medium">Portal do Representante</p>
+            <div className="flex items-center gap-2 mt-1">
+              <Button variant="ghost" size="sm" onClick={() => setShowPerfilModal(true)} className="h-7 px-2 text-xs text-slate-500 hover:text-slate-800">
+                <User className="w-3 h-3 mr-1" /> Meus Dados
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setShowEditPerfilModal(true)} className="h-7 px-2 text-xs text-blue-600 hover:text-blue-800">
+                <Edit className="w-3 h-3 mr-1" /> Editar Perfil
+              </Button>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" onClick={() => setShowPerfilModal(true)} className="gap-2 text-slate-600 border-slate-200 hidden md:flex">
-            <User className="w-4 h-4" /> Meus Dados
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowEditPerfilModal(true)} className="gap-2 text-blue-600 border-blue-200 hover:bg-blue-50 hidden md:flex">
-            <Edit className="w-4 h-4" /> Editar Perfil
-          </Button>
           <div className="relative w-full md:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><Input placeholder="Buscar Cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 rounded-full bg-slate-100 border-transparent focus:bg-white transition-all" /></div>
           <Button onClick={realizarLogout} variant="ghost" size="icon" className="rounded-full hover:bg-red-50 hover:text-red-600"><LogOut className="w-5 h-5" /></Button>
         </div>
       </div>
       <div className="max-w-[1600px] mx-auto p-6 md:p-8 space-y-8">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex flex-wrap gap-3"><Button disabled={true} className="gap-2 bg-slate-300 text-slate-500 cursor-not-allowed opacity-60 shadow-none border-0"><Lock className="w-4 h-4" /> 📋 Orçamento</Button><Button onClick={() => setShowSolicitarClienteModal(true)} className="gap-2 bg-slate-600 hover:bg-slate-700"><UserPlus className="w-4 h-4" /> 👤 Solicitar Cliente</Button><Button onClick={() => setShowLiquidacaoGlobalModal(true)} className="gap-2 bg-emerald-600 hover:bg-emerald-700" disabled={meusPedidosAbertos.length === 0}><DollarSign className="w-4 h-4" /> 💰 Liquidação</Button><Button onClick={() => setShowAutorizacoesModal(true)} className="gap-2 bg-blue-600 hover:bg-blue-700"><FileText className="w-4 h-4" /> 📋 Minhas Autorizações</Button><Button onClick={() => setShowComissaoModal(true)} className="gap-2 bg-purple-600 hover:bg-purple-700"><Wallet className="w-4 h-4" /> 📊 Comissão</Button></div>
+          <div className="flex flex-wrap gap-3">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="gap-2 bg-slate-700 hover:bg-slate-800">
+                  <Settings className="w-4 h-4" /> Ferramentas <ChevronDown className="w-4 h-4 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-52">
+                <DropdownMenuLabel>Ações do Portal</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem disabled className="opacity-50 cursor-not-allowed">
+                  <Lock className="w-4 h-4 mr-2" /> 📋 Orçamento
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowSolicitarClienteModal(true)}>
+                  <UserPlus className="w-4 h-4 mr-2" /> 👤 Solicitar Cliente
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowLiquidacaoGlobalModal(true)} disabled={meusPedidosAbertos.length === 0}>
+                  <DollarSign className="w-4 h-4 mr-2" /> 💰 Liquidação
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowAutorizacoesModal(true)}>
+                  <FileText className="w-4 h-4 mr-2" /> 📋 Minhas Autorizações
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowComissaoModal(true)}>
+                  <Wallet className="w-4 h-4 mr-2" /> 📊 Comissão
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
           <div className="bg-white border border-slate-200 rounded-xl p-1 flex gap-1"><Button variant={viewMode === 'clientes' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('clientes')} className={cn("rounded-lg h-9 gap-2", viewMode === 'clientes' && "bg-blue-600 hover:bg-blue-700 text-white shadow-sm")}><Building2 className="w-4 h-4" /> Clientes</Button><Button variant={viewMode === 'pedidos' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('pedidos')} className={cn("rounded-lg h-9 gap-2", viewMode === 'pedidos' && "bg-blue-600 hover:bg-blue-700 text-white shadow-sm")}><Package className="w-4 h-4" /> Pedidos</Button><Button variant={viewMode === 'borderos' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('borderos')} className={cn("rounded-lg h-9 gap-2", viewMode === 'borderos' && "bg-blue-600 hover:bg-blue-700 text-white shadow-sm")}><FileText className="w-4 h-4" /> Borderôs</Button></div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"><StatWidget title="Clientes na Carteira" value={stats.totalClientes} icon={Users} colorClass="bg-blue-500 shadow-blue-200" /><StatWidget title="Clientes +30k" value={stats.clientes30k} subtitle="VIPs" icon={Briefcase} colorClass="bg-purple-500 shadow-purple-200" /><StatWidget title="Vendas em Aberto" value={formatCurrency(stats.vendasAbertas)} icon={ShoppingCart} colorClass="bg-amber-500 shadow-amber-200" /><StatWidget title="Custódia de Cheques" value={formatCurrency(stats.carteiraCheques)} icon={CreditCard} colorClass="bg-emerald-500 shadow-emerald-200" /></div>
