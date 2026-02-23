@@ -1,22 +1,46 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   User, 
   Phone, 
   MapPin, 
-  Mail, // Importei o ícone de Email
+  Mail,
   Users, 
   TrendingUp,
   AlertTriangle,
   DollarSign,
   Edit,
-  X
+  X,
+  Camera
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { base44 } from "@/api/base44Client";
+import { toast } from "sonner";
 
-export default function RepresentanteDetails({ representante, stats, onEdit, onClose }) {
+export default function RepresentanteDetails({ representante, stats, onEdit, onClose, onAvatarUpdate }) {
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [localFotoUrl, setLocalFotoUrl] = useState(representante?.foto_url || '');
+  const fileInputRef = useRef(null);
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingAvatar(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      await base44.entities.Representante.update(representante.id, { foto_url: file_url });
+      setLocalFotoUrl(file_url);
+      if (onAvatarUpdate) onAvatarUpdate(file_url);
+      toast.success('Foto atualizada!');
+    } catch (err) {
+      toast.error('Erro ao fazer upload da foto.');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
