@@ -21,12 +21,14 @@ const SortableHead = ({ label, sortKey, currentSort, onSort, className }) => {
     ? (currentSort.direction === 'asc' ? ArrowUp : ArrowDown) 
     : ArrowUpDown;
 
+  const isRight = className?.includes('text-right');
+
   return (
     <TableHead 
       className={cn("cursor-pointer hover:bg-slate-50 transition-colors select-none group", className)} 
       onClick={() => onSort && onSort(sortKey)}
     >
-      <div className="flex items-center gap-1.5">
+      <div className={cn("flex items-center gap-1.5", isRight && "justify-end")}>
         {label}
         <DirectionIcon className={cn(
           "w-3.5 h-3.5 transition-opacity",
