@@ -47,6 +47,11 @@ export default function RepresentanteForm({ representante, onSave, onCancel, isL
 
   return (
     <div className="space-y-6">
+      {isSelfEditMode && (
+        <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2">
+          <Lock className="w-3.5 h-3.5 shrink-0" /> Código, Email e Região só podem ser alterados pelo administrador.
+        </p>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
           <Label htmlFor="codigo">Código *</Label>
@@ -55,7 +60,8 @@ export default function RepresentanteForm({ representante, onSave, onCancel, isL
             value={form.codigo}
             onChange={(e) => setForm({ ...form, codigo: e.target.value })}
             placeholder="Ex: REP001"
-            disabled={!!representante}
+            disabled={!!representante || isSelfEditMode}
+            className={cn((!representante || isSelfEditMode) && readonlyClass)}
           />
         </div>
 
@@ -66,10 +72,22 @@ export default function RepresentanteForm({ representante, onSave, onCancel, isL
             value={form.nome}
             onChange={(e) => setForm({ ...form, nome: e.target.value })}
             placeholder="Nome do representante"
+            disabled={isSelfEditMode}
+            className={cn(isSelfEditMode && readonlyClass)}
           />
         </div>
 
-        {/* --- NOVO CAMPO EMAIL --- */}
+        <div className="space-y-2">
+          <Label htmlFor="nome_social">Nome Social <span className="text-blue-500 font-normal text-xs">(editável)</span></Label>
+          <Input
+            id="nome_social"
+            value={form.nome_social}
+            onChange={(e) => setForm({ ...form, nome_social: e.target.value })}
+            placeholder="Como prefere ser chamado"
+          />
+        </div>
+
+        {/* --- CAMPO EMAIL --- */}
         <div className="space-y-2">
           <Label htmlFor="email">Email de Acesso *</Label>
           <Input
@@ -78,6 +96,8 @@ export default function RepresentanteForm({ representante, onSave, onCancel, isL
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
             placeholder="email@exemplo.com"
+            disabled={isSelfEditMode}
+            className={cn(isSelfEditMode && readonlyClass)}
           />
         </div>
 
@@ -88,11 +108,13 @@ export default function RepresentanteForm({ representante, onSave, onCancel, isL
             value={form.regiao}
             onChange={(e) => setForm({ ...form, regiao: e.target.value })}
             placeholder="Ex: Sul, Sudeste, Norte"
+            disabled={isSelfEditMode}
+            className={cn(isSelfEditMode && readonlyClass)}
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="telefone">Telefone</Label>
+          <Label htmlFor="telefone">Telefone <span className="text-blue-500 font-normal text-xs">(editável)</span></Label>
           <Input
             id="telefone"
             value={form.telefone}
