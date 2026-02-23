@@ -5,16 +5,26 @@ import { Button } from "@/components/ui/button";
 import { 
   Users, Package, ShoppingCart, Wallet, FileText, BarChart3, 
   Briefcase, Banknote, ScrollText, CreditCard, ShieldCheck, 
-  Calendar as CalendarIcon, Settings2, ShieldAlert
+  Calendar as CalendarIcon, Settings2, ShieldAlert, LogOut, User as UserIcon
 } from "lucide-react";
 import { useAuth } from '@/lib/AuthContext';
 import { usePermissions } from "@/components/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 
+// --- NOVOS IMPORTS DO AVATAR E DROPDOWN ---
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
 // Componentes Importados
 import PS2Background from '@/components/dashboard/PS2Background';
 import NavigationCard from '@/components/dashboard/NavigationCard';
-// Se formos usar StatCard no futuro (para KPIs), já está pronto, mas aqui focaremos no menu.
 
 // --- WIDGETS AUXILIARES (Relógio/Calendário) ---
 const AnalogClock = ({ time }) => {
@@ -80,11 +90,17 @@ const MiniCalendar = () => {
 };
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth(); // Incluindo logout caso exista no seu AuthContext
   const { canDo } = usePermissions();
   const navigate = useNavigate();
   const [time, setTime] = useState(new Date());
   const [clockType, setClockType] = useState(() => localStorage.getItem('jc_clock_pref') || 'digital');
+
+  // --- DADOS DO PERFIL DO USUÁRIO ---
+  const metadata = user?.user_metadata || {};
+  const avatarUrl = metadata.avatar_url;
+  const preferredName = metadata.preferred_name || user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || 'Administrador';
+  const initials = preferredName.substring(0, 2).toUpperCase();
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -104,10 +120,18 @@ export default function Dashboard() {
     return "Boa noite";
   };
 
+  const handleLogout = () => {
+    if (logout) {
+      logout();
+    } else {
+      console.warn("Função de logout não encontrada no useAuth.");
+    }
+  };
+
   const menuGroups = [
     {
       title: "Cadastros Gerais",
-      color: "blue", // Mapeia para a prop color do NavigationCard
+      color: "blue", 
       items: [
         { name: "Clientes", label: "Clientes", icon: Users, desc: "Gestão de carteira de clientes" },
         { name: "Produtos", label: "Produtos", icon: Package, desc: "Catálogo, preços e estoque" },
@@ -158,11 +182,43 @@ export default function Dashboard() {
           
           {/* ESQUERDA: MÓDULOS */}
           <div className="xl:col-span-3 space-y-10">
-            <div className="flex flex-col gap-1 pb-4 border-b border-slate-200/50">
-              <h1 className="text-4xl font-bold text-slate-800 tracking-tight drop-shadow-sm">
-                {getGreeting()}, <span className="text-blue-600">{user?.displayName?.split(' ')[0] || 'Usuário'}</span>
-              </h1>
-              <p className="text-slate-600 text-lg font-medium">Selecione um módulo para começar a trabalhar.</p>
+            
+            {/* CABEÇALHO ATUALIZADO COM PERFIL E DROPDOWN */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/50">
+              <div className="flex flex-col gap-1">
+                <h1 className="text-4xl font-bold text-slate-800 tracking-tight drop-shadow-sm">
+                  {getGreeting()}, <span className="text-blue-600">{preferredName}</span>
+                </h1>
+                <p className="text-slate-600 text-lg font-medium">Selecione um módulo para começar a trabalhar.</p>
+              </div>
+
+              {/* MENU DE PERFIL DO ADMINISTRADOR */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <div className="flex items-center gap-3 cursor-pointer hover:bg-slate-100/50 p-2 pr-4 rounded-full transition-all border border-transparent hover:border-slate-200">
+                    <div className="text-right hidden sm:block">
+                      <p className="text-sm font-bold text-slate-800">{preferredName}</p>
+                      <p className="text-xs text-slate-500 font-medium tracking-wide">Administrador</p>
+                    </div>
+                    <Avatar className="w-14 h-14 border-2 border-white shadow-md">
+                      <AvatarImage src={avatarUrl} className="object-cover" />
+                      <AvatarFallback className="bg-blue-600 text-white font-bold text-lg">{initials}</AvatarFallback>
+                    </Avatar>
+                  </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 mt-2">
+                  <DropdownMenuLabel className="font-bold text-slate-800">Minha Conta</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="cursor-pointer" onClick={() => navigate('/usuarios')}>
+                    <UserIcon className="mr-2 h-4 w-4 text-slate-500" />
+                    <span className="font-medium">Gerenciar Perfil</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700" onClick={handleLogout}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span className="font-medium">Sair do Sistema</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             <div className="space-y-12">
