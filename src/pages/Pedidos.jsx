@@ -810,7 +810,11 @@ export default function Pedidos() {
               <div><h1 className="text-3xl font-bold tracking-tight text-slate-900">Gerenciamento de Pedidos</h1><p className="text-slate-500 mt-1">Controle de entregas, faturamento e rotas</p></div>
             </div>
             <div className="flex items-center gap-3">
-                <Button variant="outline" onClick={handleRefresh} disabled={refreshingData} className="bg-white border-slate-200"><RefreshCw className={cn("w-4 h-4 mr-2", refreshingData && "animate-spin")} /> Atualizar</Button>
+                {canDo('Pedidos', 'adicionar') && (
+                    <Button variant="outline" onClick={() => setShowLiquidacaoMassaModal(true)} className="bg-white border-slate-200 text-emerald-700 border-emerald-200 hover:bg-emerald-50">
+                        <DollarSign className="w-4 h-4 mr-2 text-emerald-600" /> Liq. em Massa
+                    </Button>
+                )}
                 <Button variant="outline" onClick={() => setActiveTab('rotas')} className={cn("bg-white border-slate-200", activeTab === 'rotas' && "bg-purple-50 border-purple-300 text-purple-700")}>
                     <Truck className="w-4 h-4 mr-2 text-purple-500" /> Rotas
                     {stats.rotasAtivasCount > 0 && <span className="ml-1.5 bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full text-[10px] font-bold">{stats.rotasAtivasCount}</span>}
@@ -822,8 +826,10 @@ export default function Pedidos() {
                             <DropdownMenuLabel>Ações</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => setShowImportModal(true)}><Upload className="w-4 h-4 mr-2" /> Importar Planilha</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setShowLiquidacaoMassaModal(true)}><DollarSign className="w-4 h-4 mr-2" /> Liquidação em Massa</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setShowRotaCobrancaModal(true)}><FileText className="w-4 h-4 mr-2" /> Rota de Cobrança</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => { setActiveTab('cancelados'); }}><XIcon className="w-4 h-4 mr-2" /> Ver Cancelados</DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={handleRefresh} disabled={refreshingData}><RefreshCw className={cn("w-4 h-4 mr-2", refreshingData && "animate-spin")} /> Atualizar Dados</DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
                 )}
