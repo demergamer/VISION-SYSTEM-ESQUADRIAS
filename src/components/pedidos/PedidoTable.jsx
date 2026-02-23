@@ -88,9 +88,9 @@ export default function PedidoTable({
             <SortableHead label="Nº Pedido" sortKey="numero_pedido" currentSort={sortConfig} onSort={onSort} className="w-[100px]" />
             <SortableHead label="Cliente / Região" sortKey="cliente_nome" currentSort={sortConfig} onSort={onSort} />
             <SortableHead label="Entrega" sortKey="data_entrega" currentSort={sortConfig} onSort={onSort} />
-            <SortableHead label="Valor Total" sortKey="valor_pedido" currentSort={sortConfig} onSort={onSort} className="text-right justify-end" />
-            <SortableHead label="Pago" sortKey="total_pago" currentSort={sortConfig} onSort={onSort} className="text-right justify-end hidden md:table-cell" />
-            <SortableHead label="Saldo" sortKey="saldo_restante" currentSort={sortConfig} onSort={onSort} className="text-right justify-end" />
+            <SortableHead label="Valor Total" sortKey="valor_pedido" currentSort={sortConfig} onSort={onSort} className="text-right" />
+            <SortableHead label="Pago" sortKey="total_pago" currentSort={sortConfig} onSort={onSort} className="text-right hidden md:table-cell" />
+            <SortableHead label="Saldo" sortKey="saldo_restante" currentSort={sortConfig} onSort={onSort} className="text-right" />
             <TableHead className="text-center w-[120px]">Status</TableHead>
             <TableHead className="text-right w-[140px]">Ações</TableHead>
           </TableRow>
