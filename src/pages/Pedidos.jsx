@@ -344,6 +344,14 @@ export default function Pedidos() {
     return data;
   }, [pedidos, activeTab, abertosSubTab, searchTerm, showFilters, filters, sortConfig]);
 
+  // Reset page on filter/tab/search change
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, activeTab, abertosSubTab, filters, showFilters]);
+
+  // --- PEDIDOS PAGINADOS ---
+  const totalPages = Math.ceil(processedPedidos.length / itemsPerPage);
+  const indexOfFirst = (currentPage - 1) * itemsPerPage;
+  const currentPedidos = processedPedidos.slice(indexOfFirst, indexOfFirst + itemsPerPage);
+
   const filteredBorderos = useMemo(() => {
     let filtered = borderos;
     if (searchTerm) {
