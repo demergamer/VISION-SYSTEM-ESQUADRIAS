@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Save, X, ShieldCheck, CheckSquare, Loader2, AlertTriangle } from "lucide-react";
+import { Save, ShieldCheck, CheckSquare, Loader2, AlertTriangle, Camera, Phone, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { base44 } from "@/api/base44Client";
 
 // IMPORTANDO DA SUA NOVA CONFIGURAÇÃO CENTRALIZADA
 import { 
