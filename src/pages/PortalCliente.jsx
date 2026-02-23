@@ -7,10 +7,12 @@ import { Button } from "@/components/ui/button";
 import { 
   AlertCircle, FileText, CreditCard, TrendingDown, CheckCircle, 
   XCircle, Clock, DollarSign, Search, Eye, Filter, ChevronDown, ChevronUp, ArrowRight,
-  Package, Truck, Lock, Send, Factory, Calendar, Edit
+  Package, Truck, Lock, Send, Factory, Calendar, Edit, User
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import ClienteForm from "@/components/clientes/ClienteForm";
+import ClienteDetails from "@/components/clientes/ClienteDetails";
 import { toast } from "sonner";
 import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
