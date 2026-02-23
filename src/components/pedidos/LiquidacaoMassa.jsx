@@ -23,9 +23,9 @@ const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'curre
 function UploadInline({ comprovante, onUpload, onRemove }) {
   const ref = useRef(null);
   const [uploading, setUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
-  const handleChange = async (e) => {
-    const file = e.target.files[0];
+  const handleFile = async (file) => {
     if (!file) return;
     setUploading(true);
     try {
@@ -36,6 +36,26 @@ function UploadInline({ comprovante, onUpload, onRemove }) {
       toast.error('Erro ao enviar arquivo');
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleChange = (e) => handleFile(e.target.files[0]);
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFile(e.dataTransfer.files[0]);
     }
   };
 
@@ -54,7 +74,20 @@ function UploadInline({ comprovante, onUpload, onRemove }) {
   }
 
   return (
-    <div className="mt-2">
+    <div 
+      className="mt-2 relative rounded-lg"
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {isDragging && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[2px] border-2 border-dashed border-emerald-500 rounded-lg">
+          <span className="text-emerald-700 font-semibold text-xs flex items-center gap-2">
+            <Upload className="w-4 h-4" /> Solte para anexar
+          </span>
+        </div>
+      )}
       <input ref={ref} type="file" accept="image/*,.pdf" onChange={handleChange} className="hidden" />
       <Button
         type="button"
@@ -62,7 +95,7 @@ function UploadInline({ comprovante, onUpload, onRemove }) {
         variant="outline"
         disabled={uploading}
         onClick={() => ref.current?.click()}
-        className="w-full h-8 text-xs gap-1.5 border-dashed"
+        className={cn("w-full h-8 text-xs gap-1.5 border-dashed", isDragging ? "opacity-0" : "")}
       >
         {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
         {uploading ? 'Enviando...' : 'Anexar Comprovante'}
@@ -83,6 +116,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
   const [devolucaoComprovante, setDevolucaoComprovante] = useState('');
   const devolucaoComprovanteRef = useRef(null);
   const [uploadingDevolucao, setUploadingDevolucao] = useState(false);
+  const [isDraggingDevolucao, setIsDraggingDevolucao] = useState(false);
 
   // --- Formas de pagamento COM comprovante inline ---
   const [formasPagamento, setFormasPagamento] = useState([
@@ -266,8 +300,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     toast.success('Cheque cadastrado! Adicione outro.');
   };
 
-  const handleUploadDevolucaoComprovante = async (e) => {
-    const file = e.target.files[0];
+  const processDevolucaoFile = async (file) => {
     if (!file) return;
     setUploadingDevolucao(true);
     try {
@@ -278,6 +311,26 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
       toast.error('Erro ao enviar comprovante');
     } finally {
       setUploadingDevolucao(false);
+    }
+  };
+
+  const handleUploadDevolucaoComprovante = (e) => processDevolucaoFile(e.target.files[0]);
+
+  const handleDevolucaoDragOver = (e) => {
+    e.preventDefault();
+    setIsDraggingDevolucao(true);
+  };
+
+  const handleDevolucaoDragLeave = (e) => {
+    e.preventDefault();
+    setIsDraggingDevolucao(false);
+  };
+
+  const handleDevolucaoDrop = (e) => {
+    e.preventDefault();
+    setIsDraggingDevolucao(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processDevolucaoFile(e.dataTransfer.files[0]);
     }
   };
 
@@ -596,7 +649,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Comprovante da Devolução</Label>
-                    <input ref={devolucaoComprovanteRef} type="file" accept="image/*,.pdf" onChange={handleUploadDevolucaoComprovante} className="hidden" />
+                    
                     {devolucaoComprovante ? (
                       <div className="flex items-center gap-2 p-2 bg-white border border-emerald-200 rounded-lg">
                         <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -604,10 +657,33 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
                         <Button type="button" size="icon" variant="ghost" onClick={() => setDevolucaoComprovante('')} className="h-6 w-6 text-red-500 hover:bg-red-50"><X className="w-3 h-3" /></Button>
                       </div>
                     ) : (
-                      <Button type="button" size="sm" variant="outline" disabled={uploadingDevolucao} onClick={() => devolucaoComprovanteRef.current?.click()} className="w-full h-8 text-xs gap-1.5 border-dashed">
-                        {uploadingDevolucao ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-                        {uploadingDevolucao ? 'Enviando...' : 'Anexar Comprovante'}
-                      </Button>
+                      <div
+                        className="relative rounded-lg"
+                        onDragOver={handleDevolucaoDragOver}
+                        onDragEnter={handleDevolucaoDragOver}
+                        onDragLeave={handleDevolucaoDragLeave}
+                        onDrop={handleDevolucaoDrop}
+                      >
+                        {isDraggingDevolucao && (
+                          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[2px] border-2 border-dashed border-emerald-500 rounded-lg">
+                            <span className="text-emerald-700 font-semibold text-xs flex items-center gap-2">
+                              <Upload className="w-4 h-4" /> Solte para anexar
+                            </span>
+                          </div>
+                        )}
+                        <input ref={devolucaoComprovanteRef} type="file" accept="image/*,.pdf" onChange={handleUploadDevolucaoComprovante} className="hidden" />
+                        <Button 
+                          type="button" 
+                          size="sm" 
+                          variant="outline" 
+                          disabled={uploadingDevolucao} 
+                          onClick={() => devolucaoComprovanteRef.current?.click()} 
+                          className={cn("w-full h-8 text-xs gap-1.5 border-dashed bg-white", isDraggingDevolucao ? "opacity-0" : "")}
+                        >
+                          {uploadingDevolucao ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                          {uploadingDevolucao ? 'Enviando...' : 'Anexar Comprovante'}
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </Card>
