@@ -326,15 +326,17 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
                   <Input id="razao_social" name="razao_social" value={form.razao_social} onChange={handleInputChange} className={inputClass} placeholder="Nome jurídico" />
                 </div>
                 
-                <div className="md:col-span-3 mt-2 p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2"><Factory className="w-5 h-5 text-slate-500" /><span className="font-semibold text-slate-700">Classificação Fiscal (ST)</span></div>
-                    <div className={cn("px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 border shadow-sm cursor-pointer select-none", form.tem_st ? "bg-red-100 text-red-700 border-red-200" : "bg-green-100 text-green-700 border-green-200")} onClick={() => setForm(prev => ({...prev, tem_st: !prev.tem_st}))}>
-                      {form.tem_st ? <><AlertCircle className="w-4 h-4" /> COM ST</> : <><CheckCircle className="w-4 h-4" /> SEM ST</>}
+                {!isClientMode && (
+                  <div className="md:col-span-3 mt-2 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2"><Factory className="w-5 h-5 text-slate-500" /><span className="font-semibold text-slate-700">Classificação Fiscal (ST)</span></div>
+                      <div className={cn("px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 border shadow-sm cursor-pointer select-none", form.tem_st ? "bg-red-100 text-red-700 border-red-200" : "bg-green-100 text-green-700 border-green-200")} onClick={() => setForm(prev => ({...prev, tem_st: !prev.tem_st}))}>
+                        {form.tem_st ? <><AlertCircle className="w-4 h-4" /> COM ST</> : <><CheckCircle className="w-4 h-4" /> SEM ST</>}
+                      </div>
                     </div>
+                    <Textarea value={form.cnaes_descricao} readOnly className="bg-white text-xs font-mono border-slate-200 h-20 resize-none" placeholder="CNAEs..." />
                   </div>
-                  <Textarea value={form.cnaes_descricao} readOnly className="bg-white text-xs font-mono border-slate-200 h-20 resize-none" placeholder="CNAEs..." />
-                </div>
+                )}
               </div>
             </AccordionContent>
           </AccordionItem>
