@@ -196,17 +196,19 @@ export default function RepresentanteForm({ representante, onSave, onCancel, isL
         </div>
       </Card>
 
-      <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
-        <div>
-          <Label htmlFor="bloqueado" className="font-medium">Bloquear Representante</Label>
-          <p className="text-sm text-slate-500">Impede o acesso ao portal</p>
+      {!isSelfEditMode && (
+        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+          <div>
+            <Label htmlFor="bloqueado" className="font-medium">Bloquear Representante</Label>
+            <p className="text-sm text-slate-500">Impede o acesso ao portal</p>
+          </div>
+          <Switch
+            id="bloqueado"
+            checked={form.bloqueado}
+            onCheckedChange={(checked) => setForm({ ...form, bloqueado: checked })}
+          />
         </div>
-        <Switch
-          id="bloqueado"
-          checked={form.bloqueado}
-          onCheckedChange={(checked) => setForm({ ...form, bloqueado: checked })}
-        />
-      </div>
+      )}
 
       <div className="flex justify-end gap-3 pt-4 border-t">
         <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading || isSaving}>
