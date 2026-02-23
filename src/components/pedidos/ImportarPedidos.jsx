@@ -78,7 +78,7 @@ function parseExcelFile(arrayBuffer, clientes, pedidosExistentes) {
       cliente_regiao: clienteCadastrado?.regiao || '',
       representante_codigo: clienteCadastrado?.representante_codigo || '',
       representante_nome: clienteCadastrado?.representante_nome || '',
-      numero_pedido: numeroPedido,
+      numero_pedido: formatarNumeroPedido(numeroPedido),
       valor_pedido: valorPedido,
       cliente_pendente: !clienteCadastrado,
       porcentagem_comissao: clienteCadastrado?.porcentagem_comissao || 5,
