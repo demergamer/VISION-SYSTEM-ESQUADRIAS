@@ -858,7 +858,7 @@ export default function Pedidos() {
                     <TabsTrigger value="trocas" className="rounded-full gap-2 px-4"><RepeatIcon className="w-4 h-4 text-amber-500"/> Trocas {stats.trocasCount > 0 && <span className="bg-amber-100 text-amber-700 px-2 rounded-full text-[10px]">{stats.trocasCount}</span>}</TabsTrigger>
                     <TabsTrigger value="autorizacoes" className="rounded-full gap-2 px-4"><Clock className="w-4 h-4 text-orange-500"/> Autorizações {stats.autorizacoesCount > 0 && <span className="bg-orange-100 text-orange-700 px-2 rounded-full text-[10px]">{stats.autorizacoesCount}</span>}</TabsTrigger>
                     <TabsTrigger value="liquidacoes" className="rounded-full gap-2 px-4"><CheckCircle className="w-4 h-4 text-emerald-500"/> Liquidações</TabsTrigger>
-                    <TabsTrigger value="cancelados" className="rounded-full gap-2 px-4"><XIcon className="w-4 h-4 text-slate-400"/> Cancelados</TabsTrigger>
+                    <TabsTrigger value="cancelados" className="hidden">Cancelados</TabsTrigger>
                     <TabsTrigger value="rotas" className="hidden">Rotas</TabsTrigger>
                 </TabsList>
 
