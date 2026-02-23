@@ -359,19 +359,35 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
           <AccordionItem value="contato" className="border rounded-xl bg-white px-4 shadow-sm">
             <AccordionTrigger className="hover:no-underline py-4"><div className="flex items-center gap-2 text-slate-800"><Phone className="w-5 h-5 text-amber-500" /><span className="font-semibold text-base">Contatos</span></div></AccordionTrigger>
             <AccordionContent className="pb-4 pt-2 space-y-4">
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                  <div className="space-y-1"><Label className={labelClass}>Telefone Principal</Label><Input name="telefone_1" value={form.telefone_1} onChange={handleInputChange} className={inputClass} placeholder="(00) 00000-0000" /></div>
-                  <div className="space-y-1"><Label className={labelClass}>Responsável 1</Label><Input name="responsavel_1" value={form.responsavel_1} onChange={handleInputChange} className={inputClass} /></div>
-               </div>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                  <div className="space-y-1"><Label className={labelClass}>Telefone 2</Label><Input name="telefone_2" value={form.telefone_2} onChange={handleInputChange} className={inputClass} placeholder="(00) 00000-0000" /></div>
-                  <div className="space-y-1"><Label className={labelClass}>Responsável 2</Label><Input name="responsavel_2" value={form.responsavel_2} onChange={handleInputChange} className={inputClass} /></div>
-               </div>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                  <div className="space-y-1"><Label className={labelClass}>Telefone 3</Label><Input name="telefone_3" value={form.telefone_3} onChange={handleInputChange} className={inputClass} placeholder="(00) 00000-0000" /></div>
-                  <div className="space-y-1"><Label className={labelClass}>Responsável 3</Label><Input name="responsavel_3" value={form.responsavel_3} onChange={handleInputChange} className={inputClass} /></div>
-               </div>
                <div className="space-y-1"><Label className={labelClass}>Email Geral</Label><Input name="email" value={form.email} onChange={handleInputChange} className={inputClass} /></div>
+               
+               {/* Contatos dinâmicos */}
+               <div className="space-y-3">
+                 <div className="flex items-center justify-between">
+                   <Label className={labelClass}>Lista de Contatos</Label>
+                   <Button type="button" size="sm" variant="outline" onClick={adicionarContato} className="h-8 text-xs gap-1">
+                     <Plus className="w-3.5 h-3.5" /> Adicionar Contato
+                   </Button>
+                 </div>
+                 {(form.contatos_lista || []).length === 0 && (
+                   <p className="text-xs text-slate-400 italic">Nenhum contato adicionado. Clique em "+ Adicionar Contato".</p>
+                 )}
+                 {(form.contatos_lista || []).map((contato, i) => (
+                   <div key={i} className="grid grid-cols-1 md:grid-cols-3 gap-2 bg-slate-50 p-3 rounded-lg border border-slate-100 relative">
+                     <div className="space-y-1"><Label className={labelClass}>Telefone</Label><Input value={contato.telefone} onChange={(e) => atualizarContato(i, 'telefone', formatTelefoneDinamico(e.target.value))} className={inputClass} placeholder="(00) 00000-0000" /></div>
+                     <div className="space-y-1"><Label className={labelClass}>Nome Responsável</Label><Input value={contato.nome_responsavel} onChange={(e) => atualizarContato(i, 'nome_responsavel', e.target.value)} className={inputClass} placeholder="Ex: João Silva" /></div>
+                     <div className="space-y-1 relative">
+                       <Label className={labelClass}>Setor</Label>
+                       <div className="flex gap-2">
+                         <Input value={contato.setor} onChange={(e) => atualizarContato(i, 'setor', e.target.value)} className={inputClass} placeholder="Ex: Financeiro" />
+                         <Button type="button" size="icon" variant="ghost" onClick={() => removerContato(i)} className="h-11 w-10 text-red-500 hover:bg-red-50 shrink-0">
+                           <Trash2 className="w-4 h-4" />
+                         </Button>
+                       </div>
+                     </div>
+                   </div>
+                 ))}
+               </div>
             </AccordionContent>
           </AccordionItem>
 
