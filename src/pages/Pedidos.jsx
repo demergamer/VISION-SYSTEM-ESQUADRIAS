@@ -43,6 +43,8 @@ import DividirRotaModal from "@/components/pedidos/DividirRotaModal";
 import AdicionarRepresentanteModal from "@/components/pedidos/AdicionarRepresentanteModal";
 import PermissionGuard from "@/components/PermissionGuard";
 import { usePermissions } from "@/components/hooks/usePermissions";
+import PaginacaoControles, { SeletorItensPorPagina } from "@/components/pedidos/PaginacaoControles";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // --- PAINEL DE FILTROS ---
 const FilterPanel = ({ filters, setFilters, onClear, isOpen }) => {
