@@ -155,6 +155,10 @@ export default function Pedidos() {
   // Configuração de Ordenação
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
 
+  // --- PAGINAÇÃO ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(30);
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [refreshingData, setRefreshingData] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState('Conectando...');
