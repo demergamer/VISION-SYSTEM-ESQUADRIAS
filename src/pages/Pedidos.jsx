@@ -381,16 +381,24 @@ export default function Pedidos() {
   const currentPedidos = processedPedidos.slice(indexOfFirst, indexOfFirst + itemsPerPage);
 
   const filteredBorderos = useMemo(() => {
-    let filtered = borderos;
-    if (searchTerm) {
-      filtered = filtered.filter(b =>
-        b.numero_bordero?.toString().includes(searchTerm) ||
-        b.cliente_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        b.liquidado_por?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    return filtered;
-  }, [borderos, searchTerm]);
+    if (!searchTerm) return borderos;
+    const lower = searchTerm.toLowerCase();
+    return borderos.filter(b => {
+      // Busca no próprio borderô
+      if (b.numero_bordero?.toString().includes(searchTerm)) return true;
+      if (b.cliente_nome?.toLowerCase().includes(lower)) return true;
+      if (b.liquidado_por?.toLowerCase().includes(lower)) return true;
+      // Busca profunda: verifica se algum número de pedido dentro do borderô bate
+      if (b.pedidos_ids && Array.isArray(b.pedidos_ids)) {
+        const pedidosDoBordero = pedidos.filter(p => b.pedidos_ids.includes(p.id));
+        if (pedidosDoBordero.some(p =>
+          p.numero_pedido?.toLowerCase().includes(lower) ||
+          p.cliente_nome?.toLowerCase().includes(lower)
+        )) return true;
+      }
+      return false;
+    });
+  }, [borderos, searchTerm, pedidos]);
 
   // Paginação de borderôs (independente)
   const totalPagesBorderos = Math.ceil(filteredBorderos.length / borderosPerPage);
