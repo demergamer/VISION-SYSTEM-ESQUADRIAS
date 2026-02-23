@@ -816,14 +816,16 @@ export default function Pedidos() {
             </div>
           </div>
 
-          {/* Widgets Grid Redesenhado */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-            <StatWidget title="Total a Receber" value={formatCurrency(stats.totalAReceber)} icon={DollarSign} color="blue" />
+          {/* Widgets Grid - 2 linhas */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <StatWidget title="Total a Receber" value={formatCurrency(stats.totalAReceber)} icon={DollarSign} color="blue" subtext="Excl. trocas/rep." />
             <StatWidget title="Em Atraso (+15d)" value={formatCurrency(stats.totalVencido)} icon={AlertCircle} color="red" subtext="Entregue e não pago" />
             <StatWidget title="Em Trânsito (Qtd)" value={stats.transitoCount} icon={Truck} color="yellow" />
             <StatWidget title="Valor em Trânsito" value={formatCurrency(stats.valorEmTransito)} icon={Truck} color="orange" />
             <StatWidget title="Abertos" value={stats.abertosCount} icon={FileText} color="purple" />
             <StatWidget title="Rotas Pendentes" value={stats.rotasAtivasCount} icon={Truck} color="slate" />
+            <StatWidget title="Trocas" value={stats.trocasCount} icon={RepeatIcon} color="yellow" />
+            <StatWidget title="Rep. Recebe" value={`${stats.repRecebeCount} · ${formatCurrency(stats.repRecebeValor)}`} icon={UserCheck} color="purple" />
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -832,6 +834,7 @@ export default function Pedidos() {
                     <TabsTrigger value="producao" className="rounded-full gap-2 px-4"><Factory className="w-4 h-4 text-slate-500"/> Em Produção</TabsTrigger>
                     <TabsTrigger value="transito" className="rounded-full gap-2 px-4"><Truck className="w-4 h-4 text-amber-500"/> Em Trânsito <span className="bg-amber-100 text-amber-700 px-2 rounded-full text-[10px]">{stats.transitoCount}</span></TabsTrigger>
                     <TabsTrigger value="abertos" className="rounded-full gap-2 px-4"><FileText className="w-4 h-4 text-blue-500"/> Abertos <span className="bg-blue-100 text-blue-700 px-2 rounded-full text-[10px]">{stats.abertosCount}</span></TabsTrigger>
+                    <TabsTrigger value="trocas" className="rounded-full gap-2 px-4"><RepeatIcon className="w-4 h-4 text-amber-500"/> Trocas {stats.trocasCount > 0 && <span className="bg-amber-100 text-amber-700 px-2 rounded-full text-[10px]">{stats.trocasCount}</span>}</TabsTrigger>
                     <TabsTrigger value="autorizacoes" className="rounded-full gap-2 px-4"><Clock className="w-4 h-4 text-orange-500"/> Autorizações {stats.autorizacoesCount > 0 && <span className="bg-orange-100 text-orange-700 px-2 rounded-full text-[10px]">{stats.autorizacoesCount}</span>}</TabsTrigger>
                     <TabsTrigger value="liquidacoes" className="rounded-full gap-2 px-4"><CheckCircle className="w-4 h-4 text-emerald-500"/> Liquidações</TabsTrigger>
                     <TabsTrigger value="cancelados" className="rounded-full gap-2 px-4"><XIcon className="w-4 h-4 text-slate-400"/> Cancelados</TabsTrigger>
@@ -866,10 +869,14 @@ export default function Pedidos() {
             {/* --- SUBNÍVEIS PARA ABA ABERTOS --- */}
             {activeTab === 'abertos' && (
                 <div className="flex justify-center md:justify-start animate-in fade-in slide-in-from-top-1">
-                    <div className="bg-white p-1 rounded-lg border border-slate-200 inline-flex shadow-sm">
+                    <div className="bg-white p-1 rounded-lg border border-slate-200 inline-flex shadow-sm flex-wrap gap-0.5">
                         <button onClick={() => setAbertosSubTab('todos')} className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-all", abertosSubTab === 'todos' ? "bg-blue-50 text-blue-700 shadow-sm" : "text-slate-600 hover:bg-slate-50")}>Todos</button>
                         <button onClick={() => setAbertosSubTab('em_dia')} className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-all", abertosSubTab === 'em_dia' ? "bg-emerald-50 text-emerald-700 shadow-sm" : "text-slate-600 hover:bg-slate-50")}>Em Dia</button>
                         <button onClick={() => setAbertosSubTab('atrasado')} className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-all", abertosSubTab === 'atrasado' ? "bg-red-50 text-red-700 shadow-sm" : "text-slate-600 hover:bg-slate-50")}>Em Atraso (+15 dias)</button>
+                        <div className="w-px h-6 bg-slate-200 mx-1 self-center" />
+                        <button onClick={() => setAbertosSubTab('representante_recebe')} className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-1.5", abertosSubTab === 'representante_recebe' ? "bg-purple-50 text-purple-700 shadow-sm" : "text-slate-600 hover:bg-slate-50")}>
+                            <UserCheck className="w-3.5 h-3.5" /> Rep. Recebe {stats.repRecebeCount > 0 && <span className="bg-purple-100 text-purple-700 px-1.5 rounded-full text-[10px]">{stats.repRecebeCount}</span>}
+                        </button>
                     </div>
                 </div>
             )}
