@@ -4,10 +4,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Upload, FileSpreadsheet, Loader2, X, Merge, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Upload, FileSpreadsheet, Loader2, X, Merge, Trash2, ChevronDown, ChevronUp, Plus, Link } from "lucide-react";
 import { base44 } from '@/api/base44Client';
 import { cn } from "@/lib/utils";
+import { useQuery } from '@tanstack/react-query';
 import * as XLSX from 'xlsx';
+
+// Formata número do pedido com pontos de milhar: 53000 -> 53.000
+function formatarNumeroPedido(num) {
+  if (!num) return num;
+  const str = String(num).trim().replace(/\./g, ''); // remove pontos existentes
+  const n = parseInt(str, 10);
+  if (isNaN(n)) return str;
+  return n.toLocaleString('pt-BR').replace(/,/g, '.');
+}
 
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
