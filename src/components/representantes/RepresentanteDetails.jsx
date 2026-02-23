@@ -48,16 +48,51 @@ export default function RepresentanteDetails({ representante, stats, onEdit, onC
     }).format(value || 0);
   };
 
-  const repStats = stats || {
-    totalClientes: 0,
-    clientesAtivos: 0,
-    clientesInativos: 0,
-    clientesEmAtraso: 0,
-    debitosEmDia: 0,
-    debitosAtrasados: 0,
-    vendas30k: false,
-    ativo: false,
-    devedor: false
+  const safeStats = stats || {};
+  const totalClientes = safeStats.totalClientes ?? 0;
+
+  // Calcula métricas a partir dos arrays se disponíveis, com fallback para os valores do stats
+  const clientes = safeStats.clientes || [];
+  const pedidos = safeStats.pedidos || [];
+
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+
+  const clientesComPedidosAbertos = new Set(
+    pedidos.filter(p => ['aberto', 'parcial'].includes(p.status)).map(p => p.cliente_codigo)
+  );
+  const clientesEmAtraso = clientes.length > 0
+    ? clientes.filter(c => {
+        const pedidosCliente = pedidos.filter(p => p.cliente_codigo === c.codigo && ['aberto', 'parcial'].includes(p.status));
+        return pedidosCliente.some(p => {
+          if (!p.data_entrega) return false;
+          const diff = (hoje - new Date(p.data_entrega)) / (1000 * 60 * 60 * 24);
+          return diff > 15;
+        });
+      }).length
+    : (safeStats.clientesEmAtraso ?? 0);
+
+  const clientesAtivos = clientes.length > 0
+    ? clientes.filter(c => clientesComPedidosAbertos.has(c.codigo)).length
+    : (safeStats.clientesAtivos ?? 0);
+
+  const clientesInativos = clientes.length > 0
+    ? clientes.filter(c => !clientesComPedidosAbertos.has(c.codigo)).length
+    : (safeStats.clientesInativos ?? 0);
+
+  const debitosEmDia = safeStats.debitosEmDia ?? 0;
+  const debitosAtrasados = safeStats.debitosAtrasados ?? 0;
+
+  const repStats = {
+    totalClientes,
+    clientesAtivos,
+    clientesInativos,
+    clientesEmAtraso,
+    debitosEmDia,
+    debitosAtrasados,
+    vendas30k: safeStats.vendas30k ?? false,
+    ativo: safeStats.ativo ?? false,
+    devedor: safeStats.devedor ?? false,
   };
 
   return (
