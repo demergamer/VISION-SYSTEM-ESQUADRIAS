@@ -194,13 +194,23 @@ export default function PortalCliente() {
         
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">Olá, <span className="text-blue-600">{clienteData.nome}</span></h1>
-            <p className="text-slate-500 text-lg">Bem-vindo ao seu portal financeiro</p>
+          <div className="flex items-center gap-4">
+            {clienteData.logo_url && (
+              <img src={clienteData.logo_url} alt="Logo" className="w-14 h-14 rounded-2xl object-cover border border-slate-200 shadow-sm" />
+            )}
+            <div className="space-y-1">
+              <h1 className="text-3xl font-bold tracking-tight text-slate-900">Olá, <span className="text-blue-600">{clienteData.nome}</span></h1>
+              <p className="text-slate-500 text-lg">Bem-vindo ao seu portal financeiro</p>
+            </div>
           </div>
-          <div className="text-right hidden md:block">
-            <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Última atualização</p>
-            <p className="text-sm text-slate-600">{format(new Date(), "dd 'de' MMMM, HH:mm")}</p>
+          <div className="flex items-center gap-4">
+            <Button variant="outline" size="sm" onClick={() => setShowEditModal(true)} className="gap-2 border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-200">
+              <Edit className="w-4 h-4" /> Editar Cadastro
+            </Button>
+            <div className="text-right hidden md:block">
+              <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Última atualização</p>
+              <p className="text-sm text-slate-600">{format(new Date(), "dd 'de' MMMM, HH:mm")}</p>
+            </div>
           </div>
         </div>
 
