@@ -121,7 +121,9 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
         tem_st: cliente.tem_st ?? false,
         formas_pagamento: Array.from(new Set([...(cliente.formas_pagamento || []), 'PIX', 'Dinheiro', 'Cartão'])),
         permite_cobranca_posterior: cliente.permite_cobranca_posterior || 'nao',
-        dia_cobranca: cliente.dia_cobranca || ''
+        dia_cobranca: cliente.dia_cobranca || '',
+        contatos_lista: cliente.contatos_lista || [],
+        logo_url: cliente.logo_url || null
       }));
     }
   }, [cliente, representantes]);
