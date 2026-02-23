@@ -4,15 +4,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
-  Truck, CheckCircle2, Clock, AlertCircle, ChevronRight, User, Calendar, RefreshCw, Search, Split
+  Truck, CheckCircle2, Clock, AlertCircle, ChevronRight, User, Calendar, RefreshCw, Search, Split, ChevronLeft
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
 export default function RotasList({ rotas, onSelectRota, onAlterarPortador, onDividirRota, isLoading }) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [subTab, setSubTab] = useState('todos'); // todos, pendente, parcial, concluida
+  const [subTab, setSubTab] = useState('todos');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
   const safeFormatDate = (date) => { try { return date ? format(new Date(date), 'dd/MM/yyyy') : '-'; } catch { return '-'; } };
@@ -50,6 +53,9 @@ export default function RotasList({ rotas, onSelectRota, onAlterarPortador, onDi
     }
   };
 
+  const totalPages = Math.ceil(filteredRotas.length / itemsPerPage);
+  const paginatedRotas = filteredRotas.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   if (isLoading) return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>;
 
   return (
@@ -57,21 +63,31 @@ export default function RotasList({ rotas, onSelectRota, onAlterarPortador, onDi
       <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input placeholder="Buscar rota..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 bg-white" />
+            <Input placeholder="Buscar rota..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }} className="pl-10 bg-white" />
           </div>
           
-          <Tabs value={subTab} onValueChange={setSubTab} className="w-full md:w-auto">
-            <TabsList className="bg-slate-200/50">
-                <TabsTrigger value="todos">Todas</TabsTrigger>
-                <TabsTrigger value="pendente">Pendentes</TabsTrigger>
-                <TabsTrigger value="parcial">Parciais</TabsTrigger>
-                <TabsTrigger value="concluida">Concluídas</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <Tabs value={subTab} onValueChange={(v) => { setSubTab(v); setCurrentPage(1); }}>
+              <TabsList className="bg-slate-200/50">
+                  <TabsTrigger value="todos">Todas ({rotas.length})</TabsTrigger>
+                  <TabsTrigger value="pendente">Pendentes</TabsTrigger>
+                  <TabsTrigger value="parcial">Parciais</TabsTrigger>
+                  <TabsTrigger value="concluida">Concluídas</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <Select value={String(itemsPerPage)} onValueChange={(v) => { setItemsPerPage(Number(v)); setCurrentPage(1); }}>
+              <SelectTrigger className="h-9 w-24 bg-white"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">5</SelectItem>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="30">30</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
       </div>
 
       <div className="space-y-3">
-        {filteredRotas.length > 0 ? filteredRotas.map((rota) => {
+        {paginatedRotas.length > 0 ? paginatedRotas.map((rota) => {
           const status = getStatus(rota);
           const config = getStatusConfig(status);
           const StatusIcon = config.icon;
@@ -130,6 +146,30 @@ export default function RotasList({ rotas, onSelectRota, onAlterarPortador, onDi
             </div>
         )}
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-2">
+          <p className="text-xs text-slate-500">
+            Mostrando {Math.min((currentPage - 1) * itemsPerPage + 1, filteredRotas.length)}–{Math.min(currentPage * itemsPerPage, filteredRotas.length)} de {filteredRotas.length}
+          </p>
+          <div className="flex gap-1">
+            <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1).map((p, idx, arr) => (
+              <React.Fragment key={p}>
+                {idx > 0 && arr[idx - 1] !== p - 1 && <span className="px-2 text-slate-400 self-center">…</span>}
+                <Button variant={p === currentPage ? "default" : "outline"} size="sm" onClick={() => setCurrentPage(p)} className={p === currentPage ? "bg-blue-600 text-white" : ""}>
+                  {p}
+                </Button>
+              </React.Fragment>
+            ))}
+            <Button variant="outline" size="sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
