@@ -307,8 +307,10 @@ function LayoutInner({ children, currentPageName }) {
           <span className="font-bold text-lg text-slate-800">J&C Gestão</span>
         </div>
         <Avatar className="h-8 w-8">
-            <AvatarImage src={user?.photoURL} />
-            <AvatarFallback className="bg-blue-600 text-white text-xs">{user?.email?.substring(0,2)}</AvatarFallback>
+            <AvatarImage src={user?.avatar_url || user?.photoURL} className="object-cover" />
+            <AvatarFallback className="bg-blue-600 text-white text-xs">
+              {(user?.preferred_name || user?.full_name || user?.email || 'U').split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase()}
+            </AvatarFallback>
         </Avatar>
       </div>
 
