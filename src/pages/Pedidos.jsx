@@ -822,8 +822,7 @@ export default function Pedidos() {
                     <TabsTrigger value="autorizacoes" className="rounded-full gap-2 px-4"><Clock className="w-4 h-4 text-orange-500"/> Autorizações {stats.autorizacoesCount > 0 && <span className="bg-orange-100 text-orange-700 px-2 rounded-full text-[10px]">{stats.autorizacoesCount}</span>}</TabsTrigger>
                     <TabsTrigger value="liquidacoes" className="rounded-full gap-2 px-4"><CheckCircle className="w-4 h-4 text-emerald-500"/> Liquidações</TabsTrigger>
                     <TabsTrigger value="cancelados" className="rounded-full gap-2 px-4"><XIcon className="w-4 h-4 text-slate-400"/> Cancelados</TabsTrigger>
-                    <div className="w-px h-6 bg-slate-300 mx-1 hidden sm:block" />
-                    <TabsTrigger value="rotas" className="rounded-full gap-2 px-4"><Truck className="w-4 h-4 text-purple-500"/> Rotas</TabsTrigger>
+                    <TabsTrigger value="rotas" className="hidden">Rotas</TabsTrigger>
                 </TabsList>
 
                 {/* Toolbar */}
