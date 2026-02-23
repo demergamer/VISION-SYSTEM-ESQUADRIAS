@@ -121,13 +121,7 @@ export default function Dashboard() {
     return "Boa noite";
   };
 
-  const handleLogout = () => {
-    if (logout) {
-      logout();
-    } else {
-      console.warn("Função de logout não encontrada no useAuth.");
-    }
-  };
+  const handleLogout = () => signOut();
 
   const menuGroups = [
     {
