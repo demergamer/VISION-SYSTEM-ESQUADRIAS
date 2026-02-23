@@ -903,7 +903,7 @@ export default function Pedidos() {
 
             <TabsContent value="transito">
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {currentPedidos.length > 0 ? currentPedidos.map(p => (  {/* currentPedidos = paginado */}
+                    {currentPedidos.length > 0 ? currentPedidos.map(p => (
                         <div key={p.id} className={cn(
                             "border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col gap-3",
                             p.cliente_pendente ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200"
