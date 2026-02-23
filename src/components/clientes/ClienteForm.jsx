@@ -57,10 +57,10 @@ function FormasPagamentoSelector({ formasSelecionadas, onChange }) {
   );
 }
 
-export default function ClienteForm({ cliente, representantes = [], todosClientes = [], onSave, onCancel, isLoading, onSuccess }) {
+export default function ClienteForm({ cliente, representantes = [], todosClientes = [], onSave, onCancel, isLoading, onSuccess, isClientMode = false }) {
   const [form, setForm] = useState({
     codigo: '',
-    nome: '', // Apelido
+    nome: '',
     razao_social: '', 
     nome_fantasia: '', 
     cnpj: '',
@@ -71,6 +71,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     telefone_1: '', responsavel_1: '',
     telefone_2: '', responsavel_2: '',
     telefone_3: '', responsavel_3: '',
+    contatos_lista: [],
     email: '',
     score: '',
     data_consulta: '',
@@ -88,7 +89,8 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     formas_pagamento: ['PIX', 'Dinheiro', 'Cartão'], 
     permite_cobranca_posterior: 'nao', 
     dia_cobranca: '',
-    serasa_file_url: null
+    serasa_file_url: null,
+    logo_url: null
   });
 
   const [errors, setErrors] = useState({});
