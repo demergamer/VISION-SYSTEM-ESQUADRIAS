@@ -21,14 +21,20 @@ import {
 } from '@/components/utils/permissions';
 
 export default function UsuarioForm({ user, currentUser, onSave, onCancel, isLoading }) {
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef(null);
+
   const [form, setForm] = useState({
     full_name: '',
     setor: '',
-    role: 'user', // Agora podemos editar o perfil
-    permissoes: criarPermissoesDefault()
+    role: 'user',
+    permissoes: criarPermissoesDefault(),
+    // metadados
+    avatar_url: '',
+    preferred_name: '',
+    phone: '',
   });
 
-  // Verifica se o usuário sendo editado é o mesmo que está logado
   const isSelf = currentUser && user && currentUser.id === user.id;
 
   useEffect(() => {
@@ -37,20 +43,41 @@ export default function UsuarioForm({ user, currentUser, onSave, onCancel, isLoa
         full_name: user.full_name || '',
         setor: user.setor || '',
         role: user.role || 'user',
-        // Garante que novas permissões criadas no arquivo de config apareçam aqui
-        permissoes: { ...criarPermissoesDefault(), ...(user.permissoes || {}) }
+        permissoes: { ...criarPermissoesDefault(), ...(user.permissoes || {}) },
+        avatar_url: user.avatar_url || '',
+        preferred_name: user.preferred_name || '',
+        phone: user.phone || '',
       });
     }
   }, [user]);
 
-  const handleSave = () => {
-    // Proteção: Não deixar o próprio usuário remover seu status de Admin
-    if (isSelf && user.role === 'admin' && form.role !== 'admin') {
-        toast.error("Segurança: Você não pode remover seu próprio acesso de Administrador.");
-        return;
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingAvatar(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setForm(prev => ({ ...prev, avatar_url: file_url }));
+      toast.success('Foto carregada!');
+    } catch {
+      toast.error('Erro ao fazer upload.');
+    } finally {
+      setIsUploadingAvatar(false);
     }
-    onSave(form);
   };
+
+  const handleSave = () => {
+    if (isSelf && user.role === 'admin' && form.role !== 'admin') {
+      toast.error("Segurança: Você não pode remover seu próprio acesso de Administrador.");
+      return;
+    }
+    // Separa metadados dos campos básicos
+    const { avatar_url, preferred_name, phone, ...basicData } = form;
+    onSave({ ...basicData, avatar_url, preferred_name, phone });
+  };
+
+  const initials = (form.preferred_name || form.full_name || user?.email || 'U')
+    .split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
 
   const updatePermissao = (modulo, permissao, valor) => {
     // Aviso visual se tentar remover permissão crítica de si mesmo
