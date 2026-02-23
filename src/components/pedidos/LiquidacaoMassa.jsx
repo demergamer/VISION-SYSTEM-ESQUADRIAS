@@ -758,6 +758,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
                       comprovante={fp.comprovante}
                       onUpload={(url) => setComprovanteForma(index, url)}
                       onRemove={() => setComprovanteForma(index, '')}
+                      uploading={uploadingFormaIndex === index}
                     />
                   </div>
                 </Card>
