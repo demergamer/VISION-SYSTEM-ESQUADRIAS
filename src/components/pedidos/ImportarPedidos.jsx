@@ -457,7 +457,7 @@ export default function ImportarPedidos({ clientes, pedidosExistentes = [], onIm
 
       <div className="flex justify-end gap-3 pt-4 border-t">
         <Button variant="outline" onClick={onCancel} disabled={loading}>Cancelar</Button>
-        <Button onClick={handleImport} disabled={loading || totalNovos === 0 || arquivos.some(a => !a.codigo_rota)}>
+        <Button onClick={handleImport} disabled={loading || totalNovos === 0 || arquivos.some(a => a.modo_rota === 'existente' ? !a.rota_existente_id : !a.codigo_rota)}>
           {loading ? <Loader2 className="animate-spin mr-2 w-4 h-4" /> : <Upload className="mr-2 w-4 h-4" />}
           Importar {totalNovos} Pedidos em {arquivos.length} Rota(s)
         </Button>
