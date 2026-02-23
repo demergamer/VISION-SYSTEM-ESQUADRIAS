@@ -1,14 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { 
   AlertCircle, FileText, CreditCard, TrendingDown, CheckCircle, 
   XCircle, Clock, DollarSign, Search, Eye, Filter, ChevronDown, ChevronUp, ArrowRight,
-  Package, Truck, Lock, Send, Factory, Calendar
+  Package, Truck, Lock, Send, Factory, Calendar, Edit
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import ClienteForm from "@/components/clientes/ClienteForm";
+import { toast } from "sonner";
 import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import ModalContainer from "@/components/modals/ModalContainer";
