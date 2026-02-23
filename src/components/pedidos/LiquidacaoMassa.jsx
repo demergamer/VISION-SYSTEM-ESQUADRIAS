@@ -96,6 +96,9 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
   const [sinaisInjetados, setSinaisInjetados] = useState([]);
   const [draggingIndex, setDraggingIndex] = useState(null);
   const [uploadingFormaIndex, setUploadingFormaIndex] = useState(null);
+  const [isGlobalDragging, setIsGlobalDragging] = useState(false);
+  const [isProcessingGlobalDrop, setIsProcessingGlobalDrop] = useState(false);
+  const globalDragCounter = useRef(0);
 
   // --- Pop-up de crédito excedente ---
   const [showCreditoModal, setShowCreditoModal] = useState(false);
