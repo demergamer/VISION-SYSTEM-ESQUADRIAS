@@ -278,30 +278,55 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
 
         <div className="space-y-2">
             <Label htmlFor="rota_entrega">Rota de Entrega</Label>
-            <div className="relative">
-                <Truck className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input 
-                    id="rota_entrega" 
-                    value={form.rota_entrega} 
-                    onChange={(e) => setForm({ ...form, rota_entrega: e.target.value })} 
-                    placeholder="Ex: Zona Norte" 
-                    className={cn(inputClass, "pl-9")} 
-                />
-            </div>
+            <Select
+                value={form.rota_entrega}
+                onValueChange={(val) => {
+                    const rotaInfo = rotasUnicas.find(r => r.rota_entrega === val);
+                    setForm(prev => ({
+                        ...prev,
+                        rota_entrega: val,
+                        motorista_atual: rotaInfo?.motorista_atual || '',
+                        motorista_codigo: rotaInfo?.motorista_codigo || ''
+                    }));
+                }}
+            >
+                <SelectTrigger className={cn(inputClass, "w-full")}>
+                    <div className="flex items-center gap-2">
+                        <Truck className="h-4 w-4 text-slate-400 shrink-0" />
+                        <SelectValue placeholder="Selecione uma rota existente" />
+                    </div>
+                </SelectTrigger>
+                <SelectContent>
+                    {rotasUnicas.length === 0 
+                        ? <div className="py-4 text-center text-sm text-slate-400">Nenhuma rota cadastrada ainda</div>
+                        : rotasUnicas.map(r => (
+                            <SelectItem key={r.rota_entrega} value={r.rota_entrega}>
+                                <div className="flex flex-col text-left">
+                                    <span className="font-semibold">{r.rota_entrega}</span>
+                                    {r.motorista_atual && <span className="text-xs text-slate-400">Motorista: {r.motorista_atual}</span>}
+                                </div>
+                            </SelectItem>
+                        ))
+                    }
+                </SelectContent>
+            </Select>
         </div>
 
-        {/* --- MOTORISTA (AGORA COM CÓDIGO E NOME) --- */}
+        {/* --- MOTORISTA (AUTO-FILL BASEADO NA ROTA) --- */}
         <div className="space-y-2 md:col-span-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
-            <Label className="mb-2 block text-slate-600 font-semibold">Dados Logísticos (Motorista)</Label>
+            <Label className="mb-2 block text-slate-600 font-semibold flex items-center gap-2">
+                Dados Logísticos (Motorista)
+                {form.rota_entrega && <Lock className="w-3.5 h-3.5 text-amber-500" />}
+            </Label>
             <div className="grid grid-cols-3 gap-4">
                 <div className="col-span-1">
                     <Label htmlFor="motorista_codigo" className="text-xs text-slate-400">Cód. Motorista</Label>
                     <Input 
                         id="motorista_codigo" 
                         value={form.motorista_codigo} 
-                        onChange={(e) => setForm({ ...form, motorista_codigo: e.target.value })} 
+                        readOnly={!!form.rota_entrega}
                         placeholder="000" 
-                        className={inputClass} 
+                        className={cn(inputClass, form.rota_entrega && "bg-slate-100 cursor-not-allowed opacity-70")} 
                     />
                 </div>
                 <div className="col-span-2">
@@ -311,13 +336,18 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
                         <Input 
                             id="motorista_atual" 
                             value={form.motorista_atual} 
-                            onChange={(e) => setForm({ ...form, motorista_atual: e.target.value })} 
+                            readOnly={!!form.rota_entrega}
                             placeholder="Nome do motorista responsável" 
-                            className={cn(inputClass, "pl-9")} 
+                            className={cn(inputClass, "pl-9", form.rota_entrega && "bg-slate-100 cursor-not-allowed opacity-70")} 
                         />
                     </div>
                 </div>
             </div>
+            {form.rota_entrega && (
+                <p className="text-xs text-amber-600 flex items-center gap-1">
+                    <Lock className="w-3 h-3" /> Motorista preenchido automaticamente pela rota selecionada
+                </p>
+            )}
         </div>
 
         <div className="space-y-2">
