@@ -173,6 +173,9 @@ export default function Configuracoes() {
           </Button>
         </div>
 
+        {/* ── 🖼️ Fundo do Dashboard ── */}
+        <DashboardFundoSection prefs={prefs} set={set} />
+
         {/* ── 🎨 Aparência ── */}
         <SectionCard title="Aparência" icon={Sun} iconColor="text-amber-600" iconBg="bg-amber-50">
           <div className="space-y-2">
