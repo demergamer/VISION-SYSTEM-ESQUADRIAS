@@ -56,6 +56,7 @@ const menuStructure = [
       { name: "Fornecedores", icon: Briefcase },
       { name: "Representantes", icon: Users },
       { name: "Motoristas", icon: Truck },
+      { name: "Calendario", icon: CalendarIcon },
       { name: "FormasPagamento", icon: CreditCard },
       { name: "Usuarios", icon: Users },
     ]
