@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import {
   FileText, ArrowLeft, Filter, Upload, Truck, Clock, CheckCircle, XCircle,
   MoreHorizontal, LayoutGrid, List, MapPin, Calendar, Edit, Eye, RotateCcw,
   SlidersHorizontal, X as XIcon, Loader2, Factory, Split, UserPlus, AlertCircle,
-  RepeatIcon, UserCheck
+  RepeatIcon, UserCheck, GitMerge
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -42,6 +42,7 @@ import BorderoDetails from "@/components/pedidos/BorderoDetails";
 import AprovarLiquidacaoModal from "@/components/pedidos/AprovarLiquidacaoModal";
 import DividirRotaModal from "@/components/pedidos/DividirRotaModal";
 import AdicionarRepresentanteModal from "@/components/pedidos/AdicionarRepresentanteModal";
+import MesclarNFModal from "@/components/pedidos/MesclarNFModal";
 import PermissionGuard from "@/components/PermissionGuard";
 import { usePermissions } from "@/components/hooks/usePermissions";
 import PaginacaoControles, { SeletorItensPorPagina } from "@/components/pedidos/PaginacaoControles";
