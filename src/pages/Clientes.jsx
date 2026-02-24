@@ -25,6 +25,7 @@ import { createPageUrl } from "@/utils";
 import { toast } from "sonner";
 
 import StatCard from "@/components/dashboard/StatCard";
+import PaginacaoTabela from "@/components/ui/PaginacaoTabela";
 import ModalContainer from "@/components/modals/ModalContainer";
 import ClienteForm from "@/components/clientes/ClienteForm";
 import ClienteTable from "@/components/clientes/ClienteTable";

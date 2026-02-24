@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/accordion";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import ChequesPendentesModal from "./ChequesPendentesModal";
 
 export default function ClienteDetails({ cliente, stats, creditos, onEdit, onClose, onViewPedidos, onLogoUpdate }) {
   const [logoUrl, setLogoUrl] = useState(cliente.logo_url || null);

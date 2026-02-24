@@ -15,6 +15,7 @@ import PermissionGuard from "@/components/PermissionGuard";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import ProdutoForm from "@/components/produtos/ProdutoForm";
 import ProdutoCard from "@/components/produtos/ProdutoCard";
+import PaginacaoTabela from "@/components/ui/PaginacaoTabela";
 
 const CATEGORIAS = ["Todas", "Porta", "Janela", "Servico", "Reembalar", "Acessorio"];
 const CAT_LABELS = { Porta: "Porta", Janela: "Janela", Servico: "Serviço", Reembalar: "Reembalar", Acessorio: "Acessório" };

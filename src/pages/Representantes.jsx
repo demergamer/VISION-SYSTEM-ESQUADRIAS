@@ -25,6 +25,7 @@ import RepresentanteTable from "@/components/representantes/RepresentanteTable";
 import RepresentanteDetails from "@/components/representantes/RepresentanteDetails";
 import PermissionGuard from "@/components/PermissionGuard";
 import { usePermissions } from "@/components/hooks/usePermissions";
+import PaginacaoTabela from "@/components/ui/PaginacaoTabela";
 
 // --- WIDGET ESTILO IOS ---
 const IOSWidget = ({ title, value, subtitle, icon: Icon, colorClass }) => (

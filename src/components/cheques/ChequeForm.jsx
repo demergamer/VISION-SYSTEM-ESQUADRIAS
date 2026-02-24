@@ -12,18 +12,21 @@ import { useQuery } from '@tanstack/react-query';
 import { cn } from "@/lib/utils";
 
 const BANCOS = [
-  { codigo: '001', nome: 'Banco do Brasil' },
-  { codigo: '341', nome: 'Itaú' },
-  { codigo: '237', nome: 'Bradesco' },
-  { codigo: '033', nome: 'Santander' },
+  { codigo: '001', nome: 'Banco do Brasil S.A.' },
   { codigo: '104', nome: 'Caixa Econômica Federal' },
-  { codigo: '756', nome: 'Sicoob' },
-  { codigo: '748', nome: 'Sicredi' },
-  { codigo: '077', nome: 'Banco Inter' },
-  { codigo: '260', nome: 'Nu Pagamentos (Nubank)' },
-  { codigo: '380', nome: 'PicPay' },
-  { codigo: '290', nome: 'PagSeguro' },
-  { codigo: '336', nome: 'Banco C6' },
+  { codigo: '237', nome: 'Banco Bradesco S.A.' },
+  { codigo: '341', nome: 'Itaú Unibanco S.A.' },
+  { codigo: '033', nome: 'Banco Santander (Brasil) S.A.' },
+  { codigo: '748', nome: 'Banco Cooperativo Sicredi S.A.' },
+  { codigo: '756', nome: 'Banco Cooperativo do Brasil S.A. (Sicoob)' },
+  { codigo: '353', nome: 'Banco Santander (Brasil) S.A. (Antigo Banco Real)' },
+  { codigo: '077', nome: 'Banco Inter S.A.' },
+  { codigo: '074', nome: 'Banco J. Safra S.A.' },
+  { codigo: '707', nome: 'Banco Daycoval S.A.' },
+  { codigo: '041', nome: 'Banrisul' },
+  { codigo: '021', nome: 'Banestes' },
+  { codigo: '070', nome: 'BRB - Banco de Brasília S.A.' },
+  { codigo: '389', nome: 'Banco Mercantil do Brasil S.A.' },
 ];
 
 function BancoCombobox({ value, onChange }) {
