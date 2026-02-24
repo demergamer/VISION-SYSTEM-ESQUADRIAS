@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { 
   Users, Package, ShoppingCart, Wallet, FileText, BarChart3, 
   Briefcase, Banknote, ScrollText, CreditCard, ShieldCheck, 
-  Calendar as CalendarIcon, Settings2, ShieldAlert, LogOut, User as UserIcon
+  Calendar as CalendarIcon, Settings2, ShieldAlert, LogOut, User as UserIcon,
+  Building2
 } from "lucide-react";
 import { useAuth } from '@/components/providers/AuthContext';
 import { usePermissions } from "@/components/hooks/usePermissions";
