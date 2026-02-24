@@ -245,9 +245,17 @@ export default function Dashboard() {
     }
   ];
 
+  const tipofundo = preferences?.dash_tipo_fundo || 'padrao';
+
   return (
     <div className="relative min-h-screen overflow-hidden">
-      <PS2Background theme="light" /> 
+      {tipofundo === 'padrao' && <PS2Background theme="light" />}
+      {tipofundo !== 'padrao' && (
+        <DashboardBackground
+          tipofundo={tipofundo}
+          valorfundo={tipofundo === 'cor' ? (preferences?.dash_cor_fundo || '#0f172a') : (preferences?.dash_imagens_fundo || [])}
+        />
+      )}
 
       <div className="relative z-10 p-6 md:p-8 max-w-[1800px] mx-auto animate-in fade-in zoom-in-95 duration-700">
         
