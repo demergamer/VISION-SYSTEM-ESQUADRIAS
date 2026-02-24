@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 // Componentes Internos
+import PinGateway from "@/components/portais/PinGateway";
 import ModalContainer from "@/components/modals/ModalContainer";
 import SolicitarNovoCliente from "@/components/portais/representante/SolicitarNovoCliente";
 import LiquidacaoSelfService from "@/components/portais/cliente/LiquidacaoSelfService";
