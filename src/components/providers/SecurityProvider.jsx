@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from './AuthContext';
+import { base44 } from '@/api/base44Client';
 import OnboardingModal from '@/components/admin/OnboardingModal';
 import LockScreen from '@/components/admin/LockScreen';
 import { Button } from '@/components/ui/button';
