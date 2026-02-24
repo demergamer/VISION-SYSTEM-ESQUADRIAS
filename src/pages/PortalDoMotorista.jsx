@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,8 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Truck, Package, MapPin, Calendar, DollarSign, Loader2, LogOut, ChevronRight } from "lucide-react";
-import { format, startOfMonth, endOfMonth } from "date-fns";
+import { Input } from "@/components/ui/input";
+import { Truck, Package, MapPin, Calendar, Loader2, LogOut, Search, Shield, Unlock, AlertCircle, ChevronRight, CheckCircle2, Lock } from "lucide-react";
+import { format, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 const formatCurrency = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
