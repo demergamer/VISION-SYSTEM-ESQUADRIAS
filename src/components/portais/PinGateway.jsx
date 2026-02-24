@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Search, Shield, Unlock, AlertCircle, Loader2, ChevronLeft, Lock, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import OnboardingModalStandalone from '@/components/admin/OnboardingModalStandalone';
 
 async function hashPin(pin) {
   const encoder = new TextEncoder();
