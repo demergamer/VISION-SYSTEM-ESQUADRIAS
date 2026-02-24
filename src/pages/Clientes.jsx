@@ -420,6 +420,7 @@ export default function ClientesPage() {
                 cliente={selectedCliente}
                 stats={clienteStats[selectedCliente.codigo]}
                 creditos={creditos.filter(c => c.cliente_codigo === selectedCliente.codigo)}
+                cheques={cheques.filter(c => c.cliente_codigo === selectedCliente.codigo)}
                 onEdit={() => { setShowDetailsModal(false); setShowEditModal(true); }}
                 onClose={() => { setShowDetailsModal(false); setSelectedCliente(null); }}
                 onViewPedidos={() => handleViewPedidos(selectedCliente)}
