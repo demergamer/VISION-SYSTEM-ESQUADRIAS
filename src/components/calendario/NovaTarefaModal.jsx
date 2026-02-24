@@ -14,6 +14,8 @@ export default function NovaTarefaModal({ open, onClose, onCriar, usuarios, user
     titulo: '',
     descricao: '',
     data_vencimento: '',
+    hora: '',
+    aviso_antecedencia: 'na_hora',
     tipo_evento: 'tarefa',
     escopo: 'geral',
     dono_id: '',
