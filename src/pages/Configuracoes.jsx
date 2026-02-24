@@ -18,11 +18,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
+import { Input } from '@/components/ui/input';
 import {
   Sun, Moon, Monitor, AlignJustify, AlignLeft,
   Globe, Eye, EyeOff, Trash2, Save, Loader2,
   Settings, Bell, BellOff, BellRing, Home,
-  ShoppingCart, DollarSign, ChevronRight
+  ShoppingCart, DollarSign, ChevronRight, Image, Palette, Upload, X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
