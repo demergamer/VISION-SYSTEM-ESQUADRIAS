@@ -131,6 +131,7 @@ function NotificationBell({ userEmail }) {
 
 function LayoutInner({ children, currentPageName }) {
   const { user, signOut } = useAuth();
+  const { lockScreen } = useSecurity();
   const { canDo } = usePermissions();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
