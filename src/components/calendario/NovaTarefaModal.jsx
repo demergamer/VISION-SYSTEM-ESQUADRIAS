@@ -45,7 +45,7 @@ export default function NovaTarefaModal({ open, onClose, onCriar, usuarios, user
       regra_recorrencia: form.regra_recorrencia || null,
       recorrencia_ativa: true,
     });
-    setForm({ titulo: '', descricao: '', data_vencimento: '', tipo_evento: 'tarefa', escopo: 'geral', dono_id: '', dono_nome: '', regra_recorrencia: '' });
+    setForm({ titulo: '', descricao: '', data_vencimento: '', hora: '', aviso_antecedencia: 'na_hora', tipo_evento: 'tarefa', escopo: 'geral', dono_id: '', dono_nome: '', regra_recorrencia: '' });
   };
 
   const isDelegando = form.escopo === 'individual' && form.dono_id && form.dono_id !== userAtual?.email;
