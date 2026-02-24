@@ -222,6 +222,62 @@ export default function Pedidos() {
     } 
   });
 
+  // --- DEBOUNCE DA BUSCA ---
+  const handleSearchChange = (e) => {
+    const val = e.target.value;
+    setSearchTerm(val);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setDebouncedSearch(val), 800);
+  };
+
+  // --- MESCLAR NF ---
+  const handleMesclarNF = async (pedidosSelecionados, valorTotal) => {
+    setIsProcessing(true);
+    try {
+      const user = await base44.auth.me();
+      const todosPedidos = await base44.entities.Pedido.list();
+      const proximoNumero = todosPedidos.length > 0
+        ? String(Math.max(...todosPedidos.map(p => parseInt(p.numero_pedido?.replace(/\D/g,'')) || 0)) + 1)
+        : '1';
+
+      const primeiroP = pedidosSelecionados[0];
+      // 1. Cria nova NF
+      await base44.entities.Pedido.create({
+        numero_pedido: proximoNumero,
+        cliente_codigo: primeiroP.cliente_codigo,
+        cliente_nome: primeiroP.cliente_nome,
+        cliente_regiao: primeiroP.cliente_regiao,
+        representante_codigo: primeiroP.representante_codigo,
+        representante_nome: primeiroP.representante_nome,
+        porcentagem_comissao: primeiroP.porcentagem_comissao,
+        valor_pedido: valorTotal,
+        saldo_restante: valorTotal,
+        total_pago: 0,
+        status: 'aberto',
+        tipo_documento: 'nf',
+        observacao: `NF gerada por mescla dos pedidos: ${pedidosSelecionados.map(p => '#' + p.numero_pedido).join(', ')}`,
+        outras_informacoes: `[${new Date().toLocaleDateString('pt-BR')}] Mescla realizada por ${user?.email}`
+      });
+
+      // 2. Cancela pedidos originais
+      await Promise.all(pedidosSelecionados.map(p =>
+        base44.entities.Pedido.update(p.id, {
+          status: 'cancelado',
+          outras_informacoes: (p.outras_informacoes || '') + `\n[${new Date().toLocaleDateString('pt-BR')}] Pedido substituído pela NF #${proximoNumero}`
+        })
+      ));
+
+      await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+      setShowMesclarNFModal(false);
+      toast.success(`NF #${proximoNumero} criada com sucesso! ${pedidosSelecionados.length} pedidos cancelados.`);
+    } catch (e) {
+      toast.error('Erro ao mesclar pedidos: ' + e.message);
+      console.error(e);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   // --- ORDENAÇÃO ---
   const handleSort = (key) => {
     let direction = 'asc';
