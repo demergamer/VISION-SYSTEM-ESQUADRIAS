@@ -15,31 +15,31 @@ export function SecurityProvider({ children }) {
   const idleTimerRef = useRef(null);
   const sessionTimerRef = useRef(null);
 
-  // Apenas admin usa o sistema de segurança
-  const isAdmin = user?.role === 'admin';
+  // Todos os usuários autenticados usam o sistema de segurança
+  const isAuthenticated = !!user;
 
   // --- Verificação inicial de onboarding ---
   useEffect(() => {
-    if (!loading && isAdmin && user) {
+    if (!loading && isAuthenticated && user) {
       const hasPinSet = !!user.security_pin_hash;
       if (!hasPinSet) {
         setShowOnboarding(true);
       }
     }
-  }, [loading, isAdmin, user]);
+  }, [loading, isAuthenticated, user]);
 
   // --- Reinicia timers de inatividade ---
   const resetIdleTimer = useCallback(() => {
-    if (!isAdmin || showOnboarding) return;
+    if (!isAuthenticated || showOnboarding) return;
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     idleTimerRef.current = setTimeout(() => {
       setIsLocked(true);
     }, IDLE_TIMEOUT_MS);
-  }, [isAdmin, showOnboarding]);
+  }, [isAuthenticated, showOnboarding]);
 
   // --- Timer de sessão absoluta ---
   useEffect(() => {
-    if (!isAdmin || !user) return;
+    if (!isAuthenticated || !user) return;
     if (sessionTimerRef.current) clearTimeout(sessionTimerRef.current);
     sessionTimerRef.current = setTimeout(() => {
       setIsLocked(true);
@@ -47,23 +47,23 @@ export function SecurityProvider({ children }) {
     return () => {
       if (sessionTimerRef.current) clearTimeout(sessionTimerRef.current);
     };
-  }, [isAdmin, user]);
+  }, [isAuthenticated, user]);
 
   // --- Monitoramento de eventos de inatividade ---
   useEffect(() => {
-    if (!isAdmin || !user || showOnboarding) return;
+    if (!isAuthenticated || !user || showOnboarding) return;
 
     const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
     const handleActivity = () => resetIdleTimer();
 
     events.forEach(e => window.addEventListener(e, handleActivity, { passive: true }));
-    resetIdleTimer(); // inicia o timer pela primeira vez
+    resetIdleTimer();
 
     return () => {
       events.forEach(e => window.removeEventListener(e, handleActivity));
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
-  }, [isAdmin, user, showOnboarding, resetIdleTimer]);
+  }, [isAuthenticated, user, showOnboarding, resetIdleTimer]);
 
   const unlock = useCallback(() => {
     setIsLocked(false);
