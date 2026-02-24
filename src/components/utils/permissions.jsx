@@ -62,7 +62,7 @@ export const MODULOS_CONFIG = [
     nome: 'Pedidos', 
     label: '🛒 Pedidos', 
     grupo: 'Vendas', 
-    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'cancelar', 'aprovar', 'imprimir', 'exportar'] 
+    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'cancelar', 'aprovar', 'liquidar', 'liquidacao_massa', 'confirmar_transito', 'imprimir', 'exportar'] 
   },
   { 
     nome: 'Orcamentos', 
