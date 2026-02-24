@@ -98,15 +98,21 @@ export default function AdicionarChequeModal({ clienteInfo, onSave, onCancel, on
               <SelectValue placeholder="Selecione o banco" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ITAÚ">Itaú</SelectItem>
-              <SelectItem value="BRADESCO">Bradesco</SelectItem>
-              <SelectItem value="SANTANDER">Santander</SelectItem>
-              <SelectItem value="BANCO DO BRASIL">Banco do Brasil</SelectItem>
-              <SelectItem value="CAIXA ECONÔMICA">Caixa Econômica Federal</SelectItem>
-              <SelectItem value="NUBANK">Nubank</SelectItem>
-              <SelectItem value="INTER">Banco Inter</SelectItem>
-              <SelectItem value="C6 BANK">C6 Bank</SelectItem>
-              <SelectItem value="OUTROS">Outros</SelectItem>
+              <SelectItem value="001 - Banco do Brasil S.A.">001 - Banco do Brasil S.A.</SelectItem>
+              <SelectItem value="104 - Caixa Econômica Federal">104 - Caixa Econômica Federal</SelectItem>
+              <SelectItem value="237 - Banco Bradesco S.A.">237 - Banco Bradesco S.A.</SelectItem>
+              <SelectItem value="341 - Itaú Unibanco S.A.">341 - Itaú Unibanco S.A.</SelectItem>
+              <SelectItem value="033 - Banco Santander (Brasil) S.A.">033 - Banco Santander (Brasil) S.A.</SelectItem>
+              <SelectItem value="748 - Banco Cooperativo Sicredi S.A.">748 - Banco Cooperativo Sicredi S.A.</SelectItem>
+              <SelectItem value="756 - Banco Cooperativo do Brasil S.A. (Sicoob)">756 - Banco Cooperativo do Brasil S.A. (Sicoob)</SelectItem>
+              <SelectItem value="353 - Banco Santander (Brasil) S.A. (Antigo Banco Real)">353 - Banco Santander (Brasil) S.A. (Antigo Banco Real)</SelectItem>
+              <SelectItem value="077 - Banco Inter S.A.">077 - Banco Inter S.A.</SelectItem>
+              <SelectItem value="074 - Banco J. Safra S.A.">074 - Banco J. Safra S.A.</SelectItem>
+              <SelectItem value="707 - Banco Daycoval S.A.">707 - Banco Daycoval S.A.</SelectItem>
+              <SelectItem value="041 - Banrisul">041 - Banrisul</SelectItem>
+              <SelectItem value="021 - Banestes">021 - Banestes</SelectItem>
+              <SelectItem value="070 - BRB - Banco de Brasília S.A.">070 - BRB - Banco de Brasília S.A.</SelectItem>
+              <SelectItem value="389 - Banco Mercantil do Brasil S.A.">389 - Banco Mercantil do Brasil S.A.</SelectItem>
             </SelectContent>
           </Select>
         </div>
