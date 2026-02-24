@@ -243,6 +243,10 @@ function LayoutInner({ children, currentPageName }) {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem className="cursor-pointer" onClick={() => lockScreen?.()}>
+              <Lock className="mr-2 h-4 w-4 text-amber-500" /> Bloquear Tela
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem className="text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer" onClick={signOut}>
               <LogOut className="mr-2 h-4 w-4" /> Sair do Sistema
             </DropdownMenuItem>
