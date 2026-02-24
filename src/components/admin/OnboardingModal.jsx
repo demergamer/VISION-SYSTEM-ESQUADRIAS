@@ -253,7 +253,7 @@ export default function OnboardingModal({ onComplete }) {
 
         <div className="px-8 pb-5">
           <p className="text-center text-xs text-slate-400">
-            Esta configuração é obrigatória e protege o acesso ao painel administrativo.
+            Esta configuração é obrigatória e protege o acesso ao seu portal.
           </p>
         </div>
       </div>
