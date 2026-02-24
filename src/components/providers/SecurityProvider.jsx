@@ -52,7 +52,7 @@ export function SecurityProvider({ children }) {
 
   // --- Monitoramento de eventos de inatividade ---
   useEffect(() => {
-    if (!isAdmin || !user || showOnboarding) return;
+    if (!hasUser || !user || showOnboarding) return;
 
     const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
     const handleActivity = () => resetIdleTimer();
