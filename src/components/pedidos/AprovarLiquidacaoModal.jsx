@@ -376,6 +376,25 @@ export default function AprovarLiquidacaoModal({
         {/* DIREITA: PAGAMENTO & CRÉDITOS */}
         <div className="flex flex-col space-y-4 h-full overflow-y-auto pr-2">
           
+          {/* SINAIS / CAUÇÕES DISPONÍVEIS */}
+          {portsDoCliente.length > 0 && (
+            <Card className="p-4 bg-amber-50 border-amber-200">
+              <h3 className="font-bold text-amber-800 mb-2 flex items-center gap-2 text-sm">
+                <Wallet className="w-4 h-4" /> Sinais / Cauções ({portsDoCliente.length})
+                <Badge className="bg-amber-200 text-amber-800 text-[10px] ml-auto">{formatCurrency(totalSinaisDisponiveis)} disponível</Badge>
+              </h3>
+              <div className="space-y-1 max-h-28 overflow-y-auto">
+                {portsDoCliente.map(port => (
+                  <div key={port.id} className="flex justify-between items-center bg-white p-2 rounded border border-amber-100 text-xs">
+                    <span className="text-slate-600">PORT #{port.numero_port} — {port.status}</span>
+                    <span className="font-bold text-amber-700">{formatCurrency(port.saldo_disponivel ?? port.valor_total_sinal)}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-amber-600 mt-2 font-medium">⚠ Estes sinais serão considerados na liquidação. Informe o valor recebido descontando-os manualmente no campo Desconto ou Pagamento.</p>
+            </Card>
+          )}
+
           {/* CRÉDITOS DISPONÍVEIS */}
           {creditosCliente.length > 0 && (
               <Card className="p-4 bg-indigo-50 border-indigo-200">
