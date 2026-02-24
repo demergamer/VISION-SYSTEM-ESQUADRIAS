@@ -4,7 +4,8 @@ import { useAuth } from '@/components/providers/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Shield, Unlock, AlertCircle, Loader2, LogOut } from 'lucide-react';
+import { Shield, Unlock, AlertCircle, Loader2, LogOut, Mail, KeyRound, ArrowLeft } from 'lucide-react';
+import { toast } from 'sonner';
 
 async function hashPin(pin) {
   const encoder = new TextEncoder();
