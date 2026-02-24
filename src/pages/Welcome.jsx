@@ -238,27 +238,13 @@ export default function Welcome() {
                 onClick={handleRepresentante} 
                 delay={0.3}
               />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* LINK DISCRETO: MOTORISTA */}
-        <AnimatePresence>
-          {selectedCompany && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ delay: 0.6 }}
-              className="mt-4"
-            >
-              <button
-                onClick={handleMotorista}
-                className="flex items-center gap-1.5 text-slate-400 text-sm hover:text-slate-200 transition-colors hover:underline"
-              >
-                <Truck className="w-3.5 h-3.5" />
-                Sou Motorista
-              </button>
+              <AccessButton 
+                title="Portal do Motorista" 
+                subtitle="Rotas, entregas e histórico" 
+                icon={Truck} 
+                onClick={handleMotorista} 
+                delay={0.4}
+              />
             </motion.div>
           )}
         </AnimatePresence>
