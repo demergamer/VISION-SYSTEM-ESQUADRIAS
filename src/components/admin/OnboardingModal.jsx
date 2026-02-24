@@ -63,12 +63,18 @@ export default function OnboardingModal({ onComplete }) {
     setIsSaving(true);
     try {
       const pinHash = await hashPin(form.pin);
+
+      // 1. Salva nos metadados do usuário Base44 (fonte universal de verdade para PIN)
       await base44.auth.updateMe({
         avatar_url: form.avatar_url,
         preferred_name: form.preferred_name.trim(),
         phone: form.phone.trim(),
         security_pin_hash: pinHash,
       });
+
+      // 2. Sync com a entidade correspondente (pelo e-mail do usuário)
+      await syncWithEntity(form, pinHash);
+
       await loadUser();
       toast.success('Perfil configurado com sucesso!');
       onComplete();
@@ -76,6 +82,32 @@ export default function OnboardingModal({ onComplete }) {
       toast.error('Erro ao salvar perfil. Tente novamente.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Sincroniza dados com a entidade do banco de dados correspondente ao perfil
+  const syncWithEntity = async (form, pinHash) => {
+    if (!user?.email) return;
+
+    const updateData = {
+      pin_hash: pinHash,
+      ...(form.avatar_url && { foto_url: form.avatar_url }),
+      ...(form.phone && { telefone: form.phone.trim() }),
+      ...(form.preferred_name && { nome_social: form.preferred_name.trim() }),
+    };
+
+    // Tenta sincronizar com Motorista, Representante e Cliente pelo e-mail
+    const entidades = ['Motorista', 'Representante', 'Cliente'];
+    for (const entidade of entidades) {
+      try {
+        const registros = await base44.entities[entidade].filter({ email: user.email });
+        if (registros.length > 0) {
+          await base44.entities[entidade].update(registros[0].id, updateData);
+          break; // Encontrou e atualizou — para
+        }
+      } catch {
+        // Continua tentando as outras entidades
+      }
     }
   };
 
