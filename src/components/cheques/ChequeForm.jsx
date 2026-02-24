@@ -270,13 +270,7 @@ export default function ChequeForm({ cheque, clientes = [], onSave, onCancel, is
         <div><Label>Número do Cheque *</Label><Input value={formData.numero_cheque} onChange={(e) => setFormData({ ...formData, numero_cheque: e.target.value })} /></div>
         <div>
           <Label>Banco *</Label>
-          <Select value={formData.banco} onValueChange={(v) => setFormData({ ...formData, banco: v })}>
-            <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-            <SelectContent>
-              {['ITAÚ', 'BRADESCO', 'SANTANDER', 'BANCO DO BRASIL', 'CAIXA', 'SICOOB', 'SICREDI'].map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-              <SelectItem value="OUTROS">Outros</SelectItem>
-            </SelectContent>
-          </Select>
+          <BancoCombobox value={formData.banco} onChange={(v) => setFormData({ ...formData, banco: v })} />
         </div>
       </div>
 
