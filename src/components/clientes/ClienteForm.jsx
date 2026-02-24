@@ -97,6 +97,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
   const [serasaUploading, setSerasaUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isConsulting, setIsConsulting] = useState(false);
+  const [duplicateWarnings, setDuplicateWarnings] = useState({});
 
   useEffect(() => {
     if (cliente) {
