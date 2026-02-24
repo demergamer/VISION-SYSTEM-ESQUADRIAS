@@ -238,13 +238,6 @@ export default function Welcome() {
                 onClick={handleRepresentante} 
                 delay={0.3}
               />
-              <AccessButton 
-                title="Portal do Motorista" 
-                subtitle="Rotas, entregas e histórico" 
-                icon={Truck} 
-                onClick={handleMotorista} 
-                delay={0.4}
-              />
             </motion.div>
           )}
         </AnimatePresence>
