@@ -55,20 +55,6 @@ export default function Calendario() {
   const [viewMode, setViewMode] = useState('meu'); // 'meu' | 'geral'
   const [activeTab, setActiveTab] = useState('calendario'); // 'calendario' | 'inbox'
 
-  // Bloqueia não-admins
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-center p-8">
-          <Calendar className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-slate-600">Acesso Restrito</h2>
-          <p className="text-slate-400 mt-2">O Calendário é exclusivo para Administradores.</p>
-          <Link to={createPageUrl('Dashboard')}><Button className="mt-4" variant="outline"><ArrowLeft className="w-4 h-4 mr-2" />Voltar</Button></Link>
-        </div>
-      </div>
-    );
-  }
-
   const { data: tarefas = [], isLoading } = useQuery({
     queryKey: ['tarefas_calendario'],
     queryFn: () => base44.entities.Tarefa.list('-created_date', 500)
