@@ -78,6 +78,137 @@ const ToggleRow = ({ icon: Icon, title, description, checked, onCheckedChange })
 );
 
 // ─────────────────────────────────────────────
+// Seção: Fundo do Dashboard
+// ─────────────────────────────────────────────
+
+const CORES_PRESET = [
+  { label: 'Slate', value: '#0f172a' },
+  { label: 'Azul', value: '#1e3a5f' },
+  { label: 'Navy', value: '#1e3a8a' },
+  { label: 'Índigo', value: '#312e81' },
+  { label: 'Roxo', value: '#3b0764' },
+  { label: 'Verde', value: '#14532d' },
+  { label: 'Cinza', value: '#374151' },
+  { label: 'Branco', value: '#f8fafc' },
+];
+
+function DashboardFundoSection({ prefs, set }) {
+  const [uploading, setUploading] = useState(false);
+  const fileRef = React.useRef(null);
+
+  const tipofundo = prefs.dash_tipo_fundo || 'padrao';
+  const corfundo = prefs.dash_cor_fundo || '#0f172a';
+  const imagensfundo = prefs.dash_imagens_fundo || [];
+
+  const handleUploadImages = async (files) => {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      const novasUrls = [];
+      for (const file of Array.from(files)) {
+        const res = await base44.integrations.Core.UploadFile({ file });
+        novasUrls.push(res.file_url);
+      }
+      set('dash_imagens_fundo', [...imagensfundo, ...novasUrls]);
+    } catch {
+      toast.error('Erro ao enviar imagem');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removerImagem = (idx) => {
+    set('dash_imagens_fundo', imagensfundo.filter((_, i) => i !== idx));
+  };
+
+  return (
+    <SectionCard title="Fundo do Dashboard" icon={Image} iconColor="text-indigo-600" iconBg="bg-indigo-50">
+      {/* Tipo */}
+      <div className="space-y-2">
+        <Label className="text-sm font-semibold text-slate-700">Tipo de Fundo</Label>
+        <div className="grid grid-cols-3 gap-3">
+          <OptionButton active={tipofundo === 'padrao'} onClick={() => set('dash_tipo_fundo', 'padrao')} icon={Monitor} label="Padrão" sublabel="Animação PS2" />
+          <OptionButton active={tipofundo === 'cor'} onClick={() => set('dash_tipo_fundo', 'cor')} icon={Palette} label="Cor Sólida" />
+          <OptionButton active={tipofundo === 'imagem'} onClick={() => set('dash_tipo_fundo', 'imagem')} icon={Image} label="Imagens" sublabel="Slideshow" />
+        </div>
+      </div>
+
+      {/* Cor sólida */}
+      {tipofundo === 'cor' && (
+        <div className="space-y-3">
+          <Label className="text-sm font-semibold text-slate-700">Escolha a Cor</Label>
+          <div className="flex flex-wrap gap-2">
+            {CORES_PRESET.map(c => (
+              <button
+                key={c.value}
+                type="button"
+                title={c.label}
+                onClick={() => set('dash_cor_fundo', c.value)}
+                className={cn(
+                  "w-9 h-9 rounded-lg border-2 transition-all",
+                  corfundo === c.value ? 'border-blue-500 scale-110 shadow-md' : 'border-transparent hover:border-slate-300'
+                )}
+                style={{ backgroundColor: c.value }}
+              />
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            <Label className="text-xs text-slate-500 shrink-0">Cor personalizada:</Label>
+            <input
+              type="color"
+              value={corfundo}
+              onChange={(e) => set('dash_cor_fundo', e.target.value)}
+              className="h-9 w-16 rounded cursor-pointer border border-slate-200"
+            />
+            <span className="text-xs font-mono text-slate-500">{corfundo}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Imagens */}
+      {tipofundo === 'imagem' && (
+        <div className="space-y-3">
+          <Label className="text-sm font-semibold text-slate-700">Imagens do Slideshow</Label>
+          <p className="text-xs text-slate-400">As imagens alternam automaticamente a cada 30 segundos com transição suave.</p>
+
+          <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleUploadImages(e.target.files)} />
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full border-dashed gap-2"
+            disabled={uploading}
+            onClick={() => fileRef.current?.click()}
+          >
+            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            {uploading ? 'Enviando...' : 'Selecionar Imagens'}
+          </Button>
+
+          {imagensfundo.length > 0 && (
+            <div className="grid grid-cols-3 gap-2 mt-2">
+              {imagensfundo.map((url, i) => (
+                <div key={i} className="relative group rounded-lg overflow-hidden border border-slate-200 aspect-video">
+                  <img src={url} alt={`Fundo ${i + 1}`} className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removerImagem(i)}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                  <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[10px] px-1.5 py-0.5 rounded">
+                    {i + 1}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+// ─────────────────────────────────────────────
 // Página principal
 // ─────────────────────────────────────────────
 
