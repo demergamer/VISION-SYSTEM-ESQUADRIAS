@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import NovaTarefaModal from '@/components/calendario/NovaTarefaModal';
 import InboxPanel from '@/components/calendario/InboxPanel';
 import TarefaDetalheModal from '@/components/calendario/TarefaDetalheModal';
+import { useLembreteAlertas } from '@/components/hooks/useLembreteAlertas';
 
 const CORES = {
   tarefa_geral: 'bg-blue-500',
