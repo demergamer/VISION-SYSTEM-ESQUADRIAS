@@ -159,6 +159,7 @@ const MiniCalendar = ({ user, tarefas = [] }) => {
 export default function Dashboard() {
   const { user, signOut } = useAuth();
   const { canDo } = usePermissions();
+  const { preferences } = usePreferences();
   const navigate = useNavigate();
   const [time, setTime] = useState(new Date());
   const [clockType, setClockType] = useState(() => localStorage.getItem('jc_clock_pref') || 'digital');
