@@ -13,51 +13,160 @@ import { ptBR } from "date-fns/locale";
 
 const formatCurrency = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
-// Gera lista dos últimos 12 meses
+async function hashPin(pin) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(pin + '_jc_salt_2026');
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 function gerarMeses() {
   const meses = [];
   const hoje = new Date();
   for (let i = 0; i < 12; i++) {
     const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
-    meses.push({
-      value: format(d, 'yyyy-MM'),
-      label: format(d, 'MMMM yyyy', { locale: ptBR })
-    });
+    meses.push({ value: format(d, 'yyyy-MM'), label: format(d, 'MMMM yyyy', { locale: ptBR }) });
   }
   return meses;
 }
 
+// STEP 1: Busca e seleciona motorista por código/nome
+// STEP 2: Digita PIN para confirmar
+// STEP 3: Onboarding para criar PIN (primeiro acesso)
+// LOGGED: Portal principal
+
 export default function PortalDoMotorista() {
   const meses = gerarMeses();
   const [mesSelecionado, setMesSelecionado] = useState(meses[0].value);
-  const [motorista, setMotorista] = useState(null);
+  const [motorista, setMotorista] = useState(null); // motorista autenticado
+  const [step, setStep] = useState('select'); // 'select' | 'pin' | 'onboarding'
   const [loadingAuth, setLoadingAuth] = useState(true);
-  const [authError, setAuthError] = useState('');
-  const [email, setEmail] = useState('');
-  const [pin, setPin] = useState('');
 
-  // Verifica sessão
+  // Seleção
+  const [busca, setBusca] = useState('');
+  const [todosMotoristas, setTodosMotoristas] = useState([]);
+  const [loadingLista, setLoadingLista] = useState(false);
+  const [motoristaSelecionado, setMotoristaSelecionado] = useState(null);
+
+  // PIN
+  const [pin, setPin] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [pinAttempts, setPinAttempts] = useState(0);
+  const [isCheckingPin, setIsCheckingPin] = useState(false);
+  const [lockedUntil, setLockedUntil] = useState(null);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const pinInputRef = useRef(null);
+
+  // Onboarding PIN
+  const [newPin, setNewPin] = useState('');
+  const [newPinConfirm, setNewPinConfirm] = useState('');
+  const [isSavingPin, setIsSavingPin] = useState(false);
+  const [onboardingError, setOnboardingError] = useState('');
+
+  // Verifica sessão salva
   useEffect(() => {
     const saved = sessionStorage.getItem('motorista_logado');
     if (saved) { try { setMotorista(JSON.parse(saved)); } catch {} }
     setLoadingAuth(false);
   }, []);
 
-  const handleLogin = async () => {
-    if (!email || !pin) { setAuthError('Preencha e-mail e PIN.'); return; }
-    setLoadingAuth(true);
-    setAuthError('');
-    try {
-      const todos = await base44.entities.Motorista.list();
-      const encontrado = todos.find(m => m.email?.toLowerCase() === email.toLowerCase() && m.pin === pin && m.ativo !== false);
-      if (!encontrado) { setAuthError('E-mail ou PIN inválido.'); setLoadingAuth(false); return; }
-      sessionStorage.setItem('motorista_logado', JSON.stringify(encontrado));
-      setMotorista(encontrado);
-    } catch { setAuthError('Erro ao acessar. Tente novamente.'); }
-    setLoadingAuth(false);
+  // Carrega lista de motoristas ativos
+  useEffect(() => {
+    if (step === 'select' && !motorista) {
+      setLoadingLista(true);
+      base44.entities.Motorista.list().then(lista => {
+        setTodosMotoristas(lista.filter(m => m.ativo !== false));
+        setLoadingLista(false);
+      }).catch(() => setLoadingLista(false));
+    }
+  }, [step, motorista]);
+
+  // Countdown bloqueio
+  useEffect(() => {
+    if (!lockedUntil) return;
+    const interval = setInterval(() => {
+      const left = Math.ceil((lockedUntil - Date.now()) / 1000);
+      if (left <= 0) { setLockedUntil(null); setTimeLeft(0); setPinAttempts(0); setPinError(''); }
+      else setTimeLeft(left);
+    }, 500);
+    return () => clearInterval(interval);
+  }, [lockedUntil]);
+
+  useEffect(() => {
+    if (step === 'pin') setTimeout(() => pinInputRef.current?.focus(), 100);
+  }, [step]);
+
+  const motoristasFiltrados = todosMotoristas.filter(m => {
+    const q = busca.toLowerCase();
+    return !q || (m.nome || '').toLowerCase().includes(q) || (m.nome_social || '').toLowerCase().includes(q) || (m.codigo || '').toLowerCase().includes(q);
+  });
+
+  const handleSelecionarMotorista = (m) => {
+    setMotoristaSelecionado(m);
+    setPin('');
+    setPinError('');
+    setStep('pin');
   };
 
-  const handleLogout = () => { sessionStorage.removeItem('motorista_logado'); setMotorista(null); setEmail(''); setPin(''); };
+  const handleVerificarPin = async () => {
+    if (lockedUntil) return;
+    if (!pin || pin.length < 4) { setPinError('Digite seu PIN.'); return; }
+    setIsCheckingPin(true);
+    setPinError('');
+    try {
+      // Primeiro acesso: sem PIN cadastrado
+      if (!motoristaSelecionado.pin) {
+        setNewPin('');
+        setNewPinConfirm('');
+        setOnboardingError('');
+        setStep('onboarding');
+        setIsCheckingPin(false);
+        return;
+      }
+      const pinHash = await hashPin(pin);
+      if (pinHash === motoristaSelecionado.pin) {
+        sessionStorage.setItem('motorista_logado', JSON.stringify(motoristaSelecionado));
+        setMotorista(motoristaSelecionado);
+      } else {
+        const newAttempts = pinAttempts + 1;
+        setPinAttempts(newAttempts);
+        setPin('');
+        if (newAttempts >= 5) {
+          setLockedUntil(Date.now() + 60 * 1000);
+          setPinError('Muitas tentativas. Aguarde 60 segundos.');
+        } else {
+          setPinError(`PIN incorreto. ${5 - newAttempts} tentativa(s) restante(s).`);
+        }
+      }
+    } finally {
+      setIsCheckingPin(false);
+    }
+  };
+
+  const handleSalvarPin = async () => {
+    if (!newPin || newPin.length < 4) { setOnboardingError('PIN deve ter no mínimo 4 dígitos.'); return; }
+    if (newPin !== newPinConfirm) { setOnboardingError('Os PINs não conferem.'); return; }
+    setIsSavingPin(true);
+    setOnboardingError('');
+    try {
+      const pinHash = await hashPin(newPin);
+      const updated = await base44.entities.Motorista.update(motoristaSelecionado.id, { pin: pinHash });
+      const motoristaAtualizado = { ...motoristaSelecionado, pin: pinHash };
+      sessionStorage.setItem('motorista_logado', JSON.stringify(motoristaAtualizado));
+      setMotorista(motoristaAtualizado);
+    } catch { setOnboardingError('Erro ao salvar PIN. Tente novamente.'); }
+    setIsSavingPin(false);
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('motorista_logado');
+    setMotorista(null);
+    setMotoristaSelecionado(null);
+    setBusca('');
+    setPin('');
+    setStep('select');
+  };
 
   // Datas do mês selecionado
   const [anoStr, mesStr] = mesSelecionado.split('-');
