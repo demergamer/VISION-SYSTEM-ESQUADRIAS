@@ -461,6 +461,9 @@ export default function PainelRepresentante() {
   const [showPerfilModal, setShowPerfilModal] = useState(false);
   const [showEditPerfilModal, setShowEditPerfilModal] = useState(false);
 
+  const [pinOk, setPinOk] = useState(() => !!sessionStorage.getItem('portal_representante_pin_ok'));
+  const [registroRepresentante, setRegistroRepresentante] = useState(null);
+
   useEffect(() => {
     let mounted = true;
     async function loadData() {
@@ -471,6 +474,7 @@ export default function PainelRepresentante() {
           const reps = await base44.entities.Representante.list();
           const rep = reps.find(r => r.email === u.email);
           setRepresentante(rep);
+          if (rep) setRegistroRepresentante(rep);
         }
       } catch (e) { console.error(e); } 
       finally { if (mounted) setLoading(false); }
@@ -478,6 +482,12 @@ export default function PainelRepresentante() {
     loadData();
     return () => { mounted = false };
   }, []);
+
+  const handlePinOk = (registro) => {
+    sessionStorage.setItem('portal_representante_pin_ok', '1');
+    setRegistroRepresentante(registro);
+    setPinOk(true);
+  };
 
   const { data: todosClientes = [], refetch: refetchClientes } = useQuery({ queryKey: ['clientes', representante?.id], queryFn: () => base44.entities.Cliente.list(), enabled: !!representante });
   const { data: todosPedidos = [], refetch: refetchPedidos } = useQuery({ queryKey: ['pedidos', representante?.id], queryFn: () => base44.entities.Pedido.list(), enabled: !!representante });
