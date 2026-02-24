@@ -81,6 +81,9 @@ export default function Calendario() {
 
   const admins = useMemo(() => usuarios.filter(u => u.role === 'admin'), [usuarios]);
 
+  // Alertas automáticos de lembretes
+  useLembreteAlertas(tarefas, user?.email);
+
   // Filtra por view
   const tarefasVisiveis = useMemo(() => {
     return tarefas.filter(t => {
