@@ -80,6 +80,8 @@ export default function ClientesPage() {
   const queryClient = useQueryClient();
   const { canDo } = usePermissions();
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(30);
   
   // Modais Normais
   const [showAddModal, setShowAddModal] = useState(false);
@@ -294,6 +296,7 @@ export default function ClientesPage() {
     cli.regiao?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     cli.representante_nome?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+  const paginatedClientes = filteredClientes.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const handleEdit = (cli) => { setSelectedCliente(cli); setShowEditModal(true); };
   const handleView = (cli) => { setSelectedCliente(cli); setShowDetailsModal(true); };
@@ -368,13 +371,20 @@ export default function ClientesPage() {
               </div>
             </div>
             <ClienteTable
-              clientes={filteredClientes}
+              clientes={paginatedClientes}
               stats={clienteStats}
               onEdit={handleEdit}
               onView={handleView}
               onViewPedidos={handleViewPedidos}
               onInvite={handleInvite}
               isLoading={loadingClientes}
+            />
+            <PaginacaoTabela
+              currentPage={currentPage}
+              totalItems={filteredClientes.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}
             />
           </Card>
 
