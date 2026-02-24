@@ -903,6 +903,11 @@ export default function Pedidos() {
                         <DollarSign className="w-4 h-4 mr-2 text-emerald-600" /> Liq. em Massa
                     </Button>
                 )}
+                {canDo('Pedidos', 'adicionar') && (
+                    <Button variant="outline" onClick={() => setShowMesclarNFModal(true)} className="bg-white border-slate-200 text-blue-700 border-blue-200 hover:bg-blue-50">
+                        <GitMerge className="w-4 h-4 mr-2 text-blue-600" /> Mesclar NF
+                    </Button>
+                )}
                 <Button variant="outline" onClick={() => setActiveTab('rotas')} className={cn("bg-white border-slate-200", activeTab === 'rotas' && "bg-purple-50 border-purple-300 text-purple-700")}>
                     <Truck className="w-4 h-4 mr-2 text-purple-500" /> Rotas
                     {stats.rotasAtivasCount > 0 && <span className="ml-1.5 bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full text-[10px] font-bold">{stats.rotasAtivasCount}</span>}
