@@ -222,6 +222,26 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     if (val.replace(/\D/g, '').length === 14) handleConsultarCNPJ(val);
   };
 
+  const checkDuplicate = (field, value) => {
+    if (!value || !allClientes.length) return;
+    const cnpjLimpo = field === 'cnpj' ? value.replace(/\D/g, '') : null;
+    const existente = allClientes.find(c => {
+      if (c.id === cliente?.id) return false; // Ignora si mesmo ao editar
+      if (field === 'cnpj' && cnpjLimpo) return c.cnpj?.replace(/\D/g, '') === cnpjLimpo;
+      if (field === 'nome') return c.nome?.trim().toLowerCase() === value.trim().toLowerCase();
+      return false;
+    });
+    if (existente) {
+      setDuplicateWarnings(prev => ({ ...prev, [field]: `Duplicado com: ${existente.nome} (${existente.codigo})` }));
+      toast.warning(`Atenção: ${field === 'cnpj' ? 'CPF/CNPJ' : 'Nome'} já cadastrado!`, {
+        description: `Cliente existente: ${existente.nome} - Código: ${existente.codigo}`,
+        duration: 6000
+      });
+    } else {
+      setDuplicateWarnings(prev => { const n = {...prev}; delete n[field]; return n; });
+    }
+  };
+
   const handleSerasaUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
