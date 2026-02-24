@@ -1,49 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { 
-  Eye, 
-  EyeOff, 
-  Settings as SettingsIcon, 
-  LogOut, 
-  Clock, 
-  Calendar,
-  LayoutDashboard,
-  Users,
-  Package,
-  ShoppingCart,
-  Wallet,
-  FileText,
-  BarChart3,
-  Home,
-  Briefcase,
-  Banknote,
-  ScrollText,
-  CreditCard,
-  Menu,
-  Building2,
-  Truck,
-  CalendarDays,
-  Bell
+  Eye, EyeOff, Settings as SettingsIcon, LogOut, Clock, Calendar,
+  LayoutDashboard, Users, Package, ShoppingCart, Wallet, FileText,
+  BarChart3, Home, Briefcase, Banknote, ScrollText, CreditCard,
+  Menu, Building2, Truck, CalendarDays, Bell
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { base44 } from '@/api/base44Client';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import NotificationCenter from '@/components/notificacoes/NotificationCenter';
-
-const CalendarIcon = CalendarDays;
 import { cn } from "@/lib/utils";
 import { AuthProvider, useAuth } from '@/components/providers/AuthContext';
 import { SecurityProvider } from '@/components/providers/SecurityProvider';
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { usePermissions } from "@/components/hooks/usePermissions";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"; // Importante para Mobile
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
+const CalendarIcon = CalendarDays;
 
 // --- CONFIGURAÇÃO DOS GRUPOS DE MENU ---
 const menuStructure = [
@@ -96,15 +75,13 @@ const menuStructure = [
   }
 ];
 
-// Componente de Relógio (Tema Claro)
+// Relógio
 const LiveClock = () => {
   const [time, setTime] = useState(new Date());
-
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
-
   return (
     <div className="flex flex-col items-center justify-center p-3 bg-slate-100/80 rounded-xl border border-slate-200 text-slate-700 mb-4 w-full shadow-inner mx-auto max-w-[95%]">
       <div className="flex items-center gap-2 text-xl font-bold tracking-widest font-mono text-slate-800">
@@ -119,16 +96,16 @@ const LiveClock = () => {
   );
 };
 
-
-function NotificationBell({ user }) {
+// Sino de notificações
+function NotificationBell({ userEmail }) {
   const { data: notificacoes = [] } = useQuery({
-    queryKey: ['notificacoes_bell', user?.email],
+    queryKey: ['notificacoes_bell', userEmail],
     queryFn: async () => {
-      if (!user?.email) return [];
+      if (!userEmail) return [];
       const todas = await base44.entities.Notificacao.list('-created_date', 50);
-      return todas.filter(n => n.destinatario_email === user.email);
+      return todas.filter(n => n.destinatario_email === userEmail);
     },
-    enabled: !!user?.email,
+    enabled: !!userEmail,
     refetchInterval: 30000,
   });
   const naoLidas = notificacoes.filter(n => !n.lida).length;
@@ -144,7 +121,7 @@ function NotificationBell({ user }) {
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="p-0 w-80 shadow-xl border-0 rounded-2xl overflow-hidden">
+      <PopoverContent align="end" side="bottom" className="p-0 w-80 shadow-xl border-0 rounded-2xl overflow-hidden">
         <NotificationCenter />
       </PopoverContent>
     </Popover>
@@ -152,16 +129,12 @@ function NotificationBell({ user }) {
 }
 
 function LayoutInner({ children, currentPageName }) {
-  const location = useLocation();
   const { user, signOut } = useAuth();
   const { canDo } = usePermissions();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
-  // --- ESTADOS DE SIDEBAR FLUTUANTE ---
   const [isEnabled, setIsEnabled] = useState(() => localStorage.getItem('jc_sidebar_enabled') !== 'false');
   const [position, setPosition] = useState(() => localStorage.getItem('jc_sidebar_pos') || 'left');
-  
-  // Controle de Hover e Interação
   const [isOpen, setIsOpen] = useState(false);
   const [isHoveringEye, setIsHoveringEye] = useState(false);
   const hoverTimeoutRef = useRef(null);
@@ -176,62 +149,49 @@ function LayoutInner({ children, currentPageName }) {
   };
 
   const handleMouseLeave = () => {
-    hoverTimeoutRef.current = setTimeout(() => {
-      setIsOpen(false);
-    }, 300);
+    hoverTimeoutRef.current = setTimeout(() => setIsOpen(false), 300);
   };
 
-  // --- RENDERIZAÇÃO DO CONTEÚDO DO MENU (REUTILIZÁVEL) ---
   const renderMenuContent = (isHorizontal = false) => (
     <>
-      {/* Header do Menu */}
       <Link
-          to="/Dashboard"
-          onClick={() => setMobileMenuOpen(false)}
-          className={cn("flex items-center gap-3 shrink-0 hover:opacity-80 transition-opacity", isHorizontal ? "border-r border-slate-200 pr-6 mr-2" : "mb-4 border-b border-slate-200 pb-4 p-4")}
-        >
-          <img
-            src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png"
-            alt="J&C Vision"
-            className="h-8 w-auto object-contain"
-          />
-          {!isHorizontal && (
-            <div>
-              <h1 className="font-extrabold text-slate-800 text-lg leading-tight tracking-tight">J&C <span className="text-blue-600">Vision</span></h1>
-              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">Sistema de Gestão</p>
-            </div>
-          )}
-        </Link>
+        to="/Dashboard"
+        onClick={() => setMobileMenuOpen(false)}
+        className={cn("flex items-center gap-3 shrink-0 hover:opacity-80 transition-opacity", isHorizontal ? "border-r border-slate-200 pr-6 mr-2" : "mb-4 border-b border-slate-200 pb-4 p-4")}
+      >
+        <img
+          src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png"
+          alt="J&C Vision"
+          className="h-8 w-auto object-contain"
+        />
+        {!isHorizontal && (
+          <div>
+            <h1 className="font-extrabold text-slate-800 text-lg leading-tight tracking-tight">J&C <span className="text-blue-600">Vision</span></h1>
+            <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">Sistema de Gestão</p>
+          </div>
+        )}
+      </Link>
 
       {!isHorizontal && <div className="px-2"><LiveClock /></div>}
 
-      {/* Lista de Links */}
       <nav className={cn("flex-1 overflow-y-auto custom-scrollbar px-2", isHorizontal ? "flex flex-row items-center gap-6" : "space-y-6")}>
         {menuStructure.map((group, groupIndex) => {
-          
-          // FILTRO DE PERMISSÕES
           const authorizedItems = group.items.filter(item => {
             if (item.public) return true;
             return canDo(item.name, 'visualizar');
           });
-
           if (authorizedItems.length === 0) return null;
-
           return (
             <div key={groupIndex} className={cn("flex", isHorizontal ? "flex-row items-center gap-2 border-l pl-4 border-slate-200 first:border-0" : "flex-col space-y-1")}>
-              
               {!isHorizontal && (
-                <h3 className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-2">
-                  {group.title}
-                </h3>
+                <h3 className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-2">{group.title}</h3>
               )}
-              
               <div className={cn("flex", isHorizontal ? "flex-row gap-2" : "flex-col space-y-1")}>
                 {authorizedItems.map((item) => (
                   <Link
                     key={item.name}
                     to={`/${item.name}`}
-                    onClick={() => setMobileMenuOpen(false)} // Fecha menu mobile ao clicar
+                    onClick={() => setMobileMenuOpen(false)}
                     className={cn(
                       "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all group relative overflow-hidden",
                       currentPageName === item.name
@@ -254,7 +214,6 @@ function LayoutInner({ children, currentPageName }) {
         })}
       </nav>
 
-      {/* Footer / User Info */}
       <div className={cn("mt-auto p-4 border-t border-slate-200 bg-slate-50/50", isHorizontal && "border-t-0 border-l ml-auto pl-4 border-slate-200 mt-0 pt-0 bg-transparent")}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -271,7 +230,7 @@ function LayoutInner({ children, currentPageName }) {
                   <p className="text-[10px] text-slate-400 truncate capitalize">{user?.role || 'Visitante'}</p>
                 </div>
               )}
-              <SettingsIcon className="w-4 h-4 text-slate-300 group-hover:text-slate-500" />
+              <SettingsIcon className="w-4 h-4 text-slate-300" />
             </div>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
@@ -283,10 +242,7 @@ function LayoutInner({ children, currentPageName }) {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem 
-              className="text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer"
-              onClick={signOut}
-            >
+            <DropdownMenuItem className="text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer" onClick={signOut}>
               <LogOut className="mr-2 h-4 w-4" /> Sair do Sistema
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -295,9 +251,8 @@ function LayoutInner({ children, currentPageName }) {
     </>
   );
 
-  // --- CSS DINÂMICO PARA SIDEBAR FLUTUANTE ---
   const eyePositionClasses = cn(
-    "fixed z-[60] flex flex-col gap-2 transition-all duration-500 ease-in-out hidden md:flex", // Esconde olho no mobile
+    "fixed z-[60] flex flex-col gap-2 transition-all duration-500 ease-in-out hidden md:flex",
     position === 'left' && "left-4 top-4",
     position === 'right' && "right-4 top-4",
     position === 'top' && "left-4 top-4",
@@ -305,7 +260,7 @@ function LayoutInner({ children, currentPageName }) {
   );
 
   const sidebarClasses = cn(
-    "fixed z-[50] bg-white border-slate-200 text-slate-700 shadow-2xl transition-all duration-300 ease-out hidden md:flex", // Esconde sidebar original no mobile
+    "fixed z-[50] bg-white border-slate-200 text-slate-700 shadow-2xl transition-all duration-300 ease-out hidden md:flex",
     position === 'left' && "left-0 top-0 bottom-0 w-72 border-r transform flex-col",
     position === 'right' && "right-0 top-0 bottom-0 w-72 border-l transform flex-col",
     position === 'top' && "top-0 left-0 right-0 h-auto border-b transform flex-row items-center px-4",
@@ -318,7 +273,7 @@ function LayoutInner({ children, currentPageName }) {
   );
 
   const triggerZoneClasses = cn(
-    "fixed z-[40] bg-transparent hidden md:block", 
+    "fixed z-[40] bg-transparent hidden md:block",
     !isEnabled && "hidden",
     position === 'left' && "left-0 top-0 bottom-0 w-6",
     position === 'right' && "right-0 top-0 bottom-0 w-6",
@@ -331,7 +286,7 @@ function LayoutInner({ children, currentPageName }) {
   return (
     <div className="min-h-screen bg-slate-50 relative overflow-x-hidden">
       
-      {/* --- MOBILE HEADER & MENU (NOVO) --- */}
+      {/* MOBILE HEADER */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 z-50 shadow-sm">
         <div className="flex items-center gap-3">
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
@@ -341,21 +296,29 @@ function LayoutInner({ children, currentPageName }) {
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="w-80 p-0 flex flex-col bg-white">
-               {renderMenuContent(false)}
+              {renderMenuContent(false)}
             </SheetContent>
           </Sheet>
           <span className="font-bold text-lg text-slate-800">J&C Gestão</span>
         </div>
-        <Avatar className="h-8 w-8">
+        <div className="flex items-center gap-2">
+          <NotificationBell userEmail={user?.email} />
+          <Avatar className="h-8 w-8">
             <AvatarImage src={user?.avatar_url || user?.photoURL} className="object-cover" />
             <AvatarFallback className="bg-blue-600 text-white text-xs">
               {(user?.preferred_name || user?.full_name || user?.email || 'U').split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase()}
             </AvatarFallback>
-        </Avatar>
+          </Avatar>
+        </div>
       </div>
 
-      {/* --- DESKTOP CONTROLS --- */}
-      <div 
+      {/* DESKTOP: sino flutuante no canto */}
+      <div className="hidden md:block fixed z-[55] top-4 right-4">
+        <NotificationBell userEmail={user?.email} />
+      </div>
+
+      {/* DESKTOP EYE BUTTON */}
+      <div
         className={eyePositionClasses}
         onMouseEnter={() => setIsHoveringEye(true)}
         onMouseLeave={() => setIsHoveringEye(false)}
@@ -368,8 +331,8 @@ function LayoutInner({ children, currentPageName }) {
             className={cn(
               "rounded-full shadow-lg border transition-all duration-500",
               "opacity-30 group-hover:opacity-100",
-              isEnabled 
-                ? "bg-white text-slate-700 border-slate-200 hover:bg-slate-100 hover:text-blue-600" 
+              isEnabled
+                ? "bg-white text-slate-700 border-slate-200 hover:bg-slate-100 hover:text-blue-600"
                 : "bg-red-50 text-red-500 border-red-200 hover:bg-red-100 hover:text-red-600"
             )}
             title={isEnabled ? "Ocultar Menu" : "Mostrar Menu"}
@@ -381,8 +344,7 @@ function LayoutInner({ children, currentPageName }) {
 
       <div className={triggerZoneClasses} onMouseEnter={handleMouseEnter} />
 
-      {/* --- SIDEBAR FLUTUANTE (DESKTOP) --- */}
-      <aside 
+      <aside
         className={sidebarClasses}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -390,11 +352,9 @@ function LayoutInner({ children, currentPageName }) {
         {renderMenuContent(isHorizontal)}
       </aside>
 
-      {/* --- MAIN CONTENT --- */}
       <main className="w-full min-h-screen transition-all duration-300 pt-16 md:pt-0">
         {children}
       </main>
-
     </div>
   );
 }
