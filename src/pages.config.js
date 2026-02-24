@@ -51,6 +51,7 @@ import AcessoNegado from './pages/AcessoNegado';
 import Balanco from './pages/Balanco';
 import Cadastro from './pages/Cadastro';
 import CaixaDiario from './pages/CaixaDiario';
+import Calendario from './pages/Calendario';
 import Cheques from './pages/Cheques';
 import Clientes from './pages/Clientes';
 import Comissoes from './pages/Comissoes';
@@ -70,6 +71,7 @@ import Orcamentos from './pages/Orcamentos';
 import Pagamentos from './pages/Pagamentos';
 import Pedidos from './pages/Pedidos';
 import PortalCliente from './pages/PortalCliente';
+import PortalDoMotorista from './pages/PortalDoMotorista';
 import PortalDoRepresentante from './pages/PortalDoRepresentante';
 import Produtos from './pages/Produtos';
 import Relatorios from './pages/Relatorios';
@@ -77,8 +79,6 @@ import Representantes from './pages/Representantes';
 import Representation from './pages/Representation';
 import Usuarios from './pages/Usuarios';
 import Welcome from './pages/Welcome';
-import Calendario from './pages/Calendario';
-import PortalDoMotorista from './pages/PortalDoMotorista';
 import __Layout from './Layout.jsx';
 
 
@@ -87,6 +87,7 @@ export const PAGES = {
     "Balanco": Balanco,
     "Cadastro": Cadastro,
     "CaixaDiario": CaixaDiario,
+    "Calendario": Calendario,
     "Cheques": Cheques,
     "Clientes": Clientes,
     "Comissoes": Comissoes,
@@ -106,6 +107,7 @@ export const PAGES = {
     "Pagamentos": Pagamentos,
     "Pedidos": Pedidos,
     "PortalCliente": PortalCliente,
+    "PortalDoMotorista": PortalDoMotorista,
     "PortalDoRepresentante": PortalDoRepresentante,
     "Produtos": Produtos,
     "Relatorios": Relatorios,
@@ -113,8 +115,6 @@ export const PAGES = {
     "Representation": Representation,
     "Usuarios": Usuarios,
     "Welcome": Welcome,
-    "Calendario": Calendario,
-    "PortalDoMotorista": PortalDoMotorista,
 }
 
 export const pagesConfig = {
