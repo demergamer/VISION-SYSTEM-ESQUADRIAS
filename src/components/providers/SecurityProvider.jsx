@@ -16,30 +16,31 @@ export function SecurityProvider({ children }) {
   const sessionTimerRef = useRef(null);
 
   // Todos os usuários autenticados usam o sistema de segurança
-  const isAuthenticated = !!user;
+  const isAdmin = user?.role === 'admin';
+  const hasUser = !!user;
 
   // --- Verificação inicial de onboarding ---
   useEffect(() => {
-    if (!loading && isAuthenticated && user) {
+    if (!loading && hasUser) {
       const hasPinSet = !!user.security_pin_hash;
       if (!hasPinSet) {
         setShowOnboarding(true);
       }
     }
-  }, [loading, isAuthenticated, user]);
+  }, [loading, hasUser, user]);
 
   // --- Reinicia timers de inatividade ---
   const resetIdleTimer = useCallback(() => {
-    if (!isAuthenticated || showOnboarding) return;
+    if (!hasUser || showOnboarding) return;
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     idleTimerRef.current = setTimeout(() => {
       setIsLocked(true);
     }, IDLE_TIMEOUT_MS);
-  }, [isAuthenticated, showOnboarding]);
+  }, [isAdmin, showOnboarding]);
 
   // --- Timer de sessão absoluta ---
   useEffect(() => {
-    if (!isAuthenticated || !user) return;
+    if (!hasUser || !user) return;
     if (sessionTimerRef.current) clearTimeout(sessionTimerRef.current);
     sessionTimerRef.current = setTimeout(() => {
       setIsLocked(true);
@@ -47,23 +48,23 @@ export function SecurityProvider({ children }) {
     return () => {
       if (sessionTimerRef.current) clearTimeout(sessionTimerRef.current);
     };
-  }, [isAuthenticated, user]);
+  }, [isAdmin, user]);
 
   // --- Monitoramento de eventos de inatividade ---
   useEffect(() => {
-    if (!isAuthenticated || !user || showOnboarding) return;
+    if (!isAdmin || !user || showOnboarding) return;
 
     const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
     const handleActivity = () => resetIdleTimer();
 
     events.forEach(e => window.addEventListener(e, handleActivity, { passive: true }));
-    resetIdleTimer();
+    resetIdleTimer(); // inicia o timer pela primeira vez
 
     return () => {
       events.forEach(e => window.removeEventListener(e, handleActivity));
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
-  }, [isAuthenticated, user, showOnboarding, resetIdleTimer]);
+  }, [isAdmin, user, showOnboarding, resetIdleTimer]);
 
   const unlock = useCallback(() => {
     setIsLocked(false);
@@ -78,10 +79,10 @@ export function SecurityProvider({ children }) {
   return (
     <SecurityContext.Provider value={{ isLocked, showOnboarding, unlock, completeOnboarding }}>
       {children}
-      {isAuthenticated && showOnboarding && !loading && (
+      {isAdmin && showOnboarding && !loading && (
         <OnboardingModal onComplete={completeOnboarding} />
       )}
-      {isAuthenticated && isLocked && !showOnboarding && !loading && (
+      {isAdmin && isLocked && !showOnboarding && !loading && (
         <LockScreen onUnlock={unlock} />
       )}
     </SecurityContext.Provider>
