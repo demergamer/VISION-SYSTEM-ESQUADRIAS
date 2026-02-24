@@ -276,10 +276,16 @@ function EtapaVerificarPin({ registro, config, onDesbloqueado }) {
 }
 
 // Componente principal
-export default function PinGateway({ perfil, onIdentificado, onVoltar }) {
+// registroPreIdentificado: se passado, pula a etapa de seleção e vai direto para PIN
+export default function PinGateway({ perfil, onIdentificado, onVoltar, registroPreIdentificado }) {
   const config = ENTIDADE_MAP[perfil];
-  const [etapa, setEtapa] = useState('identificacao'); // 'identificacao' | 'criar_pin' | 'verificar_pin'
-  const [registroSelecionado, setRegistroSelecionado] = useState(null);
+
+  const etapaInicial = registroPreIdentificado
+    ? (registroPreIdentificado.pin_hash ? 'verificar_pin' : 'criar_pin')
+    : 'identificacao';
+
+  const [etapa, setEtapa] = useState(etapaInicial);
+  const [registroSelecionado, setRegistroSelecionado] = useState(registroPreIdentificado || null);
 
   const handleSelecionado = (registro) => {
     setRegistroSelecionado(registro);
@@ -290,13 +296,22 @@ export default function PinGateway({ perfil, onIdentificado, onVoltar }) {
     }
   };
 
+  const handleVoltar = () => {
+    if (registroPreIdentificado) {
+      // Se veio pré-identificado, voltar = sair da página
+      onVoltar?.();
+    } else {
+      setEtapa('identificacao');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center p-6">
       <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl p-8 relative">
         {/* Botão Voltar */}
-        {(etapa !== 'identificacao' || onVoltar) && (
+        {onVoltar && (
           <button
-            onClick={etapa !== 'identificacao' ? () => setEtapa('identificacao') : onVoltar}
+            onClick={etapa === 'identificacao' ? onVoltar : handleVoltar}
             className="absolute top-4 left-4 p-2 text-slate-400 hover:text-slate-700 transition-colors rounded-lg hover:bg-slate-100"
           >
             <ChevronLeft className="w-5 h-5" />
@@ -307,10 +322,10 @@ export default function PinGateway({ perfil, onIdentificado, onVoltar }) {
           {etapa === 'identificacao' && (
             <EtapaIdentificacao key="id" config={config} onSelecionado={handleSelecionado} onVoltar={onVoltar} />
           )}
-          {etapa === 'criar_pin' && (
+          {etapa === 'criar_pin' && registroSelecionado && (
             <EtapaCriarPin key="criar" registro={registroSelecionado} config={config} onCriado={onIdentificado} />
           )}
-          {etapa === 'verificar_pin' && (
+          {etapa === 'verificar_pin' && registroSelecionado && (
             <EtapaVerificarPin key="verificar" registro={registroSelecionado} config={config} onDesbloqueado={onIdentificado} />
           )}
         </AnimatePresence>
