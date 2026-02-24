@@ -58,6 +58,34 @@ const TabButton = ({ active, onClick, icon: Icon, label, count, colorClass, bgAc
 );
 
 export default function PortalCliente() {
+  const [pinOk, setPinOk] = useState(false);
+  const [registroCliente, setRegistroCliente] = useState(null);
+  const [loadingPin, setLoadingPin] = useState(true);
+
+  useEffect(() => {
+    // Verifica se já passou pelo PIN nesta sessão
+    const saved = sessionStorage.getItem('portal_cliente_pin_ok');
+    if (saved) { setPinOk(true); }
+
+    async function identificar() {
+      try {
+        const user = await base44.auth.me();
+        if (!user?.email) { setLoadingPin(false); return; }
+        const lista = await base44.entities.Cliente.filter({ email: user.email });
+        const encontrado = lista[0];
+        if (encontrado) setRegistroCliente(encontrado);
+      } catch {}
+      setLoadingPin(false);
+    }
+    identificar();
+  }, []);
+
+  const handlePinOk = (registro) => {
+    sessionStorage.setItem('portal_cliente_pin_ok', '1');
+    setRegistroCliente(registro);
+    setPinOk(true);
+  };
+
   const [showFiltrosPedidos, setShowFiltrosPedidos] = useState(false);
   const [showFiltrosCheques, setShowFiltrosCheques] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
