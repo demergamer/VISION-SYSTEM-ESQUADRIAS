@@ -965,7 +965,7 @@ export default function Pedidos() {
 
                         <div className="relative flex-1 md:w-64">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                            <Input placeholder="Buscar pedido..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 bg-white" />
+                            <Input placeholder="Buscar pedido... (vírgula p/ múltiplos)" value={searchTerm} onChange={handleSearchChange} className="pl-10 bg-white" />
                         </div>
                         <SeletorItensPorPagina itemsPerPage={itemsPerPage} onChangeItemsPerPage={(v) => { setItemsPerPage(v); setCurrentPage(1); }} />
                     </div>
