@@ -349,9 +349,17 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
                   <div className="space-y-1 lg:col-span-2">
                     <Label htmlFor="cnpj" className={labelClass}>CPF/CNPJ (Busca Auto)</Label>
                     <div className="relative">
-                      <InputCpfCnpj id="cnpj" value={form.cnpj} onChange={handleCnpjChange} className={inputClass} placeholder="Digite para buscar..." />
+                      <InputCpfCnpj
+                        id="cnpj"
+                        value={form.cnpj}
+                        onChange={handleCnpjChange}
+                        onBlur={() => checkDuplicate('cnpj', form.cnpj)}
+                        className={cn(inputClass, duplicateWarnings.cnpj && "border-red-400 ring-1 ring-red-300")}
+                        placeholder="Digite para buscar..."
+                      />
                       {isConsulting && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-600 animate-spin" />}
                     </div>
+                    {duplicateWarnings.cnpj && <p className="text-xs text-red-500 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{duplicateWarnings.cnpj}</p>}
                   </div>
                 )}
                 
