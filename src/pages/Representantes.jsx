@@ -51,6 +51,8 @@ export default function Representantes() {
   const queryClient = useQueryClient();
   const { canDo } = usePermissions();
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(30);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -154,6 +156,7 @@ export default function Representantes() {
     rep.codigo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     rep.regiao?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+  const paginatedRepresentantes = filteredRepresentantes.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const handleEdit = (rep) => { setSelectedRepresentante(rep); setShowEditModal(true); };
   const handleView = (rep) => { setSelectedRepresentante(rep); setShowDetailsModal(true); };
@@ -254,7 +257,7 @@ export default function Representantes() {
             {/* A Tabela */}
             <div className="p-0">
               <RepresentanteTable
-                representantes={filteredRepresentantes}
+                representantes={paginatedRepresentantes}
                 stats={repStats}
                 onEdit={handleEdit}
                 onView={handleView}
@@ -263,9 +266,13 @@ export default function Representantes() {
             </div>
             
             {/* Rodapé da Tabela */}
-            <div className="bg-slate-50/50 p-4 border-t border-slate-100 text-center text-sm text-slate-400 font-medium">
-              Mostrando {filteredRepresentantes.length} registros
-            </div>
+            <PaginacaoTabela
+              currentPage={currentPage}
+              totalItems={filteredRepresentantes.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}
+            />
           </div>
 
         </div>
