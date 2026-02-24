@@ -57,7 +57,7 @@ function FormasPagamentoSelector({ formasSelecionadas, onChange }) {
   );
 }
 
-export default function ClienteForm({ cliente, representantes = [], todosClientes = [], onSave, onCancel, isLoading, onSuccess, isClientMode = false }) {
+export default function ClienteForm({ cliente, representantes = [], todosClientes = [], onSave, onCancel, isLoading, onSuccess, isClientMode = false, allClientes = [] }) {
   const [form, setForm] = useState({
     codigo: '',
     nome: '',
