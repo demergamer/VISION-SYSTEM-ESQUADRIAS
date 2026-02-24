@@ -124,11 +124,34 @@ export default function NovaTarefaModal({ open, onClose, onCriar, usuarios, user
             <Textarea value={form.descricao} onChange={e => set('descricao', e.target.value)} rows={2} className="mt-1" />
           </div>
 
-          {/* Data */}
-          <div>
-            <Label className="text-xs">Data *</Label>
-            <Input type="date" value={form.data_vencimento} onChange={e => set('data_vencimento', e.target.value)} className="mt-1" />
+          {/* Data e Hora */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Data *</Label>
+              <Input type="date" value={form.data_vencimento} onChange={e => set('data_vencimento', e.target.value)} className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs flex items-center gap-1"><Clock className="w-3 h-3" /> Hora</Label>
+              <Input type="time" value={form.hora} onChange={e => set('hora', e.target.value)} className="mt-1" />
+            </div>
           </div>
+
+          {/* Aviso com antecedência (só se tiver hora) */}
+          {form.hora && (
+            <div>
+              <Label className="text-xs">Avisar com antecedência</Label>
+              <Select value={form.aviso_antecedencia} onValueChange={v => set('aviso_antecedencia', v)}>
+                <SelectTrigger className="mt-1 h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="na_hora">Na hora</SelectItem>
+                  <SelectItem value="5min">5 minutos antes</SelectItem>
+                  <SelectItem value="10min">10 minutos antes</SelectItem>
+                  <SelectItem value="30min">30 minutos antes</SelectItem>
+                  <SelectItem value="1h">1 hora antes</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Delegar (individual) */}
           {form.escopo === 'individual' && (
