@@ -110,7 +110,7 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     queryKey: ['creditos', selectedPedidos[0]?.cliente_codigo],
     queryFn: async () => {
       if (!selectedPedidos[0]?.cliente_codigo) return [];
-      const todosCreditos = await base44.entities.Credito.list();
+      const todosCreditos = await base44.entities.Credito.list('-created_date', 200);
       return todosCreditos.filter(c => c?.cliente_codigo === selectedPedidos[0]?.cliente_codigo && c?.status === 'disponivel');
     },
     enabled: selectedPedidos.length > 0 && !!selectedPedidos[0]?.cliente_codigo
