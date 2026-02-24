@@ -208,7 +208,12 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
   };
 
   const calcularTotais = () => {
-    const totalOriginal = selectedPedidos.reduce((sum, p) => sum + (p?.valor_pedido || 0), 0);
+    const totalOriginal = selectedPedidos.reduce((sum, p) => {
+      const valorParaSomar = p?.status?.toLowerCase() === 'parcial'
+        ? Math.max(0, (p?.valor_pedido || 0) - (p?.total_pago || 0))
+        : (p?.valor_pedido || 0);
+      return sum + valorParaSomar;
+    }, 0);
     let desconto = 0;
     if (descontoValor) {
       if (descontoTipo === 'reais') desconto = parseFloat(descontoValor) || 0;
