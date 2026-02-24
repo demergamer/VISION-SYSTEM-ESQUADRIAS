@@ -22,8 +22,11 @@ import {
   Menu,
   Building2,
   Truck,
-  CalendarDays
+  CalendarDays,
+  Bell
 } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import NotificationCenter from '@/components/notificacoes/NotificationCenter';
 
 const CalendarIcon = CalendarDays;
 import { cn } from "@/lib/utils";
