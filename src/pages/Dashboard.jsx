@@ -1,15 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { 
   Users, Package, ShoppingCart, Wallet, FileText, BarChart3, 
   Briefcase, Banknote, ScrollText, CreditCard, ShieldCheck, 
-  Calendar as CalendarIcon, Settings2, ShieldAlert, LogOut, User as UserIcon
+  Calendar as CalendarIcon, Settings2, ShieldAlert, LogOut, User as UserIcon,
+  CheckCircle2, Circle, Plus
 } from "lucide-react";
 import { useAuth } from '@/components/providers/AuthContext';
 import { usePermissions } from "@/components/hooks/usePermissions";
 import { cn } from "@/lib/utils";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { base44 } from '@/api/base44Client';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { format, isSameDay, parseISO } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 // --- NOVOS IMPORTS DO AVATAR E DROPDOWN ---
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -60,7 +67,7 @@ const DigitalClock = ({ time }) => (
   </div>
 );
 
-const MiniCalendar = () => {
+const MiniCalendar = ({ tarefasVisiveis = [], onDayClick }) => {
   const today = new Date();
   const currentDay = today.getDate();
   const weekDays = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
@@ -69,6 +76,12 @@ const MiniCalendar = () => {
   const days = [];
   for (let i = 0; i < firstDayIndex; i++) days.push(null);
   for (let i = 1; i <= daysInMonth; i++) days.push(i);
+
+  const hasTasks = (day) => {
+    if (!day) return false;
+    const d = new Date(today.getFullYear(), today.getMonth(), day);
+    return tarefasVisiveis.some(t => t.data && isSameDay(parseISO(t.data), d));
+  };
 
   return (
     <div className="w-full">
@@ -82,7 +95,21 @@ const MiniCalendar = () => {
       </div>
       <div className="grid grid-cols-7 gap-1 text-center">
         {days.map((day, i) => (
-          <div key={i} className={cn("text-sm p-1.5 rounded-md transition-all", !day && "invisible", day === currentDay ? "bg-blue-600 text-white font-bold shadow-md scale-110" : "text-slate-600 hover:bg-white hover:shadow-sm")}>{day}</div>
+          <button
+            key={i}
+            disabled={!day}
+            onClick={() => day && onDayClick && onDayClick(new Date(today.getFullYear(), today.getMonth(), day))}
+            className={cn(
+              "text-sm p-1.5 rounded-md transition-all relative",
+              !day && "invisible pointer-events-none",
+              day === currentDay ? "bg-blue-600 text-white font-bold shadow-md scale-110" : "text-slate-600 hover:bg-white hover:shadow-sm"
+            )}
+          >
+            {day}
+            {hasTasks(day) && (
+              <span className={cn("absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full", day === currentDay ? "bg-yellow-300" : "bg-blue-400")} />
+            )}
+          </button>
         ))}
       </div>
     </div>
@@ -93,8 +120,40 @@ export default function Dashboard() {
   const { user, signOut } = useAuth();
   const { canDo } = usePermissions();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [time, setTime] = useState(new Date());
   const [clockType, setClockType] = useState(() => localStorage.getItem('jc_clock_pref') || 'digital');
+  const [selectedDay, setSelectedDay] = useState(null);
+  const [showDayModal, setShowDayModal] = useState(false);
+
+  // Tarefas
+  const { data: tarefas = [] } = useQuery({
+    queryKey: ['tarefas'],
+    queryFn: () => base44.entities.Tarefa.list(),
+    enabled: !!user
+  });
+
+  const toggleTarefaMutation = useMutation({
+    mutationFn: ({ id, status }) => base44.entities.Tarefa.update(id, { status }),
+    onSuccess: () => queryClient.invalidateQueries(['tarefas'])
+  });
+
+  const tarefasVisiveis = useMemo(() => tarefas.filter(t =>
+    t.tipo === 'geral' || t.dono_id === user?.email || t.criador_id === user?.email
+  ), [tarefas, user]);
+
+  const tarefasHoje = useMemo(() => tarefasVisiveis.filter(t =>
+    t.status === 'pendente' && t.data && isSameDay(parseISO(t.data), new Date())
+  ), [tarefasVisiveis]);
+
+  const tarefasDoDia = useMemo(() => selectedDay
+    ? tarefasVisiveis.filter(t => t.data && isSameDay(parseISO(t.data), selectedDay))
+    : [], [tarefasVisiveis, selectedDay]);
+
+  const handleDayClick = (day) => {
+    setSelectedDay(day);
+    setShowDayModal(true);
+  };
 
   // --- DADOS DO PERFIL DO USUÁRIO ---
   // O base44 retorna os campos diretamente na raiz do objeto user
@@ -269,7 +328,34 @@ export default function Dashboard() {
 
             <Card className="border-white/40 bg-white/60 backdrop-blur-md shadow-sm ring-1 ring-white/50">
               <CardContent className="p-6">
-                <MiniCalendar />
+                <MiniCalendar tarefasVisiveis={tarefasVisiveis} onDayClick={handleDayClick} />
+              </CardContent>
+            </Card>
+
+            {/* ATIVIDADES DE HOJE */}
+            <Card className="border-white/40 bg-white/60 backdrop-blur-md shadow-sm ring-1 ring-white/50">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-slate-700 text-sm flex items-center gap-2">
+                    <Circle className="w-4 h-4 text-amber-500" /> Atividades de Hoje
+                    {tarefasHoje.length > 0 && <Badge className="bg-amber-100 text-amber-700 text-[10px]">{tarefasHoje.length}</Badge>}
+                  </h3>
+                  <button onClick={() => navigate('/Calendario')} className="text-[10px] text-blue-600 hover:underline flex items-center gap-0.5">
+                    <Plus className="w-3 h-3" /> Ver Calendário
+                  </button>
+                </div>
+                {tarefasHoje.length === 0
+                  ? <p className="text-xs text-slate-400 text-center py-3">Nenhuma tarefa pendente hoje 🎉</p>
+                  : tarefasHoje.map(t => (
+                    <div key={t.id} className="flex items-start gap-2 p-2 bg-white rounded-lg border border-slate-100">
+                      <button
+                        onClick={() => toggleTarefaMutation.mutate({ id: t.id, status: 'concluida' })}
+                        className="mt-0.5 rounded-full border-2 border-slate-300 hover:border-emerald-400 w-4 h-4 flex items-center justify-center shrink-0 transition-colors"
+                      />
+                      <span className="text-xs text-slate-700 font-medium">{t.titulo}</span>
+                    </div>
+                  ))
+                }
               </CardContent>
             </Card>
 
@@ -279,9 +365,46 @@ export default function Dashboard() {
                 Dica do Dia
               </h3>
               <p className="text-blue-50 text-sm leading-relaxed font-medium">
-                Utilize o botão direito do mouse na listagem de clientes para acessar o histórico de pedidos rapidamente.
+                Utilize o Calendário de Tarefas para delegar e acompanhar atividades da equipe.
               </p>
             </div>
+
+            {/* MODAL: TAREFAS DO DIA CLICADO */}
+            <Dialog open={showDayModal} onOpenChange={setShowDayModal}>
+              <DialogContent className="max-w-sm">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-slate-800">
+                    <CalendarIcon className="w-4 h-4 text-blue-600" />
+                    {selectedDay && format(selectedDay, "dd 'de' MMMM", { locale: ptBR })}
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {tarefasDoDia.length === 0
+                    ? <p className="text-sm text-slate-400 text-center py-6">Nenhuma tarefa neste dia.</p>
+                    : tarefasDoDia.map(t => {
+                      const isDone = t.status === 'concluida';
+                      return (
+                        <div key={t.id} className={cn("flex items-start gap-2 p-2 bg-slate-50 rounded-lg border", isDone && "opacity-60")}>
+                          <button
+                            onClick={() => toggleTarefaMutation.mutate({ id: t.id, status: isDone ? 'pendente' : 'concluida' })}
+                            className={cn("mt-0.5 rounded-full border-2 w-4 h-4 flex items-center justify-center shrink-0 transition-colors", isDone ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-300 hover:border-emerald-400")}
+                          >
+                            {isDone && <CheckCircle2 className="w-2.5 h-2.5" />}
+                          </button>
+                          <div>
+                            <p className={cn("text-sm font-medium text-slate-700", isDone && "line-through")}>{t.titulo}</p>
+                            {t.descricao && <p className="text-xs text-slate-400">{t.descricao}</p>}
+                          </div>
+                        </div>
+                      );
+                    })
+                  }
+                </div>
+                <Button size="sm" variant="outline" className="w-full text-blue-600" onClick={() => { setShowDayModal(false); navigate('/Calendario'); }}>
+                  <CalendarIcon className="w-3.5 h-3.5 mr-1" /> Ir para o Calendário
+                </Button>
+              </DialogContent>
+            </Dialog>
           </div>
 
         </div>
