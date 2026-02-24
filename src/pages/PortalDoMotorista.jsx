@@ -112,12 +112,40 @@ export default function PortalDoMotorista() {
   });
 
   if (loadingSession) {
-    return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin w-8 h-8 text-blue-500" /></div>;
+    return <div className="min-h-screen flex items-center justify-center bg-slate-900"><Loader2 className="animate-spin w-8 h-8 text-blue-400" /></div>;
   }
 
-  // --- GATEWAY DE IDENTIFICAÇÃO + PIN ---
+  // --- ERRO DE ACESSO ---
+  if (erroAcesso) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center p-6">
+        <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl p-8 text-center space-y-4">
+          <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center mx-auto">
+            <AlertCircle className="w-7 h-7 text-red-500" />
+          </div>
+          <h2 className="text-lg font-bold text-slate-800">Acesso Negado</h2>
+          <p className="text-slate-500 text-sm">{erroAcesso}</p>
+          <Button variant="outline" className="w-full" onClick={() => window.history.back()}>Voltar</Button>
+        </div>
+      </div>
+    );
+  }
+
+  // --- GATEWAY DE PIN (registro já identificado pelo e-mail) ---
+  if (!motorista && registroMotorista) {
+    return (
+      <PinGateway
+        perfil="motorista"
+        registroPreIdentificado={registroMotorista}
+        onIdentificado={handleIdentificado}
+        onVoltar={() => window.history.back()}
+      />
+    );
+  }
+
+  // Ainda carregando registro
   if (!motorista) {
-    return <PinGateway perfil="motorista" onIdentificado={handleIdentificado} onVoltar={() => window.history.back()} />;
+    return <div className="min-h-screen flex items-center justify-center bg-slate-900"><Loader2 className="animate-spin w-8 h-8 text-blue-400" /></div>;
   }
 
   const totalPedidos = pedidos.length;
