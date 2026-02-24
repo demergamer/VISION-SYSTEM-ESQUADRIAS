@@ -34,6 +34,8 @@ import { format, isSameDay, isToday, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
+const { useState: useStateLocal } = React;
+
 // --- WIDGETS AUXILIARES (Relógio/Calendário) ---
 const AnalogClock = ({ time }) => {
   const seconds = time.getSeconds();
