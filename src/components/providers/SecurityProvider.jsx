@@ -105,25 +105,40 @@ export function SecurityProvider({ children }) {
     unlock();
   }, [unlock]);
 
-  // Usuário inativo: tela intransponível
-  if (!loading && hasUser && isInativo) {
+  // --- Renderização Condicional Estrita (children NUNCA vazam para o DOM bloqueado) ---
+
+  // 1. Carregando autenticação → nada no DOM
+  if (loading || !hasUser) {
+    return <SecurityContext.Provider value={{ isLocked, showOnboarding, unlock, lockScreen, completeOnboarding }}></SecurityContext.Provider>;
+  }
+
+  // 2. Usuário inativo/bloqueado → apenas a tela de bloqueio absoluto, sem children
+  if (isInativo) {
+    return <InativoBlockScreen signOut={signOut} />;
+  }
+
+  // 3. Precisa de onboarding (sem PIN) → apenas o modal de onboarding, sem children
+  if (showOnboarding) {
     return (
-      <>
-        {children}
-        <InativoBlockScreen signOut={signOut} />
-      </>
+      <SecurityContext.Provider value={{ isLocked, showOnboarding, unlock, lockScreen, completeOnboarding }}>
+        <OnboardingModal onComplete={completeOnboarding} />
+      </SecurityContext.Provider>
     );
   }
 
+  // 4. Tela bloqueada (PIN) → apenas o LockScreen, sem children
+  if (isLocked) {
+    return (
+      <SecurityContext.Provider value={{ isLocked, showOnboarding, unlock, lockScreen, completeOnboarding }}>
+        <LockScreen onUnlock={unlock} />
+      </SecurityContext.Provider>
+    );
+  }
+
+  // 5. Sessão válida → renderiza a aplicação normalmente
   return (
     <SecurityContext.Provider value={{ isLocked, showOnboarding, unlock, lockScreen, completeOnboarding }}>
       {children}
-      {hasUser && showOnboarding && !loading && (
-        <OnboardingModal onComplete={completeOnboarding} />
-      )}
-      {hasUser && isLocked && !showOnboarding && !loading && (
-        <LockScreen onUnlock={unlock} />
-      )}
     </SecurityContext.Provider>
   );
 }
