@@ -79,10 +79,10 @@ export function SecurityProvider({ children }) {
   return (
     <SecurityContext.Provider value={{ isLocked, showOnboarding, unlock, completeOnboarding }}>
       {children}
-      {isAdmin && showOnboarding && !loading && (
+      {hasUser && showOnboarding && !loading && (
         <OnboardingModal onComplete={completeOnboarding} />
       )}
-      {isAdmin && isLocked && !showOnboarding && !loading && (
+      {hasUser && isLocked && !showOnboarding && !loading && (
         <LockScreen onUnlock={unlock} />
       )}
     </SecurityContext.Provider>
