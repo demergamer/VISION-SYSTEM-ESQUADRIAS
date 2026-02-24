@@ -38,9 +38,10 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import ChequesPendentesModal from "./ChequesPendentesModal";
 
-export default function ClienteDetails({ cliente, stats, creditos, onEdit, onClose, onViewPedidos, onLogoUpdate }) {
+export default function ClienteDetails({ cliente, stats, creditos, cheques = [], onEdit, onClose, onViewPedidos, onLogoUpdate }) {
   const [logoUrl, setLogoUrl] = useState(cliente.logo_url || null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [showCheques, setShowCheques] = useState(false);
   const logoInputRef = useRef(null);
 
   const handleLogoUpload = async (e) => {
@@ -161,9 +162,13 @@ export default function ClienteDetails({ cliente, stats, creditos, onEdit, onClo
           <p className="text-xs text-amber-600 font-semibold mb-1">Pedidos Abertos</p>
           <p className="text-lg font-bold text-amber-700">{formatCurrency(cliStats.totalPedidosAbertos)}</p>
         </Card>
-        <Card className="p-4 border-purple-100 bg-purple-50/50">
+        <Card
+          className="p-4 border-purple-100 bg-purple-50/50 cursor-pointer hover:bg-purple-100/60 transition-colors"
+          onClick={() => setShowCheques(true)}
+        >
           <p className="text-xs text-purple-600 font-semibold mb-1">Cheques a Vencer</p>
           <p className="text-lg font-bold text-purple-700">{formatCurrency(cliStats.totalChequesVencer)}</p>
+          <p className="text-[10px] text-purple-400 mt-0.5">Clique para ver detalhes</p>
         </Card>
         <Card className="p-4 border-green-100 bg-green-50/50">
           <p className="text-xs text-green-600 font-semibold mb-1">Créditos Disp.</p>
@@ -339,6 +344,13 @@ export default function ClienteDetails({ cliente, stats, creditos, onEdit, onClo
 
         </Accordion>
       </div>
+
+      <ChequesPendentesModal
+        open={showCheques}
+        onClose={() => setShowCheques(false)}
+        cliente={cliente}
+        cheques={cheques}
+      />
 
       {/* Footer Actions - SEM BOTÃO EDITAR */}
       <div className="flex justify-end gap-3 pt-4 border-t sticky bottom-0 bg-white z-10">
