@@ -178,6 +178,27 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
       const possuiST = todosCnaes.some(c => cnaesComST.includes(String(c.codigo).replace(/\D/g, '')));
       const textoCnaes = todosCnaes.map(c => `${c.codigo} - ${c.descricao}`).join('\n');
 
+      // Fallback: se CNPJ não retornou endereço completo, tenta ViaCEP
+      let endereco = data.logradouro || '';
+      let bairro = data.bairro || '';
+      let cidade = data.municipio || '';
+      let estado = data.uf || '';
+      let cepFormatado = data.cep ? data.cep.replace(/(\d{5})(\d{3})/, '$1-$2') : '';
+
+      if ((!endereco || !bairro) && data.cep) {
+        try {
+          const cepLimpo = data.cep.replace(/\D/g, '');
+          const viaCepRes = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+          const viaCepData = await viaCepRes.json();
+          if (!viaCepData.erro) {
+            endereco = endereco || viaCepData.logradouro || '';
+            bairro = bairro || viaCepData.bairro || '';
+            cidade = cidade || viaCepData.localidade || '';
+            estado = estado || viaCepData.uf || '';
+          }
+        } catch (_) {}
+      }
+
       setForm(prev => ({
         ...prev,
         razao_social: data.razao_social,
@@ -185,8 +206,8 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
         nome: prev.nome || (data.nome_fantasia || data.razao_social), 
         email: data.email || prev.email,
         telefone_1: formatTelefoneDinamico(data.ddd_telefone_1 || prev.telefone_1),
-        cep: data.cep ? data.cep.replace(/(\d{5})(\d{3})/, '$1-$2') : prev.cep,
-        endereco: data.logradouro, numero: data.numero, bairro: data.bairro, cidade: data.municipio, estado: data.uf, complemento: data.complemento,
+        cep: cepFormatado || prev.cep,
+        endereco, numero: data.numero || '', bairro, cidade, estado, complemento: data.complemento || '',
         data_consulta: new Date().toISOString().split('T')[0],
         cnaes_descricao: textoCnaes,
         tem_st: possuiST 
