@@ -196,43 +196,130 @@ export default function LockScreen({ onUnlock }) {
           </div>
         </div>
 
-        {/* PIN Input */}
-        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 space-y-4">
-          <p className="text-slate-300 text-sm">Digite seu PIN para desbloquear</p>
-          
-          <Input
-            ref={inputRef}
-            type="password"
-            inputMode="numeric"
-            maxLength={6}
-            value={pin}
-            onChange={e => { setPin(e.target.value.replace(/\D/g, '')); setError(''); }}
-            onKeyDown={handleKeyDown}
-            placeholder="••••"
-            disabled={!!lockedUntil || isChecking}
-            className="text-center text-2xl tracking-[0.75em] font-bold bg-white/10 border-white/20 text-white placeholder:text-white/30 focus-visible:ring-blue-500 h-14"
-          />
+        {/* ── MODO: PIN normal ── */}
+        {mode === 'pin' && (
+          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 space-y-4">
+            <p className="text-slate-300 text-sm">Digite seu PIN para desbloquear</p>
+            
+            <Input
+              ref={inputRef}
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
+              value={pin}
+              onChange={e => { setPin(e.target.value.replace(/\D/g, '')); setError(''); }}
+              onKeyDown={handleKeyDown}
+              placeholder="••••"
+              disabled={!!lockedUntil || isChecking}
+              className="text-center text-2xl tracking-[0.75em] font-bold bg-white/10 border-white/20 text-white placeholder:text-white/30 focus-visible:ring-blue-500 h-14"
+            />
 
-          {error && (
-            <div className="flex items-center gap-2 text-red-300 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-              {error}
-              {lockedUntil && timeLeft > 0 && <span className="ml-auto font-bold tabular-nums">{timeLeft}s</span>}
-            </div>
-          )}
-
-          <Button
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white h-11 font-semibold"
-            onClick={handleUnlock}
-            disabled={!!lockedUntil || isChecking || pin.length < 4}
-          >
-            {isChecking ? (
-              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Verificando...</>
-            ) : (
-              <><Unlock className="w-4 h-4 mr-2" /> Desbloquear</>
+            {error && (
+              <div className="flex items-center gap-2 text-red-300 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                {error}
+                {lockedUntil && timeLeft > 0 && <span className="ml-auto font-bold tabular-nums">{timeLeft}s</span>}
+              </div>
             )}
-          </Button>
-        </div>
+
+            <Button
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white h-11 font-semibold"
+              onClick={handleUnlock}
+              disabled={!!lockedUntil || isChecking || pin.length < 4}
+            >
+              {isChecking ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Verificando...</>
+              ) : (
+                <><Unlock className="w-4 h-4 mr-2" /> Desbloquear</>
+              )}
+            </Button>
+
+            <button
+              onClick={() => setMode('send_code')}
+              className="w-full text-slate-500 hover:text-blue-400 text-xs transition-colors pt-1"
+            >
+              Esqueci meu PIN
+            </button>
+          </div>
+        )}
+
+        {/* ── MODO: Enviar código ── */}
+        {mode === 'send_code' && (
+          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center shrink-0">
+                <Mail className="w-5 h-5 text-blue-400" />
+              </div>
+              <div className="text-left">
+                <p className="text-white font-semibold text-sm">Recuperar PIN por e-mail</p>
+                <p className="text-slate-400 text-xs mt-0.5">Enviaremos um código de 6 dígitos para:</p>
+              </div>
+            </div>
+            <div className="bg-white/10 border border-white/10 rounded-lg px-4 py-2.5 text-center">
+              <span className="text-blue-300 font-medium text-sm">{user?.email}</span>
+            </div>
+            <Button
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white h-11 font-semibold"
+              onClick={handleSendCode}
+              disabled={isSendingCode}
+            >
+              {isSendingCode ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Enviando código...</>
+              ) : (
+                <><Mail className="w-4 h-4 mr-2" /> Enviar Código</>
+              )}
+            </Button>
+            <button
+              onClick={() => setMode('pin')}
+              className="w-full flex items-center justify-center gap-1.5 text-slate-500 hover:text-slate-300 text-xs transition-colors"
+            >
+              <ArrowLeft className="w-3 h-3" /> Voltar para o PIN
+            </button>
+          </div>
+        )}
+
+        {/* ── MODO: Verificar código OTP ── */}
+        {mode === 'verify_code' && (
+          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-green-500/20 rounded-xl flex items-center justify-center shrink-0">
+                <KeyRound className="w-5 h-5 text-green-400" />
+              </div>
+              <div className="text-left">
+                <p className="text-white font-semibold text-sm">Digite o código recebido</p>
+                <p className="text-slate-400 text-xs mt-0.5">Verifique seu e-mail e insira o código de 6 dígitos</p>
+              </div>
+            </div>
+            <Input
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={otp}
+              onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
+              onKeyDown={e => e.key === 'Enter' && handleVerifyCode()}
+              placeholder="000000"
+              className="text-center text-3xl tracking-[0.5em] font-bold bg-white/10 border-white/20 text-white placeholder:text-white/20 focus-visible:ring-green-500 h-14"
+              autoFocus
+            />
+            <Button
+              className="w-full bg-green-600 hover:bg-green-500 text-white h-11 font-semibold"
+              onClick={handleVerifyCode}
+              disabled={isVerifyingCode || otp.length !== 6}
+            >
+              {isVerifyingCode ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Verificando...</>
+              ) : (
+                <><KeyRound className="w-4 h-4 mr-2" /> Verificar Código</>
+              )}
+            </Button>
+            <button
+              onClick={() => { setMode('send_code'); setOtp(''); }}
+              className="w-full flex items-center justify-center gap-1.5 text-slate-500 hover:text-slate-300 text-xs transition-colors"
+            >
+              <ArrowLeft className="w-3 h-3" /> Reenviar ou trocar e-mail
+            </button>
+          </div>
+        )}
 
         {/* Sair */}
         <button
