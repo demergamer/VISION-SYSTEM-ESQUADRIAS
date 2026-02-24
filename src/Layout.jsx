@@ -4,10 +4,11 @@ import {
   Eye, EyeOff, Settings as SettingsIcon, LogOut, Clock, Calendar,
   LayoutDashboard, Users, Package, ShoppingCart, Wallet, FileText,
   BarChart3, Home, Briefcase, Banknote, ScrollText, CreditCard,
-  Menu, Building2, Truck, CalendarDays, Bell
+  Menu, Building2, Truck, CalendarDays, Bell, Lock
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { useSecurity } from '@/components/providers/SecurityProvider';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import NotificationCenter from '@/components/notificacoes/NotificationCenter';
 import { cn } from "@/lib/utils";
