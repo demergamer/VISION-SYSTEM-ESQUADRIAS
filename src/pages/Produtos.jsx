@@ -70,13 +70,13 @@ export default function Produtos() {
   });
 
   const filteredProdutos = produtos.filter(p => {
-
     const nome = (p.nome_base || p.nome || '').toLowerCase();
     const matchSearch = nome.includes(searchTerm.toLowerCase()) ||
       (p.variacoes || []).some(v => v.sku?.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchCat = categoriaFiltro === 'Todas' || p.categoria === categoriaFiltro;
     return matchSearch && matchCat;
   });
+  const paginatedProdutos = filteredProdutos.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const stats = {
     total: produtos.length,
@@ -160,16 +160,25 @@ export default function Produtos() {
               </p>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {filteredProdutos.map(produto => (
-                <ProdutoCard
-                  key={produto.id}
-                  produto={produto}
-                  onEdit={(p) => { setSelectedProduto(p); setShowEditModal(true); }}
-                  onDelete={(p) => { setProdutoToDelete(p); setShowDeleteDialog(true); }}
-                />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {paginatedProdutos.map(produto => (
+                  <ProdutoCard
+                    key={produto.id}
+                    produto={produto}
+                    onEdit={(p) => { setSelectedProduto(p); setShowEditModal(true); }}
+                    onDelete={(p) => { setProdutoToDelete(p); setShowDeleteDialog(true); }}
+                  />
+                ))}
+              </div>
+              <PaginacaoTabela
+                currentPage={currentPage}
+                totalItems={filteredProdutos.length}
+                itemsPerPage={itemsPerPage}
+                onPageChange={setCurrentPage}
+                onItemsPerPageChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}
+              />
+            </>
           )}
         </div>
       </div>
