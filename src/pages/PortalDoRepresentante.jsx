@@ -570,6 +570,7 @@ export default function PainelRepresentante() {
   };
 
   if (loading) return <div className="min-h-screen bg-[#F2F2F7] flex flex-col items-center justify-center"><Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" /><p className="text-slate-500 font-medium">Carregando portal...</p></div>;
+  if (!pinOk && registroRepresentante) return <PinGateway perfil="representante" registroPreIdentificado={registroRepresentante} onIdentificado={handlePinOk} onVoltar={() => window.history.back()} />;
   if (!user || !representante) return <div className="min-h-screen bg-[#F2F2F7] flex items-center justify-center p-6"><Card className="p-8 max-w-md text-center border-amber-200 bg-amber-50"><AlertCircle className="w-12 h-12 text-amber-600 mx-auto mb-4" /><h2 className="text-xl font-bold text-slate-800 mb-2">Acesso Restrito</h2><p className="text-slate-600 mb-4">Email não vinculado a um representante.</p><div className="flex justify-center gap-3"><Button onClick={() => window.location.reload()} variant="outline" className="bg-white">Recarregar</Button><Button onClick={realizarLogout} variant="destructive">Sair</Button></div></Card></div>;
 
   return (
