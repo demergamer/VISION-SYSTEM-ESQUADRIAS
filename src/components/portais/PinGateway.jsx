@@ -281,8 +281,9 @@ function EtapaVerificarPin({ registro, config, onDesbloqueado }) {
 export default function PinGateway({ perfil, onIdentificado, onVoltar, registroPreIdentificado }) {
   const config = ENTIDADE_MAP[perfil];
 
+  // Sem PIN = onboarding completo (Perfil + PIN). Com PIN = só verificar PIN.
   const etapaInicial = registroPreIdentificado
-    ? (registroPreIdentificado.pin_hash ? 'verificar_pin' : 'criar_pin')
+    ? (registroPreIdentificado.pin_hash ? 'verificar_pin' : 'onboarding')
     : 'identificacao';
 
   const [etapa, setEtapa] = useState(etapaInicial);
@@ -293,18 +294,28 @@ export default function PinGateway({ perfil, onIdentificado, onVoltar, registroP
     if (registro.pin_hash) {
       setEtapa('verificar_pin');
     } else {
-      setEtapa('criar_pin');
+      setEtapa('onboarding'); // Primeiro acesso → modal rico (Perfil + PIN)
     }
   };
 
   const handleVoltar = () => {
     if (registroPreIdentificado) {
-      // Se veio pré-identificado, voltar = sair da página
       onVoltar?.();
     } else {
       setEtapa('identificacao');
     }
   };
+
+  // Primeiro acesso: renderiza o OnboardingModal completo (fora do card pequeno)
+  if (etapa === 'onboarding' && registroSelecionado) {
+    return (
+      <OnboardingModalStandalone
+        registro={registroSelecionado}
+        perfil={perfil}
+        onComplete={(registroAtualizado) => onIdentificado(registroAtualizado)}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center p-6">
@@ -322,9 +333,6 @@ export default function PinGateway({ perfil, onIdentificado, onVoltar, registroP
         <AnimatePresence mode="wait">
           {etapa === 'identificacao' && (
             <EtapaIdentificacao key="id" config={config} onSelecionado={handleSelecionado} onVoltar={onVoltar} />
-          )}
-          {etapa === 'criar_pin' && registroSelecionado && (
-            <EtapaCriarPin key="criar" registro={registroSelecionado} config={config} onCriado={onIdentificado} />
           )}
           {etapa === 'verificar_pin' && registroSelecionado && (
             <EtapaVerificarPin key="verificar" registro={registroSelecionado} config={config} onDesbloqueado={onIdentificado} />
