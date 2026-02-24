@@ -24,6 +24,8 @@ export default function Produtos() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [categoriaFiltro, setCategoriaFiltro] = useState('Todas');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(30);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedProduto, setSelectedProduto] = useState(null);
@@ -68,6 +70,7 @@ export default function Produtos() {
   });
 
   const filteredProdutos = produtos.filter(p => {
+
     const nome = (p.nome_base || p.nome || '').toLowerCase();
     const matchSearch = nome.includes(searchTerm.toLowerCase()) ||
       (p.variacoes || []).some(v => v.sku?.toLowerCase().includes(searchTerm.toLowerCase()));
