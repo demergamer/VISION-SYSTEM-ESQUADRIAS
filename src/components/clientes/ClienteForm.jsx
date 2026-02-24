@@ -273,6 +273,8 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
     return { ...prev, contatos_lista: lista };
   });
 
+  const hasDuplicates = Object.keys(duplicateWarnings).length > 0;
+
   const validate = () => {
     const newErrors = {};
     if (!isClientMode && !form.codigo) newErrors.codigo = "Código obrigatório.";
