@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import PinGateway from "@/components/portais/PinGateway";
+import OnboardingModalStandalone from "@/components/admin/OnboardingModalStandalone";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";

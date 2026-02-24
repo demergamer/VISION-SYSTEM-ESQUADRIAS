@@ -10,6 +10,7 @@ import { Package, MapPin, Calendar, Loader2, LogOut, AlertCircle } from "lucide-
 import { format, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import PinGateway from "@/components/portais/PinGateway";
+import OnboardingModalStandalone from "@/components/admin/OnboardingModalStandalone";
 
 const formatCurrency = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
