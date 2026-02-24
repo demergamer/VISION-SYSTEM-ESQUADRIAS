@@ -65,6 +65,7 @@ import Fornecedores from './pages/Fornecedores';
 import Logs from './pages/Logs';
 import Loja from './pages/Loja';
 import LojaJC from './pages/LojaJC';
+import Motoristas from './pages/Motoristas';
 import Orcamentos from './pages/Orcamentos';
 import Pagamentos from './pages/Pagamentos';
 import Pedidos from './pages/Pedidos';
@@ -76,7 +77,6 @@ import Representantes from './pages/Representantes';
 import Representation from './pages/Representation';
 import Usuarios from './pages/Usuarios';
 import Welcome from './pages/Welcome';
-import Motoristas from './pages/Motoristas';
 import __Layout from './Layout.jsx';
 
 
@@ -99,6 +99,7 @@ export const PAGES = {
     "Logs": Logs,
     "Loja": Loja,
     "LojaJC": LojaJC,
+    "Motoristas": Motoristas,
     "Orcamentos": Orcamentos,
     "Pagamentos": Pagamentos,
     "Pedidos": Pedidos,
@@ -110,7 +111,6 @@ export const PAGES = {
     "Representation": Representation,
     "Usuarios": Usuarios,
     "Welcome": Welcome,
-    "Motoristas": Motoristas,
 }
 
 export const pagesConfig = {

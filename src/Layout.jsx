@@ -19,8 +19,9 @@ import {
   Banknote,
   ScrollText,
   CreditCard,
-  Menu, // Adicionado para mobile
-  Building2 // Adicionado para logo
+  Menu,
+  Building2,
+  Truck
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { AuthProvider, useAuth } from '@/components/providers/AuthContext';
