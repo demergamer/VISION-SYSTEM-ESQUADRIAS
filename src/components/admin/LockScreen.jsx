@@ -25,6 +25,12 @@ export default function LockScreen({ onUnlock }) {
   const [timeLeft, setTimeLeft] = useState(0);
   const inputRef = useRef(null);
 
+  // --- Recuperação de PIN ---
+  const [mode, setMode] = useState('pin'); // 'pin' | 'send_code' | 'verify_code'
+  const [otp, setOtp] = useState('');
+  const [isSendingCode, setIsSendingCode] = useState(false);
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+
   const preferred_name = user?.preferred_name || user?.full_name?.split(' ')[0] || 'Admin';
   const avatar_url = user?.avatar_url || '';
   const initials = (user?.preferred_name || user?.full_name || 'A').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
