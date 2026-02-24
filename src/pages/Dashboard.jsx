@@ -166,13 +166,13 @@ export default function Dashboard() {
   const [time, setTime] = useState(new Date());
   const [clockType, setClockType] = useState(() => localStorage.getItem('jc_clock_pref') || 'digital');
 
+  const queryClient = useQueryClient();
+
   const { data: tarefas = [] } = useQuery({
     queryKey: ['tarefas'],
     queryFn: () => base44.entities.Tarefa.list(),
     enabled: !!user
   });
-
-  const queryClient = useQueryClient();
 
   // --- DADOS DO PERFIL DO USUÁRIO ---
   // O base44 retorna os campos diretamente na raiz do objeto user
@@ -238,6 +238,7 @@ export default function Dashboard() {
       title: "Sistema",
       color: "slate",
       items: [
+        { name: "Calendario", label: "Calendário", icon: CalendarIcon, desc: "Tarefas e lembretes" },
         { name: "Relatorios", label: "Relatórios", icon: BarChart3, desc: "Análise de dados" },
         { name: "Logs", label: "Auditoria", icon: ScrollText, desc: "Histórico de ações" },
         { name: "FormasPagamento", label: "Config.", icon: CreditCard, desc: "Meios de pagamento" },
