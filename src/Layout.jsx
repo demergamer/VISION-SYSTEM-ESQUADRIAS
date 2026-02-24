@@ -21,8 +21,11 @@ import {
   CreditCard,
   Menu,
   Building2,
-  Truck
+  Truck,
+  CalendarDays
 } from 'lucide-react';
+
+const CalendarIcon = CalendarDays;
 import { cn } from "@/lib/utils";
 import { AuthProvider, useAuth } from '@/components/providers/AuthContext';
 import { SecurityProvider } from '@/components/providers/SecurityProvider';
