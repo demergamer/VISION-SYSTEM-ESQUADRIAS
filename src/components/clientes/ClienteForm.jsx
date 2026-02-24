@@ -533,8 +533,13 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
       </div>
 
       <div className="flex justify-end gap-3 pt-6 border-t mt-4 bg-white sticky bottom-0 z-10">
+        {hasDuplicates && (
+          <p className="text-xs text-red-500 flex items-center gap-1 mr-auto self-center">
+            <AlertCircle className="w-3 h-3" /> Corrija as duplicidades antes de salvar
+          </p>
+        )}
         <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading || isSaving} className="h-11 px-6 rounded-xl border-slate-200">Cancelar</Button>
-        <Button type="button" onClick={handleSubmit} disabled={isLoading || isSaving} className="h-11 px-8 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg">{isSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Salvando...</> : <><Save className="w-4 h-4 mr-2" /> {cliente ? 'Salvar' : 'Cadastrar'}</>}</Button>
+        <Button type="button" onClick={handleSubmit} disabled={isLoading || isSaving || hasDuplicates} className="h-11 px-8 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg disabled:opacity-50">{isSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Salvando...</> : <><Save className="w-4 h-4 mr-2" /> {cliente ? 'Salvar' : 'Cadastrar'}</>}</Button>
       </div>
     </div>
   );
