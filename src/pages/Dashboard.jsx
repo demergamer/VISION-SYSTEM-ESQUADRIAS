@@ -233,6 +233,7 @@ export default function Dashboard() {
       color: "slate",
       items: [
         { name: "Calendario", label: "Calendário", icon: CalendarIcon, desc: "Tarefas e lembretes" },
+        { name: "ConfiguracoesLojas", label: "Lojas", icon: Building2, desc: "Configurações de lojas" },
         { name: "Relatorios", label: "Relatórios", icon: BarChart3, desc: "Análise de dados" },
         { name: "Logs", label: "Auditoria", icon: ScrollText, desc: "Histórico de ações" },
         { name: "FormasPagamento", label: "Config.", icon: CreditCard, desc: "Meios de pagamento" },
