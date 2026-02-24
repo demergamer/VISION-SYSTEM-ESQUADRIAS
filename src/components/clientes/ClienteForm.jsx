@@ -366,8 +366,16 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
                 {/* 3 CAMPOS DE NOME SEPARADOS */}
                 <div className="space-y-1 lg:col-span-3">
                   <Label htmlFor="nome" className={labelClass}>Nome (Apelido / Identificação) *</Label>
-                  <Input id="nome" name="nome" value={form.nome} onChange={handleInputChange} disabled={isClientMode} className={cn(inputClass, "font-bold text-slate-700", isClientMode && "bg-slate-100 cursor-not-allowed opacity-70")} placeholder="Como o cliente é conhecido" />
+                  <Input
+                    id="nome" name="nome" value={form.nome}
+                    onChange={handleInputChange}
+                    onBlur={() => checkDuplicate('nome', form.nome)}
+                    disabled={isClientMode}
+                    className={cn(inputClass, "font-bold text-slate-700", isClientMode && "bg-slate-100 cursor-not-allowed opacity-70", duplicateWarnings.nome && "border-red-400 ring-1 ring-red-300")}
+                    placeholder="Como o cliente é conhecido"
+                  />
                   {errors.nome && <p className="text-xs text-red-500">{errors.nome}</p>}
+                  {duplicateWarnings.nome && <p className="text-xs text-red-500 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{duplicateWarnings.nome}</p>}
                 </div>
                 <div className="space-y-1 lg:col-span-3">
                   <Label htmlFor="nome_fantasia" className={labelClass}>Nome Fantasia {isClientMode && <span className="text-blue-500 normal-case font-normal">(editável)</span>}</Label>
