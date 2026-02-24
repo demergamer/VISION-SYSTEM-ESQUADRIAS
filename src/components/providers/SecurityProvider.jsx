@@ -89,10 +89,18 @@ export function SecurityProvider({ children }) {
     };
   }, [hasUser, user, showOnboarding, isLocked, isInativo, resetIdleTimer]);
 
-  const unlock = useCallback(() => {
+  const unlock = useCallback(async () => {
     sessionStorage.setItem(SESSION_KEY, '1');
     setIsLocked(false);
     resetIdleTimer();
+    // Re-fetch user para detectar se PIN foi zerado (fluxo de recuperação)
+    try {
+      const freshUser = await base44.auth.me();
+      if (freshUser && !freshUser.security_pin_hash) {
+        setShowOnboarding(true);
+        setIsLocked(false);
+      }
+    } catch { /* silencioso */ }
   }, [resetIdleTimer]);
 
   const lockScreen = useCallback(() => {
