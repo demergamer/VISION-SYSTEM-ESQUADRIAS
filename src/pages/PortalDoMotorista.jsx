@@ -375,56 +375,6 @@ export default function PortalDoMotorista() {
     })
   });
 
-  // --- TELA DE LOGIN ---
-  if (loadingAuth && !motorista) {
-    return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin w-8 h-8 text-blue-500" /></div>;
-  }
-
-  if (!motorista) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center p-6">
-        <Card className="w-full max-w-sm shadow-2xl">
-          <CardHeader className="text-center pb-2">
-            <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Truck className="w-8 h-8 text-white" />
-            </div>
-            <CardTitle className="text-2xl font-bold">Portal do Motorista</CardTitle>
-            <p className="text-slate-500 text-sm">Digite seu e-mail e PIN para acessar</p>
-          </CardHeader>
-          <CardContent className="space-y-4 pt-2">
-            {authError && <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-3 rounded-lg">{authError}</div>}
-            <div>
-              <label className="text-xs font-bold text-slate-600 block mb-1">E-mail</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="seu@email.com"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-600 block mb-1">PIN</label>
-              <input
-                type="password"
-                value={pin}
-                onChange={e => setPin(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="••••"
-                maxLength={6}
-              />
-            </div>
-            <Button onClick={handleLogin} disabled={loadingAuth} className="w-full bg-blue-600 hover:bg-blue-700">
-              {loadingAuth ? <Loader2 className="animate-spin mr-2 w-4 h-4" /> : null}
-              Entrar
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   const totalPedidos = pedidos.length;
   const totalValor = pedidos.reduce((a, p) => a + (p.valor_pedido || 0), 0);
   const pedidosEntregues = pedidos.filter(p => p.confirmado_entrega).length;
