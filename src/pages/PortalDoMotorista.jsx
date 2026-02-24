@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Truck, Package, MapPin, Calendar, Loader2, LogOut } from "lucide-react";
+import { Package, MapPin, Calendar, Loader2, LogOut, AlertCircle } from "lucide-react";
 import { format, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import PinGateway from "@/components/portais/PinGateway";
@@ -28,12 +28,46 @@ export default function PortalDoMotorista() {
   const [mesSelecionado, setMesSelecionado] = useState(meses[0].value);
   const [motorista, setMotorista] = useState(null);
   const [loadingSession, setLoadingSession] = useState(true);
+  const [erroAcesso, setErroAcesso] = useState('');
+  const [registroMotorista, setRegistroMotorista] = useState(null); // Registro encontrado pelo e-mail
 
-  // Restaura sessão do sessionStorage
+  // Busca automática pelo e-mail do usuário logado
   useEffect(() => {
-    const saved = sessionStorage.getItem('motorista_logado');
-    if (saved) { try { setMotorista(JSON.parse(saved)); } catch {} }
-    setLoadingSession(false);
+    async function identificarMotorista() {
+      // Tenta restaurar sessão do sessionStorage
+      const saved = sessionStorage.getItem('motorista_logado');
+      if (saved) {
+        try {
+          setMotorista(JSON.parse(saved));
+          setLoadingSession(false);
+          return;
+        } catch {}
+      }
+
+      try {
+        const user = await base44.auth.me();
+        if (!user?.email) {
+          setErroAcesso('Você precisa estar logado para acessar o portal do motorista.');
+          setLoadingSession(false);
+          return;
+        }
+
+        const todos = await base44.entities.Motorista.filter({ email: user.email });
+        const encontrado = todos.find(m => m.ativo !== false);
+
+        if (!encontrado) {
+          setErroAcesso('Acesso Negado: Este e-mail não está vinculado a nenhum motorista cadastrado.');
+          setLoadingSession(false);
+          return;
+        }
+
+        setRegistroMotorista(encontrado);
+      } catch {
+        setErroAcesso('Erro ao verificar acesso. Tente novamente.');
+      }
+      setLoadingSession(false);
+    }
+    identificarMotorista();
   }, []);
 
   const handleIdentificado = (registro) => {
@@ -44,6 +78,10 @@ export default function PortalDoMotorista() {
   const handleLogout = () => {
     sessionStorage.removeItem('motorista_logado');
     setMotorista(null);
+    setRegistroMotorista(null);
+    setErroAcesso('');
+    // Re-identifica ao sair
+    window.location.reload();
   };
 
   // Datas do mês selecionado
