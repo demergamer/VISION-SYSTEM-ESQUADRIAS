@@ -92,6 +92,76 @@ export default function LockScreen({ onUnlock }) {
     if (e.key === 'Enter') handleUnlock();
   };
 
+  const handleSendCode = async () => {
+    setIsSendingCode(true);
+    try {
+      // Gerar código OTP de 6 dígitos
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+      // Salvar no user metadata
+      await base44.auth.updateMe({ pin_recovery_code: code, pin_recovery_expires: expiresAt });
+
+      // Enviar e-mail
+      await base44.integrations.Core.SendEmail({
+        to: user.email,
+        subject: '🔐 Código de Recuperação de PIN — J&C Gestão',
+        body: `
+          <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px">
+            <h2 style="color:#1e3a5f;margin-bottom:8px">Recuperação de PIN</h2>
+            <p style="color:#64748b;margin-bottom:24px">Você solicitou a recuperação do seu PIN de acesso ao J&C Gestão.</p>
+            <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:20px;text-align:center;margin-bottom:24px">
+              <p style="color:#0369a1;font-size:14px;margin:0 0 8px">Seu código de verificação:</p>
+              <p style="font-size:36px;font-weight:bold;letter-spacing:8px;color:#0c4a6e;margin:0">${code}</p>
+            </div>
+            <p style="color:#94a3b8;font-size:12px">Este código expira em <strong>15 minutos</strong>. Se você não solicitou esta recuperação, ignore este e-mail.</p>
+          </div>
+        `
+      });
+
+      toast.success('Código enviado para ' + user.email);
+      setMode('verify_code');
+    } catch (err) {
+      toast.error('Erro ao enviar código. Tente novamente.');
+    } finally {
+      setIsSendingCode(false);
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    if (otp.length !== 6) return;
+    setIsVerifyingCode(true);
+    try {
+      const freshUser = await base44.auth.me();
+      const savedCode = freshUser?.pin_recovery_code;
+      const expiresAt = freshUser?.pin_recovery_expires;
+
+      if (!savedCode || !expiresAt) {
+        toast.error('Código inválido ou expirado.');
+        return;
+      }
+      if (new Date() > new Date(expiresAt)) {
+        toast.error('Código expirado. Solicite um novo.');
+        setMode('send_code');
+        return;
+      }
+      if (otp !== savedCode) {
+        toast.error('Código incorreto. Verifique o e-mail e tente novamente.');
+        return;
+      }
+
+      // Limpar PIN e código de recuperação
+      await base44.auth.updateMe({ security_pin_hash: null, pin_recovery_code: null, pin_recovery_expires: null });
+      toast.success('Código verificado! Defina um novo PIN.');
+      // onUnlock aciona o SecurityProvider que detectará ausência de PIN e abrirá o Onboarding
+      onUnlock();
+    } catch (err) {
+      toast.error('Erro ao verificar código. Tente novamente.');
+    } finally {
+      setIsVerifyingCode(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[9998] bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 flex items-center justify-center p-4">
       {/* Background blur pattern */}
