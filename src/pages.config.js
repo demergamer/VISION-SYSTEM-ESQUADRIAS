@@ -77,8 +77,8 @@ import Representantes from './pages/Representantes';
 import Representation from './pages/Representation';
 import Usuarios from './pages/Usuarios';
 import Welcome from './pages/Welcome';
-import PortalDoMotorista from './pages/PortalDoMotorista';
 import Calendario from './pages/Calendario';
+import PortalDoMotorista from './pages/PortalDoMotorista';
 import __Layout from './Layout.jsx';
 
 
@@ -113,8 +113,8 @@ export const PAGES = {
     "Representation": Representation,
     "Usuarios": Usuarios,
     "Welcome": Welcome,
-    "PortalDoMotorista": PortalDoMotorista,
     "Calendario": Calendario,
+    "PortalDoMotorista": PortalDoMotorista,
 }
 
 export const pagesConfig = {

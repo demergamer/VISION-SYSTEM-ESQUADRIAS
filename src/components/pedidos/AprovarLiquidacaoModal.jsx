@@ -66,6 +66,23 @@ export default function AprovarLiquidacaoModal({
     )
   });
 
+  // --- QUERY DE PORTs (Sinais/Cauções) ---
+  const { data: portsDoCliente = [] } = useQuery({
+    queryKey: ['ports_cliente', autorizacao?.cliente_codigo],
+    queryFn: () => base44.entities.Port.list(),
+    enabled: !!autorizacao?.cliente_codigo,
+    select: (all) => all.filter(p =>
+      p.cliente_codigo === autorizacao?.cliente_codigo &&
+      (p.status === 'aguardando_vinculo' || p.status === 'em_separacao' || p.status === 'parcialmente_usado') &&
+      (p.saldo_disponivel || p.valor_total_sinal) > 0
+    )
+  });
+
+  const totalSinaisDisponiveis = useMemo(() =>
+    portsDoCliente.reduce((acc, p) => acc + (p.saldo_disponivel ?? p.valor_total_sinal ?? 0), 0),
+    [portsDoCliente]
+  );
+
   // --- GESTÃO DINÂMICA DE PEDIDOS ---
   const [buscaPedidoAdd, setBuscaPedidoAdd] = useState('');
   const [showBuscarPedido, setShowBuscarPedido] = useState(false);

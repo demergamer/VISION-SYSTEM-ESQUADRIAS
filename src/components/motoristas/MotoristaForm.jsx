@@ -12,6 +12,8 @@ export default function MotoristaForm({ motorista, onSave, onCancel, isLoading }
     foto_url: '',
     telefone: '',
     chave_pix: '',
+    email: '',
+    pin: '',
     ativo: true
   });
 
@@ -47,6 +49,22 @@ export default function MotoristaForm({ motorista, onSave, onCancel, isLoading }
         <div className="space-y-1">
           <Label>URL da Foto</Label>
           <Input value={form.foto_url} onChange={e => setForm({ ...form, foto_url: e.target.value })} placeholder="https://..." className={inputClass} />
+        </div>
+        <div className="space-y-1">
+          <Label>E-mail de Acesso</Label>
+          <Input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="motorista@email.com" className={inputClass} />
+        </div>
+        <div className="space-y-1">
+          <Label>PIN de Acesso <span className="text-slate-400 text-xs font-normal">(4–6 dígitos)</span></Label>
+          <Input
+            type="password"
+            value={form.pin}
+            onChange={e => setForm({ ...form, pin: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+            placeholder="••••"
+            inputMode="numeric"
+            maxLength={6}
+            className={inputClass}
+          />
         </div>
       </div>
 
