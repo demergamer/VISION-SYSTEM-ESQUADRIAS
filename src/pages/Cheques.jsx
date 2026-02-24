@@ -247,7 +247,13 @@ export default function Cheques() {
     let lista = cheques;
     if (searchTerm) {
       const termo = searchTerm.toLowerCase();
-      lista = lista.filter(c => c.numero_cheque?.toLowerCase().includes(termo) || c.titular?.toLowerCase().includes(termo) || c.valor?.toString().includes(termo));
+      lista = lista.filter(c =>
+        c.numero_cheque?.toLowerCase().includes(termo) ||
+        c.emitente?.toLowerCase().includes(termo) ||
+        c.cliente_nome?.toLowerCase().includes(termo) ||
+        c.banco?.toLowerCase().includes(termo) ||
+        c.valor?.toString().includes(termo)
+      );
     }
     if (filters.banco !== 'todos') lista = lista.filter(c => c.banco === filters.banco);
     
