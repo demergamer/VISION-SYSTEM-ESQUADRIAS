@@ -120,6 +120,37 @@ const LiveClock = () => {
 };
 
 
+function NotificationBell({ user }) {
+  const { data: notificacoes = [] } = useQuery({
+    queryKey: ['notificacoes_bell', user?.email],
+    queryFn: async () => {
+      if (!user?.email) return [];
+      const todas = await base44.entities.Notificacao.list('-created_date', 50);
+      return todas.filter(n => n.destinatario_email === user.email);
+    },
+    enabled: !!user?.email,
+    refetchInterval: 30000,
+  });
+  const naoLidas = notificacoes.filter(n => !n.lida).length;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className="relative p-2 rounded-lg hover:bg-slate-100 transition-colors">
+          <Bell className="w-5 h-5 text-slate-500" />
+          {naoLidas > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 leading-none">
+              {naoLidas > 9 ? '9+' : naoLidas}
+            </span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="p-0 w-80 shadow-xl border-0 rounded-2xl overflow-hidden">
+        <NotificationCenter />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function LayoutInner({ children, currentPageName }) {
   const location = useLocation();
   const { user, signOut } = useAuth();
