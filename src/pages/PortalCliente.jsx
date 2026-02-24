@@ -203,6 +203,14 @@ export default function PortalCliente() {
       console.log("Ver pedido", pedido);
   };
 
+  // --- GATEWAY DE PIN ---
+  if (loadingPin) {
+    return <div className="min-h-screen flex items-center justify-center bg-slate-900"><div className="w-8 h-8 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" /></div>;
+  }
+  if (!pinOk && registroCliente) {
+    return <PinGateway perfil="cliente" registroPreIdentificado={registroCliente} onIdentificado={handlePinOk} onVoltar={() => window.history.back()} />;
+  }
+
   if (!clienteData) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
