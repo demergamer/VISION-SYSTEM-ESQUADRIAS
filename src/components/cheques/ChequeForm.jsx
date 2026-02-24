@@ -11,6 +11,80 @@ import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from "@/lib/utils";
 
+const BANCOS = [
+  { codigo: '001', nome: 'Banco do Brasil' },
+  { codigo: '341', nome: 'Itaú' },
+  { codigo: '237', nome: 'Bradesco' },
+  { codigo: '033', nome: 'Santander' },
+  { codigo: '104', nome: 'Caixa Econômica Federal' },
+  { codigo: '756', nome: 'Sicoob' },
+  { codigo: '748', nome: 'Sicredi' },
+  { codigo: '077', nome: 'Banco Inter' },
+  { codigo: '260', nome: 'Nu Pagamentos (Nubank)' },
+  { codigo: '380', nome: 'PicPay' },
+  { codigo: '290', nome: 'PagSeguro' },
+  { codigo: '336', nome: 'Banco C6' },
+];
+
+function BancoCombobox({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const bancosFiltrados = BANCOS.filter(b =>
+    b.nome.toLowerCase().includes(search.toLowerCase()) ||
+    b.codigo.includes(search)
+  );
+  const bancoPorValor = BANCOS.find(b => b.codigo === value || b.nome === value);
+  const displayLabel = bancoPorValor ? `${bancoPorValor.codigo} - ${bancoPorValor.nome}` : (value || 'Selecione o banco');
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" className="w-full justify-between h-10 font-normal">
+          <span className="truncate">{displayLabel}</span>
+          <span className="ml-2 text-slate-400">▼</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-0" align="start">
+        <div className="p-2 border-b">
+          <Input
+            placeholder="Buscar banco..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            autoFocus
+            className="h-8"
+          />
+        </div>
+        <div className="max-h-52 overflow-y-auto">
+          {bancosFiltrados.map(b => (
+            <button
+              key={b.codigo}
+              type="button"
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 transition-colors ${value === b.codigo || value === b.nome ? 'bg-blue-50 text-blue-700 font-medium' : ''}`}
+              onClick={() => { onChange(b.codigo); setOpen(false); setSearch(''); }}
+            >
+              <span className="font-mono text-xs text-slate-400 mr-2">{b.codigo}</span>
+              {b.nome}
+            </button>
+          ))}
+          {bancosFiltrados.length === 0 && (
+            <div className="p-3 text-sm text-slate-400 text-center">Nenhum banco encontrado</div>
+          )}
+        </div>
+        {/* Opção digitada manualmente */}
+        <div className="border-t p-2">
+          <button
+            type="button"
+            className="w-full text-xs text-slate-500 hover:text-slate-700 py-1"
+            onClick={() => { if (search) { onChange(search); setOpen(false); setSearch(''); } }}
+          >
+            Usar "{search || '...'}" manualmente
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export default function ChequeForm({ cheque, clientes = [], onSave, onCancel, isLoading }) {
   // Busca lista para validar duplicidade
   const { data: todosCheques = [] } = useQuery({
