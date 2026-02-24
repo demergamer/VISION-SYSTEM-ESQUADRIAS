@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Briefcase, ChevronRight, ChevronLeft } from 'lucide-react';
+import { User, Briefcase, ChevronRight, ChevronLeft, Truck } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DAS EMPRESAS ---
 const COMPANIES = [
@@ -42,6 +42,7 @@ export default function Welcome() {
   const handleBack = () => setSelectedCompany(null);
   const handleCliente = () => navigate('/PortalCliente');
   const handleRepresentante = () => navigate('/PortalDoRepresentante');
+  const handleMotorista = () => navigate('/PortalDoMotorista');
 
   // --- COMPONENTE DE BOTÃO ---
   const AccessButton = ({ title, subtitle, icon: Icon, onClick, delay = 0 }) => (
@@ -237,6 +238,27 @@ export default function Welcome() {
                 onClick={handleRepresentante} 
                 delay={0.3}
               />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* LINK DISCRETO: MOTORISTA */}
+        <AnimatePresence>
+          {selectedCompany && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ delay: 0.6 }}
+              className="mt-4"
+            >
+              <button
+                onClick={handleMotorista}
+                className="flex items-center gap-1.5 text-slate-400 text-sm hover:text-slate-200 transition-colors hover:underline"
+              >
+                <Truck className="w-3.5 h-3.5" />
+                Sou Motorista
+              </button>
             </motion.div>
           )}
         </AnimatePresence>
