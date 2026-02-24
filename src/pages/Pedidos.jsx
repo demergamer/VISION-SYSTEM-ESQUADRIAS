@@ -1395,6 +1395,15 @@ export default function Pedidos() {
             </AlertDialogContent>
           </AlertDialog>
 
+          <ModalContainer open={showMesclarNFModal} onClose={() => setShowMesclarNFModal(false)} title="Mesclar NF" description="Selecione os pedidos do mesmo cliente para gerar uma NF consolidada" size="lg">
+            <MesclarNFModal
+              pedidos={pedidos}
+              onConfirmar={handleMesclarNF}
+              onCancel={() => setShowMesclarNFModal(false)}
+              isLoading={isProcessing}
+            />
+          </ModalContainer>
+
           <ModalContainer open={showCancelarPedidoModal} onClose={() => setShowCancelarPedidoModal(false)} title="Cancelar Pedido" description="Informe o motivo do cancelamento">
             {pedidoParaCancelar && (
               <CancelarPedidoModal 
