@@ -11,18 +11,20 @@ export const PERMISSOES_LABELS = {
   
   // Financeiro / Fluxo
   liquidar: '💰',
+  liquidacao_massa: '💸',
+  confirmar_transito: '🚚',
   fechar: '🔒',
   aprovar: '✅',
-  cancelar: '🚫', // Diferente de excluir (inativar/estornar)
+  cancelar: '🚫',
   
   // Dados Sensíveis
-  ver_custo: '💲', // Ver preço de custo/margem
-  ver_total: 'Σ',  // Ver totais financeiros (Dashboard/Relatórios)
+  ver_custo: '💲',
+  ver_total: 'Σ',
   
   // Utilitários
   imprimir: '🖨️',
   exportar: '📄',
-  enviar: '📧'    // Enviar email/whatsapp
+  enviar: '📧'
 };
 
 /**
@@ -33,7 +35,9 @@ export const PERMISSOES_DESCRICOES = {
   adicionar: 'Criar Novo',
   editar: 'Editar Dados',
   excluir: 'Excluir (Apagar)',
-  liquidar: 'Liquidar/Pagar',
+  liquidar: 'Autorizar Liquidação',
+  liquidacao_massa: 'Liquidação em Massa',
+  confirmar_transito: 'Confirmar Trânsito',
   fechar: 'Fechar Caixa/Mês',
   aprovar: 'Aprovar Pedido/Orçamento',
   cancelar: 'Cancelar (Estornar)',
