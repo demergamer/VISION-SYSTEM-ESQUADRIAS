@@ -192,6 +192,9 @@ export default function Pedidos() {
   const [pedidoParaCadastro, setPedidoParaCadastro] = useState(null);
   const [pedidoParaCancelar, setPedidoParaCancelar] = useState(null);
   const [pedidoParaReverter, setPedidoParaReverter] = useState(null);
+  const [showMesclarNFModal, setShowMesclarNFModal] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debounceRef = useRef(null);
 
   // --- QUERIES ---
   const { data: pedidos = [], isLoading: loadingPedidos, refetch: refetchPedidos } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list() });
