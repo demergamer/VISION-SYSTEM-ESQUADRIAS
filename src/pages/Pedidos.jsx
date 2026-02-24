@@ -333,15 +333,30 @@ export default function Pedidos() {
         }
     }
 
-    // 3. Busca Texto (AGNÓSTICA DE PONTOS)
+    // 3. Busca Multi-Nível com suporte a vírgula
     if (searchTerm) {
-      const lower = searchTerm.toLowerCase().replace(/\./g, '');
-      data = data.filter(p =>
-        p.cliente_nome?.toLowerCase().includes(lower) ||
-        p.cliente_codigo?.toLowerCase().includes(lower) ||
-        (p.numero_pedido?.replace(/\./g, '')?.toLowerCase().includes(lower)) ||
-        p.bordero_numero?.toString().includes(lower)
-      );
+      const termos = searchTerm.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+      if (termos.length > 1) {
+        data = data.filter(p =>
+          termos.some(termo => {
+            const semPonto = termo.replace(/\./g, '');
+            // Número longo → numero_pedido exato
+            if (/^\d{4,}$/.test(semPonto)) return p.numero_pedido?.replace(/\./g, '') === semPonto;
+            // Número curto → codigo cliente
+            if (/^\d+$/.test(semPonto)) return p.cliente_codigo?.toLowerCase().includes(semPonto);
+            // Texto → nome
+            return p.cliente_nome?.toLowerCase().includes(termo);
+          })
+        );
+      } else {
+        const lower = termos[0]?.replace(/\./g, '') || '';
+        data = data.filter(p =>
+          p.cliente_nome?.toLowerCase().includes(lower) ||
+          p.cliente_codigo?.toLowerCase().includes(lower) ||
+          (p.numero_pedido?.replace(/\./g, '')?.toLowerCase().includes(lower)) ||
+          p.bordero_numero?.toString().includes(lower)
+        );
+      }
     }
     
     // 4. Filtros Avançados
