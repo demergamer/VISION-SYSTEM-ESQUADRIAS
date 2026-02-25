@@ -202,7 +202,7 @@ export default function Dashboard() {
   const workspace = useWorkspace(); // pode ser null fora do WorkspaceProvider
 
   const handleNavigate = (pageName) => {
-    if (workspace) {
+    if (workspace && workspace.openWindow) {
       workspace.openWindow(pageName);
     } else {
       navigate(`/${pageName}`);
