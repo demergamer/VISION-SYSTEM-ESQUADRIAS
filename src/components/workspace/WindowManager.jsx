@@ -20,6 +20,18 @@ export function WorkspaceProvider({ children }) {
   const [activeId, setActiveId] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const zTop = useRef(200);
+  const { preferences } = usePreferences();
+
+  // Safe area offsets based on taskbar position
+  const getSafeArea = useCallback(() => {
+    const pos = preferences?.taskbar_position || 'top';
+    const BAR = 48;
+    if (pos === 'top')    return { x: 0,   y: BAR, w: window.innerWidth,        h: window.innerHeight - BAR };
+    if (pos === 'bottom') return { x: 0,   y: 0,   w: window.innerWidth,        h: window.innerHeight - BAR };
+    if (pos === 'left')   return { x: BAR, y: 0,   w: window.innerWidth - BAR,  h: window.innerHeight };
+    if (pos === 'right')  return { x: 0,   y: 0,   w: window.innerWidth - BAR,  h: window.innerHeight };
+    return { x: 0, y: BAR, w: window.innerWidth, h: window.innerHeight - BAR };
+  }, [preferences?.taskbar_position]);
 
   const openWindow = useCallback((page) => {
     setSidebarOpen(false);
@@ -33,27 +45,27 @@ export function WorkspaceProvider({ children }) {
         return prev;
       }
       const id = `${page}-${Date.now()}`;
+      const safe = {
+        x: 0,
+        y: (preferences?.taskbar_position === 'top' ? 48 : 0),
+        w: window.innerWidth - (['left','right'].includes(preferences?.taskbar_position) ? 48 : 0),
+        h: window.innerHeight - (['top','bottom'].includes(preferences?.taskbar_position) || !preferences?.taskbar_position ? 48 : 0),
+      };
       const newWin = {
-        id,
-        page,
-        title: page,
-        // default: maximized
-        x: 0, y: 48,
-        w: window.innerWidth,
-        h: window.innerHeight - 48,
-        minimized: false,
-        maximized: true,
+        id, page, title: page,
+        x: safe.x, y: safe.y, w: safe.w, h: safe.h,
+        minimized: false, maximized: true,
         z: ++zTop.current,
         prevPos: {
-          x: 80, y: 80,
+          x: safe.x + 80, y: safe.y + 40,
           w: Math.min(window.innerWidth * 0.78, 1200),
-          h: Math.min(window.innerHeight * 0.80, 780),
+          h: Math.min(window.innerHeight * 0.78, 780),
         },
       };
       setActiveId(id);
       return [...prev, newWin];
     });
-  }, []);
+  }, [preferences?.taskbar_position]);
 
   const closeWindow = useCallback((id) => {
     setWindows(prev => prev.filter(w => w.id !== id));
