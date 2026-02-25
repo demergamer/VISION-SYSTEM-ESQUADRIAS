@@ -417,6 +417,7 @@ function FloatingWindow({ win }) {
           ref={winRef}
           id={`window-root-${win.id}`}
           className="flex-1 overflow-auto bg-slate-50 relative"
+          style={{ position: 'relative' }}
         >
           <PortalContext.Provider value={winRef.current}>
             {PageComponent
