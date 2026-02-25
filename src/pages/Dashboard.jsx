@@ -202,7 +202,8 @@ export default function Dashboard() {
   const workspace = useWorkspace(); // pode ser null fora do WorkspaceProvider
 
   const handleNavigate = (pageName) => {
-    if (workspace && workspace.openWindow) {
+    const uiMode = preferences?.ui_mode || 'os';
+    if (uiMode === 'os' && workspace && workspace.openWindow) {
       workspace.openWindow(pageName);
     } else {
       navigate(`/${pageName}`);
