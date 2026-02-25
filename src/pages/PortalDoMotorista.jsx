@@ -15,14 +15,7 @@ import RotasListReadOnly from "@/components/pedidos/RotasListReadOnly";
 import RotasChecklistReadOnly from "@/components/pedidos/RotasChecklistReadOnly";
 import { useRealtimeSync } from "@/components/hooks/useRealtimeSync";
 
-// Suprimir sidebar/header do Layout nesta página
-const style = `
-  body > div > aside,
-  .fixed.top-0.left-0.h-full,
-  header.fixed,
-  [data-sidebar],
-  nav[class*="sidebar"] { display: none !important; }
-`;
+
 
 const formatCurrency = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
@@ -152,11 +145,7 @@ export default function PortalDoMotorista() {
   const pedidosEntregues = pedidos.filter(p => p.confirmado_entrega).length;
 
   return (
-    <>
-      {/* Suprime o sidebar/header do Layout globalmente nesta página */}
-      <style>{style}</style>
-
-      <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50">
         {/* Header */}
         <div className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-50">
           <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -264,7 +253,6 @@ export default function PortalDoMotorista() {
             </TabsContent>
           </Tabs>
         </div>
-      </div>
-    </>
+    </div>
   );
 }
