@@ -373,7 +373,9 @@ export default function Layout({ children, currentPageName }) {
   return (
     <AuthProvider>
       <SecurityProvider>
-        <LayoutInner currentPageName={currentPageName}>{children}</LayoutInner>
+        <WorkspaceProvider>
+          <LayoutInner currentPageName={currentPageName}>{children}</LayoutInner>
+        </WorkspaceProvider>
       </SecurityProvider>
     </AuthProvider>
   );
