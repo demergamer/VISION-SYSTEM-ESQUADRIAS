@@ -297,8 +297,9 @@ function StartMenu({ open, onClose, currentPageName, canDo, user, signOut, lockS
 
 // ─── Inner Layout ─────────────────────────────────────────────────────────────
 function LayoutInner({ children, currentPageName }) {
-  // O Portal do Motorista gerencia seu próprio layout (sem sidebar/header)
-  if (currentPageName === 'PortalDoMotorista') {
+  // Portais gerenciam seu próprio layout (sem sidebar/header)
+  const PORTAIS = ['PortalDoMotorista', 'PortalCliente', 'PortalDoRepresentante'];
+  if (PORTAIS.includes(currentPageName)) {
     return <>{children}</>;
   }
   const { user, signOut } = useAuth();
