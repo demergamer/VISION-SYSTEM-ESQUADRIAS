@@ -561,42 +561,42 @@ export function OSTaskbar({ onToggleSidebar }) {
           onMouseEnter={handleMouseEnter}
         />
       )}
-    <div
-      className={cn(
-        "fixed bg-slate-900/98 backdrop-blur-md border-slate-700/60 flex select-none gap-1.5 transition-transform duration-200",
-        posStyles,
-        autoHide && !taskbarVisible ? hideTranslate : 'translate-x-0 translate-y-0'
-      )}
-      style={{ zIndex: 500 }}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
-      <StartBtn />
-      {!isVertical && <div className="w-px h-6 bg-slate-700 shrink-0 self-center" />}
+      <div
+        className={cn(
+          "fixed bg-slate-900/98 backdrop-blur-md border-slate-700/60 flex select-none gap-1.5 transition-transform duration-200",
+          posStyles,
+          autoHide && !taskbarVisible ? hideTranslate : 'translate-x-0 translate-y-0'
+        )}
+        style={{ zIndex: 500 }}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
+        <StartBtn />
+        {!isVertical && <div className="w-px h-6 bg-slate-700 shrink-0 self-center" />}
 
-      {/* Window tabs */}
-      <div className={cn(
-        "flex gap-1.5",
-        isVertical ? "flex-col flex-1 overflow-y-auto items-center" : "flex-1 flex-row overflow-x-auto items-center hide-scrollbar"
-      )}>
-        <WindowTabs />
+        {/* Window tabs */}
+        <div className={cn(
+          "flex gap-1.5",
+          isVertical ? "flex-col flex-1 overflow-y-auto items-center" : "flex-1 flex-row overflow-x-auto items-center hide-scrollbar"
+        )}>
+          <WindowTabs />
+        </div>
+
+        {/* Desktop btn */}
+        {windows.length > 0 && (
+          <button
+            onClick={minimizeAll}
+            className={cn(
+              "flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors border border-slate-700 shrink-0",
+              isVertical ? "w-9 h-9 mt-1" : "px-2.5 py-1.5 gap-1.5 ml-1"
+            )}
+            title="Área de Trabalho"
+          >
+            <LayoutTemplate className="w-3.5 h-3.5" />
+            {!isVertical && <span className="hidden xl:block text-xs font-medium">Desktop</span>}
+          </button>
+        )}
       </div>
-
-      {/* Desktop btn */}
-      {windows.length > 0 && (
-        <button
-          onClick={minimizeAll}
-          className={cn(
-            "flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors border border-slate-700 shrink-0",
-            isVertical ? "w-9 h-9 mt-1" : "px-2.5 py-1.5 gap-1.5 ml-1"
-          )}
-          title="Área de Trabalho"
-        >
-          <LayoutTemplate className="w-3.5 h-3.5" />
-          {!isVertical && <span className="hidden xl:block text-xs font-medium">Desktop</span>}
-        </button>
-      )}
-    </div>
     </>
   );
 }
