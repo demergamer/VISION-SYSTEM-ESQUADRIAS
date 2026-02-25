@@ -100,8 +100,9 @@ const MiniCalendar = ({ user, tarefas = [] }) => {
         <span className="font-bold text-slate-700 capitalize">
           {today.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
         </span>
-        <Link to="/Calendario" className="text-xs text-blue-600 hover:underline font-medium flex items-center gap-1">
-          Ver tudo →
+        {/* BOTAO VER TUDO MELHORADO AQUI */}
+        <Link to="/Calendario" className="group text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white px-4 py-1.5 rounded-full transition-all flex items-center gap-1.5 shadow-sm ring-1 ring-blue-100 hover:ring-transparent">
+          Ver tudo <span className="transition-transform group-hover:translate-x-1">&rarr;</span>
         </Link>
       </div>
       <div className="grid grid-cols-7 gap-1 text-center mb-2">
@@ -177,7 +178,6 @@ export default function Dashboard() {
   });
 
   // --- DADOS DO PERFIL DO USUÁRIO ---
-  // O base44 retorna os campos diretamente na raiz do objeto user
   const avatarUrl = user?.avatar_url || null;
   const preferredName = user?.preferred_name || user?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Administrador';
   const initials = (user?.preferred_name || user?.full_name || user?.email || 'AD')
@@ -212,7 +212,7 @@ export default function Dashboard() {
         { name: "Produtos", label: "Produtos", icon: Package, desc: "Catálogo, preços e estoque" },
         { name: "Fornecedores", label: "Fornecedores", icon: Briefcase, desc: "Parceiros e compras" },
         { name: "Representantes", label: "Representantes", icon: Users, desc: "Equipe de vendas" },
-        { name: "Motoristas", label: "Motoristas", icon: Truck, desc: "Gestão de motoristas" },
+        { name: "motorista", label: "Motoristas", icon: Truck, desc: "Gestão de motoristas" }, // CORRIGIDO PARA motorista
         { name: "Usuarios", label: "Usuários", icon: ShieldCheck, desc: "Controle de acesso" },
       ]
     },
@@ -321,6 +321,7 @@ export default function Dashboard() {
 
             <div className="space-y-4">
               {menuGroups.map((group, idx) => {
+                // REGRA CORRIGIDA PARA PERMITIR motorista
                 const allowedItems = group.items.filter(item => canDo(item.name, 'visualizar') || item.name === 'Relatorios');
                 if (allowedItems.length === 0) return null;
                 const isOpen = !!openGroups[idx];
