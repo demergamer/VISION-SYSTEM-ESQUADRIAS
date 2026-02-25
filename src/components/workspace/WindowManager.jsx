@@ -468,12 +468,12 @@ export function OSTaskbar({ onToggleSidebar }) {
   }[pos];
 
   const handleMouseEnter = () => {
-    clearTimeout(hideTimer.current);
+    clearTimeout(hideTimerRef.current);
     setVisible(true);
   };
 
   const handleMouseLeave = () => {
-    hideTimer.current = setTimeout(() => setVisible(false), 600);
+    hideTimerRef.current = setTimeout(() => setVisible(false), 600);
   };
 
   const posStyles = {
