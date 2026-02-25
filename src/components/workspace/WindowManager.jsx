@@ -575,6 +575,14 @@ export function OSTaskbar({ onToggleSidebar }) {
         <StartBtn />
         {!isVertical && <div className="w-px h-6 bg-slate-700 shrink-0 self-center" />}
 
+        {/* Search bar (horizontal only) */}
+        {!isVertical && (
+          <div className="flex-shrink-0 w-56 xl:w-72 mx-1">
+            <GlobalSearch compact />
+          </div>
+        )}
+        {!isVertical && <div className="w-px h-6 bg-slate-700 shrink-0 self-center" />}
+
         {/* Window tabs */}
         <div className={cn(
           "flex gap-1.5",
