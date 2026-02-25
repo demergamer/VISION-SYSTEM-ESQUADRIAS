@@ -428,71 +428,108 @@ function FloatingWindow({ win }) {
   );
 }
 
-// ─── OS Taskbar (top) — exported so Layout uses it ───────────────────────────
-export function OSTaskbar({ onToggleSidebar, menuGroups, canDo }) {
-  const { windows, activeId, focusWindow, toggleMinimize, closeWindow, minimizeAll } = useWorkspace();
+// ─── OS Taskbar — position-aware, exported so Layout uses it ─────────────────
+export function OSTaskbar({ onToggleSidebar }) {
+  const { windows, activeId, focusWindow, toggleMinimize, closeWindow, minimizeAll, taskbarPosition } = useWorkspace();
+  const pos = taskbarPosition || 'top';
+  const isVertical = pos === 'left' || pos === 'right';
+
+  const posStyles = {
+    top:    'top-0 left-0 right-0 h-12 flex-row border-b px-3',
+    bottom: 'bottom-0 left-0 right-0 h-12 flex-row border-t px-3',
+    left:   'top-0 left-0 bottom-0 w-12 flex-col border-r py-2 items-center',
+    right:  'top-0 right-0 bottom-0 w-12 flex-col border-l py-2 items-center',
+  }[pos];
+
+  const StartBtn = () => (
+    <button
+      onClick={onToggleSidebar}
+      className={cn(
+        "flex items-center justify-center rounded-lg hover:bg-slate-700 transition-colors shrink-0",
+        isVertical ? "w-9 h-9 mb-2" : "px-2 py-1.5 mr-1 gap-2"
+      )}
+      title="Menu Principal"
+    >
+      <img
+        src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png"
+        alt="J&C"
+        className={cn("object-contain", isVertical ? "h-7 w-7" : "h-7 w-auto")}
+      />
+      {!isVertical && <span className="text-white font-bold text-sm hidden lg:block">J&C Vision</span>}
+    </button>
+  );
+
+  const WindowTabs = () => (
+    <>
+      {windows.map(win => (
+        <button
+          key={win.id}
+          onClick={() => {
+            if (win.minimized) { focusWindow(win.id); toggleMinimize(win.id); }
+            else if (activeId === win.id) toggleMinimize(win.id);
+            else focusWindow(win.id);
+          }}
+          className={cn(
+            "flex items-center gap-1.5 rounded-lg text-xs font-semibold transition-all border shrink-0",
+            isVertical
+              ? "w-9 h-9 justify-center px-0 py-0 my-0.5"
+              : "px-3 py-1.5 whitespace-nowrap max-w-[160px]",
+            activeId === win.id && !win.minimized
+              ? "bg-blue-600 text-white border-blue-500"
+              : "bg-slate-700/70 text-slate-300 border-slate-600 hover:bg-slate-600"
+          )}
+          title={win.title}
+        >
+          {isVertical ? (
+            <span className={cn("w-2 h-2 rounded-full", win.minimized ? "bg-slate-500" : "bg-emerald-400")} />
+          ) : (
+            <>
+              <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", win.minimized ? "bg-slate-500" : "bg-emerald-400")} />
+              <span className="truncate">{win.title}</span>
+              <span
+                onClick={e => { e.stopPropagation(); closeWindow(win.id); }}
+                className="opacity-40 hover:opacity-100 hover:text-red-400 ml-0.5 text-[11px] leading-none"
+              >✕</span>
+            </>
+          )}
+        </button>
+      ))}
+    </>
+  );
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 h-12 bg-slate-900/98 backdrop-blur-md border-b border-slate-700/60 flex items-center gap-2 px-3 select-none"
+      className={cn(
+        "fixed bg-slate-900/98 backdrop-blur-md border-slate-700/60 flex select-none gap-1.5",
+        posStyles
+      )}
       style={{ zIndex: 500 }}
     >
-      {/* ── Start Button ── */}
-      <button
-        onClick={onToggleSidebar}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-slate-700 transition-colors shrink-0 mr-1"
-        title="Menu Principal"
-      >
-        <img
-          src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png"
-          alt="J&C"
-          className="h-7 w-auto object-contain"
-        />
-        <span className="text-white font-bold text-sm hidden lg:block">J&C Vision</span>
-      </button>
+      <StartBtn />
+      {!isVertical && <div className="w-px h-6 bg-slate-700 shrink-0 self-center" />}
 
-      <div className="w-px h-6 bg-slate-700 shrink-0" />
-
-      {/* ── Open window tabs ── */}
-      <div className="flex-1 flex items-center gap-1.5 overflow-x-auto hide-scrollbar">
-        {windows.map(win => (
-          <button
-            key={win.id}
-            onClick={() => {
-              if (win.minimized) { focusWindow(win.id); toggleMinimize(win.id); }
-              else if (activeId === win.id) toggleMinimize(win.id);
-              else focusWindow(win.id);
-            }}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap max-w-[160px] transition-all border shrink-0",
-              activeId === win.id && !win.minimized
-                ? "bg-blue-600 text-white border-blue-500"
-                : "bg-slate-700/70 text-slate-300 border-slate-600 hover:bg-slate-600"
-            )}
-          >
-            <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", win.minimized ? "bg-slate-500" : "bg-emerald-400")} />
-            <span className="truncate">{win.title}</span>
-            <span
-              onClick={e => { e.stopPropagation(); closeWindow(win.id); }}
-              className="opacity-40 hover:opacity-100 hover:text-red-400 ml-0.5 text-[11px] leading-none"
-            >✕</span>
-          </button>
-        ))}
+      {/* Window tabs */}
+      <div className={cn(
+        "flex gap-1.5",
+        isVertical ? "flex-col flex-1 overflow-y-auto items-center" : "flex-1 flex-row overflow-x-auto items-center hide-scrollbar"
+      )}>
+        <WindowTabs />
       </div>
 
-      {/* ── Right: show desktop ── */}
-      <div className="flex items-center gap-2 shrink-0 ml-2">
-        {windows.length > 0 && (
-          <button
-            onClick={minimizeAll}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-700 transition-colors border border-slate-700"
-            title="Área de Trabalho"
-          >
-            <LayoutTemplate className="w-3.5 h-3.5" />
-            <span className="hidden xl:block">Desktop</span>
-          </button>
-        )}
-      </div>
+      {/* Desktop btn */}
+      {windows.length > 0 && (
+        <button
+          onClick={minimizeAll}
+          className={cn(
+            "flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors border border-slate-700 shrink-0",
+            isVertical ? "w-9 h-9 mt-1" : "px-2.5 py-1.5 gap-1.5 ml-1"
+          )}
+          title="Área de Trabalho"
+        >
+          <LayoutTemplate className="w-3.5 h-3.5" />
+          {!isVertical && <span className="hidden xl:block text-xs font-medium">Desktop</span>}
+        </button>
+      )}
     </div>
   );
 }
