@@ -308,6 +308,47 @@ export default function Configuracoes() {
         {/* ── 🖼️ Fundo do Dashboard ── */}
         <DashboardFundoSection prefs={prefs} set={set} />
 
+        {/* ── 🖥️ Modo de Interface ── */}
+        <SectionCard title="Modo de Interface" icon={AppWindow} iconColor="text-blue-600" iconBg="bg-blue-50">
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold text-slate-700">Paradigma de Navegação</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <OptionButton
+                active={prefs.ui_mode === 'os'}
+                onClick={() => set('ui_mode', 'os')}
+                icon={LayoutGrid}
+                label="Modo Avançado"
+                sublabel="Janelas / Web OS"
+              />
+              <OptionButton
+                active={prefs.ui_mode === 'classico'}
+                onClick={() => set('ui_mode', 'classico')}
+                icon={Monitor}
+                label="Modo Clássico"
+                sublabel="Páginas normais"
+              />
+            </div>
+            <p className="text-xs text-slate-400">
+              {prefs.ui_mode === 'os'
+                ? '⚡ Modo Avançado: múltiplas janelas flutuantes, taskbar e atalhos de teclado.'
+                : '📄 Modo Clássico: navegação tradicional por rotas, sidebar lateral.'}
+            </p>
+          </div>
+
+          {prefs.ui_mode === 'os' && (
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-slate-700">Posição da Barra de Tarefas</Label>
+              <div className="grid grid-cols-4 gap-2">
+                <OptionButton active={prefs.taskbar_position === 'top'} onClick={() => set('taskbar_position', 'top')} icon={PanelTop} label="Topo" />
+                <OptionButton active={prefs.taskbar_position === 'bottom'} onClick={() => set('taskbar_position', 'bottom')} icon={PanelBottom} label="Embaixo" />
+                <OptionButton active={prefs.taskbar_position === 'left'} onClick={() => set('taskbar_position', 'left')} icon={PanelLeft} label="Esquerda" />
+                <OptionButton active={prefs.taskbar_position === 'right'} onClick={() => set('taskbar_position', 'right')} icon={PanelRight} label="Direita" />
+              </div>
+              <p className="text-xs text-slate-400">As janelas respeitarão a área segura da barra selecionada.</p>
+            </div>
+          )}
+        </SectionCard>
+
         {/* ── 🎨 Aparência ── */}
         <SectionCard title="Aparência" icon={Sun} iconColor="text-amber-600" iconBg="bg-amber-50">
           <div className="space-y-2">
