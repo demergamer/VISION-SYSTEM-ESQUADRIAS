@@ -10,6 +10,7 @@ export const DEFAULT_PREFS = {
   notificacoes: 'todas',
   ui_mode: 'os',
   taskbar_position: 'top',
+  taskbar_autohide: false,
 };
 
 export function applyPreferences(prefs) {
