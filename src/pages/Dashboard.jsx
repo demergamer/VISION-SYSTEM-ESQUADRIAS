@@ -12,6 +12,7 @@ import {
 import { useAuth } from '@/components/providers/AuthContext';
 import { usePermissions } from "@/components/hooks/usePermissions";
 import { cn } from "@/lib/utils";
+import { useWorkspace } from '@/components/workspace/WindowManager';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
