@@ -5,7 +5,7 @@ import { base44 } from '@/api/base44Client';
 // Mapeamento: entidade -> query keys que devem ser invalidadas
 const ENTITY_QUERY_KEYS = {
   Tarefa:               [['tarefas'], ['tarefas_calendario']],
-  Pedido:               [['pedidos'], ['pedidos_rota'], ['bordero'], ['pendentes_aprovacao']],
+  Pedido:               [['pedidos'], ['pedidos_rota'], ['bordero'], ['pendentes_aprovacao'], ['pedidos_motorista_portal']],
   Cliente:              [['clientes']],
   Representante:        [['representantes']],
   Motorista:            [['motoristas']],
