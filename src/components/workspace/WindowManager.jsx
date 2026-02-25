@@ -150,7 +150,12 @@ export function WorkspaceProvider({ children }) {
 
 // ─── Window Layer ─────────────────────────────────────────────────────────────
 function WindowLayer() {
-  const { windows } = useWorkspace();
+  const { windows, uiMode } = useWorkspace();
+  const { preferences } = usePreferences();
+  
+  // ISOLAMENTO: Se modo clássico, não renderizar janelas
+  if (preferences?.ui_mode === 'classico') return null;
+  
   return (
     <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 210 }}>
       {windows.map(win => <FloatingWindow key={win.id} win={win} />)}
@@ -431,6 +436,11 @@ function FloatingWindow({ win }) {
 // ─── OS Taskbar — position-aware, exported so Layout uses it ─────────────────
 export function OSTaskbar({ onToggleSidebar }) {
   const { windows, activeId, focusWindow, toggleMinimize, closeWindow, minimizeAll, taskbarPosition } = useWorkspace();
+  const { preferences } = usePreferences();
+  
+  // ISOLAMENTO: Se modo clássico, não renderizar taskbar
+  if (preferences?.ui_mode === 'classico') return null;
+  
   const pos = taskbarPosition || 'top';
   const isVertical = pos === 'left' || pos === 'right';
 

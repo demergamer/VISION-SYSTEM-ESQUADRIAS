@@ -299,10 +299,49 @@ function LayoutInner({ children, currentPageName }) {
   const { preferences } = usePreferences();
   const [menuOpen, setMenuOpen] = useState(false);
   const workspace = useWorkspace();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const uiMode = preferences?.ui_mode || 'os';
   const tbPos = preferences?.taskbar_position || 'top';
   const isOSMode = uiMode === 'os';
+  
+  // PONTE DE TRANSIÇÃO: Observar mudanças no ui_mode
+  const prevModeRef = useRef(uiMode);
+  useEffect(() => {
+    const prevMode = prevModeRef.current;
+    const currentMode = uiMode;
+    
+    if (prevMode === currentMode) return;
+    prevModeRef.current = currentMode;
+    
+    // Classic -> OS: Transformar página atual em janela
+    if (prevMode === 'classico' && currentMode === 'os') {
+      const currentPath = location.pathname.replace('/', '');
+      const pageName = currentPath || 'Dashboard';
+      
+      // Abrir a página atual como janela
+      if (workspace && pageName !== 'Dashboard') {
+        setTimeout(() => {
+          workspace.openWindow(pageName);
+          navigate('/Dashboard');
+        }, 100);
+      } else if (!currentPath || currentPath === 'Dashboard') {
+        navigate('/Dashboard');
+      }
+    }
+    
+    // OS -> Classic: Transformar janela ativa em página
+    if (prevMode === 'os' && currentMode === 'classico') {
+      const activeWindow = workspace?.windows?.find(w => w.id === workspace.activeId);
+      
+      if (activeWindow) {
+        navigate('/' + activeWindow.page);
+      } else {
+        navigate('/Dashboard');
+      }
+    }
+  }, [uiMode, location.pathname, workspace, navigate]);
 
   // Compute safe-area padding for the main content
   const mainPadding = isOSMode ? {
@@ -394,7 +433,13 @@ function LayoutInner({ children, currentPageName }) {
         className="w-full min-h-screen transition-all duration-300 pt-14 md:pt-0"
         style={{ ...mainPadding }}
       >
-        {children}
+        {isOSMode ? (
+          // No modo OS, sempre mostrar Dashboard como background
+          location.pathname === '/Dashboard' || location.pathname === '/' ? children : null
+        ) : (
+          // No modo clássico, renderizar normalmente
+          children
+        )}
       </main>
     </div>
   );
