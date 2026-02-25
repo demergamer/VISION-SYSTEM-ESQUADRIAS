@@ -205,7 +205,6 @@ function FloatingWindow({ win }) {
   // ── Drag ──
   const onMouseDownDrag = (e) => {
     if (win.maximized) {
-      // Unmaximize first, then start drag from a sensible position
       const prevPos = win.prevPos || { x: 80, y: 80, w: Math.min(window.innerWidth * 0.75, 1100), h: Math.min(window.innerHeight * 0.75, 750) };
       updateWindow(win.id, {
         maximized: false,
@@ -221,16 +220,22 @@ function FloatingWindow({ win }) {
     const startX = e.clientX - win.x;
     const startY = e.clientY - win.y;
     focusWindow(win.id);
+    const tbPos = taskbarPosition;
+    // Snap trigger: drag to the edge where taskbar is NOT (top edge unless taskbar is top)
+    const snapTriggerY = tbPos === 'bottom' ? window.innerHeight - 20 : null;
+    const snapTriggerTop = tbPos !== 'bottom'; // show snap when dragging to top
 
     const onMove = (ev) => {
-      if (ev.clientY < 20) {
-        setShowSnap(true);
-      } else {
-        setShowSnap(false);
-      }
+      const atTop = snapTriggerTop && ev.clientY < 20;
+      const atBottom = snapTriggerY && ev.clientY > snapTriggerY;
+      setShowSnap(atTop || !!atBottom);
+      const minY = tbPos === 'top' ? 48 : 0;
+      const maxY = tbPos === 'bottom' ? window.innerHeight - 108 : window.innerHeight - 60;
+      const minX = tbPos === 'left' ? 48 : 0;
+      const maxX = tbPos === 'right' ? window.innerWidth - 248 : window.innerWidth - 200;
       updateWindow(win.id, {
-        x: Math.max(0, Math.min(ev.clientX - startX, window.innerWidth - 200)),
-        y: Math.max(48, Math.min(ev.clientY - startY, window.innerHeight - 60)),
+        x: Math.max(minX, Math.min(ev.clientX - startX, maxX)),
+        y: Math.max(minY, Math.min(ev.clientY - startY, maxY)),
       });
     };
     const onUp = () => {
