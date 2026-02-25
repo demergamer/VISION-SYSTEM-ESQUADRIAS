@@ -72,14 +72,24 @@ const MiniCalendar = ({ user, tarefas = [] }) => {
   const weekDays = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
   const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
   const firstDayIndex = new Date(today.getFullYear(), today.getMonth(), 1).getDay();
+  
   const [diaSelecionado, setDiaSelecionado] = useState(null);
+  const [viewMode, setViewMode] = useState('meu'); // Novo estado do Toggle (Meu vs Geral)
   const queryClient = useQueryClient();
 
   const days = [];
   for (let i = 0; i < firstDayIndex; i++) days.push(null);
   for (let i = 1; i <= daysInMonth; i++) days.push(i);
 
-  const tarefasVisiveis = tarefas.filter(t => t.tipo === 'geral' || t.dono_id === user?.email || t.criador_id === user?.email);
+  // Lógica de Filtro Inteligente (Igual a tela Calendario.jsx)
+  const tarefasVisiveis = tarefas.filter(t => {
+    const escopo = t.escopo || t.tipo || 'geral';
+    if (viewMode === 'geral') return escopo === 'geral';
+    const isGeral = escopo === 'geral';
+    const isMeu = t.dono_id === user?.email || t.criador_id === user?.email;
+    const statusOk = !['recusada', 'pendente_aceite'].includes(t.status);
+    return (isGeral || isMeu) && statusOk;
+  });
 
   const tarefasDia = (dia) => {
     if (!dia) return [];
@@ -100,11 +110,33 @@ const MiniCalendar = ({ user, tarefas = [] }) => {
         <span className="font-bold text-slate-700 capitalize">
           {today.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
         </span>
-        {/* BOTAO VER TUDO MELHORADO AQUI */}
-        <Link to="/Calendario" className="group text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white px-4 py-1.5 rounded-full transition-all flex items-center gap-1.5 shadow-sm ring-1 ring-blue-100 hover:ring-transparent">
+        <Link to="/Calendario" className="group text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white px-3 py-1 rounded-full transition-all flex items-center gap-1 shadow-sm ring-1 ring-blue-100 hover:ring-transparent">
           Ver tudo <span className="transition-transform group-hover:translate-x-1">&rarr;</span>
         </Link>
       </div>
+
+      {/* TOGGLE VS COMPACTO (Mini Calendário) */}
+      <div className="flex items-center relative bg-slate-100/80 border border-slate-200/60 rounded-lg p-1 w-full shadow-inner mb-4">
+        <button
+          onClick={() => setViewMode('meu')}
+          className={cn("flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md font-bold text-[11px] transition-all z-10", viewMode === 'meu' ? "bg-white text-purple-700 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-800")}
+        >
+          <UserIcon className="w-3.5 h-3.5" /> Pessoal
+        </button>
+        
+        {/* Selo Centralizado do VS Mini */}
+        <div className="absolute left-1/2 -translate-x-1/2 z-20 flex items-center justify-center w-6 h-6 rounded-full bg-white border border-slate-200 shadow-sm">
+          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">VS</span>
+        </div>
+
+        <button
+          onClick={() => setViewMode('geral')}
+          className={cn("flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md font-bold text-[11px] transition-all z-10", viewMode === 'geral' ? "bg-white text-blue-700 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-800")}
+        >
+          <Users className="w-3.5 h-3.5" /> Geral
+        </button>
+      </div>
+
       <div className="grid grid-cols-7 gap-1 text-center mb-2">
         {weekDays.map((d, i) => <span key={i} className="text-xs font-bold text-slate-400">{d}</span>)}
       </div>
@@ -212,7 +244,7 @@ export default function Dashboard() {
         { name: "Produtos", label: "Produtos", icon: Package, desc: "Catálogo, preços e estoque" },
         { name: "Fornecedores", label: "Fornecedores", icon: Briefcase, desc: "Parceiros e compras" },
         { name: "Representantes", label: "Representantes", icon: Users, desc: "Equipe de vendas" },
-        { name: "motorista", label: "Motoristas", icon: Truck, desc: "Gestão de motoristas" }, // CORRIGIDO PARA motorista
+        { name: "motorista", label: "Motoristas", icon: Truck, desc: "Gestão de motoristas" }, 
         { name: "Usuarios", label: "Usuários", icon: ShieldCheck, desc: "Controle de acesso" },
       ]
     },
@@ -321,6 +353,7 @@ export default function Dashboard() {
 
             <div className="space-y-4">
               {menuGroups.map((group, idx) => {
+                // VOLTOU O FILTRO PADRÃO APENAS BASEADO EM PERMISSÕES (SEM GAMBIARRA)
                 const allowedItems = group.items.filter(item => canDo(item.name, 'visualizar') || item.name === 'Relatorios');
                 if (allowedItems.length === 0) return null;
                 const isOpen = !!openGroups[idx];
