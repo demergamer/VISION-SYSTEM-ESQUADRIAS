@@ -23,7 +23,8 @@ import {
   Sun, Moon, Monitor, AlignJustify, AlignLeft,
   Globe, Eye, EyeOff, Trash2, Save, Loader2,
   Settings, Bell, BellOff, BellRing, Home,
-  ShoppingCart, DollarSign, ChevronRight, Image, Palette, Upload, X
+  ShoppingCart, DollarSign, ChevronRight, Image, Palette, Upload, X,
+  AppWindow, PanelTop, PanelBottom, PanelLeft, PanelRight, LayoutGrid
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
