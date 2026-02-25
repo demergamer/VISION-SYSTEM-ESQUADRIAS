@@ -51,8 +51,12 @@ SelectScrollDownButton.displayName =
   SelectPrimitive.ScrollDownButton.displayName
 
 const SelectContent = React.forwardRef(function SelectContent({ className, children, position = "popper", ...props }, ref) {
+  // MÁGICA AQUI: Puxando o container do PortalContext (Web OS)
+  const portalContainer = usePortalContainer();
+
   return (
-    <SelectPrimitive.Portal>
+    // INJETANDO: container={portalContainer} para prender o menu na janela
+    <SelectPrimitive.Portal container={portalContainer}>
       <SelectPrimitive.Content
         ref={ref}
         className={cn(
