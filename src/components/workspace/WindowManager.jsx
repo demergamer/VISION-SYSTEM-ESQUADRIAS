@@ -112,20 +112,24 @@ export function WorkspaceProvider({ children }) {
   }, []);
 
   const snapWindow = useCallback((id, layout) => {
-    const W = window.innerWidth;
-    const H = window.innerHeight - 48;
-    const Y = 48;
+    const tbPos = preferences?.taskbar_position || 'top';
+    const isH = ['left','right'].includes(tbPos);
+    const BAR = 48;
+    const W = window.innerWidth - (isH ? BAR : 0);
+    const H = window.innerHeight - (!isH ? BAR : 0);
+    const X0 = tbPos === 'left' ? BAR : 0;
+    const Y0 = tbPos === 'top' || !preferences?.taskbar_position ? BAR : 0;
     const snaps = {
-      full:  { x: 0,     y: Y, w: W,   h: H, maximized: false },
-      left:  { x: 0,     y: Y, w: W/2, h: H, maximized: false },
-      right: { x: W/2,   y: Y, w: W/2, h: H, maximized: false },
+      full:  { x: X0,       y: Y0, w: W,   h: H, maximized: false },
+      left:  { x: X0,       y: Y0, w: W/2, h: H, maximized: false },
+      right: { x: X0 + W/2, y: Y0, w: W/2, h: H, maximized: false },
     };
     const pos = snaps[layout];
     if (!pos) return;
     setWindows(prev => prev.map(w =>
       w.id === id ? { ...w, ...pos, prevPos: { x: w.x, y: w.y, w: w.w, h: w.h } } : w
     ));
-  }, []);
+  }, [preferences?.taskbar_position]);
 
   return (
     <SidebarCtx.Provider value={{ sidebarOpen, setSidebarOpen }}>
