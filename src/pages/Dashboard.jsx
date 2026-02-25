@@ -28,6 +28,7 @@ import PS2Background from '@/components/dashboard/PS2Background';
 import DashboardBackground from '@/components/dashboard/DashboardBackground';
 import NavigationCard from '@/components/dashboard/NavigationCard';
 import AtividadesHoje from '@/components/dashboard/AtividadesHoje';
+import WidgetGrid from '@/components/dashboard/WidgetGrid';
 import { base44 } from '@/api/base44Client';
 import { usePreferences } from '@/components/hooks/usePreferences';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
