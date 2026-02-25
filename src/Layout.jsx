@@ -211,7 +211,6 @@ function ClassicHeader({ onOpenMenu, user, userEmail }) {
 // ─── Start Menu (OS mode, Sidebar flutuante) ──────────────────────────────────
 function StartMenu({ open, onClose, currentPageName, canDo, user, signOut, lockScreen }) {
   const workspace = useWorkspace();
-  if (!open) return null;
 
   const handleNav = (name) => {
     onClose();
