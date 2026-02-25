@@ -26,6 +26,7 @@ import {
 import { WorkspaceProvider, OSTaskbar, useWorkspace } from '@/components/workspace/WindowManager';
 import { usePreferences } from '@/components/hooks/usePreferences';
 import GlobalSearch from '@/components/search/GlobalSearch';
+import NotificationToastManager from '@/components/notificacoes/NotificationToastManager';
 
 const CalendarIcon = CalendarDays;
 
