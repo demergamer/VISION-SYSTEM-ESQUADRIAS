@@ -412,25 +412,23 @@ function FloatingWindow({ win }) {
           <div className="w-14 shrink-0" /> {/* spacer to center title */}
         </div>
 
-        {/* ── Content ──
-            isolation: isolate creates a new stacking context so position:fixed
-            children of page components stack correctly within the window.
-        */}
+        {/* ── Content ── */}
         <div
           ref={winRef}
           id={`window-root-${win.id}`}
           className="flex-1 overflow-auto bg-slate-50 relative"
-          style={{ isolation: 'isolate' }}
         >
-          {PageComponent
-            ? <PageComponent />
-            : (
-              <div className="flex items-center justify-center h-full gap-3 text-slate-400">
-                <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                <span className="text-sm">Carregando {win.page}…</span>
-              </div>
-            )
-          }
+          <PortalContext.Provider value={winRef.current}>
+            {PageComponent
+              ? <PageComponent />
+              : (
+                <div className="flex items-center justify-center h-full gap-3 text-slate-400">
+                  <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm">Carregando {win.page}…</span>
+                </div>
+              )
+            }
+          </PortalContext.Provider>
         </div>
 
         {/* ── Resize Handle ── */}
