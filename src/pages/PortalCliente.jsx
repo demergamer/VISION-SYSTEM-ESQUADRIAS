@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRealtimeSync } from "@/components/hooks/useRealtimeSync";
 import PinGateway from "@/components/portais/PinGateway";
 import OnboardingModalStandalone from "@/components/admin/OnboardingModalStandalone";
 import { Card, CardContent } from "@/components/ui/card";
