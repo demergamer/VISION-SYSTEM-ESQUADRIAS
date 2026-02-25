@@ -430,15 +430,8 @@ export default function Dashboard() {
 
             <AtividadesHoje user={user} />
 
-            <div className="bg-gradient-to-br from-blue-600/90 to-indigo-700/90 backdrop-blur-md rounded-2xl p-6 text-white shadow-lg shadow-blue-900/20 ring-1 ring-white/20">
-              <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
-                <ShieldAlert className="w-5 h-5 text-blue-200" />
-                Dica do Dia
-              </h3>
-              <p className="text-blue-50 text-sm leading-relaxed font-medium">
-                Utilize o botão direito do mouse na listagem de clientes para acessar o histórico de pedidos rapidamente.
-              </p>
-            </div>
+            {/* WIDGETS PERSONALIZÁVEIS */}
+            <WidgetGrid />
           </div>
 
         </div>
