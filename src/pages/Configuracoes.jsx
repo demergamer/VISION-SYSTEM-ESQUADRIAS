@@ -351,6 +351,16 @@ export default function Configuracoes() {
               <p className="text-xs text-slate-400">As janelas respeitarão a área segura da barra selecionada.</p>
             </div>
           )}
+
+          {prefs.ui_mode === 'os' && (
+            <ToggleRow
+              icon={PanelTop}
+              title="Ocultar barra automaticamente"
+              description="A barra de tarefas se esconde e reaparece ao passar o mouse"
+              checked={!!prefs.taskbar_autohide}
+              onCheckedChange={v => set('taskbar_autohide', v)}
+            />
+          )}
         </SectionCard>
 
         {/* ── 🎨 Aparência ── */}
