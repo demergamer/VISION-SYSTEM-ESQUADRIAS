@@ -203,6 +203,7 @@ export default function Calendario() {
           >
             <User className="w-4 h-4" /> Meu Calendário
           </button>
+          <span className="text-xs font-bold text-slate-400 px-1 select-none">( vs )</span>
           <button
             onClick={() => setViewMode('geral')}
             className={cn("flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm transition-all", viewMode === 'geral' ? "bg-blue-600 text-white shadow" : "text-slate-500 hover:bg-slate-100")}
