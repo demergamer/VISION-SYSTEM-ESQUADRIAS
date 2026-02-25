@@ -296,7 +296,7 @@ export default function Dashboard() {
                 <DropdownMenuContent align="end" className="w-56 mt-2">
                   <DropdownMenuLabel className="font-bold text-slate-800">Minha Conta</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="cursor-pointer" onClick={() => navigate('/usuarios')}>
+                  <DropdownMenuItem className="cursor-pointer" onClick={() => setShowPerfilModal(true)}>
                     <UserIcon className="mr-2 h-4 w-4 text-slate-500" />
                     <span className="font-medium">Gerenciar Perfil</span>
                   </DropdownMenuItem>
