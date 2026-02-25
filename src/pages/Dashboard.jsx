@@ -244,7 +244,7 @@ export default function Dashboard() {
         { name: "Produtos", label: "Produtos", icon: Package, desc: "Catálogo, preços e estoque" },
         { name: "Fornecedores", label: "Fornecedores", icon: Briefcase, desc: "Parceiros e compras" },
         { name: "Representantes", label: "Representantes", icon: Users, desc: "Equipe de vendas" },
-        { name: "motorista", label: "motoristas", icon: Truck, desc: "Gestão de motoristas" }, 
+        { name: "Motoristas", label: "Motoristas", icon: Truck, desc: "Gestão de motoristas" }, 
         { name: "Usuarios", label: "Usuários", icon: ShieldCheck, desc: "Controle de acesso" },
       ]
     },
