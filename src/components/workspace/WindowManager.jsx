@@ -137,7 +137,9 @@ export function WorkspaceProvider({ children }) {
         windows, activeId,
         openWindow, closeWindow, focusWindow,
         toggleMinimize, toggleMaximize, minimizeAll,
-        updateWindow, snapWindow, sidebarOpen, setSidebarOpen
+        updateWindow, snapWindow, sidebarOpen, setSidebarOpen,
+        taskbarPosition: preferences?.taskbar_position || 'top',
+        uiMode: preferences?.ui_mode || 'os',
       }}>
         {children}
         <WindowLayer />
