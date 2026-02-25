@@ -132,7 +132,83 @@ function NotificationBell({ userEmail }) {
   );
 }
 
-// ─── Start Menu (Sidebar flutuante) ──────────────────────────────────────────
+// ─── Classic Sidebar ──────────────────────────────────────────────────────────
+function ClassicSidebar({ open, onClose, currentPageName, canDo, user, signOut, lockScreen }) {
+  const navigate = useNavigate();
+  return (
+    <>
+      {open && <div className="fixed inset-0 z-[490] bg-black/20" onClick={onClose} />}
+      <aside className={cn(
+        "fixed top-0 left-0 h-full z-[495] w-64 bg-white border-r border-slate-200 flex flex-col shadow-2xl transition-transform duration-300",
+        open ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <div className="flex items-center gap-3 p-4 border-b border-slate-100">
+          <img src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png" alt="J&C" className="h-8 w-auto" />
+          <div>
+            <h1 className="font-extrabold text-slate-800 text-lg leading-tight">J&C <span className="text-blue-600">Vision</span></h1>
+            <p className="text-[10px] text-slate-400 uppercase tracking-widest">Sistema de Gestão</p>
+          </div>
+          <button onClick={onClose} className="ml-auto p-1 rounded-lg hover:bg-slate-100"><X className="w-4 h-4 text-slate-400" /></button>
+        </div>
+        <div className="px-2 py-2"><LiveClock /></div>
+        <nav className="flex-1 overflow-y-auto px-2 pb-2 space-y-3">
+          {menuStructure.map((group, gi) => {
+            const items = group.items.filter(item => item.public || canDo(item.name, 'visualizar'));
+            if (items.length === 0) return null;
+            return (
+              <div key={gi}>
+                <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{group.title}</p>
+                {items.map(item => (
+                  <button key={item.name} onClick={() => { navigate(`/${item.name}`); onClose(); }}
+                    className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                      currentPageName === item.name ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-100"
+                    )}>
+                    <item.icon className={cn("w-4 h-4", currentPageName === item.name ? "text-blue-600" : "text-slate-400")} />
+                    {item.name}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
+        </nav>
+        <div className="border-t border-slate-100 p-2 flex gap-2">
+          <button onClick={() => { lockScreen?.(); onClose(); }} className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium text-amber-600 hover:bg-amber-50 transition-colors">
+            <Lock className="w-4 h-4" /> Bloquear
+          </button>
+          <button onClick={() => { signOut(); onClose(); }} className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 transition-colors">
+            <LogOut className="w-4 h-4" /> Sair
+          </button>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+// ─── Classic Header (when ui_mode = classico) ─────────────────────────────────
+function ClassicHeader({ onOpenMenu, user, userEmail }) {
+  return (
+    <div className="fixed top-0 left-0 right-0 h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 z-50 shadow-sm">
+      <div className="flex items-center gap-3">
+        <button onClick={onOpenMenu} className="p-2 rounded-lg hover:bg-slate-100">
+          <Menu className="w-5 h-5 text-slate-600" />
+        </button>
+        <img src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png" alt="J&C" className="h-8 w-auto" />
+        <span className="font-bold text-lg text-slate-800 hidden sm:block">J&C Gestão</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <NotificationBell userEmail={userEmail} />
+        <Avatar className="h-8 w-8">
+          <AvatarImage src={user?.avatar_url} className="object-cover" />
+          <AvatarFallback className="bg-blue-600 text-white text-xs">
+            {(user?.preferred_name || user?.full_name || user?.email || 'U').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+      </div>
+    </div>
+  );
+}
+
+// ─── Start Menu (OS mode, Sidebar flutuante) ──────────────────────────────────
 function StartMenu({ open, onClose, currentPageName, canDo, user, signOut, lockScreen }) {
   const workspace = useWorkspace();
   if (!open) return null;
