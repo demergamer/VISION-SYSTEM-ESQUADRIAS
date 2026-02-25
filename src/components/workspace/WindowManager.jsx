@@ -4,6 +4,7 @@ import React, {
 } from 'react';
 import { cn } from '@/lib/utils';
 import { X, Minus, Maximize2, Minimize2, Square, LayoutTemplate, PanelLeft, PanelRight } from 'lucide-react';
+import { usePreferences } from '@/components/hooks/usePreferences';
 
 // ─── Contexts ─────────────────────────────────────────────────────────────────
 const WorkspaceCtx = createContext(null);
