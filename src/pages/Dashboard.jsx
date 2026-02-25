@@ -311,34 +311,45 @@ export default function Dashboard() {
               </DropdownMenu>
             </div>
 
-            <div className="space-y-12">
+            <div className="space-y-4">
               {menuGroups.map((group, idx) => {
                 const allowedItems = group.items.filter(item => canDo(item.name, 'visualizar') || item.name === 'Relatorios');
                 if (allowedItems.length === 0) return null;
+                const isOpen = !!openGroups[idx];
 
                 return (
-                  <div key={idx} className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className={cn("w-1.5 h-6 rounded-full shadow-sm", 
-                        group.color === 'blue' ? 'bg-blue-600' : 
-                        group.color === 'amber' ? 'bg-amber-500' : 
-                        group.color === 'green' ? 'bg-emerald-600' : 'bg-slate-600'
-                      )}></div>
-                      <h2 className="text-xl font-bold text-slate-700 drop-shadow-sm">{group.title}</h2>
-                    </div>
+                  <div key={idx} className="rounded-2xl border border-slate-200/70 bg-white/50 backdrop-blur-sm shadow-sm overflow-hidden">
+                    <button
+                      onClick={() => toggleGroup(idx)}
+                      className="w-full flex items-center justify-between gap-3 px-5 py-4 hover:bg-slate-50/80 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={cn("w-1.5 h-6 rounded-full shadow-sm", 
+                          group.color === 'blue' ? 'bg-blue-600' : 
+                          group.color === 'amber' ? 'bg-amber-500' : 
+                          group.color === 'green' ? 'bg-emerald-600' : 'bg-slate-600'
+                        )} />
+                        <h2 className="text-lg font-bold text-slate-700">{group.title}</h2>
+                        <span className="text-xs text-slate-400 font-medium">{allowedItems.length} módulos</span>
+                      </div>
+                      <ChevronDown className={cn("w-5 h-5 text-slate-400 transition-transform duration-300", isOpen && "rotate-180")} />
+                    </button>
                     
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {allowedItems.map((item) => (
-                        <NavigationCard
-                          key={item.name}
-                          title={item.label}
-                          description={item.desc}
-                          icon={item.icon}
-                          color={group.color}
-                          onClick={() => navigate(`/${item.name}`)}
-                        />
-                      ))}
-                    </div>
+                    {isOpen && (
+                      <div className="px-5 pb-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 border-t border-slate-100">
+                        <div className="col-span-full pt-1" />
+                        {allowedItems.map((item) => (
+                          <NavigationCard
+                            key={item.name}
+                            title={item.label}
+                            description={item.desc}
+                            icon={item.icon}
+                            color={group.color}
+                            onClick={() => navigate(`/${item.name}`)}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })}
