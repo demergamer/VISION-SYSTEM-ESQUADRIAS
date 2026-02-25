@@ -248,6 +248,7 @@ export default function Dashboard() {
   ];
 
   const [openGroups, setOpenGroups] = useState({ 0: true });
+  const [showPerfilModal, setShowPerfilModal] = useState(false);
   const toggleGroup = (idx) => setOpenGroups(prev => ({ ...prev, [idx]: !prev[idx] }));
 
   const tipofundo = preferences?.dash_tipo_fundo || 'padrao';
