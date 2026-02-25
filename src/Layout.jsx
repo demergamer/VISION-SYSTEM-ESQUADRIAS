@@ -343,13 +343,15 @@ function LayoutInner({ children, currentPageName }) {
     }
   }, [uiMode, location.pathname, workspace, navigate]);
 
+  const autoHide = preferences?.taskbar_autohide === true;
+
   // Compute safe-area padding for the main content
-  const mainPadding = isOSMode ? {
+  const mainPadding = isOSMode ? (autoHide ? {} : {
     paddingTop:    tbPos === 'top'    ? 48 : 0,
     paddingBottom: tbPos === 'bottom' ? 48 : 0,
     paddingLeft:   tbPos === 'left'   ? 48 : 0,
     paddingRight:  tbPos === 'right'  ? 48 : 0,
-  } : { paddingTop: 56 };
+  }) : { paddingTop: 56 };
 
   // Notification bell position
   const bellStyle = {
