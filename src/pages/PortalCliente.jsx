@@ -60,6 +60,7 @@ const TabButton = ({ active, onClick, icon: Icon, label, count, colorClass, bgAc
 );
 
 export default function PortalCliente() {
+  useRealtimeSync();
   const [pinOk, setPinOk] = useState(false);
   const [registroCliente, setRegistroCliente] = useState(null);
   const [loadingPin, setLoadingPin] = useState(true);

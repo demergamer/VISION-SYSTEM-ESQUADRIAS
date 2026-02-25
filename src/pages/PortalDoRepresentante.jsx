@@ -439,6 +439,7 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolic
 
 // --- COMPONENTE PRINCIPAL ---
 export default function PainelRepresentante() {
+  useRealtimeSync();
   const [user, setUser] = useState(null);
   const [representante, setRepresentante] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
