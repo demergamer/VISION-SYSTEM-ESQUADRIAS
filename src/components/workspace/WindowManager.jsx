@@ -595,6 +595,7 @@ export function OSTaskbar({ onToggleSidebar }) {
         </button>
       )}
     </div>
+    </>
   );
 }
 
