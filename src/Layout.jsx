@@ -443,8 +443,11 @@ function LayoutInner({ children, currentPageName }) {
         style={{ ...mainPadding }}
       >
         {isOSMode ? (
-          // No modo OS, sempre mostrar Dashboard como background
-          location.pathname === '/Dashboard' || location.pathname === '/' ? children : null
+          // No modo OS, portais e Dashboard renderizam normalmente; resto só no Dashboard
+          (location.pathname === '/Dashboard' || location.pathname === '/' ||
+           location.pathname === '/PortalDoMotorista' ||
+           location.pathname === '/PortalCliente' ||
+           location.pathname === '/PortalDoRepresentante') ? children : null
         ) : (
           // No modo clássico, renderizar normalmente
           children
