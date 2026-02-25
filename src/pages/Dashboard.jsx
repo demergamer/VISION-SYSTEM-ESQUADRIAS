@@ -199,6 +199,15 @@ export default function Dashboard() {
   const { canDo } = usePermissions();
   const { preferences } = usePreferences();
   const navigate = useNavigate();
+  const workspace = useWorkspace(); // pode ser null fora do WorkspaceProvider
+
+  const handleNavigate = (pageName) => {
+    if (workspace) {
+      workspace.openWindow(pageName);
+    } else {
+      navigate(`/${pageName}`);
+    }
+  };
   const [time, setTime] = useState(new Date());
   const [clockType, setClockType] = useState(() => localStorage.getItem('jc_clock_pref') || 'digital');
 
