@@ -377,6 +377,7 @@ function LayoutInner({ children, currentPageName }) {
 
   return (
     <div className="min-h-screen bg-slate-50 relative overflow-x-hidden">
+      <NotificationToastManager />
 
       {/* ── MOBILE HEADER (always classic on mobile) ── */}
       <div className="md:hidden">
