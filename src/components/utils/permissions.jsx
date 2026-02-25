@@ -102,6 +102,12 @@ export const MODULOS_CONFIG = [
     permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'exportar'] 
   },
   { 
+    nome: 'Motoristas', 
+    label: '🚗 Motoristas', 
+    grupo: 'Cadastros', 
+    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir'] 
+  },
+  { 
     nome: 'Fornecedores', 
     label: '🚛 Fornecedores', 
     grupo: 'Cadastros', 

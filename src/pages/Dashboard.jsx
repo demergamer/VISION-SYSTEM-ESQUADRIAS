@@ -100,6 +100,9 @@ const MiniCalendar = ({ user, tarefas = [] }) => {
         <span className="font-bold text-slate-700 capitalize">
           {today.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
         </span>
+        <Link to="/Calendario" className="text-xs text-blue-600 hover:underline font-medium flex items-center gap-1">
+          Ver tudo →
+        </Link>
       </div>
       <div className="grid grid-cols-7 gap-1 text-center mb-2">
         {weekDays.map((d, i) => <span key={i} className="text-xs font-bold text-slate-400">{d}</span>)}
