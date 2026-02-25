@@ -197,10 +197,11 @@ function SnapAssist({ winId, onSnap, onClose }) {
 
 // ─── Floating Window ──────────────────────────────────────────────────────────
 function FloatingWindow({ win }) {
-  const { closeWindow, focusWindow, toggleMinimize, toggleMaximize, updateWindow, snapWindow, activeId } = useWorkspace();
+  const { closeWindow, focusWindow, toggleMinimize, toggleMaximize, updateWindow, snapWindow, activeId, taskbarPosition } = useWorkspace();
   const winRef = useRef(null);
   const isActive = activeId === win.id;
   const [showSnap, setShowSnap] = useState(false);
+  const [snapHover, setSnapHover] = useState(false);
 
   // ── Drag ──
   const onMouseDownDrag = (e) => {
