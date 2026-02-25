@@ -44,6 +44,7 @@ export default function PortalDoMotorista() {
   const [erroAcesso, setErroAcesso] = useState('');
   const [registroMotorista, setRegistroMotorista] = useState(null);
   const [rotaSelecionada, setRotaSelecionada] = useState(null);
+  useRealtimeSync();
 
   // Identificação automática pelo e-mail
   useEffect(() => {
