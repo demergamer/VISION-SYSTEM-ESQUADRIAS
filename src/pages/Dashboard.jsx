@@ -396,7 +396,7 @@ export default function Dashboard() {
                             description={item.desc}
                             icon={item.icon}
                             color={group.color}
-                            onClick={() => navigate(`/${item.name}`)}
+                            onClick={() => handleNavigate(item.name)}
                           />
                         ))}
                       </div>
