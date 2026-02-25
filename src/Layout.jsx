@@ -287,7 +287,6 @@ function StartMenu({ open, onClose, currentPageName, canDo, user, signOut, lockS
           </button>
         </div>
       </div>
-    </>
   );
 }
 
