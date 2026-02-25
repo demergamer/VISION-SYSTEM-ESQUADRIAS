@@ -6,7 +6,7 @@ import { base44 } from '@/api/base44Client';
 const ENTITY_QUERY_KEYS = {
   Tarefa:               [['tarefas'], ['tarefas_calendario']],
   Pedido:               [['pedidos'], ['pedidos_rota'], ['bordero'], ['pendentes_aprovacao'], ['pedidos_motorista_portal'], ['rotas_checklist'], ['rotas_pendentes'], ['rotas_parciais'], ['rotas_concluidas']],
-  RotaImportada:        [['rotas_importadas'], ['rotas_motorista_portal'], ['rotas_checklist'], ['rotas_pendentes'], ['rotas_parciais'], ['rotas_concluidas'], ['pedidos_rota']],
+  RotaImportada:        [['rotas'], ['rotas_importadas'], ['rotas_motorista_portal'], ['rotas_checklist'], ['rotas_pendentes'], ['rotas_parciais'], ['rotas_concluidas'], ['pedidos_rota']],
   Cliente:              [['clientes']],
   Representante:        [['representantes']],
   Motorista:            [['motoristas']],
