@@ -13,6 +13,7 @@ import { ptBR } from "date-fns/locale";
 import PinGateway from "@/components/portais/PinGateway";
 import RotasListReadOnly from "@/components/pedidos/RotasListReadOnly";
 import RotasChecklistReadOnly from "@/components/pedidos/RotasChecklistReadOnly";
+import { useRealtimeSync } from "@/components/hooks/useRealtimeSync";
 
 // Suprimir sidebar/header do Layout nesta página
 const style = `
