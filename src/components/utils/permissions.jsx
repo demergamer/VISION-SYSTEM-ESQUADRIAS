@@ -180,12 +180,18 @@ export const MODULOS_CONFIG = [
     permissoes: ['visualizar', 'adicionar', 'editar', 'excluir'] 
   },
   { 
-    nome: 'Logs', 
-    label: '📜 Logs do Sistema', 
-    grupo: 'Admin', 
-    permissoes: ['visualizar'] 
-  }
-];
+     nome: 'Logs', 
+     label: '📜 Logs do Sistema', 
+     grupo: 'Admin', 
+     permissoes: ['visualizar'] 
+   },
+   { 
+     nome: 'ConfiguracoesLojas', 
+     label: '🏪 Configurações Lojas', 
+     grupo: 'Admin', 
+     permissoes: ['visualizar', 'editar'] 
+   }
+  ];
 
 /**
  * Função auxiliar para criar o objeto de permissões inicial (tudo false)
