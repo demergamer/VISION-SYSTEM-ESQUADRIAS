@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
   Users, Package, ShoppingCart, Wallet, FileText, BarChart3, 
   Briefcase, Banknote, ScrollText, CreditCard, ShieldCheck, 
   Calendar as CalendarIcon, Settings2, ShieldAlert, LogOut, User as UserIcon,
-  Building2
+  Building2, ChevronDown, Truck, Settings
 } from "lucide-react";
 import { useAuth } from '@/components/providers/AuthContext';
 import { usePermissions } from "@/components/hooks/usePermissions";
@@ -208,6 +208,7 @@ export default function Dashboard() {
         { name: "Produtos", label: "Produtos", icon: Package, desc: "Catálogo, preços e estoque" },
         { name: "Fornecedores", label: "Fornecedores", icon: Briefcase, desc: "Parceiros e compras" },
         { name: "Representantes", label: "Representantes", icon: Users, desc: "Equipe de vendas" },
+        { name: "Motoristas", label: "Motoristas", icon: Truck, desc: "Gestão de motoristas" },
         { name: "Usuarios", label: "Usuários", icon: ShieldCheck, desc: "Controle de acesso" },
       ]
     },
