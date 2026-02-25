@@ -333,17 +333,59 @@ function FloatingWindow({ win }) {
             >
               <Minus className="w-2 h-2 text-yellow-800 opacity-0 group-hover:opacity-100" />
             </button>
-            <button
+
+            {/* Maximize + Snap Assist (bridged hover) */}
+            <div
+              className="relative"
+              onMouseEnter={() => setSnapHover(true)}
+              onMouseLeave={() => setSnapHover(false)}
               onMouseDown={e => e.stopPropagation()}
-              onClick={() => toggleMaximize(win.id)}
-              className="w-3.5 h-3.5 rounded-full bg-green-500 hover:bg-green-400 flex items-center justify-center group transition-colors"
-              title={win.maximized ? 'Restaurar' : 'Maximizar'}
             >
-              {win.maximized
-                ? <Minimize2 className="w-2 h-2 text-green-900 opacity-0 group-hover:opacity-100" />
-                : <Maximize2 className="w-2 h-2 text-green-900 opacity-0 group-hover:opacity-100" />
-              }
-            </button>
+              <button
+                onClick={() => toggleMaximize(win.id)}
+                className="w-3.5 h-3.5 rounded-full bg-green-500 hover:bg-green-400 flex items-center justify-center group transition-colors"
+                title={win.maximized ? 'Restaurar' : 'Maximizar'}
+              >
+                {win.maximized
+                  ? <Minimize2 className="w-2 h-2 text-green-900 opacity-0 group-hover:opacity-100" />
+                  : <Maximize2 className="w-2 h-2 text-green-900 opacity-0 group-hover:opacity-100" />
+                }
+              </button>
+              {/* Snap menu — pt-2 creates invisible bridge */}
+              {snapHover && !win.maximized && (
+                <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 z-[9999]">
+                  <div className="bg-slate-800/97 backdrop-blur-md border border-slate-600 rounded-xl p-2 shadow-2xl flex gap-1">
+                    <button
+                      onMouseDown={e => e.stopPropagation()}
+                      onClick={() => { snapWindow(win.id, 'full'); setSnapHover(false); }}
+                      className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-slate-600 transition-colors group/s"
+                      title="Tela Cheia"
+                    >
+                      <Square className="w-4 h-4 text-slate-300 group-hover/s:text-white" />
+                      <span className="text-[9px] text-slate-400 group-hover/s:text-slate-200 font-medium whitespace-nowrap">Cheia</span>
+                    </button>
+                    <button
+                      onMouseDown={e => e.stopPropagation()}
+                      onClick={() => { snapWindow(win.id, 'left'); setSnapHover(false); }}
+                      className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-slate-600 transition-colors group/s"
+                      title="Metade Esquerda"
+                    >
+                      <PanelLeft className="w-4 h-4 text-slate-300 group-hover/s:text-white" />
+                      <span className="text-[9px] text-slate-400 group-hover/s:text-slate-200 font-medium whitespace-nowrap">Esquerda</span>
+                    </button>
+                    <button
+                      onMouseDown={e => e.stopPropagation()}
+                      onClick={() => { snapWindow(win.id, 'right'); setSnapHover(false); }}
+                      className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-slate-600 transition-colors group/s"
+                      title="Metade Direita"
+                    >
+                      <PanelRight className="w-4 h-4 text-slate-300 group-hover/s:text-white" />
+                      <span className="text-[9px] text-slate-400 group-hover/s:text-slate-200 font-medium whitespace-nowrap">Direita</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           <span className="flex-1 text-[13px] font-semibold text-white/90 truncate text-center">{win.title}</span>
           <div className="w-14 shrink-0" /> {/* spacer to center title */}
