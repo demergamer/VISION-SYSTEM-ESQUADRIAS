@@ -8,6 +8,8 @@ export const DEFAULT_PREFS = {
   privacy_mode: false,
   tela_inicial: '/Dashboard',
   notificacoes: 'todas',
+  ui_mode: 'os',
+  taskbar_position: 'top',
 };
 
 export function applyPreferences(prefs) {
