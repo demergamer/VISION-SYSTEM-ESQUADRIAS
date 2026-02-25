@@ -241,6 +241,9 @@ export default function Configuracoes() {
     try {
       await updatePreferences(prefs);
       toast.success('Preferências salvas com sucesso!');
+      setTimeout(() => {
+        window.location.reload();
+      }, 800);
     } catch {
       toast.error('Erro ao salvar preferências.');
     } finally {
