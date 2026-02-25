@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { X, Minus, Maximize2, Minimize2, Square, LayoutTemplate, PanelLeft, PanelRight } from 'lucide-react';
 import { usePreferences } from '@/components/hooks/usePreferences';
 import GlobalSearch from '@/components/search/GlobalSearch';
+import { PortalContext } from '@/components/providers/PortalContext';
 
 // ─── Contexts ─────────────────────────────────────────────────────────────────
 const WorkspaceCtx = createContext(null);
