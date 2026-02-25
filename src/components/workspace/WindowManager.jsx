@@ -277,7 +277,9 @@ function FloatingWindow({ win }) {
 
   // ── Window style ──
   const tbPos = taskbarPosition || 'top';
-  const BAR = 48;
+  const { preferences: winPrefs } = usePreferences();
+  const autoHideOn = winPrefs?.taskbar_autohide === true;
+  const BAR = autoHideOn ? 0 : 48;
   const maxStyle = {
     top:    tbPos === 'top'    ? BAR : 0,
     bottom: tbPos === 'bottom' ? BAR : 0,
