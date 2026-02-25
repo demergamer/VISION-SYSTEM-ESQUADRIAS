@@ -127,7 +127,7 @@ function NotificationBell({ userEmail }) {
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" side="bottom" className="p-0 w-80 shadow-xl border-0 rounded-2xl overflow-hidden">
+      <PopoverContent align="end" side="bottom" className="p-0 shadow-xl border border-slate-200 rounded-2xl overflow-hidden" style={{ width: 'auto' }}>
         <NotificationCenter />
       </PopoverContent>
     </Popover>
