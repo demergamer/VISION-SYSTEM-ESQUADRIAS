@@ -242,7 +242,8 @@ export default function Configuracoes() {
       await updatePreferences(prefs);
       toast.success('Preferências salvas com sucesso!');
       setTimeout(() => {
-        window.location.reload();
+       // Redireciona para o Welcome e força o F5 ao mesmo tempo
+        window.location.href = '/Welcome'; 
       }, 800);
     } catch {
       toast.error('Erro ao salvar preferências.');
