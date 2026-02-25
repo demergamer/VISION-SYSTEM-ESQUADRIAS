@@ -415,12 +415,12 @@ function FloatingWindow({ win }) {
 
         {/* ── Content ── */}
         <div
-          ref={winRef}
+          ref={(el) => { winRef.current = el; if (el && !portalContainer) setPortalContainer(el); }}
           id={`window-root-${win.id}`}
           className="flex-1 overflow-auto bg-slate-50 relative"
-          style={{ position: 'relative', isolation: 'isolate' }}
+          style={{ position: 'relative' }}
         >
-          <PortalContext.Provider value={null}>
+          <PortalContext.Provider value={portalContainer}>
             {PageComponent
               ? <PageComponent />
               : (
