@@ -197,6 +197,9 @@ function ClassicHeader({ onOpenMenu, user, userEmail }) {
         <span className="font-bold text-lg text-slate-800 hidden sm:block">J&C Gestão</span>
       </div>
       <div className="flex items-center gap-2">
+        <div className="hidden sm:block">
+          <GlobalSearch compact={false} />
+        </div>
         <NotificationBell userEmail={userEmail} />
         <Avatar className="h-8 w-8">
           <AvatarImage src={user?.avatar_url} className="object-cover" />
