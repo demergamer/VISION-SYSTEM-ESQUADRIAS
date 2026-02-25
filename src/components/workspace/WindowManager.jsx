@@ -450,7 +450,7 @@ export function OSTaskbar({ onToggleSidebar }) {
   const { windows, activeId, focusWindow, toggleMinimize, closeWindow, minimizeAll, taskbarPosition } = useWorkspace();
   const { preferences } = usePreferences();
   const [visible, setVisible] = useState(false);
-  const hideTimer = useRef(null);
+  const hideTimerRef = useRef(null);
 
   // ISOLAMENTO: Se modo clássico, não renderizar taskbar
   if (preferences?.ui_mode === 'classico') return null;
