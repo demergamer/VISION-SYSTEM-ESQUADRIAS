@@ -1,42 +1,53 @@
-import React, { useState, useRef, useCallback, useEffect, createContext, useContext } from 'react';
+import React, {
+  useState, useRef, useCallback, useEffect,
+  createContext, useContext
+} from 'react';
 import { cn } from '@/lib/utils';
-import { X, Minus, Maximize2, Minimize2, GripHorizontal } from 'lucide-react';
+import { X, Minus, Maximize2, Minimize2, Square, LayoutTemplate, PanelLeft, PanelRight } from 'lucide-react';
 
-// ─── Context ────────────────────────────────────────────────────────────────
+// ─── Contexts ─────────────────────────────────────────────────────────────────
 const WorkspaceCtx = createContext(null);
 export const useWorkspace = () => useContext(WorkspaceCtx);
+
+// Exposed so sidebar/layout can toggle it
+export const SidebarCtx = createContext(null);
+export const useSidebarCtx = () => useContext(SidebarCtx);
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 export function WorkspaceProvider({ children }) {
   const [windows, setWindows] = useState([]);
   const [activeId, setActiveId] = useState(null);
-  const zTop = useRef(100);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const zTop = useRef(200);
 
   const openWindow = useCallback((page) => {
+    setSidebarOpen(false);
     setWindows(prev => {
       const exists = prev.find(w => w.page === page);
       if (exists) {
         setActiveId(exists.id);
-        setWindows(ws => ws.map(w => w.id === exists.id
-          ? { ...w, minimized: false, z: ++zTop.current }
-          : w
+        setWindows(ws => ws.map(w =>
+          w.id === exists.id ? { ...w, minimized: false, z: ++zTop.current } : w
         ));
         return prev;
       }
       const id = `${page}-${Date.now()}`;
-      const offset = (prev.length % 6) * 30;
       const newWin = {
         id,
         page,
         title: page,
-        x: 80 + offset,
-        y: 60 + offset,
-        w: Math.min(window.innerWidth * 0.75, 1100),
-        h: Math.min(window.innerHeight * 0.78, 720),
+        // default: maximized
+        x: 0, y: 48,
+        w: window.innerWidth,
+        h: window.innerHeight - 48,
         minimized: false,
-        maximized: false,
+        maximized: true,
         z: ++zTop.current,
-        prevPos: null,
+        prevPos: {
+          x: 80, y: 80,
+          w: Math.min(window.innerWidth * 0.78, 1200),
+          h: Math.min(window.innerHeight * 0.80, 780),
+        },
       };
       setActiveId(id);
       return [...prev, newWin];
@@ -57,13 +68,23 @@ export function WorkspaceProvider({ children }) {
     setWindows(prev => prev.map(w => w.id === id ? { ...w, minimized: !w.minimized } : w));
   }, []);
 
+  const minimizeAll = useCallback(() => {
+    setWindows(prev => prev.map(w => ({ ...w, minimized: true })));
+    setActiveId(null);
+  }, []);
+
   const toggleMaximize = useCallback((id) => {
     setWindows(prev => prev.map(w => {
       if (w.id !== id) return w;
       if (w.maximized) {
-        return { ...w, maximized: false, ...(w.prevPos || {}), prevPos: null };
+        const pos = w.prevPos || { x: 80, y: 80, w: 1000, h: 680 };
+        return { ...w, maximized: false, ...pos, prevPos: null };
       }
-      return { ...w, maximized: true, prevPos: { x: w.x, y: w.y, w: w.w, h: w.h } };
+      return {
+        ...w, maximized: true,
+        prevPos: { x: w.x, y: w.y, w: w.w, h: w.h },
+        x: 0, y: 48, w: window.innerWidth, h: window.innerHeight - 48,
+      };
     }));
   }, []);
 
@@ -71,48 +92,124 @@ export function WorkspaceProvider({ children }) {
     setWindows(prev => prev.map(w => w.id === id ? { ...w, ...patch } : w));
   }, []);
 
+  const snapWindow = useCallback((id, layout) => {
+    const W = window.innerWidth;
+    const H = window.innerHeight - 48;
+    const Y = 48;
+    const snaps = {
+      full:  { x: 0,     y: Y, w: W,   h: H, maximized: false },
+      left:  { x: 0,     y: Y, w: W/2, h: H, maximized: false },
+      right: { x: W/2,   y: Y, w: W/2, h: H, maximized: false },
+    };
+    const pos = snaps[layout];
+    if (!pos) return;
+    setWindows(prev => prev.map(w =>
+      w.id === id ? { ...w, ...pos, prevPos: { x: w.x, y: w.y, w: w.w, h: w.h } } : w
+    ));
+  }, []);
+
   return (
-    <WorkspaceCtx.Provider value={{ windows, activeId, openWindow, closeWindow, focusWindow, toggleMinimize, toggleMaximize, updateWindow }}>
-      {children}
-      <WindowLayer />
-    </WorkspaceCtx.Provider>
+    <SidebarCtx.Provider value={{ sidebarOpen, setSidebarOpen }}>
+      <WorkspaceCtx.Provider value={{
+        windows, activeId,
+        openWindow, closeWindow, focusWindow,
+        toggleMinimize, toggleMaximize, minimizeAll,
+        updateWindow, snapWindow, sidebarOpen, setSidebarOpen
+      }}>
+        {children}
+        <WindowLayer />
+      </WorkspaceCtx.Provider>
+    </SidebarCtx.Provider>
   );
 }
 
-// ─── Window Layer (renders all floating windows) ─────────────────────────────
+// ─── Window Layer ─────────────────────────────────────────────────────────────
 function WindowLayer() {
   const { windows } = useWorkspace();
   return (
-    <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 200 }}>
+    <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 210 }}>
       {windows.map(win => <FloatingWindow key={win.id} win={win} />)}
-      <Taskbar />
     </div>
   );
 }
 
-// ─── Floating Window ─────────────────────────────────────────────────────────
+// ─── Snap Assist Overlay ──────────────────────────────────────────────────────
+function SnapAssist({ winId, onSnap, onClose }) {
+  return (
+    <div
+      className="fixed top-12 left-1/2 -translate-x-1/2 z-[9999] pointer-events-auto"
+      onMouseLeave={onClose}
+    >
+      <div className="bg-slate-800/95 backdrop-blur-md border border-slate-600 rounded-2xl p-3 shadow-2xl flex gap-2">
+        <button
+          onMouseUp={() => { onSnap('full'); onClose(); }}
+          className="flex flex-col items-center gap-1 px-4 py-2 rounded-xl hover:bg-slate-600 transition-colors group"
+          title="Tela Cheia"
+        >
+          <Square className="w-6 h-6 text-slate-300 group-hover:text-white" />
+          <span className="text-[10px] text-slate-400 group-hover:text-slate-200 font-medium">Cheia</span>
+        </button>
+        <button
+          onMouseUp={() => { onSnap('left'); onClose(); }}
+          className="flex flex-col items-center gap-1 px-4 py-2 rounded-xl hover:bg-slate-600 transition-colors group"
+          title="Metade Esquerda"
+        >
+          <PanelLeft className="w-6 h-6 text-slate-300 group-hover:text-white" />
+          <span className="text-[10px] text-slate-400 group-hover:text-slate-200 font-medium">Esquerda</span>
+        </button>
+        <button
+          onMouseUp={() => { onSnap('right'); onClose(); }}
+          className="flex flex-col items-center gap-1 px-4 py-2 rounded-xl hover:bg-slate-600 transition-colors group"
+          title="Metade Direita"
+        >
+          <PanelRight className="w-6 h-6 text-slate-300 group-hover:text-white" />
+          <span className="text-[10px] text-slate-400 group-hover:text-slate-200 font-medium">Direita</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Floating Window ──────────────────────────────────────────────────────────
 function FloatingWindow({ win }) {
-  const { closeWindow, focusWindow, toggleMinimize, toggleMaximize, updateWindow, activeId } = useWorkspace();
-  const dragRef = useRef(null);
-  const resizeRef = useRef(null);
+  const { closeWindow, focusWindow, toggleMinimize, toggleMaximize, updateWindow, snapWindow, activeId } = useWorkspace();
   const winRef = useRef(null);
   const isActive = activeId === win.id;
+  const [showSnap, setShowSnap] = useState(false);
 
-  // Drag
+  // ── Drag ──
   const onMouseDownDrag = (e) => {
-    if (win.maximized) return;
+    if (win.maximized) {
+      // Unmaximize first, then start drag from a sensible position
+      const prevPos = win.prevPos || { x: 80, y: 80, w: Math.min(window.innerWidth * 0.75, 1100), h: Math.min(window.innerHeight * 0.75, 750) };
+      updateWindow(win.id, {
+        maximized: false,
+        x: e.clientX - prevPos.w / 2,
+        y: e.clientY - 20,
+        w: prevPos.w,
+        h: prevPos.h,
+        prevPos: null,
+      });
+      return;
+    }
     e.preventDefault();
     const startX = e.clientX - win.x;
     const startY = e.clientY - win.y;
     focusWindow(win.id);
 
     const onMove = (ev) => {
+      if (ev.clientY < 20) {
+        setShowSnap(true);
+      } else {
+        setShowSnap(false);
+      }
       updateWindow(win.id, {
         x: Math.max(0, Math.min(ev.clientX - startX, window.innerWidth - 200)),
-        y: Math.max(0, Math.min(ev.clientY - startY, window.innerHeight - 60)),
+        y: Math.max(48, Math.min(ev.clientY - startY, window.innerHeight - 60)),
       });
     };
     const onUp = () => {
+      setShowSnap(false);
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
@@ -120,7 +217,7 @@ function FloatingWindow({ win }) {
     window.addEventListener('mouseup', onUp);
   };
 
-  // Resize
+  // ── Resize ──
   const onMouseDownResize = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -128,7 +225,6 @@ function FloatingWindow({ win }) {
     const startY = e.clientY;
     const startW = win.w;
     const startH = win.h;
-
     const onMove = (ev) => {
       updateWindow(win.id, {
         w: Math.max(400, startW + ev.clientX - startX),
@@ -143,149 +239,214 @@ function FloatingWindow({ win }) {
     window.addEventListener('mouseup', onUp);
   };
 
+  // ── Window style ──
   const style = win.maximized
-    ? { top: 0, left: 0, width: '100vw', height: 'calc(100vh - 48px)', zIndex: win.z }
-    : win.minimized
-    ? { display: 'none' }
-    : { top: win.y, left: win.x, width: win.w, height: win.h, zIndex: win.z };
+    ? { top: 48, left: 0, width: '100vw', height: 'calc(100vh - 48px)', zIndex: win.z }
+    : {
+        top: win.y, left: win.x, width: win.w, height: win.h,
+        zIndex: win.z,
+        opacity: win.minimized ? 0 : 1,
+        pointerEvents: win.minimized ? 'none' : 'auto',
+        transform: win.minimized ? 'scale(0.95)' : 'scale(1)',
+        transition: 'opacity 0.15s, transform 0.15s',
+      };
 
-  // lazy load page component
   const PageComponent = usePageComponent(win.page);
 
   return (
-    <div
-      ref={winRef}
-      style={style}
-      className={cn(
-        "absolute flex flex-col rounded-xl overflow-hidden shadow-2xl border pointer-events-auto transition-shadow duration-150",
-        isActive
-          ? "border-blue-300 shadow-[0_20px_60px_rgba(0,0,0,0.35)]"
-          : "border-slate-300/70 shadow-[0_8px_30px_rgba(0,0,0,0.18)]",
-        win.maximized && "rounded-none"
-      )}
-      onMouseDown={() => focusWindow(win.id)}
-    >
-      {/* Title Bar */}
-      <div
-        className={cn(
-          "flex items-center gap-2 px-3 h-10 shrink-0 select-none",
-          isActive
-            ? "bg-gradient-to-r from-slate-800 to-slate-700"
-            : "bg-slate-700/80"
-        )}
-        onMouseDown={onMouseDownDrag}
-        onDoubleClick={() => toggleMaximize(win.id)}
-      >
-        <GripHorizontal className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-        <span className="flex-1 text-[13px] font-semibold text-white truncate">{win.title}</span>
-
-        {/* Controls */}
-        <button
-          onMouseDown={e => e.stopPropagation()}
-          onClick={() => toggleMinimize(win.id)}
-          className="w-3.5 h-3.5 rounded-full bg-yellow-400 hover:bg-yellow-300 flex items-center justify-center group transition-colors"
-          title="Minimizar"
-        >
-          <Minus className="w-2 h-2 text-yellow-800 opacity-0 group-hover:opacity-100" />
-        </button>
-        <button
-          onMouseDown={e => e.stopPropagation()}
-          onClick={() => toggleMaximize(win.id)}
-          className="w-3.5 h-3.5 rounded-full bg-green-400 hover:bg-green-300 flex items-center justify-center group transition-colors"
-          title="Maximizar"
-        >
-          {win.maximized
-            ? <Minimize2 className="w-2 h-2 text-green-800 opacity-0 group-hover:opacity-100" />
-            : <Maximize2 className="w-2 h-2 text-green-800 opacity-0 group-hover:opacity-100" />
-          }
-        </button>
-        <button
-          onMouseDown={e => e.stopPropagation()}
-          onClick={() => closeWindow(win.id)}
-          className="w-3.5 h-3.5 rounded-full bg-red-500 hover:bg-red-400 flex items-center justify-center group transition-colors"
-          title="Fechar"
-        >
-          <X className="w-2 h-2 text-red-900 opacity-0 group-hover:opacity-100" />
-        </button>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-auto bg-white relative">
-        {PageComponent
-          ? <PageComponent />
-          : <div className="flex items-center justify-center h-full text-slate-400 text-sm">Carregando {win.page}…</div>
-        }
-      </div>
-
-      {/* Resize Handle */}
-      {!win.maximized && (
-        <div
-          ref={resizeRef}
-          onMouseDown={onMouseDownResize}
-          className="absolute bottom-0 right-0 w-5 h-5 cursor-nwse-resize opacity-40 hover:opacity-80 transition-opacity"
-          style={{ background: 'linear-gradient(135deg, transparent 50%, #94a3b8 50%)' }}
+    <>
+      {showSnap && (
+        <SnapAssist
+          winId={win.id}
+          onSnap={(layout) => snapWindow(win.id, layout)}
+          onClose={() => setShowSnap(false)}
         />
       )}
-    </div>
+      <div
+        style={style}
+        className={cn(
+          "absolute flex flex-col overflow-hidden shadow-2xl border pointer-events-auto",
+          isActive
+            ? "border-blue-400/60 shadow-[0_24px_70px_rgba(0,0,0,0.40)]"
+            : "border-slate-700/40 shadow-[0_8px_30px_rgba(0,0,0,0.22)]",
+          win.maximized ? "rounded-none" : "rounded-xl"
+        )}
+        onMouseDown={() => focusWindow(win.id)}
+      >
+        {/* ── Title Bar ── */}
+        <div
+          className={cn(
+            "flex items-center gap-2 px-3 h-10 shrink-0 select-none",
+            isActive
+              ? "bg-gradient-to-r from-slate-900 to-slate-800"
+              : "bg-slate-800/90"
+          )}
+          onMouseDown={onMouseDownDrag}
+          onDoubleClick={() => toggleMaximize(win.id)}
+        >
+          {/* Traffic lights */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onMouseDown={e => e.stopPropagation()}
+              onClick={() => closeWindow(win.id)}
+              className="w-3.5 h-3.5 rounded-full bg-red-500 hover:bg-red-400 flex items-center justify-center group transition-colors"
+              title="Fechar"
+            >
+              <X className="w-2 h-2 text-red-900 opacity-0 group-hover:opacity-100" />
+            </button>
+            <button
+              onMouseDown={e => e.stopPropagation()}
+              onClick={() => toggleMinimize(win.id)}
+              className="w-3.5 h-3.5 rounded-full bg-yellow-400 hover:bg-yellow-300 flex items-center justify-center group transition-colors"
+              title="Minimizar"
+            >
+              <Minus className="w-2 h-2 text-yellow-800 opacity-0 group-hover:opacity-100" />
+            </button>
+            <button
+              onMouseDown={e => e.stopPropagation()}
+              onClick={() => toggleMaximize(win.id)}
+              className="w-3.5 h-3.5 rounded-full bg-green-500 hover:bg-green-400 flex items-center justify-center group transition-colors"
+              title={win.maximized ? 'Restaurar' : 'Maximizar'}
+            >
+              {win.maximized
+                ? <Minimize2 className="w-2 h-2 text-green-900 opacity-0 group-hover:opacity-100" />
+                : <Maximize2 className="w-2 h-2 text-green-900 opacity-0 group-hover:opacity-100" />
+              }
+            </button>
+          </div>
+          <span className="flex-1 text-[13px] font-semibold text-white/90 truncate text-center">{win.title}</span>
+          <div className="w-14 shrink-0" /> {/* spacer to center title */}
+        </div>
+
+        {/* ── Content ──
+            isolation: isolate creates a new stacking context so position:fixed
+            children of page components stack correctly within the window.
+        */}
+        <div
+          ref={winRef}
+          id={`window-root-${win.id}`}
+          className="flex-1 overflow-auto bg-slate-50 relative"
+          style={{ isolation: 'isolate' }}
+        >
+          {PageComponent
+            ? <PageComponent />
+            : (
+              <div className="flex items-center justify-center h-full gap-3 text-slate-400">
+                <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm">Carregando {win.page}…</span>
+              </div>
+            )
+          }
+        </div>
+
+        {/* ── Resize Handle ── */}
+        {!win.maximized && (
+          <div
+            onMouseDown={onMouseDownResize}
+            className="absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize z-10"
+            style={{
+              background: 'linear-gradient(135deg, transparent 50%, #475569 50%)',
+              borderBottomRightRadius: '0.75rem',
+            }}
+          />
+        )}
+      </div>
+    </>
   );
 }
 
-// ─── Taskbar ─────────────────────────────────────────────────────────────────
-function Taskbar() {
-  const { windows, activeId, focusWindow, toggleMinimize, closeWindow } = useWorkspace();
-  if (windows.length === 0) return null;
+// ─── OS Taskbar (top) — exported so Layout uses it ───────────────────────────
+export function OSTaskbar({ onToggleSidebar, menuGroups, canDo }) {
+  const { windows, activeId, focusWindow, toggleMinimize, closeWindow, minimizeAll } = useWorkspace();
 
   return (
     <div
-      className="pointer-events-auto fixed bottom-0 left-0 right-0 h-12 bg-slate-900/95 backdrop-blur-md border-t border-slate-700 flex items-center gap-2 px-4 overflow-x-auto"
-      style={{ zIndex: 300 }}
+      className="fixed top-0 left-0 right-0 h-12 bg-slate-900/98 backdrop-blur-md border-b border-slate-700/60 flex items-center gap-2 px-3 select-none"
+      style={{ zIndex: 500 }}
     >
-      {windows.map(win => (
-        <button
-          key={win.id}
-          onClick={() => win.minimized ? (focusWindow(win.id), toggleMinimize(win.id)) : (activeId === win.id ? toggleMinimize(win.id) : focusWindow(win.id))}
-          className={cn(
-            "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap max-w-[180px] transition-all border",
-            activeId === win.id && !win.minimized
-              ? "bg-blue-600 text-white border-blue-500"
-              : "bg-slate-700/80 text-slate-300 border-slate-600 hover:bg-slate-600"
-          )}
-        >
-          <span className={cn("w-2 h-2 rounded-full shrink-0", win.minimized ? "bg-slate-500" : "bg-emerald-400")} />
-          <span className="truncate">{win.title}</span>
-          <span
-            onClick={e => { e.stopPropagation(); closeWindow(win.id); }}
-            className="ml-1 opacity-50 hover:opacity-100 text-slate-300 hover:text-red-400"
-          >✕</span>
-        </button>
-      ))}
+      {/* ── Start Button ── */}
+      <button
+        onClick={onToggleSidebar}
+        className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-slate-700 transition-colors shrink-0 mr-1"
+        title="Menu Principal"
+      >
+        <img
+          src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png"
+          alt="J&C"
+          className="h-7 w-auto object-contain"
+        />
+        <span className="text-white font-bold text-sm hidden lg:block">J&C Vision</span>
+      </button>
+
+      <div className="w-px h-6 bg-slate-700 shrink-0" />
+
+      {/* ── Open window tabs ── */}
+      <div className="flex-1 flex items-center gap-1.5 overflow-x-auto hide-scrollbar">
+        {windows.map(win => (
+          <button
+            key={win.id}
+            onClick={() => {
+              if (win.minimized) { focusWindow(win.id); toggleMinimize(win.id); }
+              else if (activeId === win.id) toggleMinimize(win.id);
+              else focusWindow(win.id);
+            }}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap max-w-[160px] transition-all border shrink-0",
+              activeId === win.id && !win.minimized
+                ? "bg-blue-600 text-white border-blue-500"
+                : "bg-slate-700/70 text-slate-300 border-slate-600 hover:bg-slate-600"
+            )}
+          >
+            <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", win.minimized ? "bg-slate-500" : "bg-emerald-400")} />
+            <span className="truncate">{win.title}</span>
+            <span
+              onClick={e => { e.stopPropagation(); closeWindow(win.id); }}
+              className="opacity-40 hover:opacity-100 hover:text-red-400 ml-0.5 text-[11px] leading-none"
+            >✕</span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── Right: show desktop ── */}
+      <div className="flex items-center gap-2 shrink-0 ml-2">
+        {windows.length > 0 && (
+          <button
+            onClick={minimizeAll}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-700 transition-colors border border-slate-700"
+            title="Área de Trabalho"
+          >
+            <LayoutTemplate className="w-3.5 h-3.5" />
+            <span className="hidden xl:block">Desktop</span>
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
 // ─── Lazy page loader ─────────────────────────────────────────────────────────
 const PAGE_MAP = {
-  Pedidos:           () => import('@/pages/Pedidos'),
-  Clientes:          () => import('@/pages/Clientes'),
-  Representantes:    () => import('@/pages/Representantes'),
-  Motoristas:        () => import('@/pages/Motoristas'),
-  Produtos:          () => import('@/pages/Produtos'),
-  Fornecedores:      () => import('@/pages/Fornecedores'),
-  CaixaDiario:       () => import('@/pages/CaixaDiario'),
-  Pagamentos:        () => import('@/pages/Pagamentos'),
-  Cheques:           () => import('@/pages/Cheques'),
-  Creditos:          () => import('@/pages/Creditos'),
-  Balanco:           () => import('@/pages/Balanco'),
-  Comissoes:         () => import('@/pages/Comissoes'),
-  Orcamentos:        () => import('@/pages/Orcamentos'),
-  Calendario:        () => import('@/pages/Calendario'),
-  Relatorios:        () => import('@/pages/Relatorios'),
-  Usuarios:          () => import('@/pages/Usuarios'),
-  EntradaCaucao:     () => import('@/pages/EntradaCaucao'),
-  ConfiguracoesLojas:() => import('@/pages/ConfiguracoesLojas'),
-  FormasPagamento:   () => import('@/pages/FormasPagamento'),
-  Logs:              () => import('@/pages/Logs'),
-  Configuracoes:     () => import('@/pages/Configuracoes'),
+  Pedidos:            () => import('@/pages/Pedidos'),
+  Clientes:           () => import('@/pages/Clientes'),
+  Representantes:     () => import('@/pages/Representantes'),
+  Motoristas:         () => import('@/pages/Motoristas'),
+  Produtos:           () => import('@/pages/Produtos'),
+  Fornecedores:       () => import('@/pages/Fornecedores'),
+  CaixaDiario:        () => import('@/pages/CaixaDiario'),
+  Pagamentos:         () => import('@/pages/Pagamentos'),
+  Cheques:            () => import('@/pages/Cheques'),
+  Creditos:           () => import('@/pages/Creditos'),
+  Balanco:            () => import('@/pages/Balanco'),
+  Comissoes:          () => import('@/pages/Comissoes'),
+  Orcamentos:         () => import('@/pages/Orcamentos'),
+  Calendario:         () => import('@/pages/Calendario'),
+  Relatorios:         () => import('@/pages/Relatorios'),
+  Usuarios:           () => import('@/pages/Usuarios'),
+  EntradaCaucao:      () => import('@/pages/EntradaCaucao'),
+  ConfiguracoesLojas: () => import('@/pages/ConfiguracoesLojas'),
+  FormasPagamento:    () => import('@/pages/FormasPagamento'),
+  Logs:               () => import('@/pages/Logs'),
+  Configuracoes:      () => import('@/pages/Configuracoes'),
 };
 
 function usePageComponent(page) {
