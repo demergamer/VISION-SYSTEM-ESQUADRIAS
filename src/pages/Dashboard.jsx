@@ -321,7 +321,6 @@ export default function Dashboard() {
 
             <div className="space-y-4">
               {menuGroups.map((group, idx) => {
-                // REGRA CORRIGIDA PARA PERMITIR motorista
                 const allowedItems = group.items.filter(item => canDo(item.name, 'visualizar') || item.name === 'Relatorios');
                 if (allowedItems.length === 0) return null;
                 const isOpen = !!openGroups[idx];
