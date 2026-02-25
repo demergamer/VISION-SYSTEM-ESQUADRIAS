@@ -682,6 +682,7 @@ export default function Pedidos() {
   };
 
   const handleSaveRotaChecklist = async (data) => {
+      setIsProcessing(true);
       try {
           await base44.entities.RotaImportada.update(data.rota.id, data.rota);
           const promises = data.pedidos.map(p => base44.entities.Pedido.update(p.id, { confirmado_entrega: p.confirmado_entrega, status: p.status }));
@@ -690,6 +691,7 @@ export default function Pedidos() {
           setShowRotaModal(false);
           toast.success("Rota atualizada!");
       } catch (e) { toast.error("Erro ao salvar rota."); }
+      finally { setIsProcessing(false); }
   };
 
   // REGRA 8: Após liquidação em massa, apenas fecha modal e refresca — sem redirecionar
