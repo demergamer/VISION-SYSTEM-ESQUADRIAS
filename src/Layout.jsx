@@ -218,15 +218,8 @@ function StartMenu({ open, onClose, currentPageName, canDo, user, signOut, lockS
   };
 
   return (
-    <>
-      {/* Backdrop */}
       <div
-        className="fixed inset-0 z-[490]"
-        onClick={onClose}
-      />
-      {/* Menu panel */}
-      <div
-        className="fixed top-12 left-2 z-[495] w-72 bg-white/95 backdrop-blur-xl border border-slate-200 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+        className="w-72 bg-white/95 backdrop-blur-xl border border-slate-200 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
         style={{ maxHeight: 'calc(100vh - 64px)' }}
       >
         {/* User header */}
