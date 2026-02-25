@@ -255,6 +255,9 @@ export default function Dashboard() {
 
   return (
     <div className="relative min-h-screen overflow-hidden">
+      {showPerfilModal && (
+        <GerenciarPerfilModal open={showPerfilModal} onClose={() => setShowPerfilModal(false)} user={user} />
+      )}
       {tipofundo === 'padrao' && <PS2Background theme="light" />}
       {tipofundo !== 'padrao' && (
         <DashboardBackground
