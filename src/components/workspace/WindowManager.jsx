@@ -206,6 +206,7 @@ function SnapAssist({ winId, onSnap, onClose }) {
 function FloatingWindow({ win }) {
   const { closeWindow, focusWindow, toggleMinimize, toggleMaximize, updateWindow, snapWindow, activeId, taskbarPosition } = useWorkspace();
   const winRef = useRef(null);
+  const [portalContainer, setPortalContainer] = useState(null);
   const isActive = activeId === win.id;
   const [showSnap, setShowSnap] = useState(false);
   const [snapHover, setSnapHover] = useState(false);
