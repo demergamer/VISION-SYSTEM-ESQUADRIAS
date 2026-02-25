@@ -276,8 +276,20 @@ function FloatingWindow({ win }) {
   };
 
   // ── Window style ──
+  const tbPos = taskbarPosition || 'top';
+  const BAR = 48;
+  const maxStyle = {
+    top:    tbPos === 'top'    ? BAR : 0,
+    bottom: tbPos === 'bottom' ? BAR : 0,
+    left:   tbPos === 'left'   ? BAR : 0,
+    right:  tbPos === 'right'  ? BAR : 0,
+    width:  ['left','right'].includes(tbPos) ? `calc(100vw - ${BAR}px)` : '100vw',
+    height: ['top','bottom'].includes(tbPos) ? `calc(100vh - ${BAR}px)` : '100vh',
+    zIndex: win.z,
+  };
+
   const style = win.maximized
-    ? { top: 48, left: 0, width: '100vw', height: 'calc(100vh - 48px)', zIndex: win.z }
+    ? maxStyle
     : {
         top: win.y, left: win.x, width: win.w, height: win.h,
         zIndex: win.z,
