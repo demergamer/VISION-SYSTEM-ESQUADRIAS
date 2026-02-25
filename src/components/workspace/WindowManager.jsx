@@ -93,13 +93,19 @@ export function WorkspaceProvider({ children }) {
         const pos = w.prevPos || { x: 80, y: 80, w: 1000, h: 680 };
         return { ...w, maximized: false, ...pos, prevPos: null };
       }
+      const safe = {
+        x: ['left'].includes(preferences?.taskbar_position) ? 48 : 0,
+        y: ['top'].includes(preferences?.taskbar_position) || !preferences?.taskbar_position ? 48 : 0,
+        w: window.innerWidth - (['left','right'].includes(preferences?.taskbar_position) ? 48 : 0),
+        h: window.innerHeight - (['top','bottom'].includes(preferences?.taskbar_position) || !preferences?.taskbar_position ? 48 : 0),
+      };
       return {
         ...w, maximized: true,
         prevPos: { x: w.x, y: w.y, w: w.w, h: w.h },
-        x: 0, y: 48, w: window.innerWidth, h: window.innerHeight - 48,
+        ...safe,
       };
     }));
-  }, []);
+  }, [preferences?.taskbar_position]);
 
   const updateWindow = useCallback((id, patch) => {
     setWindows(prev => prev.map(w => w.id === id ? { ...w, ...patch } : w));
