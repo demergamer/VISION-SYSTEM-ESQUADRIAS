@@ -449,12 +449,32 @@ function FloatingWindow({ win }) {
 export function OSTaskbar({ onToggleSidebar }) {
   const { windows, activeId, focusWindow, toggleMinimize, closeWindow, minimizeAll, taskbarPosition } = useWorkspace();
   const { preferences } = usePreferences();
-  
+  const [visible, setVisible] = useState(false);
+  const hideTimer = useRef(null);
+
   // ISOLAMENTO: Se modo clássico, não renderizar taskbar
   if (preferences?.ui_mode === 'classico') return null;
-  
+
   const pos = taskbarPosition || 'top';
   const isVertical = pos === 'left' || pos === 'right';
+  const autoHide = preferences?.taskbar_autohide === true;
+
+  // Autohide: zona de hover para cada posição
+  const triggerStyle = {
+    top:    { top: 0,    left: 0,   right: 0,    height: 6 },
+    bottom: { bottom: 0, left: 0,   right: 0,    height: 6 },
+    left:   { top: 0,   left: 0,   bottom: 0,   width: 6 },
+    right:  { top: 0,   right: 0,  bottom: 0,   width: 6 },
+  }[pos];
+
+  const handleMouseEnter = () => {
+    clearTimeout(hideTimer.current);
+    setVisible(true);
+  };
+
+  const handleMouseLeave = () => {
+    hideTimer.current = setTimeout(() => setVisible(false), 600);
+  };
 
   const posStyles = {
     top:    'top-0 left-0 right-0 h-12 flex-row border-b px-3',
