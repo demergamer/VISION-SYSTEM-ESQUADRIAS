@@ -36,6 +36,7 @@ function useConfiguracaoLoja(slug) {
 export default function LojaJC() {
   const { data: configLoja } = useConfiguracaoLoja(SLUG_LOJA);
   const [user, setUser] = useState(null);
+  const location = useLocation();
   const [clienteSelecionado, setClienteSelecionado] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoriaFiltro, setCategoriaFiltro] = useState('');
