@@ -366,10 +366,6 @@ export default function Dashboard() {
               </div>
               <CardContent className="p-6 flex flex-col items-center justify-center">
                 {clockType === 'digital' ? <DigitalClock time={time} /> : <AnalogClock time={time} />}
-                <div className="mt-4 flex items-center gap-2 text-sm font-bold text-slate-600 bg-white/50 px-4 py-1.5 rounded-full shadow-sm">
-                  <CalendarIcon className="w-4 h-4 text-blue-600" />
-                  {time.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
-                </div>
               </CardContent>
             </Card>
 
