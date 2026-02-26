@@ -366,7 +366,7 @@ export default function Dashboard() {
 
             <div className="space-y-4">
               {menuGroups.map((group, idx) => {
-                // VOLTOU O FILTRO PADRÃO APENAS BASEADO EM PERMISSÕES (SEM GAMBIARRA)
+                // VOLTOU O FILTRO PADRÃO APENAS BASEADO EM PERMISSÕES (allowed para execões)
                 const allowedItems = group.items.filter(item => canDo(item.name, 'visualizar') || item.name === 'Relatorios'|| item.name === 'LojaJC');
                 if (allowedItems.length === 0) return null;
                 const isOpen = !!openGroups[idx];
