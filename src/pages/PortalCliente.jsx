@@ -116,6 +116,7 @@ export default function PortalCliente() {
   const { data: cheques = [] } = useQuery({ queryKey: ['cheques'], queryFn: () => base44.entities.Cheque.list() });
   const { data: creditos = [] } = useQuery({ queryKey: ['creditos'], queryFn: () => base44.entities.Credito.list() });
   const { data: borderos = [] } = useQuery({ queryKey: ['borderos'], queryFn: () => base44.entities.Bordero.list() });
+  const { data: todosItensProducao = [] } = useQuery({ queryKey: ['producao_items'], queryFn: () => base44.entities.ProducaoItem.list(), refetchInterval: 60000 });
 
   const clienteData = useMemo(() => clientes.find(c => c.email === user?.email), [clientes, user]);
 
