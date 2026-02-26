@@ -27,6 +27,7 @@ const ENTITY_QUERY_KEYS = {
   ConfiguracoesLoja:    [['configuracoes_loja'], ['lojas']],
   FormaPagamento:       [['formas_pagamento']],
   LinhaProduto:         [['linhas_produto']],
+  ProducaoItem:         [['producao_items']],
 };
 
 /**
