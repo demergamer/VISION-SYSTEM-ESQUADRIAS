@@ -1417,3 +1417,228 @@ export default function Pedidos() {
     </PermissionGuard>
   );
 }
+// --- COMPONENTE DA ABA DE PRODUÇÃO ---
+function ProducaoTab({ canDo }) {
+    const [isUploading, setIsUploading] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [previewData, setPreviewData] = useState(null);
+    const queryClient = useQueryClient();
+
+    // Busca os dados de produção atuais no banco
+    const { data: producaoAtual = [], isLoading } = useQuery({
+        queryKey: ['producao_items'],
+        queryFn: () => base44.entities.ProducaoItem.list() // Presume a criação desta entidade
+    });
+
+    // LEITOR INTELIGENTE DO RELATÓRIO DO NEO
+    const handleFileUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setIsUploading(true);
+
+        try {
+            const buffer = await file.arrayBuffer();
+            const workbook = XLSX.read(buffer, { type: 'array' });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+            let currentPedido = '';
+            let currentCliente = '';
+            const parsedItems = [];
+
+            rows.forEach(row => {
+                if (!row || !row.length) return;
+
+                // 1. Detecta cabeçalho do pedido (A linha que começa com "Pedido:")
+                if (row[0] === 'Pedido:') {
+                    currentPedido = String(row[1]).replace('.0', ''); // Ex: 64260.0 vira 64260
+                    // O nome do cliente costuma ficar nos índices 7, 8 ou 9 dependendo de células vazias
+                    currentCliente = row[8] || row[7] || row[9] || 'Cliente Não Identificado';
+                }
+
+                // 2. Detecta linha de item (Começa com número float tipo "1.0", "2.0")
+                if (currentPedido && String(row[0]).match(/^\d+\.0$/)) {
+                    const codigoProd = row[1];
+                    // Busca a primeira string grande que deve ser a descrição do produto
+                    const desc = row.find((c, i) => i > 1 && typeof c === 'string' && c.length > 10) || 'Produto sem descrição';
+
+                    // Busca a quantidade (último número válido na linha antes da unidade de medida PC/JG)
+                    let qtde = 0;
+                    for(let i = row.length - 1; i >= 0; i--) {
+                        if (!isNaN(parseFloat(row[i]))) {
+                            qtde = parseFloat(row[i]);
+                            break;
+                        }
+                    }
+
+                    parsedItems.push({
+                        numero_pedido: currentPedido,
+                        cliente_nome: currentCliente,
+                        produto_codigo: String(codigoProd),
+                        descricao: desc,
+                        quantidade: qtde
+                    });
+                }
+            });
+
+            setPreviewData(parsedItems);
+            toast.success(`Planilha lida! ${parsedItems.length} peças encontradas na fila.`);
+        } catch (error) {
+            console.error(error);
+            toast.error("Erro ao ler arquivo do Neo. Verifique o formato.");
+        } finally {
+            setIsUploading(false);
+            e.target.value = ''; // reseta o input
+        }
+    };
+
+    // FUNÇÃO "WIPE & REPLACE" (Apaga tudo e salva o novo)
+    const handleSalvarProducao = async () => {
+        if (!previewData || previewData.length === 0) return;
+        setIsSaving(true);
+        try {
+            // 1. Apagar tudo que existe (Wipe)
+            if (producaoAtual.length > 0) {
+                // Deleta em lotes para não travar
+                const deletePromises = producaoAtual.map(item => base44.entities.ProducaoItem.delete(item.id));
+                await Promise.all(deletePromises);
+            }
+
+            // 2. Salvar nova carga (Replace)
+            // Cria os dados com a data de atualização
+            const payload = previewData.map(item => ({
+                ...item,
+                data_atualizacao: new Date().toISOString()
+            }));
+            
+            await base44.entities.ProducaoItem.bulkCreate(payload);
+            
+            await queryClient.invalidateQueries({ queryKey: ['producao_items'] });
+            setPreviewData(null);
+            toast.success("Tabela de produção atualizada com sucesso!");
+        } catch (error) {
+            toast.error("Erro ao atualizar base de produção.");
+            console.error(error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleLimparProducao = async () => {
+        if (!window.confirm("Isso vai apagar todos os itens em produção do sistema. Tem certeza?")) return;
+        setIsSaving(true);
+        try {
+            const deletePromises = producaoAtual.map(item => base44.entities.ProducaoItem.delete(item.id));
+            await Promise.all(deletePromises);
+            await queryClient.invalidateQueries({ queryKey: ['producao_items'] });
+            toast.success("Base de produção esvaziada!");
+        } catch (error) {
+            toast.error("Erro ao limpar base.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const displayData = previewData || producaoAtual;
+
+    return (
+        <div className="space-y-6">
+            <Card className="p-6 bg-gradient-to-r from-slate-800 to-slate-900 border-slate-700 text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl">
+                <div>
+                    <h2 className="text-2xl font-bold flex items-center gap-2">
+                        <Factory className="w-6 h-6 text-blue-400" />
+                        Chão de Fábrica (Sincronização Neo)
+                    </h2>
+                    <p className="text-slate-400 mt-1 text-sm max-w-xl">
+                        Suba o relatório <strong>pedidoqt.xls</strong>. Os dados anteriores serão apagados e substituídos instantaneamente, refletindo a produção real do dia para os clientes.
+                    </p>
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                    {canDo('Pedidos', 'adicionar') && (
+                        <>
+                            {producaoAtual.length > 0 && !previewData && (
+                                <Button variant="outline" className="border-slate-600 text-slate-300 hover:bg-red-500 hover:text-white hover:border-red-500 transition-colors" onClick={handleLimparProducao} disabled={isSaving}>
+                                    <Trash2 className="w-4 h-4 mr-2" /> Esvaziar Base
+                                </Button>
+                            )}
+
+                            <input type="file" accept=".xls,.xlsx,.csv" id="neo-upload" className="hidden" onChange={handleFileUpload} />
+                            <Label htmlFor="neo-upload" className={cn("inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 cursor-pointer", (isUploading || isSaving) && "opacity-50 cursor-not-allowed")}>
+                                {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UploadCloud className="w-4 h-4 mr-2" />}
+                                {isUploading ? 'Lendo Excel...' : 'Subir Planilha do Neo'}
+                            </Label>
+                        </>
+                    )}
+                </div>
+            </Card>
+
+            {previewData && (
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-center justify-between animate-in fade-in">
+                    <div>
+                        <h3 className="font-bold text-amber-800">⚠️ Modo de Visualização (Prévia)</h3>
+                        <p className="text-sm text-amber-700">Você carregou <strong>{previewData.length} peças</strong>. Elas ainda não estão salvas. Clique em Confirmar para substituir a base atual.</p>
+                    </div>
+                    <div className="flex gap-2">
+                        <Button variant="outline" className="bg-white border-amber-300 text-amber-700 hover:bg-amber-100" onClick={() => setPreviewData(null)} disabled={isSaving}>Cancelar</Button>
+                        <Button className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-200" onClick={handleSalvarProducao} disabled={isSaving}>
+                            {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+                            Confirmar Substituição
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            <Card className="border-slate-200 overflow-hidden bg-white">
+                <div className="p-4 bg-slate-50 border-b flex justify-between items-center">
+                    <h3 className="font-bold text-slate-700">
+                        {previewData ? 'Prévia da Nova Carga' : 'Base Atual em Produção'} 
+                        <Badge className="ml-2 bg-blue-100 text-blue-700">{displayData.length} peças</Badge>
+                    </h3>
+                    {!previewData && producaoAtual.length > 0 && (
+                        <span className="text-xs text-slate-500 flex items-center gap-1">
+                            <Clock className="w-3 h-3" /> Atualizado em: {new Date(producaoAtual[0].data_atualizacao || producaoAtual[0].created_date).toLocaleString('pt-BR')}
+                        </span>
+                    )}
+                </div>
+                
+                {isLoading && !previewData ? (
+                    <div className="p-10 text-center text-slate-500"><Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-blue-500" /> Carregando base...</div>
+                ) : displayData.length === 0 ? (
+                    <div className="p-16 text-center">
+                        <Factory className="w-16 h-16 text-slate-200 mx-auto mb-4" />
+                        <h3 className="text-lg font-bold text-slate-400">Nenhum item em produção</h3>
+                        <p className="text-slate-500">Faça o upload do relatório do Neo para alimentar o sistema.</p>
+                    </div>
+                ) : (
+                    <div className="max-h-[600px] overflow-y-auto custom-scrollbar">
+                        <table className="w-full text-sm">
+                            <thead className="bg-white sticky top-0 shadow-sm z-10">
+                                <tr>
+                                    <th className="text-left p-3 font-semibold text-slate-500 border-b">Nº Pedido</th>
+                                    <th className="text-left p-3 font-semibold text-slate-500 border-b">Cliente</th>
+                                    <th className="text-left p-3 font-semibold text-slate-500 border-b">Cód. Produto</th>
+                                    <th className="text-left p-3 font-semibold text-slate-500 border-b">Descrição</th>
+                                    <th className="text-center p-3 font-semibold text-slate-500 border-b">Qtde</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {displayData.map((item, idx) => (
+                                    <tr key={item.id || idx} className="hover:bg-slate-50 transition-colors">
+                                        <td className="p-3 font-mono font-bold text-slate-700">#{item.numero_pedido}</td>
+                                        <td className="p-3 text-slate-600 truncate max-w-[200px]" title={item.cliente_nome}>{item.cliente_nome}</td>
+                                        <td className="p-3 font-mono text-xs text-slate-500">{item.produto_codigo}</td>
+                                        <td className="p-3 font-medium text-slate-800">{item.descricao}</td>
+                                        <td className="p-3 text-center">
+                                            <Badge className="bg-slate-100 text-slate-800">{item.quantidade}</Badge>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </Card>
+        </div>
+    );
+}
