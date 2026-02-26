@@ -4,8 +4,7 @@ import * as React from "react"
 import * as SelectPrimitive from "@radix-ui/react-select"
 import { Check, ChevronDown, ChevronUp } from "lucide-react"
 import { cn } from "@/lib/utils"
-
-// Removi o import do PortalContext pois o Select vai ser livre!
+import { usePortalContainer } from "@/components/providers/PortalContext"
 
 const Select = SelectPrimitive.Root
 const SelectGroup = SelectPrimitive.Group
@@ -48,9 +47,10 @@ const SelectScrollDownButton = React.forwardRef(({ className, ...props }, ref) =
 SelectScrollDownButton.displayName = SelectPrimitive.ScrollDownButton.displayName
 
 const SelectContent = React.forwardRef(function SelectContent({ className, children, position = "popper", ...props }, ref) {
+  const portalContainer = usePortalContainer();
   return (
-    // Sem container forçado. Vai direto pro Body com z-index absoluto!
-    <SelectPrimitive.Portal>
+    // Renderiza dentro da janela OS (portalContainer) ou no body (padrão)
+    <SelectPrimitive.Portal container={portalContainer}>
       <SelectPrimitive.Content
         ref={ref}
         className={cn(
