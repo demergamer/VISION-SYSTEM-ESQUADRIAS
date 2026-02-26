@@ -1020,11 +1020,7 @@ export default function Pedidos() {
             {/* --- CONTEÚDO DAS ABAS --- */}
 
             <TabsContent value="producao">
-                <div className="flex flex-col items-center justify-center py-20 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
-                    <Factory className="w-16 h-16 mb-4 opacity-50" />
-                    <h3 className="text-lg font-medium text-slate-600">Módulo em Desenvolvimento</h3>
-                    <p>O controle de produção estará disponível em breve.</p>
-                </div>
+                <ProducaoTab canDo={canDo} />
             </TabsContent>
 
             <TabsContent value="rotas">
