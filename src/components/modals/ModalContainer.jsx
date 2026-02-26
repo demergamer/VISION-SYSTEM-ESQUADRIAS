@@ -67,8 +67,12 @@ export default function ModalContainer({
     full: "w-[98vw] h-[98vh] max-w-none rounded-md" // Tela Cheia
   };
 
+  const portalContainer = usePortalContainer();
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
+      <DialogPortal container={portalContainer}>
+      <DialogOverlay />
       <DialogContent 
         // [&>button]:hidden remove o 'X' padrão do Shadcn para usarmos o nosso
         className={cn(
@@ -77,8 +81,6 @@ export default function ModalContainer({
           sizeClasses[currentSize] || sizeClasses.default
         )} 
         style={{ scrollbarWidth: 'none' }}
-        // Impede que cliques no Select/Popover flutuante (que renderizam no body)
-        // sejam interpretados como "clique fora" e derrubem o estado do modal pai
         onPointerDownOutside={(e) => e.preventDefault()}
         onInteractOutside={(e) => e.preventDefault()}
       >
