@@ -123,11 +123,12 @@ const DetailsModal = ({ item, type, open, onOpenChange }) => {
 };
 
 // --- COMPONENTE: VISÃO POR PEDIDOS (ABA GERAL) ---
-const PedidosView = ({ pedidos, onViewDetails }) => {
+const PedidosView = ({ pedidos, itensProducao, onViewDetails }) => {
   const [activeTab, setActiveTab] = useState('abertos');
   const [searchTerm, setSearchTerm] = useState('');
 
   const safePedidos = pedidos || [];
+  const safeProducao = itensProducao || [];
   
   const filtrarPorBusca = (lista) => {
     if (!searchTerm) return lista;
@@ -138,14 +139,21 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
     );
   };
 
-  const pedidosEmProducao = filtrarPorBusca(safePedidos.filter(p => p.status === 'em_producao'));
+  // Filtro específico para a tabela de produção (busca por peça também)
+  const itensEmProducao = safeProducao.filter(item => {
+      if (!searchTerm) return true;
+      const lower = searchTerm.toLowerCase();
+      return String(item.numero_pedido).toLowerCase().includes(lower) ||
+             String(item.cliente_nome).toLowerCase().includes(lower) ||
+             String(item.produto_codigo).toLowerCase().includes(lower);
+  });
+
   const pedidosEmTransito = filtrarPorBusca(safePedidos.filter(p => p.status === 'em_transito' || p.status === 'aguardando'));
   const pedidosAbertos = filtrarPorBusca(safePedidos.filter(p => p.status === 'aberto' || p.status === 'parcial'));
   const pedidosLiquidados = filtrarPorBusca(safePedidos.filter(p => p.status === 'pago'));
 
   const getPedidosAtuais = () => {
     switch(activeTab) {
-      case 'producao': return pedidosEmProducao;
       case 'transito': return pedidosEmTransito;
       case 'abertos': return pedidosAbertos;
       case 'liquidados': return pedidosLiquidados;
@@ -155,6 +163,25 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
 
   const pedidosExibidos = getPedidosAtuais();
 
+  // Agrupa os itens do Neo por pedido para a aba Produção
+  const producaoAgrupada = useMemo(() => {
+      const grupos = {};
+      itensEmProducao.forEach(item => {
+          if (!grupos[item.numero_pedido]) {
+              grupos[item.numero_pedido] = {
+                  numero_pedido: item.numero_pedido,
+                  cliente_nome: item.cliente_nome,
+                  cliente_codigo: item.cliente_codigo,
+                  total_pecas: 0,
+                  itens: []
+              };
+          }
+          grupos[item.numero_pedido].itens.push(item);
+          grupos[item.numero_pedido].total_pecas += (item.quantidade || 0);
+      });
+      return Object.values(grupos);
+  }, [itensEmProducao]);
+
   return (
     <div className="space-y-4">
       {/* Barra de Ferramentas */}
@@ -162,7 +189,7 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full md:w-auto">
           <TabsList className="bg-slate-100 p-1 rounded-xl h-auto flex-wrap justify-start gap-2">
             <TabsTrigger value="producao" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm">
-              🏗️ Em Produção <Badge className="ml-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-100 border-0">{pedidosEmProducao.length}</Badge>
+              🏗️ Em Produção <Badge className="ml-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-100 border-0">{itensEmProducao.reduce((sum, i) => sum + (i.quantidade || 0), 0)} peças</Badge>
             </TabsTrigger>
             <TabsTrigger value="transito" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-amber-600 data-[state=active]:shadow-sm">
               🚚 Em Trânsito <Badge className="ml-2 bg-amber-100 text-amber-700 hover:bg-amber-100 border-0">{pedidosEmTransito.length}</Badge>
@@ -178,7 +205,7 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <Input
-            placeholder="Buscar por cliente, pedido ou valor..."
+            placeholder={activeTab === 'producao' ? "Buscar pedido, peça..." : "Buscar por cliente, pedido..."}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10 bg-slate-50 border-slate-200"
@@ -186,80 +213,128 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
         </div>
       </div>
 
-      {pedidosExibidos.length > 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          <Table>
-            <TableHeader className="bg-slate-50">
-              <TableRow>
-                <TableHead>Data</TableHead>
-                <TableHead>Nº Pedido</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead className="text-right">Valor</TableHead>
-                {activeTab === 'abertos' && <TableHead className="text-right">Saldo</TableHead>}
-                {activeTab === 'liquidados' && <TableHead>Borderô</TableHead>}
-                <TableHead className="text-center">Status</TableHead>
-                <TableHead className="text-center">Ação</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pedidosExibidos.map(p => {
-                const hoje = new Date();
-                hoje.setHours(0,0,0,0);
-                const diasAtraso = p.data_entrega ? differenceInDays(hoje, parseISO(p.data_entrega)) : 0;
-                const isAtrasado = (p.status === 'aberto' || p.status === 'parcial') && diasAtraso > 15;
-
-                return (
-                  <TableRow key={p.id} className="hover:bg-slate-50">
-                    <TableCell className="text-sm text-slate-600">
-                      {p.data_entrega ? format(new Date(p.data_entrega), 'dd/MM/yyyy') : '-'}
-                    </TableCell>
-                    <TableCell className="font-mono font-medium">#{p.numero_pedido}</TableCell>
-                    <TableCell>{p.cliente_nome}</TableCell>
-                    <TableCell className="text-right font-medium">{formatCurrency(p.valor_pedido)}</TableCell>
-                    {activeTab === 'abertos' && (
-                      <TableCell className="text-right">
-                        <span className={cn("font-bold", isAtrasado ? "text-red-600" : "text-blue-600")}>
-                           {formatCurrency(p.saldo_restante || 0)}
-                        </span>
-                      </TableCell>
-                    )}
-                    {activeTab === 'liquidados' && (
-                      <TableCell>
-                        {p.bordero_numero ? (
-                          <Badge variant="outline" className="font-mono">#{p.bordero_numero}</Badge>
-                        ) : '-'}
-                      </TableCell>
-                    )}
-                    <TableCell className="text-center">
-                      <Badge className={cn(
-                        "text-xs",
-                        p.status === 'pago' && "bg-emerald-100 text-emerald-700 hover:bg-emerald-100",
-                        isAtrasado && "bg-red-100 text-red-700 hover:bg-red-100",
-                        !isAtrasado && p.status === 'aberto' && "bg-blue-100 text-blue-700 hover:bg-blue-100",
-                        !isAtrasado && p.status === 'parcial' && "bg-amber-100 text-amber-700 hover:bg-amber-100",
-                        (p.status === 'em_transito' || p.status === 'aguardando') && "bg-orange-100 text-orange-700 hover:bg-orange-100"
-                      )}>
-                        {p.status === 'pago' ? '✅ Pago' : 
-                         isAtrasado ? `⚠️ Atrasado (+${diasAtraso}d)` :
-                         p.status === 'parcial' ? '⏳ Parcial' :
-                         p.status === 'em_transito' || p.status === 'aguardando' ? '🚚 Em Trânsito' :
-                         '📂 Aberto'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Button size="sm" variant="ghost" onClick={() => onViewDetails(p, 'pedido')} className="gap-1"><Eye className="w-4 h-4" /> Ver</Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+      {activeTab === 'producao' ? (
+        <div className="space-y-4">
+          {producaoAgrupada.length > 0 ? producaoAgrupada.map((grupo) => (
+            <div key={grupo.numero_pedido} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+              <div className="bg-indigo-50/50 p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-2">
+                <div className="flex items-center gap-3">
+                  <div className="bg-indigo-600 text-white font-bold px-3 py-1.5 rounded-lg font-mono text-sm shadow-sm">
+                    #{grupo.numero_pedido}
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-sm md:text-base line-clamp-1">{grupo.cliente_nome}</h4>
+                    <p className="text-xs text-slate-500 font-mono">Cód: {grupo.cliente_codigo}</p>
+                  </div>
+                </div>
+                <div className="shrink-0 flex items-center gap-2">
+                  <Badge className="bg-indigo-100 text-indigo-700 border-indigo-200 px-3 py-1 text-sm font-bold">
+                    {grupo.total_pecas} {grupo.total_pecas === 1 ? 'Peça' : 'Peças'}
+                  </Badge>
+                </div>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {grupo.itens.map((item, idx) => (
+                  <div key={idx} className="p-3 px-4 flex items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="bg-slate-100 text-slate-500 text-[10px] font-mono font-bold px-2 py-1 rounded shrink-0 mt-0.5">
+                        {item.produto_codigo}
+                      </div>
+                      <p className="text-sm text-slate-700 font-medium line-clamp-2">
+                        {item.descricao}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className="text-xs text-slate-400 block uppercase font-bold tracking-wider mb-0.5">Qtde</span>
+                      <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">{item.quantidade}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )) : (
+            <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200">
+              <Factory className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-500 font-medium">Nenhuma peça em produção encontrada.</p>
+            </div>
+          )}
         </div>
       ) : (
-        <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200">
-          <ShoppingCart className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-500 font-medium">Nenhum pedido encontrado nesta categoria.</p>
-        </div>
+        pedidosExibidos.length > 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            <Table>
+              <TableHeader className="bg-slate-50">
+                <TableRow>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Nº Pedido</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
+                  {activeTab === 'abertos' && <TableHead className="text-right">Saldo</TableHead>}
+                  {activeTab === 'liquidados' && <TableHead>Borderô</TableHead>}
+                  <TableHead className="text-center">Status</TableHead>
+                  <TableHead className="text-center">Ação</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pedidosExibidos.map(p => {
+                  const hoje = new Date();
+                  hoje.setHours(0,0,0,0);
+                  const diasAtraso = p.data_entrega ? differenceInDays(hoje, parseISO(p.data_entrega)) : 0;
+                  const isAtrasado = (p.status === 'aberto' || p.status === 'parcial') && diasAtraso > 15;
+
+                  return (
+                    <TableRow key={p.id} className="hover:bg-slate-50">
+                      <TableCell className="text-sm text-slate-600">
+                        {p.data_entrega ? format(new Date(p.data_entrega), 'dd/MM/yyyy') : '-'}
+                      </TableCell>
+                      <TableCell className="font-mono font-medium">#{p.numero_pedido}</TableCell>
+                      <TableCell>{p.cliente_nome}</TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(p.valor_pedido)}</TableCell>
+                      {activeTab === 'abertos' && (
+                        <TableCell className="text-right">
+                          <span className={cn("font-bold", isAtrasado ? "text-red-600" : "text-blue-600")}>
+                            {formatCurrency(p.saldo_restante || 0)}
+                          </span>
+                        </TableCell>
+                      )}
+                      {activeTab === 'liquidados' && (
+                        <TableCell>
+                          {p.bordero_numero ? (
+                            <Badge variant="outline" className="font-mono">#{p.bordero_numero}</Badge>
+                          ) : '-'}
+                        </TableCell>
+                      )}
+                      <TableCell className="text-center">
+                        <Badge className={cn(
+                          "text-xs",
+                          p.status === 'pago' && "bg-emerald-100 text-emerald-700 hover:bg-emerald-100",
+                          isAtrasado && "bg-red-100 text-red-700 hover:bg-red-100",
+                          !isAtrasado && p.status === 'aberto' && "bg-blue-100 text-blue-700 hover:bg-blue-100",
+                          !isAtrasado && p.status === 'parcial' && "bg-amber-100 text-amber-700 hover:bg-amber-100",
+                          (p.status === 'em_transito' || p.status === 'aguardando') && "bg-orange-100 text-orange-700 hover:bg-orange-100"
+                        )}>
+                          {p.status === 'pago' ? '✅ Pago' : 
+                           isAtrasado ? `⚠️ Atrasado (+${diasAtraso}d)` :
+                           p.status === 'parcial' ? '⏳ Parcial' :
+                           p.status === 'em_transito' || p.status === 'aguardando' ? '🚚 Em Trânsito' :
+                           '📂 Aberto'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Button size="sm" variant="ghost" onClick={() => onViewDetails(p, 'pedido')} className="gap-1"><Eye className="w-4 h-4" /> Ver</Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200">
+            <ShoppingCart className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+            <p className="text-slate-500 font-medium">Nenhum pedido encontrado nesta categoria.</p>
+          </div>
+        )
       )}
     </div>
   );
