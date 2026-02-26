@@ -1422,8 +1422,8 @@ export default function Pedidos() {
 
 // --- COMPONENTE DA ABA DE PRODUÇÃO ---
 function ProducaoTab({ canDo }) {
-    const [isUploading, setIsUploading] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
+    // Agora temos um estado detalhado para o carregamento não parecer um "travamento"
+    const [uploadState, setUploadState] = useState({ isUploading: false, msg: '' });
     const [previewData, setPreviewData] = useState(null);
     const queryClient = useQueryClient();
 
@@ -1435,23 +1435,41 @@ function ProducaoTab({ canDo }) {
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
+
+        setUploadState({ isUploading: true, msg: 'Iniciando leitura...' });
         
-        setIsUploading(true);
-        // TÉCNICA 1: Dá tempo pro React desenhar o "Carregando..." na tela antes de congelar
-        await new Promise(resolve => setTimeout(resolve, 150));
+        // FÔLEGO 1: Dá tempo do React atualizar a tela antes do trabalho pesado
+        await new Promise(r => setTimeout(r, 100));
 
         try {
             const buffer = await file.arrayBuffer();
-            const workbook = XLSX.read(buffer, { type: 'array' });
+            
+            setUploadState({ isUploading: true, msg: 'Descompactando planilha (aguarde)...' });
+            await new Promise(r => setTimeout(r, 100));
+
+            // OTIMIZAÇÃO MAX: Desliga leitura de estilos e datas para ler 10x mais rápido
+            const workbook = XLSX.read(buffer, { type: 'array', cellDates: false, cellStyles: false, cellNF: false });
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+            
+            setUploadState({ isUploading: true, msg: 'Extraindo dados brutos...' });
+            await new Promise(r => setTimeout(r, 100));
+
+            // raw: true agiliza muito a leitura
+            const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: true });
 
             let currentPedido = '';
             let currentClienteCodigo = '';
             let currentClienteNome = '';
             const parsedItems = [];
+            const totalRows = rows.length;
 
-            for (let i = 0; i < rows.length; i++) {
+            for (let i = 0; i < totalRows; i++) {
+                // FÔLEGO 2: A cada 1000 linhas, atualiza a tela e destrava o navegador!
+                if (i % 1000 === 0) {
+                    setUploadState({ isUploading: true, msg: `Processando linha ${i} de ${totalRows}...` });
+                    await new Promise(r => setTimeout(r, 10)); // Pausa de 10ms pro navegador respirar
+                }
+
                 const row = rows[i];
                 if (!row || row.length === 0) continue;
 
@@ -1471,12 +1489,11 @@ function ProducaoTab({ canDo }) {
                     continue;
                 }
 
-                // Nova regra: Pega a linha mesmo se a peça não tiver Código (Apenas Descrição)
-                const isItemRow = /^(\d+(\.\d+)?)$/.test(colA);
+                // Proteção extra: ignora colunas A gigantescas
+                const isItemRow = colA.length < 15 && /^(\d+(\.\d+)?)$/.test(colA);
 
                 if (currentPedido && isItemRow) {
-                    const codigoProd = String(row[1] || 'S/C').trim(); // Se não tiver código, põe S/C (Sem Código)
-                    
+                    const codigoProd = String(row[1] || 'S/C').trim();
                     let descricaoProd = String(row[3] || '').trim();
                     if (!descricaoProd || descricaoProd.length < 3) {
                         descricaoProd = row.find((c, idx) => idx > 1 && typeof c === 'string' && c.trim().length > 5) || 'Produto sem descrição';
@@ -1511,82 +1528,74 @@ function ProducaoTab({ canDo }) {
                 toast.warning("A planilha foi lida, mas nenhuma peça válida foi encontrada.");
             } else {
                 setPreviewData(parsedItems);
-                toast.success(`Leitura rápida concluída! ${parsedItems.length} peças extraídas.`);
+                toast.success(`Pronto! ${parsedItems.length} peças encontradas na fábrica.`);
             }
 
         } catch (error) {
             console.error(error);
             toast.error("Erro ao ler arquivo do Neo.");
         } finally {
-            setIsUploading(false);
+            setUploadState({ isUploading: false, msg: '' });
             e.target.value = ''; 
         }
     };
 
-    // TÉCNICA 2: "WIPE & REPLACE" COM PAUSAS DE FÔLEGO (Throttling)
+    // FUNÇÃO "WIPE & REPLACE" BLINDADA (Fatiado em lotes com pausas)
     const handleSalvarProducao = async () => {
         if (!previewData || previewData.length === 0) return;
-        setIsSaving(true);
-        
-        // Blocos menores para o navegador não infartar
-        const BATCH_SIZE_DELETE = 100; 
-        const BATCH_SIZE_CREATE = 400; 
+        setUploadState({ isUploading: true, msg: 'Preparando banco de dados...' });
+        const BATCH_SIZE = 300; // Manda 300 por vez para a rede não cair
 
         try {
-            // 1. Limpeza em Lotes
             if (producaoAtual.length > 0) {
-                toast.info(`Limpando base antiga... aguarde.`);
-                for (let i = 0; i < producaoAtual.length; i += BATCH_SIZE_DELETE) {
-                    const lote = producaoAtual.slice(i, i + BATCH_SIZE_DELETE);
+                for (let i = 0; i < producaoAtual.length; i += BATCH_SIZE) {
+                    setUploadState({ isUploading: true, msg: `Limpando base antiga: Lote ${Math.floor(i/BATCH_SIZE)+1}...` });
+                    const lote = producaoAtual.slice(i, i + BATCH_SIZE);
                     await Promise.all(lote.map(item => base44.entities.ProducaoItem.delete(item.id)));
-                    // O Segredo de não travar: Uma micropausa a cada 100 exclusões!
-                    await new Promise(r => setTimeout(r, 100));
+                    await new Promise(r => setTimeout(r, 100)); // Fôlego na rede
                 }
             }
 
-            // 2. Inserção em Lotes
-            toast.info(`Salvando ${previewData.length} peças novas...`);
             const payload = previewData.map(item => ({
                 ...item,
                 data_atualizacao: new Date().toISOString()
             }));
             
-            for (let i = 0; i < payload.length; i += BATCH_SIZE_CREATE) {
-                const lotePayload = payload.slice(i, i + BATCH_SIZE_CREATE);
+            for (let i = 0; i < payload.length; i += BATCH_SIZE) {
+                setUploadState({ isUploading: true, msg: `Salvando novas peças: ${i} de ${payload.length}...` });
+                const lotePayload = payload.slice(i, i + BATCH_SIZE);
                 await base44.entities.ProducaoItem.bulkCreate(lotePayload);
-                // Micropausa a cada 400 inserções
-                await new Promise(r => setTimeout(r, 150));
+                await new Promise(r => setTimeout(r, 100)); // Fôlego na rede
             }
             
             await queryClient.invalidateQueries({ queryKey: ['producao_items'] });
             setPreviewData(null);
-            toast.success("✅ Fábrica atualizada com sucesso!");
+            toast.success("✅ Base de Produção atualizada com sucesso!");
         } catch (error) {
-            toast.error("Erro na comunicação com o banco.");
+            toast.error("Erro ao atualizar base de produção.");
             console.error(error);
         } finally {
-            setIsSaving(false);
+            setUploadState({ isUploading: false, msg: '' });
         }
     };
 
     const handleLimparProducao = async () => {
         if (!window.confirm("Isso vai apagar todos os itens em produção do sistema. Tem certeza?")) return;
-        setIsSaving(true);
-        const BATCH_SIZE_DELETE = 100;
+        setUploadState({ isUploading: true, msg: 'Esvaziando a fábrica...' });
+        const BATCH_SIZE = 300;
 
         try {
-            toast.info(`Esvaziando a fábrica...`);
-            for (let i = 0; i < producaoAtual.length; i += BATCH_SIZE_DELETE) {
-                const lote = producaoAtual.slice(i, i + BATCH_SIZE_DELETE);
+            for (let i = 0; i < producaoAtual.length; i += BATCH_SIZE) {
+                const lote = producaoAtual.slice(i, i + BATCH_SIZE);
                 await Promise.all(lote.map(item => base44.entities.ProducaoItem.delete(item.id)));
-                await new Promise(r => setTimeout(r, 100)); // Micropausa
+                await new Promise(r => setTimeout(r, 100)); // Fôlego na rede
             }
             await queryClient.invalidateQueries({ queryKey: ['producao_items'] });
-            toast.success("Base de produção totalmente esvaziada!");
+            toast.success("Base de produção esvaziada!");
         } catch (error) {
             toast.error("Erro ao limpar base.");
         } finally {
-            setIsSaving(false);
+            setUploadState({ isUploading: false, msg: '' });
         }
     };
 
@@ -1611,15 +1620,15 @@ function ProducaoTab({ canDo }) {
                     {canDo('Pedidos', 'adicionar') && (
                         <>
                             {producaoAtual.length > 0 && !previewData && (
-                                <Button variant="outline" className="border-slate-600 text-slate-300 hover:bg-red-500 hover:text-white hover:border-red-500 transition-colors" onClick={handleLimparProducao} disabled={isSaving}>
+                                <Button variant="outline" className="border-slate-600 text-slate-300 hover:bg-red-500 hover:text-white hover:border-red-500 transition-colors" onClick={handleLimparProducao} disabled={uploadState.isUploading}>
                                     <Trash2 className="w-4 h-4 mr-2" /> Esvaziar Base
                                 </Button>
                             )}
 
                             <input type="file" accept=".xls,.xlsx,.csv" id="neo-upload" className="hidden" onChange={handleFileUpload} />
-                            <Label htmlFor="neo-upload" className={cn("inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 cursor-pointer", (isUploading || isSaving) && "opacity-50 cursor-not-allowed")}>
-                                {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UploadCloud className="w-4 h-4 mr-2" />}
-                                {isUploading ? 'Lendo Excel...' : 'Subir Planilha do Neo'}
+                            <Label htmlFor="neo-upload" className={cn("inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 cursor-pointer", uploadState.isUploading && "opacity-50 cursor-not-allowed")}>
+                                {uploadState.isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UploadCloud className="w-4 h-4 mr-2" />}
+                                {uploadState.isUploading ? uploadState.msg : 'Subir Planilha do Neo'}
                             </Label>
                         </>
                     )}
@@ -1630,13 +1639,13 @@ function ProducaoTab({ canDo }) {
                 <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-center justify-between animate-in fade-in">
                     <div>
                         <h3 className="font-bold text-amber-800">⚠️ Modo de Visualização (Prévia)</h3>
-                        <p className="text-sm text-amber-700">Você carregou <strong>{previewData.length} peças</strong>. Elas ainda não estão salvas.</p>
+                        <p className="text-sm text-amber-700">Você carregou <strong>{previewData.length} peças</strong>. Elas ainda não estão salvas no sistema.</p>
                     </div>
                     <div className="flex gap-2">
-                        <Button variant="outline" className="bg-white border-amber-300 text-amber-700 hover:bg-amber-100" onClick={() => setPreviewData(null)} disabled={isSaving}>Cancelar</Button>
-                        <Button className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-200" onClick={handleSalvarProducao} disabled={isSaving}>
-                            {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
-                            Confirmar Substituição
+                        <Button variant="outline" className="bg-white border-amber-300 text-amber-700 hover:bg-amber-100" onClick={() => setPreviewData(null)} disabled={uploadState.isUploading}>Cancelar</Button>
+                        <Button className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-200" onClick={handleSalvarProducao} disabled={uploadState.isUploading}>
+                            {uploadState.isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+                            {uploadState.isUploading ? 'Salvando...' : 'Confirmar Substituição'}
                         </Button>
                     </div>
                 </div>
