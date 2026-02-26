@@ -501,6 +501,12 @@ export default function PainelRepresentante() {
     queryFn: () => base44.entities.Bordero.list(), 
     enabled: !!representante 
   });
+  const { data: todosItensProducao = [] } = useQuery({
+    queryKey: ['producao_items'],
+    queryFn: () => base44.entities.ProducaoItem.list(),
+    enabled: !!representante,
+    refetchInterval: 60000
+  });
 
   // Meus Pedidos
   const meusPedidos = useMemo(() => {
