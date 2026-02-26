@@ -99,9 +99,37 @@ export default function ImportarPedidos({ clientes, pedidosExistentes = [], onIm
   const [expandedIndex, setExpandedIndex] = useState(null);
   const [selectedForMerge, setSelectedForMerge] = useState([]);
 
-  const { data: rotasExistentes = [] } = useQuery({
+const { data: rotasExistentes = [] } = useQuery({
     queryKey: ['rotas_importar'],
-    queryFn: () => base44.entities.RotaImportada.list('-created_date', 100)
+    queryFn: async () => {
+      // 1. Busca as últimas 100 rotas
+      const todasRotas = await base44.entities.RotaImportada.list('-created_date', 100);
+      
+      // 2. Se for apenas filtra apenas as pendentes (ao descomentar esse precisa editar o return do 4.)
+      // const pendentes = todasRotas.filter(r => r.status === 'pendente');
+
+      // 3. PALAVRAS-CHAVE FIXADAS (Em maiúsculo para facilitar a busca)
+      const ROTAS_FIXAS = ['RETIRA', 'BLINDEX', 'SUPREMA'];
+
+      // 4. Mágica da Ordenação (substituir o return ativo pelo comentado, caso 2. for descomentado)
+      // return todaspendente.sort((a, b) => {   
+      return todasRotas.sort((a, b) => {
+        const nomeA = (a.codigo_rota || '').toUpperCase();
+        const nomeB = (b.codigo_rota || '').toUpperCase();
+
+        // Verifica se o nome da rota tem alguma das palavras-chave
+        const aEhFixa = ROTAS_FIXAS.some(palavra => nomeA.includes(palavra));
+        const bEhFixa = ROTAS_FIXAS.some(palavra => nomeB.includes(palavra));
+
+        // Se A é fixa e B não é, A vai pro topo (-1)
+        if (aEhFixa && !bEhFixa) return -1;
+        // Se B é fixa e A não é, B vai pro topo (1)
+        if (!aEhFixa && bEhFixa) return 1;
+        
+        // Se as duas forem fixas (ou nenhuma for), mantém a ordem normal
+        return 0; 
+      });
+    }
   });
 
   const { data: motoristasAtivos = [] } = useQuery({
