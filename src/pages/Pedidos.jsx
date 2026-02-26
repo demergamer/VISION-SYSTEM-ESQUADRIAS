@@ -499,7 +499,6 @@ export default function Pedidos() {
 
   // --- HANDLERS ---
   const handleEdit = (pedido) => { setSelectedPedido(pedido); setShowEditModal(true); };
-  const handleView = (pedido) => { if (pedido.isBordero) { setSelectedPedido(pedido); setShowDetailsModal(true); } else { setSelectedPedido(pedido); pedido.status === 'pago' ? setShowDetailsModal(true) : setShowEditModal(true); } };
   const handleLiquidar = (pedido) => { setSelectedPedido(pedido); setShowLiquidarModal(true); };
   const handleCancelar = (pedido) => { setPedidoParaCancelar(pedido); setShowCancelarPedidoModal(true); };
 
