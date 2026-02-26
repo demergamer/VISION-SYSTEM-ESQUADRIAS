@@ -265,21 +265,20 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
   );
 };
 
-// --- COMPONENTE: LINHA DO CLIENTE EXPANSÍVEL (ATUALIZADA COM SUBNÍVEIS) ---
+// --- COMPONENTE: LINHA DO CLIENTE EXPANSÍVEL ---
 const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewDetails, onSolicitarLiquidacao, onViewClientDetails, onEditClient, onInviteClient }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [innerTab, setInnerTab] = useState('abertos');
   
-  // Garantir que os arrays existam
   const safePedidos = pedidos || [];
   const safeCheques = cheques || [];
   const safeCreditos = creditos || [];
+  const safeProducao = itensProducao || []; // Peças vindas da planilha Neo
   
   // 1. Cálculos de Filtros
   const hoje = new Date();
   hoje.setHours(0,0,0,0);
 
-  const pedidosProducao = safePedidos.filter(p => p.status === 'em_producao');
   const pedidosTransito = safePedidos.filter(p => ['em_transito', 'aguardando'].includes(p.status));
   const pedidosPagos = safePedidos.filter(p => p.status === 'pago');
   
@@ -304,40 +303,60 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
   
   // Função para renderizar tabela condicional
   const renderTable = () => {
+    if (innerTab === 'producao') {
+      if (safeProducao.length === 0) {
+        return (
+          <div className="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+            <Factory className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+            <p className="text-sm text-slate-500 font-medium">Nenhum item deste cliente em produção no momento.</p>
+          </div>
+        );
+      }
+
+      // Agrupa os itens de produção por pedido para ficar organizado
+      const producaoAgrupada = safeProducao.reduce((acc, item) => {
+        if (!acc[item.numero_pedido]) acc[item.numero_pedido] = [];
+        acc[item.numero_pedido].push(item);
+        return acc;
+      }, {});
+
+      return (
+        <div className="space-y-4">
+          {Object.entries(producaoAgrupada).map(([numPedido, itens]) => (
+            <div key={numPedido} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+              <div className="bg-blue-50/50 p-3 px-4 border-b border-slate-200 flex justify-between items-center">
+                <span className="font-bold text-blue-800 text-sm">Pedido #{numPedido}</span>
+                <Badge className="bg-blue-100 text-blue-700">
+                  {itens.reduce((s, i) => s + (i.quantidade || 0), 0)} peças
+                </Badge>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {itens.map((item, idx) => (
+                  <div key={idx} className="p-3 px-4 flex items-center justify-between gap-4 hover:bg-slate-50/50">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="bg-slate-100 text-slate-500 text-[10px] font-mono font-bold px-2 py-1 rounded shrink-0 mt-0.5">
+                        {item.produto_codigo}
+                      </div>
+                      <p className="text-sm text-slate-700 font-medium line-clamp-2">{item.descricao}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className="text-xs text-slate-400 block uppercase font-bold tracking-wider mb-0.5">Qtde</span>
+                      <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">{item.quantidade}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    // Renderização das outras abas (Pedidos, Cheques, Créditos)
     let data = [];
     let type = 'pedido';
 
     switch(innerTab) {
-    case 'producao': 
-      // Produção vem de ProducaoItem (Neo), não de pedidos
-      if ((itensProducao || []).length === 0) {
-        return <div className="text-center py-6 text-slate-400 bg-slate-50 rounded-lg border border-dashed">Nenhum item em produção.</div>;
-      }
-      return (
-        <div className="rounded-lg border border-slate-200 overflow-hidden">
-          <Table>
-            <TableHeader className="bg-slate-50">
-              <TableRow>
-                <TableHead>Nº Pedido</TableHead>
-                <TableHead>Cód. Produto</TableHead>
-                <TableHead>Descrição</TableHead>
-                <TableHead className="text-center">Qtde</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(itensProducao || []).map((item, idx) => (
-                <TableRow key={item.id || idx} className="hover:bg-slate-50/50">
-                  <TableCell className="font-mono font-bold text-slate-700">#{item.numero_pedido}</TableCell>
-                  <TableCell className="font-mono text-xs text-slate-500">{item.produto_codigo}</TableCell>
-                  <TableCell className="font-medium text-slate-800">{item.descricao}</TableCell>
-                  <TableCell className="text-center"><Badge className="bg-indigo-100 text-indigo-700">{item.quantidade}</Badge></TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      );
-    case 'producao_legacy': data = pedidosProducao; break;
         case 'transito': data = pedidosTransito; break;
         case 'abertos': data = pedidosAbertos; break;
         case 'atrasados': data = pedidosAtrasados; break;
@@ -367,17 +386,17 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
                 <TableBody>
                     {data.map(item => (
                         <TableRow key={item.id} className="hover:bg-slate-50/50">
-                            <TableCell className="font-mono">
+                            <TableCell className="font-mono font-medium">
                                 {type === 'pedido' ? `#${item.numero_pedido}` : 
                                  type === 'cheque' ? item.numero_cheque : 
                                  item.referencia}
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="text-slate-600 text-sm">
                                 {type === 'pedido' ? (item.data_entrega ? format(new Date(item.data_entrega), 'dd/MM/yy') : '-') : 
                                  type === 'cheque' ? (item.data_vencimento ? format(new Date(item.data_vencimento), 'dd/MM/yy') : '-') :
                                  (item.data_emissao ? format(new Date(item.data_emissao), 'dd/MM/yy') : '-')}
                             </TableCell>
-                            <TableCell className="text-right text-slate-600">
+                            <TableCell className="text-right font-medium text-slate-700">
                                 {formatCurrency(type === 'pedido' ? item.valor_pedido : item.valor || item.valor_original)}
                             </TableCell>
                             {type === 'pedido' && (
@@ -443,7 +462,9 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
           
           <Tabs value={innerTab} onValueChange={setInnerTab} className="w-full">
             <TabsList className="bg-slate-100 p-1 rounded-lg h-auto flex-wrap justify-start gap-1 mb-4 w-full">
-                <TabsTrigger value="producao" className="text-xs">🏗️ Produção ({(itensProducao||[]).length})</TabsTrigger>
+                <TabsTrigger value="producao" className="text-xs data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                  🏗️ Produção ({safeProducao.reduce((acc, item) => acc + (item.quantidade || 0), 0)} peças)
+                </TabsTrigger>
                 <TabsTrigger value="transito" className="text-xs">🚚 Trânsito ({pedidosTransito.length})</TabsTrigger>
                 <TabsTrigger value="abertos" className="text-xs">📂 Abertos ({pedidosAbertos.length})</TabsTrigger>
                 <TabsTrigger value="atrasados" className="text-xs text-red-600 data-[state=active]:text-red-700">⚠️ Atrasados ({pedidosAtrasados.length})</TabsTrigger>
@@ -457,7 +478,7 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
             </div>
           </Tabs>
 
-          <div className="flex justify-end gap-3 pt-4 border-t mt-2">
+          <div className="flex justify-end gap-3 pt-4 border-t mt-4">
             <Button onClick={() => onSolicitarLiquidacao(cliente)} disabled={pedidosAbertos.length === 0 && pedidosAtrasados.length === 0} className="bg-emerald-600 hover:bg-emerald-700"><DollarSign className="w-4 h-4 mr-2" /> Solicitar Liquidação</Button>
           </div>
         </div>
@@ -465,7 +486,6 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
     </div>
   );
 };
-
 // --- COMPONENTE PRINCIPAL ---
 export default function PainelRepresentante() {
   useRealtimeSync();
