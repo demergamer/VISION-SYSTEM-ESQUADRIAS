@@ -266,7 +266,7 @@ const PedidosView = ({ pedidos, onViewDetails }) => {
 };
 
 // --- COMPONENTE: LINHA DO CLIENTE EXPANSÍVEL (ATUALIZADA COM SUBNÍVEIS) ---
-const ClientRow = ({ cliente, pedidos, cheques, creditos, onViewDetails, onSolicitarLiquidacao, onViewClientDetails, onEditClient, onInviteClient }) => {
+const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewDetails, onSolicitarLiquidacao, onViewClientDetails, onEditClient, onInviteClient }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [innerTab, setInnerTab] = useState('abertos');
   
