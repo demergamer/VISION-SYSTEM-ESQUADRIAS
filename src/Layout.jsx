@@ -47,6 +47,7 @@ const menuStructure = [
       { name: "Representantes", icon: Users },
       { name: "Motoristas", icon: Truck },
       { name: "Calendario", icon: CalendarIcon },
+      { name: "LojaJC", icon: Building2 },
       { name: "FormasPagamento", icon: CreditCard },
       { name: "Usuarios", icon: Users },
     ]

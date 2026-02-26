@@ -34,13 +34,6 @@ function useConfiguracaoLoja(slug) {
 }
 
 export default function LojaJC() {
-  const location = useLocation();
-  
-  // Renderizar apenas no modo clássico ou na página principal (evitar no OS Mode)
-  if (location.pathname !== '/LojaJC') {
-    return null;
-  }
-
   const { data: configLoja } = useConfiguracaoLoja(SLUG_LOJA);
   const [user, setUser] = useState(null);
   const [clienteSelecionado, setClienteSelecionado] = useState(null);
