@@ -120,6 +120,11 @@ export default function PortalCliente() {
 
   const clienteData = useMemo(() => clientes.find(c => c.email === user?.email), [clientes, user]);
 
+  const meusItensProducao = useMemo(() => {
+    if (!clienteData) return [];
+    return todosItensProducao.filter(i => i.cliente_codigo === clienteData.codigo);
+  }, [todosItensProducao, clienteData]);
+
   // Filtros e Dados
   const meusPedidos = useMemo(() => {
     if (!clienteData) return { producao: [], transito: [], aPagar: [], pagos: [], cancelados: [] };
