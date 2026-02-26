@@ -68,7 +68,7 @@ const DigitalClock = ({ time }) => (
   </div>
 );
 
-const MiniCalendar = ({ user, tarefas = [] }) => {
+const MiniCalendar = ({ user, tarefas = [], onNavigate }) => {
   const today = new Date();
   const currentDay = today.getDate();
   const weekDays = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
@@ -112,9 +112,9 @@ const MiniCalendar = ({ user, tarefas = [] }) => {
         <span className="font-bold text-slate-700 capitalize">
           {today.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
         </span>
-        <Link to="/Calendario" className="group text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white px-3 py-1 rounded-full transition-all flex items-center gap-1 shadow-sm ring-1 ring-blue-100 hover:ring-transparent">
+        <button onClick={() => onNavigate?.('Calendario')} className="group text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white px-3 py-1 rounded-full transition-all flex items-center gap-1 shadow-sm ring-1 ring-blue-100 hover:ring-transparent">
           Ver tudo <span className="transition-transform group-hover:translate-x-1">&rarr;</span>
-        </Link>
+        </button>
       </div>
 
       {/* TOGGLE VS COMPACTO (Mini Calendário) */}
@@ -286,6 +286,7 @@ export default function Dashboard() {
       color: "slate",
       items: [
         { name: "Calendario", label: "Calendário", icon: CalendarIcon, desc: "Tarefas e lembretes" },
+        { name: "LojaJC", label: "Loja J&C", icon: Building2, desc: "Catálogo e orçamentos" },
         { name: "ConfiguracoesLojas", label: "Lojas", icon: Building2, desc: "Configurações de lojas" },
         { name: "Relatorios", label: "Relatórios", icon: BarChart3, desc: "Análise de dados" },
         { name: "Logs", label: "Auditoria", icon: ScrollText, desc: "Histórico de ações" },
@@ -424,7 +425,7 @@ export default function Dashboard() {
 
             <Card className="border-white/40 bg-white/60 backdrop-blur-md shadow-sm ring-1 ring-white/50">
               <CardContent className="p-6">
-                <MiniCalendar user={user} tarefas={tarefas} />
+                <MiniCalendar user={user} tarefas={tarefas} onNavigate={handleNavigate} />
               </CardContent>
             </Card>
 
