@@ -546,9 +546,10 @@ export default function PainelRepresentante() {
       ...c,
       pedidos: safeTodosPedidos.filter(p => p.cliente_codigo === c.codigo),
       cheques: safeTodosCheques.filter(ch => ch.cliente_codigo === c.codigo),
-      creditos: safeTodosCreditos.filter(cr => cr.cliente_codigo === c.codigo)
+      creditos: safeTodosCreditos.filter(cr => cr.cliente_codigo === c.codigo),
+      itensProducao: (todosItensProducao || []).filter(i => i.cliente_codigo === c.codigo)
     }));
-  }, [representante, todosClientes, todosPedidos, todosCheques, todosCreditos, searchTerm]);
+  }, [representante, todosClientes, todosPedidos, todosCheques, todosCreditos, todosItensProducao, searchTerm]);
 
   const stats = useMemo(() => {
     const clientesComVendas30k = (meusClientes || []).filter(c => {
