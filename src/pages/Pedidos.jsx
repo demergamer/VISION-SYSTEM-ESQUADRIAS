@@ -749,6 +749,8 @@ export default function Pedidos() {
       }
   };
 
+  const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
+
   // --- FUNÇÃO CORRIGIDA: APROVAÇÃO COM GERAÇÃO DE CRÉDITO E PARCIAL ---
   const handleAprovarSolicitacao = async (dadosAprovacao) => {
       console.log("Iniciando aprovação com:", dadosAprovacao);
