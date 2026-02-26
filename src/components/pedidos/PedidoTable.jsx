@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow 
 } from "@/components/ui/table";
@@ -14,10 +14,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { format, differenceInDays, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
-
-// IMPORTS NOVOS PARA O MODAL DE DETALHES
-import ModalContainer from "@/components/modals/ModalContainer";
-import PedidoDetails from "@/components/pedidos/PedidoDetails";
 
 const SortableHead = ({ label, sortKey, currentSort, onSort, className }) => {
   const isActive = currentSort?.key === sortKey;
@@ -46,7 +42,7 @@ const SortableHead = ({ label, sortKey, currentSort, onSort, className }) => {
 export default function PedidoTable({ 
   pedidos = [], 
   onEdit, 
-  onView, // Mantido por compatibilidade
+  onView, 
   onLiquidar, 
   onCancelar, 
   onReverter,
@@ -56,10 +52,6 @@ export default function PedidoTable({
   sortConfig = { key: null, direction: null }, 
   onSort 
 }) {
-  // ESTADOS NOVOS PARA CONTROLAR O MODAL DE DETALHES
-  const [viewModalOpen, setViewModalOpen] = useState(false);
-  const [pedidoToView, setPedidoToView] = useState(null);
-
   const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
   const getStatusBadge = (pedido) => {
@@ -81,14 +73,6 @@ export default function PedidoTable({
     return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200">{label}</Badge>;
   };
 
-  // FUNÇÃO NOVA PARA ABRIR OS DETALHES
-  const handleViewDetails = (pedido) => {
-    setPedidoToView(pedido);
-    setViewModalOpen(true);
-    // Se a tela pai também estiver escutando o onView, nós avisamos ela
-    if (onView) onView(pedido); 
-  };
-
   if (isLoading) {
     return <div className="py-10 text-center text-slate-500">Carregando pedidos...</div>;
   }
@@ -98,133 +82,116 @@ export default function PedidoTable({
   }
 
   return (
-    <>
-      <div className="border rounded-xl bg-white overflow-hidden shadow-sm">
-        <Table>
-          <TableHeader className="bg-slate-50/80">
-            <TableRow>
-              <SortableHead label="Nº Pedido" sortKey="numero_pedido" currentSort={sortConfig} onSort={onSort} className="w-[100px]" />
-              <SortableHead label="Cliente / Região" sortKey="cliente_nome" currentSort={sortConfig} onSort={onSort} />
-              <SortableHead label="Entrega" sortKey="data_entrega" currentSort={sortConfig} onSort={onSort} />
-              <SortableHead label="Valor Total" sortKey="valor_pedido" currentSort={sortConfig} onSort={onSort} className="text-right" />
-              <SortableHead label="Pago" sortKey="total_pago" currentSort={sortConfig} onSort={onSort} className="text-right hidden md:table-cell" />
-              <SortableHead label="Saldo" sortKey="saldo_restante" currentSort={sortConfig} onSort={onSort} className="text-right" />
-              <TableHead className="text-center w-[120px]">Status</TableHead>
-              <TableHead className="text-right w-[140px]">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {pedidos.map((pedido) => (
-              <TableRow key={pedido.id} className="hover:bg-slate-50/50 transition-colors">
-                <TableCell className="font-mono font-medium text-slate-700">#{pedido.numero_pedido}</TableCell>
-                <TableCell>
-                  <div className="flex flex-col">
-                    <span className="font-medium text-slate-800 line-clamp-1">{pedido.cliente_nome}</span>
-                    <span className="text-xs text-slate-500 flex items-center gap-1">
-                      {pedido.cliente_regiao || 'Sem região'} 
-                      {showBorderoRef && pedido.bordero_numero && <span className="text-emerald-600 font-mono ml-1">• BORD #{pedido.bordero_numero}</span>}
-                    </span>
-                  </div>
-                </TableCell>
-                <TableCell className="text-sm text-slate-600">
-                  {pedido.data_entrega ? format(new Date(pedido.data_entrega), 'dd/MM/yyyy') : '-'}
-                </TableCell>
-                <TableCell className="text-right font-medium text-slate-700">
-                  {formatCurrency(pedido.valor_pedido)}
-                </TableCell>
-                <TableCell className="text-right text-slate-500 hidden md:table-cell">
-                  {pedido.total_pago > 0 ? <span className="text-emerald-600">{formatCurrency(pedido.total_pago)}</span> : '-'}
-                </TableCell>
-                <TableCell className="text-right font-bold text-slate-800">
-                  <span className={cn(
-                    pedido.saldo_restante > 0 ? "text-amber-600" : "text-emerald-600"
-                  )}>
-                    {formatCurrency(pedido.saldo_restante !== undefined ? pedido.saldo_restante : (pedido.valor_pedido - pedido.total_pago))}
+    <div className="border rounded-xl bg-white overflow-hidden shadow-sm">
+      <Table>
+        <TableHeader className="bg-slate-50/80">
+          <TableRow>
+            <SortableHead label="Nº Pedido" sortKey="numero_pedido" currentSort={sortConfig} onSort={onSort} className="w-[100px]" />
+            <SortableHead label="Cliente / Região" sortKey="cliente_nome" currentSort={sortConfig} onSort={onSort} />
+            <SortableHead label="Entrega" sortKey="data_entrega" currentSort={sortConfig} onSort={onSort} />
+            <SortableHead label="Valor Total" sortKey="valor_pedido" currentSort={sortConfig} onSort={onSort} className="text-right" />
+            <SortableHead label="Pago" sortKey="total_pago" currentSort={sortConfig} onSort={onSort} className="text-right hidden md:table-cell" />
+            <SortableHead label="Saldo" sortKey="saldo_restante" currentSort={sortConfig} onSort={onSort} className="text-right" />
+            <TableHead className="text-center w-[120px]">Status</TableHead>
+            <TableHead className="text-right w-[140px]">Ações</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {pedidos.map((pedido) => (
+            <TableRow key={pedido.id} className="hover:bg-slate-50/50 transition-colors">
+              <TableCell className="font-mono font-medium text-slate-700">#{pedido.numero_pedido}</TableCell>
+              <TableCell>
+                <div className="flex flex-col">
+                  <span className="font-medium text-slate-800 line-clamp-1">{pedido.cliente_nome}</span>
+                  <span className="text-xs text-slate-500 flex items-center gap-1">
+                    {pedido.cliente_regiao || 'Sem região'} 
+                    {showBorderoRef && pedido.bordero_numero && <span className="text-emerald-600 font-mono ml-1">• BORD #{pedido.bordero_numero}</span>}
                   </span>
-                </TableCell>
-                <TableCell className="text-center">
-                  {getStatusBadge(pedido)}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    {/* BOTÃO MODIFICADO PARA ABRIR O MODAL INTERNO */}
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-blue-600" onClick={() => handleViewDetails(pedido)} title="Ver Detalhes">
-                      <Eye className="w-4 h-4" />
-                    </Button>
+                </div>
+              </TableCell>
+              <TableCell className="text-sm text-slate-600">
+                {pedido.data_entrega ? format(new Date(pedido.data_entrega), 'dd/MM/yyyy') : '-'}
+              </TableCell>
+              <TableCell className="text-right font-medium text-slate-700">
+                {formatCurrency(pedido.valor_pedido)}
+              </TableCell>
+              <TableCell className="text-right text-slate-500 hidden md:table-cell">
+                {pedido.total_pago > 0 ? <span className="text-emerald-600">{formatCurrency(pedido.total_pago)}</span> : '-'}
+              </TableCell>
+              <TableCell className="text-right font-bold text-slate-800">
+                <span className={cn(
+                  pedido.saldo_restante > 0 ? "text-amber-600" : "text-emerald-600"
+                )}>
+                  {formatCurrency(pedido.saldo_restante !== undefined ? pedido.saldo_restante : (pedido.valor_pedido - pedido.total_pago))}
+                </span>
+              </TableCell>
+              <TableCell className="text-center">
+                {getStatusBadge(pedido)}
+              </TableCell>
+              <TableCell className="text-right">
+                <div className="flex items-center justify-end gap-1">
+                  
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-blue-600" onClick={() => onView(pedido)} title="Ver Detalhes">
+                    <Eye className="w-4 h-4" />
+                  </Button>
 
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-700" title="Mais ações">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="z-[99999]">
-                        <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-700" title="Mais ações">
+                        <MoreHorizontal className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="z-[99999]">
+                      <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
 
-                        {pedido.status !== 'pago' && pedido.status !== 'cancelado' && onEdit && (
-                          <DropdownMenuItem onClick={() => onEdit(pedido)} className="gap-2 cursor-pointer">
-                            <Edit className="w-4 h-4 text-blue-500" /> Editar
-                          </DropdownMenuItem>
-                        )}
-                        {pedido.status !== 'pago' && pedido.status !== 'cancelado' && onLiquidar && (
-                          <DropdownMenuItem onClick={() => onLiquidar(pedido)} className="gap-2 cursor-pointer">
-                            <DollarSign className="w-4 h-4 text-emerald-500" /> Liquidar
-                          </DropdownMenuItem>
-                        )}
-                        {pedido.status !== 'pago' && pedido.status !== 'cancelado' && onCancelar && (
-                          <DropdownMenuItem onClick={() => onCancelar(pedido)} className="gap-2 text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer">
-                            <X className="w-4 h-4" /> Cancelar
-                          </DropdownMenuItem>
-                        )}
+                      {pedido.status !== 'pago' && pedido.status !== 'cancelado' && onEdit && (
+                        <DropdownMenuItem onClick={() => onEdit(pedido)} className="gap-2 cursor-pointer">
+                          <Edit className="w-4 h-4 text-blue-500" /> Editar
+                        </DropdownMenuItem>
+                      )}
+                      {pedido.status !== 'pago' && pedido.status !== 'cancelado' && onLiquidar && (
+                        <DropdownMenuItem onClick={() => onLiquidar(pedido)} className="gap-2 cursor-pointer">
+                          <DollarSign className="w-4 h-4 text-emerald-500" /> Liquidar
+                        </DropdownMenuItem>
+                      )}
+                      {pedido.status !== 'pago' && pedido.status !== 'cancelado' && onCancelar && (
+                        <DropdownMenuItem onClick={() => onCancelar(pedido)} className="gap-2 text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer">
+                          <X className="w-4 h-4" /> Cancelar
+                        </DropdownMenuItem>
+                      )}
 
-                        {pedido.status === 'pago' && onReverter && (
-                          <DropdownMenuItem onClick={() => onReverter(pedido)} className="gap-2 cursor-pointer">
-                            <RotateCcw className="w-4 h-4 text-amber-500" /> Reverter
-                          </DropdownMenuItem>
-                        )}
+                      {pedido.status === 'pago' && onReverter && (
+                        <DropdownMenuItem onClick={() => onReverter(pedido)} className="gap-2 cursor-pointer">
+                          <RotateCcw className="w-4 h-4 text-amber-500" /> Reverter
+                        </DropdownMenuItem>
+                      )}
 
-                        {onMudarStatus && pedido.status !== 'pago' && pedido.status !== 'cancelado' && (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuLabel className="text-xs text-slate-400">Alterar Natureza</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => onMudarStatus(pedido, 'troca')} className="gap-2 cursor-pointer">
-                              <RepeatIcon className="w-4 h-4 text-orange-500" /> Pedido de Troca
+                      {onMudarStatus && pedido.status !== 'pago' && pedido.status !== 'cancelado' && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuLabel className="text-xs text-slate-400">Alterar Natureza</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => onMudarStatus(pedido, 'troca')} className="gap-2 cursor-pointer">
+                            <RepeatIcon className="w-4 h-4 text-orange-500" /> Pedido de Troca
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onMudarStatus(pedido, 'representante_recebe')} className="gap-2 cursor-pointer">
+                            <UserCheck className="w-4 h-4 text-purple-500" /> Representante Recebe
+                          </DropdownMenuItem>
+                          {(pedido.status === 'troca' || pedido.status === 'representante_recebe') && (
+                            <DropdownMenuItem onClick={() => onMudarStatus(pedido, 'aberto')} className="gap-2 text-slate-600 cursor-pointer">
+                              <X className="w-4 h-4" /> Reverter para Aberto
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => onMudarStatus(pedido, 'representante_recebe')} className="gap-2 cursor-pointer">
-                              <UserCheck className="w-4 h-4 text-purple-500" /> Representante Recebe
-                            </DropdownMenuItem>
-                            {(pedido.status === 'troca' || pedido.status === 'representante_recebe') && (
-                              <DropdownMenuItem onClick={() => onMudarStatus(pedido, 'aberto')} className="gap-2 text-slate-600 cursor-pointer">
-                                <X className="w-4 h-4" /> Reverter para Aberto
-                              </DropdownMenuItem>
-                            )}
-                          </>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* MODAL DE DETALHES EMBUTIDO NA TABELA */}
-      <ModalContainer 
-        open={viewModalOpen} 
-        onClose={() => setViewModalOpen(false)} 
-        title={`Detalhes do Pedido #${pedidoToView?.numero_pedido || ''}`} 
-        size="2xl"
-      >
-        {pedidoToView && (
-          <PedidoDetails 
-            pedido={pedidoToView} 
-            onClose={() => setViewModalOpen(false)} 
-          />
-        )}
-      </ModalContainer>
-    </>
+                          )}
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }
