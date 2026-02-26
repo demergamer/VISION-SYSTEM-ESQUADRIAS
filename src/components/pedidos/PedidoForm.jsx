@@ -43,6 +43,15 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     queryFn: () => base44.entities.Pedido.list()
   });
 
+  // NOVO: Busca PORTs disponíveis para auto-vínculo
+  const { data: portsDisponiveis = [] } = useQuery({
+    queryKey: ['ports_pedido_form'],
+    queryFn: async () => {
+      const allPorts = await base44.entities.Port.list();
+      return allPorts.filter(p => (p.saldo_disponivel || 0) > 0 && !['devolvido', 'finalizado'].includes(p.status));
+    }
+  });
+
   // Rotas únicas derivadas dos pedidos existentes
   const rotasUnicas = useMemo(() => {
     const map = new Map();
@@ -76,23 +85,21 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     status: 'aberto',
     porcentagem_comissao: 5,
     
-    // Logística (Corrigido mapeamento)
+    // Logística
     rota_entrega: '', 
-    motorista_codigo: '', // NOVO CAMPO
+    motorista_codigo: '',
     motorista_atual: '',
     
     desconto_tipo: 'valor',
     desconto_valor: 0,
     
-    // Sinais (novo modelo array)
+    // Sinais
     sinais_historico: [],
-    // Campos legado mantidos para compatibilidade
     valor_sinal_informado: 0,
     arquivos_sinal: []
   });
 
   // Lógica de Bloqueio do Representante
-  // Bloqueia APENAS se estiver editando um pedido existente QUE JÁ TENHA representante definido.
   const isRepresentanteLocked = !!pedido && !!pedido.representante_codigo;
 
   const [clienteSelecionadoDetalhes, setClienteSelecionadoDetalhes] = useState(null);
@@ -101,8 +108,6 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
   const [buscaCliente, setBuscaCliente] = useState(""); 
   const [novosClientesLocais, setNovosClientesLocais] = useState([]);
   
-  
-  // NOVO: Estado para loading ao salvar cliente novo
   const [savingCliente, setSavingCliente] = useState(false);
 
   const todosClientes = useMemo(() => {
@@ -128,15 +133,13 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
         status: pedido.status || 'aberto',
         porcentagem_comissao: pedido.porcentagem_comissao || 5,
         
-        // Mapeando para os campos corretos da entidade
         rota_entrega: pedido.rota_entrega || '', 
-        motorista_codigo: pedido.motorista_codigo || '', // NOVO
+        motorista_codigo: pedido.motorista_codigo || '',
         motorista_atual: pedido.motorista_atual || '',
         
         desconto_tipo: pedido.desconto_tipo || 'valor',
         desconto_valor: pedido.desconto_valor || 0,
         
-        // Sinais
         sinais_historico: pedido.sinais_historico || [],
         valor_sinal_informado: pedido.valor_sinal_informado || 0,
         arquivos_sinal: pedido.arquivos_sinal || []
@@ -161,7 +164,6 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
         cliente_codigo: codigo,
         cliente_nome: cli.nome,
         cliente_regiao: cli.regiao || '',
-        // Só puxa o representante do cliente se o campo não estiver bloqueado pelo pedido
         ...(!isRepresentanteLocked ? {
             representante_codigo: cli.representante_codigo || '',
             representante_nome: cli.representante_nome || ''
@@ -227,7 +229,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
               <div className="flex-1">
                 <Select value={form.cliente_codigo} onValueChange={handleClienteChange} disabled={!!pedido}>
                     <SelectTrigger className={cn(inputClass, "w-full text-left font-medium")}><SelectValue placeholder="Selecione o cliente" /></SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
+                    <SelectContent className="max-h-[300px] z-[99999]">
                         <div className="p-2 sticky top-0 bg-white z-10 border-b pb-2 mb-1">
                             <div className="relative">
                                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"/>
@@ -252,7 +254,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
           </div>
         </div>
 
-        {/* --- REPRESENTANTE (COM LÓGICA DE BLOQUEIO) --- */}
+        {/* --- REPRESENTANTE --- */}
         <div className="space-y-2">
             <Label className="flex items-center gap-2">
                 Representante
@@ -261,12 +263,12 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
             <Select 
                 value={form.representante_codigo} 
                 onValueChange={handleRepresentanteSelect}
-                disabled={isRepresentanteLocked} // Bloqueia se já estiver preenchido no pedido original
+                disabled={isRepresentanteLocked}
             >
                 <SelectTrigger className={cn(inputClass, isRepresentanteLocked && "bg-slate-100 opacity-80 cursor-not-allowed")}>
                     <SelectValue placeholder="Sem representante" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[99999]">
                     {representantes.map(rep => (
                         <SelectItem key={rep.codigo} value={rep.codigo}>{rep.nome}</SelectItem>
                     ))}
@@ -274,6 +276,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
             </Select>
         </div>
 
+        {/* --- NÚMERO DO PEDIDO + INTEGRAÇÃO DE PORT --- */}
         <div className="space-y-2">
           <Label htmlFor="numero_pedido">Número do Pedido *</Label>
           <Input 
@@ -283,11 +286,12 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
             onBlur={(e) => {
               const raw = e.target.value.trim();
               if (!raw) return;
-              // Formata com pontos de milhar
+              
               const semPontos = raw.replace(/\./g, '');
               const n = parseInt(semPontos, 10);
               const formatado = !isNaN(n) ? n.toLocaleString('pt-BR').replace(/,/g, '.') : raw;
-              // Verifica duplicidade (com e sem ponto)
+              
+              // 1. Verifica duplicidade
               const duplicado = todosPedidos.find(p => 
                 p.id !== pedido?.id && (
                   String(p.numero_pedido) === formatado || 
@@ -295,10 +299,49 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
                   String(p.numero_pedido).replace(/\./g, '') === semPontos
                 )
               );
+              
               if (duplicado) {
                 toast.error(`Pedido #${formatado} já existe no sistema! (Status: ${duplicado.status})`, { duration: 5000 });
               }
-              setForm(prev => ({ ...prev, numero_pedido: formatado }));
+
+              // 2. BUSCA DE PORT AUTOMÁTICA
+              const portsEncontrados = portsDisponiveis.filter(port =>
+                port.itens_port?.some(item => String(item.numero_pedido_manual).replace(/\./g, '') === semPontos)
+              );
+
+              let novosSinais = [...(form.sinais_historico || [])];
+              let portAdicionado = false;
+
+              portsEncontrados.forEach(port => {
+                const itemPort = port.itens_port.find(i => String(i.numero_pedido_manual).replace(/\./g, '') === semPontos);
+                // Se não tiver valor alocado específico, pega o total disponível daquele PORT
+                const valorSinal = parseFloat(itemPort?.valor_alocado || port.saldo_disponivel || 0);
+
+                // Evita colocar duas vezes o mesmo port
+                const jaExiste = novosSinais.some(s => s._portId === port.id || String(s.referencia).includes(`PORT #${port.numero_port}`));
+
+                if (!jaExiste && valorSinal > 0) {
+                  novosSinais.push({
+                    id: `port-${port.id}-${Date.now()}`,
+                    _portId: port.id,
+                    tipo_pagamento: port.forma_pagamento?.tipo || 'Caução',
+                    forma: `PORT #${port.numero_port}`,
+                    valor: valorSinal,
+                    referencia: `PORT #${port.numero_port}`,
+                    comprovante_url: port.comprovantes_urls?.[0] || '',
+                    data: new Date().toISOString().split('T')[0]
+                  });
+                  portAdicionado = true;
+                }
+              });
+
+              if (portAdicionado) {
+                 toast.success('💰 PORT encontrado e vinculado como sinal automaticamente!');
+                 const formAtualizado = { ...form, numero_pedido: formatado, sinais_historico: novosSinais };
+                 setForm(recalcularSaldo(formAtualizado));
+              } else {
+                 setForm(prev => ({ ...prev, numero_pedido: formatado }));
+              }
             }}
             placeholder="Ex: 53.000" 
             className={inputClass} 
@@ -330,7 +373,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
                         <SelectValue placeholder="Selecione uma rota existente" />
                     </div>
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[99999]">
                     {rotasUnicas.length === 0 
                         ? <div className="py-4 text-center text-sm text-slate-400">Nenhuma rota cadastrada ainda</div>
                         : rotasUnicas.map(r => (
@@ -346,7 +389,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
             </Select>
         </div>
 
-        {/* --- MOTORISTA (SELECT DINÂMICO) --- */}
+        {/* --- MOTORISTA --- */}
         <div className="space-y-2 md:col-span-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
             <Label className="mb-2 block text-slate-600 font-semibold flex items-center gap-2">
                 <User className="w-4 h-4" /> Motorista Responsável
@@ -384,7 +427,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
                             <SelectValue placeholder="Selecionar motorista..." />
                         </div>
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="z-[99999]">
                         {motoristasAtivos.length === 0
                             ? <div className="py-4 text-center text-sm text-slate-400">Nenhum motorista ativo cadastrado</div>
                             : motoristasAtivos.map(m => (
@@ -422,7 +465,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
             <div className="flex gap-2">
                 <Select value={form.desconto_tipo} onValueChange={(val) => updateValores('desconto_tipo', val)}>
                     <SelectTrigger className={cn(inputClass, "w-24")}><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="valor">R$</SelectItem><SelectItem value="porcentagem">%</SelectItem></SelectContent>
+                    <SelectContent className="z-[99999]"><SelectItem value="valor">R$</SelectItem><SelectItem value="porcentagem">%</SelectItem></SelectContent>
                 </Select>
                 <Input type="number" min="0" step={form.desconto_tipo === 'valor' ? "0.01" : "0.1"} value={form.desconto_valor} onChange={(e) => updateValores('desconto_valor', parseFloat(e.target.value) || 0)} placeholder="0,00" className={cn(inputClass, form.desconto_valor > 0 ? "text-red-600 font-medium" : "")} />
             </div>
@@ -474,20 +517,16 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
         {clienteSelecionadoDetalhes && <ClienteDetails cliente={clienteSelecionadoDetalhes} onClose={() => setShowClienteModal(false)} />}
       </ModalContainer>
 
-      {/* --- CORREÇÃO AQUI --- */}
       <ModalContainer open={showNovoClienteModal} onClose={() => setShowNovoClienteModal(false)} title="Cadastrar Novo Cliente" size="xl">
         <ClienteForm 
-            // Agora salvamos de verdade no banco antes de devolver o sucesso
             onSave={async (dadosCliente) => {
                 setSavingCliente(true);
                 try {
-                    // 1. CRIA O CLIENTE DE VERDADE NO BANCO
                     const novoCliente = await base44.entities.Cliente.create({
                         ...dadosCliente,
                         status: 'ativo'
                     });
 
-                    // 2. ATUALIZA A LISTA LOCAL E SELECIONA
                     setNovosClientesLocais(prev => [...prev, novoCliente]);
                     setForm(prev => ({
                         ...prev,
@@ -514,7 +553,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
             onCancel={() => setShowNovoClienteModal(false)} 
             representantes={representantes} 
             todosClientes={clientes}
-            isLoading={savingCliente} // Se seu ClienteForm suportar essa prop
+            isLoading={savingCliente}
         />
       </ModalContainer>
     </div>
