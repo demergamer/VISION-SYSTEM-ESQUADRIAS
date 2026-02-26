@@ -102,31 +102,38 @@ export default function ImportarPedidos({ clientes, pedidosExistentes = [], onIm
 const { data: rotasExistentes = [] } = useQuery({
     queryKey: ['rotas_importar'],
     queryFn: async () => {
-      // 1. Busca as últimas 100 rotas
-      const todasRotas = await base44.entities.RotaImportada.list('-created_date', 100);
-      
-      // 2. Se for apenas filtra apenas as pendentes (ao descomentar esse precisa editar o return do 4.)
-      // const pendentes = todasRotas.filter(r => r.status === 'pendente');
-
-      // 3. PALAVRAS-CHAVE FIXADAS (Em maiúsculo para facilitar a busca)
+      // 1. ROTAS EXATAS que queremos fixar
       const ROTAS_FIXAS = ['RETIRA', 'BLINDEX', 'SUPREMA'];
 
-      // 4. Mágica da Ordenação (substituir o return ativo pelo comentado, caso 2. for descomentado)
-      // return todaspendente.sort((a, b) => {   
-      return todasRotas.sort((a, b) => {
-        const nomeA = (a.codigo_rota || '').toUpperCase();
-        const nomeB = (b.codigo_rota || '').toUpperCase();
+      // 2. BUSCA PARALELA: Pega as 100 últimas + Busca especificamente as fixas no banco
+      const [recentes, retira, blindex, suprema] = await Promise.all([
+        base44.entities.RotaImportada.list('-created_date', 100),
+        base44.entities.RotaImportada.filter({ codigo_rota: 'RETIRA' }),
+        base44.entities.RotaImportada.filter({ codigo_rota: 'BLINDEX' }),
+        base44.entities.RotaImportada.filter({ codigo_rota: 'SUPREMA' })
+      ]);
 
-        // Verifica se o nome da rota tem alguma das palavras-chave
-        const aEhFixa = ROTAS_FIXAS.some(palavra => nomeA.includes(palavra));
-        const bEhFixa = ROTAS_FIXAS.some(palavra => nomeB.includes(palavra));
+      // 3. Junta todos os resultados em uma única lista
+      const todasJuntas = [...recentes, ...retira, ...blindex, ...suprema];
+
+      // 4. Remove as duplicadas (Caso a RETIRA já estivesse entre as 100 recentes)
+      const rotasUnicas = Array.from(new Map(todasJuntas.map(r => [r.id, r])).values());
+
+      // 5. Ordenação com MATCH 100% EXATO
+      return rotasUnicas.sort((a, b) => {
+        // Pega o nome, remove espaços nas pontas e deixa tudo maiúsculo
+        const nomeA = (a.codigo_rota || '').trim().toUpperCase();
+        const nomeB = (b.codigo_rota || '').trim().toUpperCase();
+
+        // MATCH EXATO: Só é verdadeira se o nome for IDENTICO ao da lista (ex: "RETIRA" e não "ROTA RETIRA")
+        const aEhFixa = ROTAS_FIXAS.includes(nomeA);
+        const bEhFixa = ROTAS_FIXAS.includes(nomeB);
 
         // Se A é fixa e B não é, A vai pro topo (-1)
         if (aEhFixa && !bEhFixa) return -1;
         // Se B é fixa e A não é, B vai pro topo (1)
         if (!aEhFixa && bEhFixa) return 1;
         
-        // Se as duas forem fixas (ou nenhuma for), mantém a ordem normal
         return 0; 
       });
     }
