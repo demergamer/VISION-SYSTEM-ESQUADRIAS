@@ -30,7 +30,7 @@ import ModalContainer from "@/components/modals/ModalContainer";
 import PedidoForm from "@/components/pedidos/PedidoForm";
 import PedidoDetails from "@/components/pedidos/PedidoDetails";
 import PedidoTable from "@/components/pedidos/PedidoTable";
-import EmProducaoTable from "@/components/pedidos/Emproduçaotable";
+import EmProducaoTable from "@/components/pedidos/EmProduçaoTable";
 import LiquidacaoForm from "@/components/pedidos/LiquidacaoForm";
 import ImportarPedidos from "@/components/pedidos/ImportarPedidos";
 import RotasList from "@/components/pedidos/RotasList";
@@ -1516,29 +1516,59 @@ function ProducaoTab({ canDo }) {
             e.target.value = ''; 
         }
     };
-
+// FUNÇÃO "WIPE & REPLACE" (Fatiado em lotes de 300 para não travar o banco)
     const handleSalvarProducao = async () => {
         if (!previewData || previewData.length === 0) return;
         setIsSaving(true);
+        const BATCH_SIZE = 300; // Quantidade de registros enviados por vez
+
         try {
+            // 1. Apagar tudo que existe (Wipe Loteado)
             if (producaoAtual.length > 0) {
-                const deletePromises = producaoAtual.map(item => base44.entities.ProducaoItem.delete(item.id));
-                await Promise.all(deletePromises);
+                toast.info(`Limpando ${producaoAtual.length} itens antigos...`);
+                for (let i = 0; i < producaoAtual.length; i += BATCH_SIZE) {
+                    const lote = producaoAtual.slice(i, i + BATCH_SIZE);
+                    await Promise.all(lote.map(item => base44.entities.ProducaoItem.delete(item.id)));
+                }
             }
 
+            // 2. Salvar nova carga (Replace Loteado)
+            toast.info(`Salvando ${previewData.length} novos itens...`);
             const payload = previewData.map(item => ({
                 ...item,
                 data_atualizacao: new Date().toISOString()
             }));
             
-            await base44.entities.ProducaoItem.bulkCreate(payload);
+            for (let i = 0; i < payload.length; i += BATCH_SIZE) {
+                const lotePayload = payload.slice(i, i + BATCH_SIZE);
+                await base44.entities.ProducaoItem.bulkCreate(lotePayload);
+            }
             
             await queryClient.invalidateQueries({ queryKey: ['producao_items'] });
             setPreviewData(null);
-            toast.success("Tabela de produção atualizada com sucesso!");
+            toast.success("✅ Tabela de produção atualizada com sucesso!");
         } catch (error) {
             toast.error("Erro ao atualizar base de produção.");
             console.error(error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleLimparProducao = async () => {
+        if (!window.confirm("Isso vai apagar todos os itens em produção do sistema. Tem certeza?")) return;
+        setIsSaving(true);
+        const BATCH_SIZE = 300;
+
+        try {
+            for (let i = 0; i < producaoAtual.length; i += BATCH_SIZE) {
+                const lote = producaoAtual.slice(i, i + BATCH_SIZE);
+                await Promise.all(lote.map(item => base44.entities.ProducaoItem.delete(item.id)));
+            }
+            await queryClient.invalidateQueries({ queryKey: ['producao_items'] });
+            toast.success("Base de produção esvaziada!");
+        } catch (error) {
+            toast.error("Erro ao limpar base.");
         } finally {
             setIsSaving(false);
         }
