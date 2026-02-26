@@ -73,8 +73,11 @@ export default function ModalContainer({
           currentSize === 'full' ? "h-[98vh]" : "max-h-[95vh]",
           sizeClasses[currentSize] || sizeClasses.default
         )} 
-        style={{ scrollbarWidth: 'none' }} 
-        // Impedir fechar clicando fora se for um form importante (opcional, removi para manter padrão)
+        style={{ scrollbarWidth: 'none' }}
+        // Impede que cliques no Select/Popover flutuante (que renderizam no body)
+        // sejam interpretados como "clique fora" e derrubem o estado do modal pai
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
       >
         {/* CABEÇALHO PERSONALIZADO */}
         <DialogHeader className="px-4 py-3 border-b bg-white/95 backdrop-blur-sm rounded-t-lg z-50 shrink-0 flex flex-row items-center justify-between sticky top-0 gap-4">
