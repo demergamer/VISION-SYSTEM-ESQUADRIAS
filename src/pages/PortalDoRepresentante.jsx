@@ -47,6 +47,9 @@ import RepresentanteForm from "@/components/representantes/RepresentanteForm";
 import ClienteDetails from "@/components/clientes/ClienteDetails";
 import ClienteForm from "@/components/clientes/ClienteForm";
 
+// NOVO: Importando a Tabela de Produção
+import Emproduçaotable from "@/components/pedidos/Emproduçaotable";
+
 // --- UTILITÁRIOS ---
 const realizarLogout = () => {
   try { localStorage.clear(); sessionStorage.clear(); window.location.href = '/'; } 
@@ -139,15 +142,6 @@ const PedidosView = ({ pedidos, itensProducao, onViewDetails }) => {
     );
   };
 
-  // Filtro específico para a tabela de produção (busca por peça também)
-  const itensEmProducao = safeProducao.filter(item => {
-      if (!searchTerm) return true;
-      const lower = searchTerm.toLowerCase();
-      return String(item.numero_pedido).toLowerCase().includes(lower) ||
-             String(item.cliente_nome).toLowerCase().includes(lower) ||
-             String(item.produto_codigo).toLowerCase().includes(lower);
-  });
-
   const pedidosEmTransito = filtrarPorBusca(safePedidos.filter(p => p.status === 'em_transito' || p.status === 'aguardando'));
   const pedidosAbertos = filtrarPorBusca(safePedidos.filter(p => p.status === 'aberto' || p.status === 'parcial'));
   const pedidosLiquidados = filtrarPorBusca(safePedidos.filter(p => p.status === 'pago'));
@@ -162,34 +156,16 @@ const PedidosView = ({ pedidos, itensProducao, onViewDetails }) => {
   };
 
   const pedidosExibidos = getPedidosAtuais();
-
-  // Agrupa os itens do Neo por pedido para a aba Produção
-  const producaoAgrupada = useMemo(() => {
-      const grupos = {};
-      itensEmProducao.forEach(item => {
-          if (!grupos[item.numero_pedido]) {
-              grupos[item.numero_pedido] = {
-                  numero_pedido: item.numero_pedido,
-                  cliente_nome: item.cliente_nome,
-                  cliente_codigo: item.cliente_codigo,
-                  total_pecas: 0,
-                  itens: []
-              };
-          }
-          grupos[item.numero_pedido].itens.push(item);
-          grupos[item.numero_pedido].total_pecas += (item.quantidade || 0);
-      });
-      return Object.values(grupos);
-  }, [itensEmProducao]);
+  const lastSyncDate = safeProducao?.[0]?.data_atualizacao || safeProducao?.[0]?.created_date;
 
   return (
     <div className="space-y-4">
       {/* Barra de Ferramentas */}
-      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between bg-white rounded-2xl p-4 border border-slate-200">
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full md:w-auto">
           <TabsList className="bg-slate-100 p-1 rounded-xl h-auto flex-wrap justify-start gap-2">
             <TabsTrigger value="producao" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm">
-              🏗️ Em Produção <Badge className="ml-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-100 border-0">{itensEmProducao.reduce((sum, i) => sum + (i.quantidade || 0), 0)} peças</Badge>
+              🏗️ Em Produção <Badge className="ml-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-100 border-0">{safeProducao.reduce((sum, i) => sum + (i.quantidade || 0), 0)} peças</Badge>
             </TabsTrigger>
             <TabsTrigger value="transito" className="rounded-lg px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-white data-[state=active]:text-amber-600 data-[state=active]:shadow-sm">
               🚚 Em Trânsito <Badge className="ml-2 bg-amber-100 text-amber-700 hover:bg-amber-100 border-0">{pedidosEmTransito.length}</Badge>
@@ -202,62 +178,24 @@ const PedidosView = ({ pedidos, itensProducao, onViewDetails }) => {
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <Input
-            placeholder={activeTab === 'producao' ? "Buscar pedido, peça..." : "Buscar por cliente, pedido..."}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 bg-slate-50 border-slate-200"
-          />
-        </div>
+        
+        {/* Esconde a busca local se estiver na aba de Produção (pois o Emproduçaotable já tem a sua) */}
+        {activeTab !== 'producao' && (
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Input
+              placeholder="Buscar por cliente, pedido ou valor..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 bg-slate-50 border-slate-200"
+            />
+          </div>
+        )}
       </div>
 
       {activeTab === 'producao' ? (
-        <div className="space-y-4">
-          {producaoAgrupada.length > 0 ? producaoAgrupada.map((grupo) => (
-            <div key={grupo.numero_pedido} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-              <div className="bg-indigo-50/50 p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-2">
-                <div className="flex items-center gap-3">
-                  <div className="bg-indigo-600 text-white font-bold px-3 py-1.5 rounded-lg font-mono text-sm shadow-sm">
-                    #{grupo.numero_pedido}
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-slate-800 text-sm md:text-base line-clamp-1">{grupo.cliente_nome}</h4>
-                    <p className="text-xs text-slate-500 font-mono">Cód: {grupo.cliente_codigo}</p>
-                  </div>
-                </div>
-                <div className="shrink-0 flex items-center gap-2">
-                  <Badge className="bg-indigo-100 text-indigo-700 border-indigo-200 px-3 py-1 text-sm font-bold">
-                    {grupo.total_pecas} {grupo.total_pecas === 1 ? 'Peça' : 'Peças'}
-                  </Badge>
-                </div>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {grupo.itens.map((item, idx) => (
-                  <div key={idx} className="p-3 px-4 flex items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors">
-                    <div className="flex items-start gap-3 min-w-0">
-                      <div className="bg-slate-100 text-slate-500 text-[10px] font-mono font-bold px-2 py-1 rounded shrink-0 mt-0.5">
-                        {item.produto_codigo}
-                      </div>
-                      <p className="text-sm text-slate-700 font-medium line-clamp-2">
-                        {item.descricao}
-                      </p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <span className="text-xs text-slate-400 block uppercase font-bold tracking-wider mb-0.5">Qtde</span>
-                      <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">{item.quantidade}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )) : (
-            <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200">
-              <Factory className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <p className="text-slate-500 font-medium">Nenhuma peça em produção encontrada.</p>
-            </div>
-          )}
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+           <Emproduçaotable data={safeProducao} isLoading={false} isPreview={false} lastSync={lastSyncDate} />
         </div>
       ) : (
         pedidosExibidos.length > 0 ? (
@@ -348,7 +286,7 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
   const safePedidos = pedidos || [];
   const safeCheques = cheques || [];
   const safeCreditos = creditos || [];
-  const safeProducao = itensProducao || []; // Peças vindas da planilha Neo
+  const safeProducao = itensProducao || []; 
   
   // 1. Cálculos de Filtros
   const hoje = new Date();
@@ -561,6 +499,7 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
     </div>
   );
 };
+
 // --- COMPONENTE PRINCIPAL ---
 export default function PainelRepresentante() {
   useRealtimeSync();
@@ -661,6 +600,7 @@ export default function PainelRepresentante() {
     const safeTodosPedidos = todosPedidos || [];
     const safeTodosCheques = todosCheques || [];
     const safeTodosCreditos = todosCreditos || [];
+    const safeTodosItens = todosItensProducao || [];
     
     let clientes = safeTodosClientes.filter(c => c.representante_codigo === representante.codigo);
     if (searchTerm) {
@@ -671,9 +611,19 @@ export default function PainelRepresentante() {
       pedidos: safeTodosPedidos.filter(p => p.cliente_codigo === c.codigo),
       cheques: safeTodosCheques.filter(ch => ch.cliente_codigo === c.codigo),
       creditos: safeTodosCreditos.filter(cr => cr.cliente_codigo === c.codigo),
-      itensProducao: (todosItensProducao || []).filter(i => i.cliente_codigo === c.codigo)
+      // Correção do filtro aplicando String e trim para garantir que dê "match" perfeito
+      itensProducao: safeTodosItens.filter(i => String(i.cliente_codigo).trim() === String(c.codigo).trim())
     }));
   }, [representante, todosClientes, todosPedidos, todosCheques, todosCreditos, todosItensProducao, searchTerm]);
+
+  // NOVO: Meus Itens em Produção para passar para o PedidosView
+  const meusItensProducao = useMemo(() => {
+    if (!representante) return [];
+    const safeTodosItens = todosItensProducao || [];
+    const codigosClientesMeus = meusClientes.map(c => String(c.codigo).trim());
+    
+    return safeTodosItens.filter(item => codigosClientesMeus.includes(String(item.cliente_codigo).trim()));
+  }, [representante, todosItensProducao, meusClientes]);
 
   const stats = useMemo(() => {
     const clientesComVendas30k = (meusClientes || []).filter(c => {
@@ -768,11 +718,42 @@ export default function PainelRepresentante() {
           <div className="bg-white border border-slate-200 rounded-xl p-1 flex gap-1"><Button variant={viewMode === 'clientes' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('clientes')} className={cn("rounded-lg h-9 gap-2", viewMode === 'clientes' && "bg-blue-600 hover:bg-blue-700 text-white shadow-sm")}><Building2 className="w-4 h-4" /> Clientes</Button><Button variant={viewMode === 'pedidos' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('pedidos')} className={cn("rounded-lg h-9 gap-2", viewMode === 'pedidos' && "bg-blue-600 hover:bg-blue-700 text-white shadow-sm")}><Package className="w-4 h-4" /> Pedidos</Button><Button variant={viewMode === 'borderos' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('borderos')} className={cn("rounded-lg h-9 gap-2", viewMode === 'borderos' && "bg-blue-600 hover:bg-blue-700 text-white shadow-sm")}><FileText className="w-4 h-4" /> Borderôs</Button></div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"><StatWidget title="Clientes na Carteira" value={stats.totalClientes} icon={Users} colorClass="bg-blue-500 shadow-blue-200" /><StatWidget title="Clientes +30k" value={stats.clientes30k} subtitle="VIPs" icon={Briefcase} colorClass="bg-purple-500 shadow-purple-200" /><StatWidget title="Vendas em Aberto" value={formatCurrency(stats.vendasAbertas)} icon={ShoppingCart} colorClass="bg-amber-500 shadow-amber-200" /><StatWidget title="Custódia de Cheques" value={formatCurrency(stats.carteiraCheques)} icon={CreditCard} colorClass="bg-emerald-500 shadow-emerald-200" /></div>
-        {viewMode === 'clientes' ? (<div className="space-y-4"><h2 className="text-lg font-bold text-slate-700 ml-2">Carteira de Clientes</h2>{meusClientes.length > 0 ? (meusClientes.map(cliente => (<ClientRow key={cliente.id} cliente={cliente} pedidos={cliente.pedidos} cheques={cliente.cheques} creditos={cliente.creditos} itensProducao={cliente.itensProducao} onViewDetails={handleViewDetails} onSolicitarLiquidacao={handleSolicitarLiquidacao} onViewClientDetails={handleViewClientDetails} onEditClient={handleEditClient} onInviteClient={handleInviteClient} />))) : (<div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200"><Users className="w-12 h-12 text-slate-300 mx-auto mb-3" /><p className="text-slate-500 font-medium">Nenhum cliente encontrado.</p></div>)}</div>) : viewMode === 'pedidos' ? (<PedidosView pedidos={meusPedidos} onViewDetails={handleViewDetails} />) : (<div className="space-y-4"><h2 className="text-lg font-bold text-slate-700 ml-2">Borderôs de Liquidação</h2>{meusBorderos.length > 0 ? (<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{meusBorderos.map(bordero => (<div key={bordero.id} onClick={() => handleViewBordero(bordero)} className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-lg transition-all cursor-pointer group"><div className="flex items-start justify-between mb-3"><div className="flex items-center gap-2"><div className="p-2 rounded-lg bg-blue-100 text-blue-600"><FileText className="w-5 h-5" /></div><div><p className="text-xs text-slate-500 font-bold uppercase">Borderô</p><p className="text-xl font-bold text-slate-800">#{bordero.numero_bordero}</p></div></div><Badge variant="outline">{bordero.tipo_liquidacao}</Badge></div>{bordero.cliente_nome && <p className="text-sm font-medium text-slate-700 mb-2">{bordero.cliente_nome}</p>}<div className="pt-3 border-t border-slate-100"><div className="flex justify-between items-center"><span className="text-xs text-slate-500">Valor Total</span><span className="text-lg font-bold text-emerald-600">{formatCurrency(bordero.valor_total)}</span></div><div className="flex justify-between items-center mt-1"><span className="text-xs text-slate-500">Pedidos</span><span className="text-sm font-medium text-slate-700">{bordero.pedidos_ids?.length || 0}</span></div>{bordero.created_date && <div className="flex justify-between items-center mt-1"><span className="text-xs text-slate-500">Data</span><span className="text-xs text-slate-600">{format(new Date(bordero.created_date), 'dd/MM/yyyy')}</span></div>}</div><div className="mt-3 pt-3 border-t border-slate-100 flex justify-end"><Eye className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" /></div></div>))}</div>) : (<div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200"><FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" /><p className="text-slate-500 font-medium">Nenhum borderô encontrado.</p></div>)}</div>)}</div>
+        
+        {viewMode === 'clientes' ? (
+          <div className="space-y-4">
+            <h2 className="text-lg font-bold text-slate-700 ml-2">Carteira de Clientes</h2>
+            {meusClientes.length > 0 ? (
+              meusClientes.map(cliente => (
+                <ClientRow key={cliente.id} cliente={cliente} pedidos={cliente.pedidos} cheques={cliente.cheques} creditos={cliente.creditos} itensProducao={cliente.itensProducao} onViewDetails={handleViewDetails} onSolicitarLiquidacao={handleSolicitarLiquidacao} onViewClientDetails={handleViewClientDetails} onEditClient={handleEditClient} onInviteClient={handleInviteClient} />
+              ))
+            ) : (
+              <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200"><Users className="w-12 h-12 text-slate-300 mx-auto mb-3" /><p className="text-slate-500 font-medium">Nenhum cliente encontrado.</p></div>
+            )}
+          </div>
+        ) : viewMode === 'pedidos' ? (
+          // PASSANDO MEUS ITENS DE PRODUÇÃO AQUI
+          <PedidosView pedidos={meusPedidos} itensProducao={meusItensProducao} onViewDetails={handleViewDetails} />
+        ) : (
+          <div className="space-y-4">
+            <h2 className="text-lg font-bold text-slate-700 ml-2">Borderôs de Liquidação</h2>
+            {meusBorderos.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {meusBorderos.map(bordero => (
+                  <div key={bordero.id} onClick={() => handleViewBordero(bordero)} className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-lg transition-all cursor-pointer group"><div className="flex items-start justify-between mb-3"><div className="flex items-center gap-2"><div className="p-2 rounded-lg bg-blue-100 text-blue-600"><FileText className="w-5 h-5" /></div><div><p className="text-xs text-slate-500 font-bold uppercase">Borderô</p><p className="text-xl font-bold text-slate-800">#{bordero.numero_bordero}</p></div></div><Badge variant="outline">{bordero.tipo_liquidacao}</Badge></div>{bordero.cliente_nome && <p className="text-sm font-medium text-slate-700 mb-2">{bordero.cliente_nome}</p>}<div className="pt-3 border-t border-slate-100"><div className="flex justify-between items-center"><span className="text-xs text-slate-500">Valor Total</span><span className="text-lg font-bold text-emerald-600">{formatCurrency(bordero.valor_total)}</span></div><div className="flex justify-between items-center mt-1"><span className="text-xs text-slate-500">Pedidos</span><span className="text-sm font-medium text-slate-700">{bordero.pedidos_ids?.length || 0}</span></div>{bordero.created_date && <div className="flex justify-between items-center mt-1"><span className="text-xs text-slate-500">Data</span><span className="text-xs text-slate-600">{format(new Date(bordero.created_date), 'dd/MM/yyyy')}</span></div>}</div><div className="mt-3 pt-3 border-t border-slate-100 flex justify-end"><Eye className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" /></div></div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200"><FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" /><p className="text-slate-500 font-medium">Nenhum borderô encontrado.</p></div>
+            )}
+          </div>
+        )}
+      </div>
+
       <DetailsModal open={detailsModal.open} onOpenChange={(open) => setDetailsModal(prev => ({ ...prev, open }))} item={detailsModal.item} type={detailsModal.type} />
       <ModalContainer open={showSolicitarClienteModal} onClose={() => setShowSolicitarClienteModal(false)} title="Solicitar Cadastro de Cliente" description="Preencha os dados do novo cliente" size="lg"><SolicitarNovoCliente representante={representante} onSuccess={() => { setShowSolicitarClienteModal(false); toast.success('Solicitação enviada!'); }} onCancel={() => setShowSolicitarClienteModal(false)} /></ModalContainer>
       <ModalContainer open={showLiquidacaoModal} onClose={() => { setShowLiquidacaoModal(false); setClienteParaLiquidacao(null); }} title="Solicitar Liquidação" description={clienteParaLiquidacao ? `Cliente: ${clienteParaLiquidacao.nome}` : ''} size="xl">{clienteParaLiquidacao && (<LiquidacaoSelfService pedidos={clienteParaLiquidacao.pedidos.filter(p => ['aberto', 'parcial', 'aguardando'].includes(p.status))} clienteCodigo={clienteParaLiquidacao.codigo} clienteNome={clienteParaLiquidacao.nome} onSuccess={() => { setShowLiquidacaoModal(false); setClienteParaLiquidacao(null); }} onCancel={() => { setShowLiquidacaoModal(false); setClienteParaLiquidacao(null); }} />)}</ModalContainer>
       <NovaLiquidacaoRepresentante open={showLiquidacaoGlobalModal} onClose={() => setShowLiquidacaoGlobalModal(false)} pedidos={meusPedidosAbertos} onSuccess={() => { setShowLiquidacaoGlobalModal(false); refetchPedidos(); }} />
+      
       {/* Modal Ver Cliente - usa ClienteDetails oficial */}
       <Dialog open={clienteDetailsModal.open} onOpenChange={(o) => !o && setClienteDetailsModal({ open: false, cliente: null })}>
         <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0">
