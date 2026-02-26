@@ -173,4 +173,3 @@ export default function ModalContainer({
     </Dialog>
   );
 }
-}
