@@ -481,8 +481,8 @@ export function OSTaskbar({ onToggleSidebar }) {
   };
 
   const posStyles = {
-    top:    'top-0 left-0 right-0 h-12 flex-row border-b px-3',
-    bottom: 'bottom-0 left-0 right-0 h-12 flex-row border-t px-3',
+    top:    'top-0 left-0 right-0 h-12 flex-row border-b px-3 items-center',
+    bottom: 'bottom-0 left-0 right-0 h-12 flex-row border-t px-3 items-center',
     left:   'top-0 left-0 bottom-0 w-12 flex-col border-r py-2 items-center',
     right:  'top-0 right-0 bottom-0 w-12 flex-col border-l py-2 items-center',
   }[pos];
