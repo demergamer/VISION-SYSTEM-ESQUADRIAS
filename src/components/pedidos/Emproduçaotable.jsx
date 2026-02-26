@@ -1,14 +1,22 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { 
     Search, Loader2, Factory, FileText, 
-    UserCheck, Clock 
+    UserCheck, Clock, ChevronLeft, ChevronRight
 } from "lucide-react";
 
-export default function EmProducaoTable({ data = [], isLoading, isPreview, lastSync }) {
+export default function Emproduçaotable({ data = [], isLoading, isPreview, lastSync }) {
     const [searchTerm, setSearchTerm] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 20; // Mostra 20 pedidos por página para não travar
+
+    // Reseta a página sempre que buscar algo novo
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
 
     // --- LÓGICA DE VISUALIZAÇÃO: AGRUPAMENTO E FILTROS ---
     const dadosAgrupados = useMemo(() => {
@@ -21,7 +29,8 @@ export default function EmProducaoTable({ data = [], isLoading, isPreview, lastS
                 String(item.numero_pedido).toLowerCase().includes(termo) ||
                 String(item.cliente_nome).toLowerCase().includes(termo) ||
                 String(item.cliente_codigo).toLowerCase().includes(termo) ||
-                String(item.produto_codigo).toLowerCase().includes(termo)
+                String(item.produto_codigo).toLowerCase().includes(termo) ||
+                String(item.descricao).toLowerCase().includes(termo)
             );
         }
 
@@ -44,6 +53,10 @@ export default function EmProducaoTable({ data = [], isLoading, isPreview, lastS
         // 3. Converte para array
         return Object.values(grupos);
     }, [data, searchTerm]);
+
+    // LÓGICA DE PAGINAÇÃO
+    const totalPages = Math.ceil(dadosAgrupados.length / itemsPerPage);
+    const paginatedGrupos = dadosAgrupados.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     // Resumo para os widgets do topo
     const stats = useMemo(() => {
@@ -119,11 +132,11 @@ export default function EmProducaoTable({ data = [], isLoading, isPreview, lastS
                     </div>
                 </div>
                 
-                <div className="p-4 max-h-[700px] overflow-y-auto bg-slate-50/50 space-y-4 custom-scrollbar">
-                    {dadosAgrupados.length === 0 ? (
+                <div className="p-4 bg-slate-50/50 space-y-4">
+                    {paginatedGrupos.length === 0 ? (
                         <div className="text-center py-10 text-slate-500">Nenhum resultado encontrado para "{searchTerm}".</div>
                     ) : (
-                        dadosAgrupados.map((grupo) => (
+                        paginatedGrupos.map((grupo) => (
                             <div key={grupo.numero_pedido} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                                 {/* CABEÇALHO DO PEDIDO */}
                                 <div className="bg-slate-100/50 p-3 px-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-2">
@@ -144,7 +157,7 @@ export default function EmProducaoTable({ data = [], isLoading, isPreview, lastS
                                 </div>
                                 
                                 {/* LISTA DE PEÇAS DESTE PEDIDO */}
-                                <div className="divide-y divide-slate-100">
+                                <div className="divide-y divide-slate-100 max-h-[300px] overflow-y-auto custom-scrollbar">
                                     {grupo.itens.map((item, idx) => (
                                         <div key={idx} className="p-3 px-4 flex items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors">
                                             <div className="flex items-start gap-3 min-w-0">
@@ -166,6 +179,33 @@ export default function EmProducaoTable({ data = [], isLoading, isPreview, lastS
                         ))
                     )}
                 </div>
+
+                {/* CONTROLES DE PAGINAÇÃO */}
+                {totalPages > 1 && (
+                    <div className="p-4 border-t bg-white flex items-center justify-between">
+                        <span className="text-sm text-slate-500">
+                            Mostrando {(currentPage - 1) * itemsPerPage + 1} até {Math.min(currentPage * itemsPerPage, dadosAgrupados.length)} de {dadosAgrupados.length} pedidos
+                        </span>
+                        <div className="flex gap-2">
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                                disabled={currentPage === 1}
+                            >
+                                <ChevronLeft className="w-4 h-4 mr-1" /> Anterior
+                            </Button>
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+                                disabled={currentPage === totalPages}
+                            >
+                                Próxima <ChevronRight className="w-4 h-4 ml-1" />
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </Card>
         </div>
     );
