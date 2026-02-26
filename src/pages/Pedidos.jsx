@@ -1431,7 +1431,7 @@ function ProducaoTab({ canDo }) {
         queryFn: () => base44.entities.ProducaoItem.list() // Presume a criação desta entidade
     });
 
-// LEITOR INTELIGENTE DO RELATÓRIO DO NEO (OTIMIZADO PARA 6000+ LINHAS)
+// LEITOR INTELIGENTE DO RELATÓRIO DO NEO (BLINDADO E OTIMIZADO)
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -1441,7 +1441,7 @@ function ProducaoTab({ canDo }) {
             const buffer = await file.arrayBuffer();
             const workbook = XLSX.read(buffer, { type: 'array' });
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            // Convertendo para array mantendo as células vazias para não quebrar a ordem
+            // Mantém células vazias para a ordem das colunas não quebrar
             const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
             let currentPedido = '';
@@ -1459,28 +1459,45 @@ function ProducaoTab({ canDo }) {
                 if (colA.toLowerCase().includes('total geral')) break;
 
                 // 1. CAPTURA O CABEÇALHO DO PEDIDO
-                // Ex: "Pedido:", "64260.0", "Empr:", "257", "Data:", "24/02/26", "Cliente:", "7284", "MOREIRA MAT"
                 if (colA === 'Pedido:') {
                     currentPedido = String(row[1]).replace('.0', '').trim();
-                    currentClienteCodigo = String(row[7]).trim(); // Índice 7 é o código
-                    currentClienteNome = String(row[8]).trim();   // Índice 8 é o nome curto
+                    currentClienteCodigo = String(row[7]).trim(); 
+                    currentClienteNome = String(row[8]).trim();   
                     
                     // Tenta pegar o nome completo na linha de baixo (que começa com 'F' ou 'J')
                     const nextRow = rows[i + 1];
-                    if (nextRow && (nextRow[0] === 'F' || nextRow[0] === 'J') && nextRow[7]) {
+                    if (nextRow && (String(nextRow[0]).trim() === 'F' || String(nextRow[0]).trim() === 'J') && nextRow[7]) {
                         currentClienteNome = String(nextRow[7]).trim();
                     }
+                    continue;
                 }
 
                 // 2. CAPTURA A LINHA DO ITEM
-                // Começa com número float tipo "1.0", "2.0"
-                if (currentPedido && colA.match(/^\d+\.0$/)) {
-                    const codigoProd = String(row[1]).trim();
-                    // Na sua planilha, a descrição da peça costuma cair no índice 3
-                    const descricaoProd = String(row[3]).trim(); 
-                    // A quantidade cai no índice 10
-                    const qtdeProd = parseFloat(row[10]) || 0;
+                // O Excel converte "1.0" para 1. Verificamos se a Coluna A é um número válido.
+                const isItemRow = !isNaN(parseFloat(colA)) && parseFloat(colA) > 0 && row[1];
 
+                if (currentPedido && isItemRow) {
+                    const codigoProd = String(row[1]).trim();
+                    
+                    // Busca a descrição (Normalmente no índice 3, ou a 1ª string grande que achar)
+                    let descricaoProd = String(row[3] || '').trim();
+                    if (!descricaoProd || descricaoProd.length < 3) {
+                        descricaoProd = row.find((c, idx) => idx > 1 && typeof c === 'string' && c.trim().length > 5) || 'Produto sem descrição';
+                    }
+
+                    // Busca a quantidade (Normalmente no índice 10, ou o último número da linha)
+                    let qtdeProd = parseFloat(row[10]);
+                    if (isNaN(qtdeProd) || qtdeProd <= 0) {
+                        // Varre de trás pra frente se o índice 10 estiver vazio
+                        for (let c = row.length - 1; c >= 2; c--) {
+                            if (!isNaN(parseFloat(row[c])) && parseFloat(row[c]) > 0) {
+                                qtdeProd = parseFloat(row[c]);
+                                break;
+                            }
+                        }
+                    }
+
+                    // Se achou as 3 coisas fundamentais, joga pro array!
                     if (codigoProd && descricaoProd && qtdeProd > 0) {
                         parsedItems.push({
                             numero_pedido: currentPedido,
@@ -1489,7 +1506,6 @@ function ProducaoTab({ canDo }) {
                             produto_codigo: codigoProd,
                             descricao: descricaoProd,
                             quantidade: qtdeProd,
-                            // Campos de valor ficarão zerados pois o relatório Neo-Qtde não os fornece
                             valor_unitario: 0, 
                             valor_total: 0
                         });
@@ -1498,13 +1514,13 @@ function ProducaoTab({ canDo }) {
             }
 
             setPreviewData(parsedItems);
-            toast.success(`Planilha lida! ${parsedItems.length} peças encontradas na fila de produção.`);
+            toast.success(`Leitura concluída! ${parsedItems.length} peças prontas para o chão de fábrica.`);
         } catch (error) {
             console.error(error);
             toast.error("Erro ao ler arquivo do Neo. Verifique o formato.");
         } finally {
             setIsUploading(false);
-            e.target.value = ''; // reseta o input
+            e.target.value = ''; // reseta o input para permitir subir o mesmo arquivo de novo se precisar
         }
     };
     // FUNÇÃO "WIPE & REPLACE" (Apaga tudo e salva o novo)
