@@ -414,7 +414,7 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
           
           <Tabs value={innerTab} onValueChange={setInnerTab} className="w-full">
             <TabsList className="bg-slate-100 p-1 rounded-lg h-auto flex-wrap justify-start gap-1 mb-4 w-full">
-                <TabsTrigger value="producao" className="text-xs">🏗️ Produção ({pedidosProducao.length})</TabsTrigger>
+                <TabsTrigger value="producao" className="text-xs">🏗️ Produção ({(itensProducao||[]).length})</TabsTrigger>
                 <TabsTrigger value="transito" className="text-xs">🚚 Trânsito ({pedidosTransito.length})</TabsTrigger>
                 <TabsTrigger value="abertos" className="text-xs">📂 Abertos ({pedidosAbertos.length})</TabsTrigger>
                 <TabsTrigger value="atrasados" className="text-xs text-red-600 data-[state=active]:text-red-700">⚠️ Atrasados ({pedidosAtrasados.length})</TabsTrigger>
