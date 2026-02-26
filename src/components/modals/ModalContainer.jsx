@@ -5,6 +5,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogPortal,
+  DialogOverlay,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { 
@@ -15,6 +17,7 @@ import {
   X 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePortalContainer } from "@/components/providers/PortalContext";
 
 export default function ModalContainer({ 
   open, 
