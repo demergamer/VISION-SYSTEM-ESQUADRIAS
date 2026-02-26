@@ -450,6 +450,39 @@ export default function PortalCliente() {
           </div>
         </div>
 
+        {/* --- SEÇÃO: ITENS EM PRODUÇÃO (Neo) --- */}
+        {meusItensProducao.length > 0 && (
+          <div className="space-y-4">
+            <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
+              <Factory className="w-5 h-5 text-indigo-500" /> Itens em Produção
+            </h2>
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+              <Table>
+                <TableHeader className="bg-slate-50">
+                  <TableRow>
+                    <TableHead>Nº Pedido</TableHead>
+                    <TableHead>Produto</TableHead>
+                    <TableHead>Descrição</TableHead>
+                    <TableHead className="text-center">Qtde</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {meusItensProducao.map((item, idx) => (
+                    <TableRow key={item.id || idx} className="hover:bg-slate-50/50">
+                      <TableCell className="font-mono font-bold text-slate-700">#{item.numero_pedido}</TableCell>
+                      <TableCell className="font-mono text-xs text-slate-500">{item.produto_codigo}</TableCell>
+                      <TableCell className="font-medium text-slate-800">{item.descricao}</TableCell>
+                      <TableCell className="text-center">
+                        <Badge className="bg-indigo-100 text-indigo-700">{item.quantidade}</Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
+
         {/* --- SEÇÃO DE CHEQUES --- */}
         <div className="space-y-6">
           <div className="flex items-center justify-between">
