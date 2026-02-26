@@ -308,7 +308,36 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
     let type = 'pedido';
 
     switch(innerTab) {
-        case 'producao': data = pedidosProducao; break;
+    case 'producao': 
+      // Produção vem de ProducaoItem (Neo), não de pedidos
+      if ((itensProducao || []).length === 0) {
+        return <div className="text-center py-6 text-slate-400 bg-slate-50 rounded-lg border border-dashed">Nenhum item em produção.</div>;
+      }
+      return (
+        <div className="rounded-lg border border-slate-200 overflow-hidden">
+          <Table>
+            <TableHeader className="bg-slate-50">
+              <TableRow>
+                <TableHead>Nº Pedido</TableHead>
+                <TableHead>Cód. Produto</TableHead>
+                <TableHead>Descrição</TableHead>
+                <TableHead className="text-center">Qtde</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(itensProducao || []).map((item, idx) => (
+                <TableRow key={item.id || idx} className="hover:bg-slate-50/50">
+                  <TableCell className="font-mono font-bold text-slate-700">#{item.numero_pedido}</TableCell>
+                  <TableCell className="font-mono text-xs text-slate-500">{item.produto_codigo}</TableCell>
+                  <TableCell className="font-medium text-slate-800">{item.descricao}</TableCell>
+                  <TableCell className="text-center"><Badge className="bg-indigo-100 text-indigo-700">{item.quantidade}</Badge></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      );
+    case 'producao_legacy': data = pedidosProducao; break;
         case 'transito': data = pedidosTransito; break;
         case 'abertos': data = pedidosAbertos; break;
         case 'atrasados': data = pedidosAtrasados; break;
