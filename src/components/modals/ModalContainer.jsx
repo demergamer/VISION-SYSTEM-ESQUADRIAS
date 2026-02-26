@@ -169,6 +169,7 @@ export default function ModalContainer({
           {children}
         </div>
       </DialogContent>
+      </DialogPortal>
     </Dialog>
   );
 }
