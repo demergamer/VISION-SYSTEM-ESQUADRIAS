@@ -267,6 +267,7 @@ export default function Dashboard() {
         { name: "Pedidos", label: "Pedidos", icon: ShoppingCart, desc: "Emissão e acompanhamento" },
         { name: "Orcamentos", label: "Orçamentos", icon: FileText, desc: "Propostas comerciais" },
         { name: "Comissoes", label: "Comissões", icon: Banknote, desc: "Pagamentos de comissão" },
+        { name: "LojaJC", label: "Loja J&C", icon: Building2, desc: "Catálogo e orçamentos" },
       ]
     },
     {
@@ -286,7 +287,6 @@ export default function Dashboard() {
       color: "slate",
       items: [
         { name: "Calendario", label: "Calendário", icon: CalendarIcon, desc: "Tarefas e lembretes" },
-        { name: "LojaJC", label: "Loja J&C", icon: Building2, desc: "Catálogo e orçamentos" },
         { name: "ConfiguracoesLojas", label: "Lojas", icon: Building2, desc: "Configurações de lojas" },
         { name: "Relatorios", label: "Relatórios", icon: BarChart3, desc: "Análise de dados" },
         { name: "Logs", label: "Auditoria", icon: ScrollText, desc: "Histórico de ações" },
@@ -367,7 +367,7 @@ export default function Dashboard() {
             <div className="space-y-4">
               {menuGroups.map((group, idx) => {
                 // VOLTOU O FILTRO PADRÃO APENAS BASEADO EM PERMISSÕES (SEM GAMBIARRA)
-                const allowedItems = group.items.filter(item => canDo(item.name, 'visualizar') || item.name === 'Relatorios');
+                const allowedItems = group.items.filter(item => canDo(item.name, 'visualizar') || item.name === 'Relatorios'|| item.name === 'LojaJC');
                 if (allowedItems.length === 0) return null;
                 const isOpen = !!openGroups[idx];
 
