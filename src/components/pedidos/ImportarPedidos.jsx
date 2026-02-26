@@ -58,7 +58,8 @@ function parseExcelFile(arrayBuffer, clientes, pedidosExistentes) {
       clienteNome.toLowerCase().includes(c.nome?.toLowerCase())
     );
 
-    const pedidoJaExiste = pedidosExistentes.find(p => String(p.numero_pedido) === String(numeroPedido));
+    const sanitizeDoc = (str) => String(str || '').replace(/\./g, '').trim();
+    const pedidoJaExiste = pedidosExistentes.find(p => sanitizeDoc(p.numero_pedido) === sanitizeDoc(numeroPedido));
     let statusExistencia = null;
     let duplicado = false;
 
@@ -100,7 +101,7 @@ export default function ImportarPedidos({ clientes, pedidosExistentes = [], onIm
 
   const { data: rotasExistentes = [] } = useQuery({
     queryKey: ['rotas_importar'],
-    queryFn: () => base44.entities.RotaImportada.filter({ status: 'pendente' })
+    queryFn: () => base44.entities.RotaImportada.filter({ status: 'pendente' }, '-created_date', 50)
   });
 
   const { data: motoristasAtivos = [] } = useQuery({
