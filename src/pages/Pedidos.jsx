@@ -30,7 +30,7 @@ import ModalContainer from "@/components/modals/ModalContainer";
 import PedidoForm from "@/components/pedidos/PedidoForm";
 import PedidoDetails from "@/components/pedidos/PedidoDetails";
 import PedidoTable from "@/components/pedidos/PedidoTable";
-import EmProducaoTable from "@/components/pedidos/EmProduçaoTable";
+import Emproduçaotable from "@/components/pedidos/Emproduçaotable"; // <- Ajuste fino do nome do arquivo!
 import LiquidacaoForm from "@/components/pedidos/LiquidacaoForm";
 import ImportarPedidos from "@/components/pedidos/ImportarPedidos";
 import RotasList from "@/components/pedidos/RotasList";
@@ -749,8 +749,6 @@ export default function Pedidos() {
       }
   };
 
-  const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
-
   // --- FUNÇÃO CORRIGIDA: APROVAÇÃO COM GERAÇÃO DE CRÉDITO E PARCIAL ---
   const handleAprovarSolicitacao = async (dadosAprovacao) => {
       console.log("Iniciando aprovação com:", dadosAprovacao);
@@ -1419,6 +1417,7 @@ export default function Pedidos() {
     </PermissionGuard>
   );
 }
+
 // --- COMPONENTE DA ABA DE PRODUÇÃO ---
 function ProducaoTab({ canDo }) {
     const [isUploading, setIsUploading] = useState(false);
@@ -1516,7 +1515,8 @@ function ProducaoTab({ canDo }) {
             e.target.value = ''; 
         }
     };
-// FUNÇÃO "WIPE & REPLACE" (Fatiado em lotes de 300 para não travar o banco)
+
+    // FUNÇÃO "WIPE & REPLACE" (Fatiado em lotes de 300 para não travar o banco)
     const handleSalvarProducao = async () => {
         if (!previewData || previewData.length === 0) return;
         setIsSaving(true);
@@ -1565,21 +1565,6 @@ function ProducaoTab({ canDo }) {
                 const lote = producaoAtual.slice(i, i + BATCH_SIZE);
                 await Promise.all(lote.map(item => base44.entities.ProducaoItem.delete(item.id)));
             }
-            await queryClient.invalidateQueries({ queryKey: ['producao_items'] });
-            toast.success("Base de produção esvaziada!");
-        } catch (error) {
-            toast.error("Erro ao limpar base.");
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    const handleLimparProducao = async () => {
-        if (!window.confirm("Isso vai apagar todos os itens em produção do sistema. Tem certeza?")) return;
-        setIsSaving(true);
-        try {
-            const deletePromises = producaoAtual.map(item => base44.entities.ProducaoItem.delete(item.id));
-            await Promise.all(deletePromises);
             await queryClient.invalidateQueries({ queryKey: ['producao_items'] });
             toast.success("Base de produção esvaziada!");
         } catch (error) {
@@ -1642,7 +1627,7 @@ function ProducaoTab({ canDo }) {
             )}
 
             {/* AQUI NÓS CHAMAMOS A TABELA QUE VOCÊ ACABOU DE CRIAR! */}
-            <EmProducaoTable 
+            <Emproduçaotable 
                 data={displayData} 
                 isLoading={isLoading && !previewData} 
                 isPreview={isPreview}
