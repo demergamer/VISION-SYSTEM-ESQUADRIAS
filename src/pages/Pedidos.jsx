@@ -1435,7 +1435,10 @@ function ProducaoTab({ canDo }) {
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
+        
         setIsUploading(true);
+        // TÉCNICA 1: Dá tempo pro React desenhar o "Carregando..." na tela antes de congelar
+        await new Promise(resolve => setTimeout(resolve, 150));
 
         try {
             const buffer = await file.arrayBuffer();
@@ -1468,10 +1471,12 @@ function ProducaoTab({ canDo }) {
                     continue;
                 }
 
-                const isItemRow = /^(\d+(\.\d+)?)$/.test(colA) && row[1] && row[1] !== '';
+                // Nova regra: Pega a linha mesmo se a peça não tiver Código (Apenas Descrição)
+                const isItemRow = /^(\d+(\.\d+)?)$/.test(colA);
 
                 if (currentPedido && isItemRow) {
-                    const codigoProd = String(row[1]).trim();
+                    const codigoProd = String(row[1] || 'S/C').trim(); // Se não tiver código, põe S/C (Sem Código)
+                    
                     let descricaoProd = String(row[3] || '').trim();
                     if (!descricaoProd || descricaoProd.length < 3) {
                         descricaoProd = row.find((c, idx) => idx > 1 && typeof c === 'string' && c.trim().length > 5) || 'Produto sem descrição';
@@ -1487,7 +1492,7 @@ function ProducaoTab({ canDo }) {
                         }
                     }
 
-                    if (codigoProd && descricaoProd && qtdeProd > 0) {
+                    if (descricaoProd && qtdeProd > 0) {
                         parsedItems.push({
                             numero_pedido: currentPedido,
                             cliente_codigo: currentClienteCodigo,
@@ -1506,7 +1511,7 @@ function ProducaoTab({ canDo }) {
                 toast.warning("A planilha foi lida, mas nenhuma peça válida foi encontrada.");
             } else {
                 setPreviewData(parsedItems);
-                toast.success(`Leitura concluída! ${parsedItems.length} peças prontas para revisão.`);
+                toast.success(`Leitura rápida concluída! ${parsedItems.length} peças extraídas.`);
             }
 
         } catch (error) {
@@ -1518,39 +1523,46 @@ function ProducaoTab({ canDo }) {
         }
     };
 
-    // FUNÇÃO "WIPE & REPLACE" (Fatiado em lotes de 300 para não travar o banco)
+    // TÉCNICA 2: "WIPE & REPLACE" COM PAUSAS DE FÔLEGO (Throttling)
     const handleSalvarProducao = async () => {
         if (!previewData || previewData.length === 0) return;
         setIsSaving(true);
-        const BATCH_SIZE = 300; // Quantidade de registros enviados por vez
+        
+        // Blocos menores para o navegador não infartar
+        const BATCH_SIZE_DELETE = 100; 
+        const BATCH_SIZE_CREATE = 400; 
 
         try {
-            // 1. Apagar tudo que existe (Wipe Loteado)
+            // 1. Limpeza em Lotes
             if (producaoAtual.length > 0) {
-                toast.info(`Limpando ${producaoAtual.length} itens antigos...`);
-                for (let i = 0; i < producaoAtual.length; i += BATCH_SIZE) {
-                    const lote = producaoAtual.slice(i, i + BATCH_SIZE);
+                toast.info(`Limpando base antiga... aguarde.`);
+                for (let i = 0; i < producaoAtual.length; i += BATCH_SIZE_DELETE) {
+                    const lote = producaoAtual.slice(i, i + BATCH_SIZE_DELETE);
                     await Promise.all(lote.map(item => base44.entities.ProducaoItem.delete(item.id)));
+                    // O Segredo de não travar: Uma micropausa a cada 100 exclusões!
+                    await new Promise(r => setTimeout(r, 100));
                 }
             }
 
-            // 2. Salvar nova carga (Replace Loteado)
-            toast.info(`Salvando ${previewData.length} novos itens...`);
+            // 2. Inserção em Lotes
+            toast.info(`Salvando ${previewData.length} peças novas...`);
             const payload = previewData.map(item => ({
                 ...item,
                 data_atualizacao: new Date().toISOString()
             }));
             
-            for (let i = 0; i < payload.length; i += BATCH_SIZE) {
-                const lotePayload = payload.slice(i, i + BATCH_SIZE);
+            for (let i = 0; i < payload.length; i += BATCH_SIZE_CREATE) {
+                const lotePayload = payload.slice(i, i + BATCH_SIZE_CREATE);
                 await base44.entities.ProducaoItem.bulkCreate(lotePayload);
+                // Micropausa a cada 400 inserções
+                await new Promise(r => setTimeout(r, 150));
             }
             
             await queryClient.invalidateQueries({ queryKey: ['producao_items'] });
             setPreviewData(null);
-            toast.success("✅ Tabela de produção atualizada com sucesso!");
+            toast.success("✅ Fábrica atualizada com sucesso!");
         } catch (error) {
-            toast.error("Erro ao atualizar base de produção.");
+            toast.error("Erro na comunicação com o banco.");
             console.error(error);
         } finally {
             setIsSaving(false);
@@ -1560,15 +1572,17 @@ function ProducaoTab({ canDo }) {
     const handleLimparProducao = async () => {
         if (!window.confirm("Isso vai apagar todos os itens em produção do sistema. Tem certeza?")) return;
         setIsSaving(true);
-        const BATCH_SIZE = 300;
+        const BATCH_SIZE_DELETE = 100;
 
         try {
-            for (let i = 0; i < producaoAtual.length; i += BATCH_SIZE) {
-                const lote = producaoAtual.slice(i, i + BATCH_SIZE);
+            toast.info(`Esvaziando a fábrica...`);
+            for (let i = 0; i < producaoAtual.length; i += BATCH_SIZE_DELETE) {
+                const lote = producaoAtual.slice(i, i + BATCH_SIZE_DELETE);
                 await Promise.all(lote.map(item => base44.entities.ProducaoItem.delete(item.id)));
+                await new Promise(r => setTimeout(r, 100)); // Micropausa
             }
             await queryClient.invalidateQueries({ queryKey: ['producao_items'] });
-            toast.success("Base de produção esvaziada!");
+            toast.success("Base de produção totalmente esvaziada!");
         } catch (error) {
             toast.error("Erro ao limpar base.");
         } finally {
@@ -1628,7 +1642,6 @@ function ProducaoTab({ canDo }) {
                 </div>
             )}
 
-            {/* AQUI NÓS CHAMAMOS A TABELA QUE VOCÊ ACABOU DE CRIAR! */}
             <Emproduçaotable 
                 data={displayData} 
                 isLoading={isLoading && !previewData} 
