@@ -101,7 +101,7 @@ export default function ImportarPedidos({ clientes, pedidosExistentes = [], onIm
 
   const { data: rotasExistentes = [] } = useQuery({
     queryKey: ['rotas_importar'],
-    queryFn: () => base44.entities.RotaImportada.filter({ status: 'pendente' }, '-created_date', 50)
+    queryFn: () => base44.entities.RotaImportada.list('-created_date', 100)
   });
 
   const { data: motoristasAtivos = [] } = useQuery({
