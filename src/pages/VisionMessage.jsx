@@ -25,8 +25,28 @@ export default function VisionMessage() {
     const messagesEndRef = useRef(null);
     const queryClient = useQueryClient();
 
+// 🚀 INJEÇÃO TEMPORÁRIA: Forçar a criação da Tabela Mensagem
     useEffect(() => {
-        base44.auth.me().then(user => setCurrentUser(user)).catch(console.error);
+        const forcarCriacaoDaTabela = async () => {
+            try {
+                // Tentamos gravar um registo fantasma com TODAS as colunas que precisamos
+                await base44.entities.Mensagem.create({
+                    conteudo: "Iniciando o sistema Vision Message...",
+                    remetente_email: "sistema@jcesquadrias.com",
+                    remetente_nome: "Sistema J&C",
+                    destinatario_email: "todos",
+                    lida: false,
+                    anexo_url: "", // Forçando a IA a criar a coluna de anexos
+                    anexo_nome: "",
+                    anexo_tipo: "",
+                    metadata: {}
+                });
+                console.log("✅ A tabela 'Mensagem' já existe no banco!");
+            } catch (error) {
+                console.error("🚨 ERRO INTENCIONAL: A tabela Mensagem não existe. A IA do backend deve criá-la agora com base neste payload!", error);
+            }
+        };
+        forcarCriacaoDaTabela();
     }, []);
 
     // 1. BUSCA TODAS AS ENTIDADES
