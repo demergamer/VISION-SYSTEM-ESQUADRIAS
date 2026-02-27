@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import GerenciarPerfilModal from '@/components/perfil/GerenciarPerfilModal';
 import { Card, CardContent } from "@/components/ui/card";
+import {chatbutton} from "@/pages/VisionMessage";
 import { Button } from "@/components/ui/button";
 import { 
   Users, Package, ShoppingCart, Wallet, FileText, BarChart3, 
