@@ -30,11 +30,54 @@ import NotificationToastManager from '@/components/notificacoes/NotificationToas
 
 const CalendarIcon = CalendarDays;
 
+// 🚀 ÍCONE INTELIGENTE DO FONTAWESOME (Lê as mensagens não lidas em tempo real)
+const VisionMessageIcon = ({ className }) => {
+  const { user } = useAuth();
+  
+  const { data: mensagens = [] } = useQuery({
+    queryKey: ['chat_mensagens'],
+    queryFn: async () => await base44.entities.Mensagem.list('-created_date', 50),
+    enabled: !!user
+  });
+
+  const unreadCount = mensagens.filter(m => {
+    if (!user) return false;
+    const isAdmin = user.email.includes('admin') || user.email === 'diretoria@jcesquadrias.com';
+    
+    // Se fui eu que enviei ou já foi lida, ignora
+    if (m.lida || m.remetente_email === user.email) return false;
+    
+    // Admin vê tudo que não foi lido. Representante vê apenas o que é para ele.
+    if (isAdmin) return true;
+    return m.destinatario_email === user.email || m.destinatario_email === 'todos';
+  }).length;
+
+  // Se tiver mensagens não lidas, usa o ícone COM O PONTO e faz pulsar levemente
+  if (unreadCount > 0) {
+    return (
+      <i 
+        className={cn("fa-solid fa-comment-dot text-blue-500 animate-pulse", className)} 
+        style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }} 
+      />
+    );
+  }
+  
+  // Se estiver tudo lido, usa o ícone NORMAL
+  return (
+    <i 
+      className={cn("fa-solid fa-comment", className)} 
+      style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }} 
+    />
+  );
+};
+
+// ESTRUTURA DO MENU (Agora usa o nosso Ícone Inteligente no Vision Message)
 const menuStructure = [
   {
     title: "Principal",
     items: [
       { name: "Dashboard", icon: Home, public: true },
+      { name: "VisionMessage", path: "vision-message", label: "Vision Message", icon: VisionMessageIcon, public: true },
       { name: "Welcome", icon: LayoutDashboard, public: true },
     ]
   },
@@ -162,12 +205,12 @@ function ClassicSidebar({ open, onClose, currentPageName, canDo, user, signOut, 
               <div key={gi}>
                 <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{group.title}</p>
                 {items.map(item => (
-                  <button key={item.name} onClick={() => { navigate(`/${item.name}`); onClose(); }}
+                  <button key={item.name} onClick={() => { navigate(`/${item.path || item.name}`); onClose(); }}
                     className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all",
                       currentPageName === item.name ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-100"
                     )}>
                     <item.icon className={cn("w-4 h-4", currentPageName === item.name ? "text-blue-600" : "text-slate-400")} />
-                    {item.name}
+                    {item.label || item.name}
                   </button>
                 ))}
               </div>
@@ -228,7 +271,6 @@ function StartMenu({ open, onClose, currentPageName, canDo, user, signOut, lockS
         className="w-72 bg-white/95 backdrop-blur-xl border border-slate-200 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
         style={{ maxHeight: 'calc(100vh - 64px)' }}
       >
-        {/* User header */}
         <div className="flex items-center gap-3 p-4 border-b border-slate-100 bg-slate-50">
           <Avatar className="h-10 w-10 border border-white shadow-sm ring-2 ring-slate-100">
             <AvatarImage src={user?.avatar_url} className="object-cover" />
@@ -249,7 +291,6 @@ function StartMenu({ open, onClose, currentPageName, canDo, user, signOut, lockS
           <LiveClock />
         </div>
 
-        {/* Nav items */}
         <nav className="flex-1 overflow-y-auto px-2 pb-2 space-y-3 custom-scrollbar">
           {menuStructure.map((group, gi) => {
             const items = group.items.filter(item => item.public || canDo(item.name, 'visualizar'));
@@ -269,7 +310,7 @@ function StartMenu({ open, onClose, currentPageName, canDo, user, signOut, lockS
                     )}
                   >
                     <item.icon className={cn("w-4 h-4", currentPageName === item.name ? "text-blue-600" : "text-slate-400")} />
-                    {item.name}
+                    {item.label || item.name}
                   </button>
                 ))}
               </div>
@@ -277,7 +318,6 @@ function StartMenu({ open, onClose, currentPageName, canDo, user, signOut, lockS
           })}
         </nav>
 
-        {/* Footer actions */}
         <div className="border-t border-slate-100 p-2 flex gap-2">
           <button
             onClick={() => { lockScreen?.(); onClose(); }}
@@ -313,7 +353,6 @@ function LayoutInner({ children, currentPageName }) {
   const tbPos = preferences?.taskbar_position || 'top';
   const isOSMode = uiMode === 'os';
   
-  // PONTE DE TRANSIÇÃO: Observar mudanças no ui_mode
   const prevModeRef = useRef(uiMode);
   useEffect(() => {
     const prevMode = prevModeRef.current;
@@ -322,12 +361,10 @@ function LayoutInner({ children, currentPageName }) {
     if (prevMode === currentMode) return;
     prevModeRef.current = currentMode;
     
-    // Classic -> OS: Transformar página atual em janela
     if (prevMode === 'classico' && currentMode === 'os') {
       const currentPath = location.pathname.replace('/', '');
       const pageName = currentPath || 'Dashboard';
       
-      // Abrir a página atual como janela
       if (workspace && pageName !== 'Dashboard') {
         setTimeout(() => {
           workspace.openWindow(pageName);
@@ -338,7 +375,6 @@ function LayoutInner({ children, currentPageName }) {
       }
     }
     
-    // OS -> Classic: Transformar janela ativa em página
     if (prevMode === 'os' && currentMode === 'classico') {
       const activeWindow = workspace?.windows?.find(w => w.id === workspace.activeId);
       
@@ -352,7 +388,6 @@ function LayoutInner({ children, currentPageName }) {
 
   const autoHide = preferences?.taskbar_autohide === true;
 
-  // Compute safe-area padding for the main content
   const mainPadding = isOSMode ? (autoHide ? {} : {
     paddingTop:    tbPos === 'top'    ? 48 : 0,
     paddingBottom: tbPos === 'bottom' ? 48 : 0,
@@ -360,7 +395,6 @@ function LayoutInner({ children, currentPageName }) {
     paddingRight:  tbPos === 'right'  ? 48 : 0,
   }) : { paddingTop: 56 };
 
-  // Notification bell position
   const bellStyle = {
     zIndex: 501,
     ...(tbPos === 'top'    ? { top: 6,   right: 60 } : {}),
@@ -369,7 +403,6 @@ function LayoutInner({ children, currentPageName }) {
     ...(tbPos === 'right'  ? { top: 6,   right: 56 } : {}),
   };
 
-  // Start menu anchor
   const startMenuAnchor = {
     top:    { top: 48,  left: 4 },
     bottom: { bottom: 48, left: 4 },
@@ -399,7 +432,6 @@ function LayoutInner({ children, currentPageName }) {
       {isOSMode && (
         <div className="hidden md:block">
           <OSTaskbar onToggleSidebar={() => setMenuOpen(o => !o)} />
-          {/* Start Menu — anchored to taskbar position */}
           {menuOpen && (
             <>
               <div className="fixed inset-0 z-[490]" onClick={() => setMenuOpen(false)} />
@@ -444,13 +476,11 @@ function LayoutInner({ children, currentPageName }) {
         style={{ ...mainPadding }}
       >
         {isOSMode ? (
-          // No modo OS, portais e Dashboard renderizam normalmente; resto só no Dashboard
           (location.pathname === '/Dashboard' || location.pathname === '/' ||
            location.pathname === '/PortalDoMotorista' ||
            location.pathname === '/PortalCliente' ||
            location.pathname === '/PortalDoRepresentante') ? children : null
         ) : (
-          // No modo clássico, renderizar normalmente
           children
         )}
       </main>
