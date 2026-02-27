@@ -27,16 +27,23 @@ import { WorkspaceProvider, OSTaskbar, useWorkspace } from '@/components/workspa
 import { usePreferences } from '@/components/hooks/usePreferences';
 import GlobalSearch from '@/components/search/GlobalSearch';
 import NotificationToastManager from '@/components/notificacoes/NotificationToastManager';
+import { MessageSquare, MessageSquareDot } from 'lucide-react';
 
 const CalendarIcon = CalendarDays;
 
-// 🚀 ÍCONE INTELIGENTE DO FONTAWESOME (Lê as mensagens não lidas em tempo real)
+// 🚀 ÍCONE INTELIGENTE (Usa os ícones nativos do sistema)
 const VisionMessageIcon = ({ className }) => {
   const { user } = useAuth();
   
   const { data: mensagens = [] } = useQuery({
     queryKey: ['chat_mensagens'],
-    queryFn: async () => await base44.entities.Mensagem.list('-created_date', 50),
+    queryFn: async () => {
+      try {
+        return await base44.entities.Mensagem.list('-created_date', 50);
+      } catch (e) {
+        return []; // Evita quebrar a tela se a tabela não existir ainda
+      }
+    },
     enabled: !!user
   });
 
@@ -44,31 +51,19 @@ const VisionMessageIcon = ({ className }) => {
     if (!user) return false;
     const isAdmin = user.email.includes('admin') || user.email === 'diretoria@jcesquadrias.com';
     
-    // Se fui eu que enviei ou já foi lida, ignora
     if (m.lida || m.remetente_email === user.email) return false;
     
-    // Admin vê tudo que não foi lido. Representante vê apenas o que é para ele.
     if (isAdmin) return true;
     return m.destinatario_email === user.email || m.destinatario_email === 'todos';
   }).length;
 
-  // Se tiver mensagens não lidas, usa o ícone COM O PONTO e faz pulsar levemente
   if (unreadCount > 0) {
-    return (
-      <i 
-        className={cn("fa-solid fa-comment-dot text-blue-500 animate-pulse", className)} 
-        style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }} 
-      />
-    );
+    // Ícone COM PONTO (Não lidas)
+    return <MessageSquareDot className={cn("text-blue-500 animate-pulse", className)} />;
   }
   
-  // Se estiver tudo lido, usa o ícone NORMAL
-  return (
-    <i 
-      className={cn("fa-solid fa-comment", className)} 
-      style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }} 
-    />
-  );
+  // Ícone NORMAL (Tudo lido)
+  return <MessageSquare className={className} />;
 };
 
 // ESTRUTURA DO MENU (Agora usa o nosso Ícone Inteligente no Vision Message)
