@@ -28,6 +28,7 @@ import { usePreferences } from '@/components/hooks/usePreferences';
 import GlobalSearch from '@/components/search/GlobalSearch';
 import NotificationToastManager from '@/components/notificacoes/NotificationToastManager';
 import { MessageSquare, MessageSquareDot } from 'lucide-react';
+import { usePresenca } from '@/components/hooks/usePresenca';
 
 const CalendarIcon = CalendarDays;
 
