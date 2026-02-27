@@ -9,13 +9,14 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import PermissionGuard from "@/components/PermissionGuard";
 
+// 🚀 NOVO: Importando a página do Chat Admin
+import ChatAdmin from '@/pages/ChatAdmin';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
 // --- CONFIGURAÇÃO DE MAPEAMENTO DE PERMISSÕES ---
-// Mapeia o nome da Rota (Pages) para o nome do Módulo no Banco de Dados
 const PAGE_PERMISSIONS = {
   // Operacional
   'Pedidos': 'Pedidos',
@@ -42,7 +43,7 @@ const PAGE_PERMISSIONS = {
   'Usuarios': 'Usuarios',
   'Relatorios': 'Relatorios',
   'Logs': 'Logs',
-  'Cadastro': 'Usuarios', // Assumindo que cadastro geral fica sob gestão de usuários/admin
+  'Cadastro': 'Usuarios', 
 };
 
 // --- PÁGINAS SEM SIDEBAR (PORTAIS E PÚBLICAS) ---
@@ -105,11 +106,17 @@ const AuthenticatedApp = () => {
         )
       } />
 
+      {/* 🚀 ROTA DO CHAT DA FÁBRICA */}
+      <Route path="/chat-admin" element={
+        <LayoutWrapper currentPageName="ChatAdmin">
+          <ChatAdmin />
+        </LayoutWrapper>
+      } />
+
       {/* GERAÇÃO DINÂMICA DAS ROTAS */}
       {Object.entries(Pages).map(([path, Page]) => {
         const setorPermission = PAGE_PERMISSIONS[path];
         
-        // Aplica o PermissionGuard se a página exigir permissão de setor
         const PageComponent = setorPermission ? (
           <PermissionGuard setor={setorPermission}>
             <Page />
