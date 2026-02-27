@@ -47,11 +47,12 @@ const PAGE_PERMISSIONS = {
 // --- PÁGINAS SEM SIDEBAR (PORTAIS E PÚBLICAS) ---
 const PORTAL_PAGES = [
   'PortalCliente', 
-  'PortalDoRepresentante', 
+  'PortalDoRepresentante',
+  'PortalDoMotorista',
+  'Lojajc',
   'Login', 
   'Welcome', 
   'AcessoNegado',
-  'Representation'
 ];
 
 const LayoutWrapper = ({ children, currentPageName }) => {
@@ -104,10 +105,10 @@ const AuthenticatedApp = () => {
         )
       } />
 
-      {/* 🚀 ROTA DO CHAT DA FÁBRICA */}
-      <Route path="/chat-admin" element={
-        <LayoutWrapper currentPageName="ChatAdmin">
-          <ChatAdmin />
+      {/* 🚀 ROTA DO VISION MESSAGE DA FÁBRICA */}
+      <Route path="/vision-message" element={
+        <LayoutWrapper currentPageName="VisionMessage">
+          <VisionMessage />
         </LayoutWrapper>
       } />
 
