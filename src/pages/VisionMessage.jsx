@@ -14,7 +14,7 @@ import { format, isToday, isYesterday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
-export default function ChatAdmin() {
+export default function VisionMessage() {
     useRealtimeSync();
     
     const [currentUser, setCurrentUser] = useState(null);
