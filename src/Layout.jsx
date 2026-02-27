@@ -338,6 +338,7 @@ function LayoutInner({ children, currentPageName }) {
   const { user, signOut } = useAuth();
   const { lockScreen } = useSecurity();
   useRealtimeSync();
+  usePresenca(user);
   const { canDo } = usePermissions();
   const { preferences } = usePreferences();
   const [menuOpen, setMenuOpen] = useState(false);
