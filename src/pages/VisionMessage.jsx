@@ -7,48 +7,42 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { 
-    Search, Send, Paperclip, MessageSquare, 
-    Check, CheckCheck, Clock, Megaphone, User, Loader2
+    Search, Send, Paperclip, 
+    Check, CheckCheck, Megaphone, Loader2, Eye
 } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
 export default function ChatAdmin() {
-    // Ativa a sincronização em tempo real nesta página também
     useRealtimeSync();
     
     const [currentUser, setCurrentUser] = useState(null);
-    const [selectedContact, setSelectedContact] = useState('todos'); // 'todos' = Canal de Avisos, ou email do rep
+    const [selectedContact, setSelectedContact] = useState('todos'); 
     const [newMessage, setNewMessage] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const messagesEndRef = useRef(null);
     const queryClient = useQueryClient();
 
-    // Pega o utilizador logado
     useEffect(() => {
         base44.auth.me().then(user => setCurrentUser(user)).catch(console.error);
     }, []);
 
-    // Busca Representantes (Contactos)
     const { data: representantes = [] } = useQuery({
         queryKey: ['representantes'],
         queryFn: () => base44.entities.Representante.list()
     });
 
-    // Busca Todas as Mensagens
     const { data: mensagens = [], isLoading: loadingMsgs } = useQuery({
         queryKey: ['chat_mensagens'],
         queryFn: async () => {
             const todas = await base44.entities.Mensagem.list('-created_date', 500);
-            return todas.reverse(); // Ordem cronológica (antigas em cima, novas em baixo)
+            return todas.reverse(); 
         }
     });
 
-    // Processa a Lista de Contactos (com contagem de não lidas e última mensagem)
     const contactsList = useMemo(() => {
         let list = representantes.map(rep => {
-            // Mensagens trocadas com este representante
             const repMsgs = mensagens.filter(m => 
                 (m.remetente_email === rep.email && m.destinatario_email !== 'todos') || 
                 (m.destinatario_email === rep.email)
@@ -71,7 +65,6 @@ export default function ChatAdmin() {
             list = list.filter(c => c.nome.toLowerCase().includes(searchTerm.toLowerCase()));
         }
 
-        // Ordena: primeiro quem tem mensagem não lida, depois pela data da última mensagem
         list.sort((a, b) => {
             if (a.unread > 0 && b.unread === 0) return -1;
             if (b.unread > 0 && a.unread === 0) return 1;
@@ -83,12 +76,10 @@ export default function ChatAdmin() {
         return list;
     }, [representantes, mensagens, searchTerm]);
 
-    // Calcula mensagens do Canal Geral (Avisos)
     const mensagensGerais = useMemo(() => {
         return mensagens.filter(m => m.destinatario_email === 'todos');
     }, [mensagens]);
 
-    // Mensagens da conversa ativa
     const activeConversation = useMemo(() => {
         if (selectedContact === 'todos') return mensagensGerais;
         
@@ -98,7 +89,6 @@ export default function ChatAdmin() {
         );
     }, [selectedContact, mensagens, mensagensGerais]);
 
-    // Rola para baixo e marca como lida ao abrir uma conversa
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         
@@ -113,14 +103,13 @@ export default function ChatAdmin() {
         }
     }, [activeConversation.length, selectedContact, queryClient, activeConversation]);
 
-    // Envio de Mensagem
     const sendMutation = useMutation({
         mutationFn: async (conteudo) => {
             return base44.entities.Mensagem.create({
                 conteudo,
                 remetente_email: currentUser.email,
                 remetente_nome: 'Fábrica J&C (Admin)',
-                destinatario_email: selectedContact, // Pode ser o email de um rep ou 'todos'
+                destinatario_email: selectedContact, 
                 lida: false
             });
         },
@@ -137,7 +126,6 @@ export default function ChatAdmin() {
         sendMutation.mutate(newMessage.trim());
     };
 
-    // Função auxiliar para formatar a data da última mensagem na lista
     const formatLastMsgTime = (dateString) => {
         if (!dateString) return '';
         const d = new Date(dateString);
@@ -146,7 +134,7 @@ export default function ChatAdmin() {
         return format(d, 'dd/MM');
     };
 
-    if (!currentUser) return <div className="p-10 text-center text-slate-500"><Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" /> Carregando Chat...</div>;
+    if (!currentUser) return <div className="p-10 text-center text-slate-500"><Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" /> Carregando Vision Message...</div>;
 
     const activeContactData = selectedContact === 'todos' ? null : contactsList.find(c => c.email === selectedContact);
 
@@ -155,9 +143,9 @@ export default function ChatAdmin() {
             
             {/* PAINEL ESQUERDO: LISTA DE CONTACTOS */}
             <div className="w-1/3 min-w-[300px] max-w-[400px] bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
-                <div className="p-4 bg-slate-50 border-b border-slate-200">
-                    <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2 mb-4">
-                        <MessageSquare className="w-5 h-5 text-blue-600" /> Mensagens
+                <div className="p-5 bg-gradient-to-r from-blue-900 to-indigo-900 border-b border-slate-200 text-white">
+                    <h2 className="text-xl font-black flex items-center gap-2 mb-4 tracking-tight">
+                        <Eye className="w-6 h-6 text-blue-300" /> Vision Message
                     </h2>
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -165,7 +153,7 @@ export default function ChatAdmin() {
                             placeholder="Buscar representante..." 
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-9 bg-white border-slate-200 rounded-xl"
+                            className="pl-9 bg-white text-slate-900 border-transparent rounded-xl focus-visible:ring-2 focus-visible:ring-blue-400"
                         />
                     </div>
                 </div>
@@ -191,8 +179,8 @@ export default function ChatAdmin() {
                     </div>
 
                     {/* LISTA DE REPRESENTANTES */}
-                    <div className="p-3 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50 border-b border-slate-100">
-                        Representantes
+                    <div className="p-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50 border-b border-slate-100">
+                        Representantes Conectados
                     </div>
                     {contactsList.map(contact => (
                         <div 
@@ -239,34 +227,36 @@ export default function ChatAdmin() {
             <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden relative">
                 
                 {/* Header da Conversa */}
-                <div className="h-16 bg-white border-b border-slate-200 flex items-center px-6 gap-4 shrink-0 shadow-sm z-10">
+                <div className="h-[88px] bg-white border-b border-slate-200 flex items-center px-6 gap-4 shrink-0 shadow-sm z-10">
                     {selectedContact === 'todos' ? (
                         <>
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
-                                <Megaphone className="w-5 h-5 text-white" />
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
+                                <Megaphone className="w-6 h-6 text-white" />
                             </div>
                             <div>
-                                <h3 className="font-bold text-slate-800">Avisos da Diretoria</h3>
+                                <h3 className="font-bold text-slate-800 text-lg">Avisos da Diretoria</h3>
                                 <p className="text-xs text-slate-500">Todos os representantes recebem estas mensagens</p>
                             </div>
                         </>
                     ) : (
                         <>
-                            <Avatar className="w-10 h-10">
+                            <Avatar className="w-12 h-12">
                                 {activeContactData?.foto_url ? <AvatarImage src={activeContactData.foto_url} className="object-cover" /> : null}
-                                <AvatarFallback className="bg-slate-200 text-slate-600 font-bold">
+                                <AvatarFallback className="bg-slate-200 text-slate-600 font-bold text-lg">
                                     {activeContactData?.nome?.substring(0, 2).toUpperCase()}
                                 </AvatarFallback>
                             </Avatar>
                             <div>
-                                <h3 className="font-bold text-slate-800">{activeContactData?.nome}</h3>
-                                <p className="text-xs text-slate-500">Representante</p>
+                                <h3 className="font-bold text-slate-800 text-lg">{activeContactData?.nome}</h3>
+                                <p className="text-xs text-emerald-600 font-medium flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full block"></span> Conectado ao Vision
+                                </p>
                             </div>
                         </>
                     )}
                 </div>
 
-                {/* Área de Mensagens (Fundo com padrão estilo WhatsApp) */}
+                {/* Área de Mensagens */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50" style={{ backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
                     {loadingMsgs ? (
                         <div className="flex justify-center items-center h-full text-slate-400">
@@ -275,15 +265,14 @@ export default function ChatAdmin() {
                     ) : activeConversation.length === 0 ? (
                         <div className="flex flex-col justify-center items-center h-full text-slate-400">
                             <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm mb-3">
-                                <MessageSquare className="w-8 h-8 text-slate-300" />
+                                <Eye className="w-8 h-8 text-blue-300" />
                             </div>
-                            <p className="font-medium text-slate-500">Nenhuma mensagem trocada.</p>
+                            <p className="font-medium text-slate-500">Nenhuma mensagem no Vision Message.</p>
                             <p className="text-sm">Envie a primeira mensagem abaixo.</p>
                         </div>
                     ) : (
                         activeConversation.map((msg, idx) => {
                             const isMe = msg.remetente_email === currentUser?.email;
-                            
                             const msgDate = new Date(msg.created_date);
                             const prevMsgDate = idx > 0 ? new Date(activeConversation[idx-1].created_date) : null;
                             const showDateDivider = !prevMsgDate || msgDate.toDateString() !== prevMsgDate.toDateString();
@@ -292,30 +281,29 @@ export default function ChatAdmin() {
                                 <div key={msg.id || idx} className="space-y-4">
                                     {showDateDivider && (
                                         <div className="flex justify-center my-6">
-                                            <span className="bg-white shadow-sm border border-slate-100 text-slate-500 text-xs font-bold px-4 py-1.5 rounded-full">
+                                            <span className="bg-white shadow-sm border border-slate-100 text-slate-500 text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider">
                                                 {format(msgDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                                             </span>
                                         </div>
                                     )}
                                     <div className={cn("flex flex-col max-w-[70%]", isMe ? "ml-auto items-end" : "mr-auto items-start")}>
-                                        {/* Mostra o nome se for o Canal Geral e a mensagem não for minha */}
                                         {selectedContact === 'todos' && !isMe && (
                                             <span className="text-[10px] text-slate-500 ml-2 mb-1 font-bold">{msg.remetente_nome}</span>
                                         )}
                                         
                                         <div className={cn(
                                             "px-4 py-3 rounded-2xl shadow-sm text-[15px] leading-relaxed relative group",
-                                            isMe ? "bg-emerald-600 text-white rounded-tr-sm" : "bg-white border border-slate-200 text-slate-800 rounded-tl-sm"
+                                            isMe ? "bg-blue-600 text-white rounded-tr-sm" : "bg-white border border-slate-200 text-slate-800 rounded-tl-sm"
                                         )}>
                                             {msg.conteudo}
                                             
                                             <div className={cn(
                                                 "flex items-center gap-1 mt-1 text-[10px] justify-end",
-                                                isMe ? "text-emerald-100" : "text-slate-400"
+                                                isMe ? "text-blue-200" : "text-slate-400"
                                             )}>
                                                 {format(msgDate, "HH:mm")}
                                                 {isMe && (
-                                                    msg.lida ? <CheckCheck className="w-3.5 h-3.5 text-emerald-200" /> : <Check className="w-3 h-3 text-emerald-200/50" />
+                                                    msg.lida ? <CheckCheck className="w-3.5 h-3.5 text-sky-300" /> : <Check className="w-3 h-3 text-blue-300/50" />
                                                 )}
                                             </div>
                                         </div>
@@ -330,14 +318,13 @@ export default function ChatAdmin() {
                 {/* Input de Mensagem */}
                 <div className="p-4 bg-slate-50 border-t border-slate-200">
                     <form onSubmit={handleSend} className="flex gap-3 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400 transition-all">
-                        {/* Botão de Anexo (Previsão para Fase 2) */}
                         <Button type="button" variant="ghost" size="icon" className="rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 shrink-0" title="Anexar arquivo (Em breve)">
                             <Paperclip className="w-5 h-5" />
                         </Button>
                         
                         <Input 
                             id="admin-chat-input"
-                            placeholder={selectedContact === 'todos' ? "Escreva um aviso para todos os representantes..." : "Digite sua mensagem..."}
+                            placeholder={selectedContact === 'todos' ? "Escreva um aviso para todos..." : "Digite sua mensagem..."}
                             value={newMessage}
                             onChange={(e) => setNewMessage(e.target.value)}
                             className="border-0 shadow-none focus-visible:ring-0 px-2 h-11 text-base"
