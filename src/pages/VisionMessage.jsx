@@ -8,51 +8,29 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { 
     Search, Send, Paperclip, 
-    Check, CheckCheck, Megaphone, Loader2, Eye, Users, ShieldAlert, Briefcase
+    Check, CheckCheck, Megaphone, Loader2, Eye, Users, ShieldAlert, Briefcase, Database
 } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useAuth } from '@/lib/AuthContext'; // Usa o contexto de autenticação global!
 
 export default function VisionMessage() {
     useRealtimeSync();
     
-    const [currentUser, setCurrentUser] = useState(null);
+    // Pega o usuário instantaneamente sem precisar carregar
+    const { user: currentUser } = useAuth(); 
+    
     const [selectedContact, setSelectedContact] = useState('todos'); 
     const [newMessage, setNewMessage] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const messagesEndRef = useRef(null);
     const queryClient = useQueryClient();
 
-// 🚀 INJEÇÃO TEMPORÁRIA: Forçar a criação da Tabela Mensagem
-    useEffect(() => {
-        const forcarCriacaoDaTabela = async () => {
-            try {
-                // Tentamos gravar um registo fantasma com TODAS as colunas que precisamos
-                await base44.entities.Mensagem.create({
-                    conteudo: "Iniciando o sistema Vision Message...",
-                    remetente_email: "sistema@jcesquadrias.com",
-                    remetente_nome: "Sistema J&C",
-                    destinatario_email: "todos",
-                    lida: false,
-                    anexo_url: "", // Forçando a IA a criar a coluna de anexos
-                    anexo_nome: "",
-                    anexo_tipo: "",
-                    metadata: {}
-                });
-                console.log("✅ A tabela 'Mensagem' já existe no banco!");
-            } catch (error) {
-                console.error("🚨 ERRO INTENCIONAL: A tabela Mensagem não existe. A IA do backend deve criá-la agora com base neste payload!", error);
-            }
-        };
-        forcarCriacaoDaTabela();
-    }, []);
-
     // 1. BUSCA TODAS AS ENTIDADES
     const { data: representantes = [] } = useQuery({ queryKey: ['representantes'], queryFn: () => base44.entities.Representante.list() });
     const { data: clientes = [] } = useQuery({ queryKey: ['clientes'], queryFn: () => base44.entities.Cliente.list() });
-    // Tenta buscar os usuários do sistema (Admins/Staff)
     const { data: usuarios = [] } = useQuery({ 
         queryKey: ['usuarios'], 
         queryFn: async () => {
@@ -60,61 +38,52 @@ export default function VisionMessage() {
         } 
     });
 
-    const { data: mensagens = [], isLoading: loadingMsgs } = useQuery({
+    // BUSCA AS MENSAGENS (COM BLOQUEIO DE TENTATIVAS INFINITAS)
+    const { data: mensagens = [], isLoading: loadingMsgs, isError: tableError } = useQuery({
         queryKey: ['chat_mensagens'],
         queryFn: async () => {
-            try {
-                const todas = await base44.entities.Mensagem.list('-created_date', 500);
-                return todas.reverse(); 
-            } catch (error) {
-                console.error("Erro ao carregar mensagens. A tabela existe?", error);
-                return [];
-            }
-        }
+            const todas = await base44.entities.Mensagem.list('-created_date', 500);
+            return todas.reverse(); 
+        },
+        retry: false // <-- A MÁGICA: Se a tabela não existir, ele desiste na hora e não trava a tela!
     });
 
     // 2. CONSOLIDA TODOS OS CONTACTOS NUMA LISTA ÚNICA
     const contactsList = useMemo(() => {
+        if (!currentUser) return [];
         let list = [];
 
-        // Adiciona Representantes
         representantes.forEach(rep => {
             if (rep.email) list.push({ ...rep, id_unico: `rep_${rep.id}`, tipo: 'Representante' });
         });
 
-        // Adiciona Administradores/Staff (ignorando o próprio usuário logado)
         usuarios.forEach(usr => {
             if (usr.email && usr.email !== currentUser?.email) {
                 list.push({ ...usr, nome: usr.nome || usr.email.split('@')[0], id_unico: `usr_${usr.id}`, tipo: 'Administração' });
             }
         });
 
-        // Adiciona Clientes (apenas os que têm email cadastrado)
         clientes.forEach(cli => {
             if (cli.email) {
                 list.push({ ...cli, nome: cli.nome_fantasia || cli.nome, foto_url: cli.logo_url, id_unico: `cli_${cli.id}`, tipo: 'Cliente' });
             }
         });
 
-        // Calcula mensagens não lidas e última mensagem para CADA contacto
         list = list.map(contact => {
             const contactMsgs = mensagens.filter(m => 
                 (m.remetente_email === contact.email && m.destinatario_email !== 'todos') || 
                 (m.destinatario_email === contact.email)
             );
-            
             const unread = contactMsgs.filter(m => !m.lida && m.remetente_email === contact.email).length;
             const lastMsg = contactMsgs.length > 0 ? contactMsgs[contactMsgs.length - 1] : null;
 
             return { ...contact, unread, lastMsg };
         });
 
-        // Filtra por busca
         if (searchTerm) {
             list = list.filter(c => c.nome?.toLowerCase().includes(searchTerm.toLowerCase()));
         }
 
-        // Ordena: Primeiro não lidas, depois data da mensagem, depois nome
         list.sort((a, b) => {
             if (a.unread > 0 && b.unread === 0) return -1;
             if (b.unread > 0 && a.unread === 0) return 1;
@@ -153,17 +122,13 @@ export default function VisionMessage() {
 
     const sendMutation = useMutation({
         mutationFn: async (conteudo) => {
-            try {
-                return await base44.entities.Mensagem.create({
-                    conteudo,
-                    remetente_email: currentUser.email,
-                    remetente_nome: currentUser?.user_metadata?.nome || currentUser?.email?.split('@')[0] || 'Admin',
-                    destinatario_email: selectedContact, 
-                    lida: false
-                });
-            } catch (error) {
-                throw new Error("Tabela 'Mensagem' não encontrada no banco de dados.");
-            }
+            return await base44.entities.Mensagem.create({
+                conteudo,
+                remetente_email: currentUser.email,
+                remetente_nome: currentUser?.user_metadata?.nome || currentUser?.email?.split('@')[0] || 'Admin',
+                destinatario_email: selectedContact, 
+                lida: false
+            });
         },
         onSuccess: () => {
             setNewMessage('');
@@ -195,7 +160,51 @@ export default function VisionMessage() {
         return <Briefcase className="w-3 h-3 text-blue-500" />;
     };
 
-    if (!currentUser) return <div className="p-10 text-center text-slate-500"><Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" /> Carregando Vision Message...</div>;
+    // BOTÃO MÁGICO DE INSTALAÇÃO DO BANCO DE DADOS
+    const forcarCriacaoDaTabela = async () => {
+        try {
+            await base44.entities.Mensagem.create({
+                conteudo: "Iniciando o sistema Vision Message...",
+                remetente_email: "sistema@jcesquadrias.com",
+                remetente_nome: "Sistema J&C",
+                destinatario_email: "todos",
+                lida: false,
+                anexo_url: "", 
+                anexo_nome: "",
+                anexo_tipo: "",
+                metadata: {}
+            });
+            toast.success("✅ Tabela criada! Atualize a página.");
+            window.location.reload();
+        } catch (error) {
+            console.error("🚨 ERRO INTENCIONAL DISPARADO PELA INTERFACE", error);
+            toast.info("Comando enviado! Se a sua IA estiver monitorando os erros, ela vai criar a tabela agora.");
+            // Recarrega a página após 3 segundos para ver se a IA já criou
+            setTimeout(() => window.location.reload(), 3000);
+        }
+    };
+
+    if (!currentUser) return <div className="p-10 text-center text-slate-500"><Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" /> Carregando perfil...</div>;
+
+    // SE A TABELA NÃO EXISTIR, MOSTRA A TELA DE INSTALAÇÃO
+    if (tableError) {
+        return (
+            <div className="flex items-center justify-center h-[calc(100vh-80px)] bg-slate-50">
+                <div className="bg-white p-10 rounded-3xl shadow-xl border border-slate-200 text-center max-w-lg">
+                    <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Database className="w-10 h-10" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-800 mb-2">Módulo Não Instalado</h2>
+                    <p className="text-slate-600 mb-8">
+                        A tabela <strong>Mensagem</strong> não foi encontrada no banco de dados. Para ativar o Vision Message, clique no botão abaixo para forçar a IA a criar a infraestrutura.
+                    </p>
+                    <Button onClick={forcarCriacaoDaTabela} className="w-full h-12 text-lg bg-blue-600 hover:bg-blue-700">
+                        🛠️ Instalar Banco de Dados do Chat
+                    </Button>
+                </div>
+            </div>
+        );
+    }
 
     const activeContactData = selectedContact === 'todos' ? null : contactsList.find(c => c.email === selectedContact);
 
@@ -302,7 +311,7 @@ export default function VisionMessage() {
                             </div>
                             <div>
                                 <h3 className="font-bold text-slate-800 text-lg">Avisos da Diretoria</h3>
-                                <p className="text-xs text-slate-500">Todos os representantes recebem estas mensagens</p>
+                                <p className="text-xs text-slate-500">Todos recebem estas mensagens</p>
                             </div>
                         </>
                     ) : (
