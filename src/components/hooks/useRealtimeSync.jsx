@@ -28,6 +28,7 @@ const ENTITY_QUERY_KEYS = {
   FormaPagamento:       [['formas_pagamento']],
   LinhaProduto:         [['linhas_produto']],
   Mensagem:             [['chat_mensagens']],
+  Presenca:             [['presencas_status']],
 };
 
 /**
