@@ -8,11 +8,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { 
     Search, Send, Paperclip, 
-    Check, CheckCheck, Megaphone, Loader2, Eye
+    Check, CheckCheck, Megaphone, Loader2, Eye, Users, ShieldAlert, Briefcase
 } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 export default function VisionMessage() {
     useRealtimeSync();
@@ -28,61 +29,88 @@ export default function VisionMessage() {
         base44.auth.me().then(user => setCurrentUser(user)).catch(console.error);
     }, []);
 
-    const { data: representantes = [] } = useQuery({
-        queryKey: ['representantes'],
-        queryFn: () => base44.entities.Representante.list()
+    // 1. BUSCA TODAS AS ENTIDADES
+    const { data: representantes = [] } = useQuery({ queryKey: ['representantes'], queryFn: () => base44.entities.Representante.list() });
+    const { data: clientes = [] } = useQuery({ queryKey: ['clientes'], queryFn: () => base44.entities.Cliente.list() });
+    // Tenta buscar os usuários do sistema (Admins/Staff)
+    const { data: usuarios = [] } = useQuery({ 
+        queryKey: ['usuarios'], 
+        queryFn: async () => {
+            try { return await base44.entities.Usuario.list(); } catch(e) { return []; }
+        } 
     });
 
     const { data: mensagens = [], isLoading: loadingMsgs } = useQuery({
         queryKey: ['chat_mensagens'],
         queryFn: async () => {
-            const todas = await base44.entities.Mensagem.list('-created_date', 500);
-            return todas.reverse(); 
+            try {
+                const todas = await base44.entities.Mensagem.list('-created_date', 500);
+                return todas.reverse(); 
+            } catch (error) {
+                console.error("Erro ao carregar mensagens. A tabela existe?", error);
+                return [];
+            }
         }
     });
 
+    // 2. CONSOLIDA TODOS OS CONTACTOS NUMA LISTA ÚNICA
     const contactsList = useMemo(() => {
-        let list = representantes.map(rep => {
-            const repMsgs = mensagens.filter(m => 
-                (m.remetente_email === rep.email && m.destinatario_email !== 'todos') || 
-                (m.destinatario_email === rep.email)
-            );
-            
-            const unread = repMsgs.filter(m => !m.lida && m.remetente_email === rep.email).length;
-            const lastMsg = repMsgs.length > 0 ? repMsgs[repMsgs.length - 1] : null;
+        let list = [];
 
-            return {
-                id: rep.id,
-                email: rep.email,
-                nome: rep.nome,
-                foto_url: rep.foto_url,
-                unread,
-                lastMsg
-            };
+        // Adiciona Representantes
+        representantes.forEach(rep => {
+            if (rep.email) list.push({ ...rep, id_unico: `rep_${rep.id}`, tipo: 'Representante' });
         });
 
+        // Adiciona Administradores/Staff (ignorando o próprio usuário logado)
+        usuarios.forEach(usr => {
+            if (usr.email && usr.email !== currentUser?.email) {
+                list.push({ ...usr, nome: usr.nome || usr.email.split('@')[0], id_unico: `usr_${usr.id}`, tipo: 'Administração' });
+            }
+        });
+
+        // Adiciona Clientes (apenas os que têm email cadastrado)
+        clientes.forEach(cli => {
+            if (cli.email) {
+                list.push({ ...cli, nome: cli.nome_fantasia || cli.nome, foto_url: cli.logo_url, id_unico: `cli_${cli.id}`, tipo: 'Cliente' });
+            }
+        });
+
+        // Calcula mensagens não lidas e última mensagem para CADA contacto
+        list = list.map(contact => {
+            const contactMsgs = mensagens.filter(m => 
+                (m.remetente_email === contact.email && m.destinatario_email !== 'todos') || 
+                (m.destinatario_email === contact.email)
+            );
+            
+            const unread = contactMsgs.filter(m => !m.lida && m.remetente_email === contact.email).length;
+            const lastMsg = contactMsgs.length > 0 ? contactMsgs[contactMsgs.length - 1] : null;
+
+            return { ...contact, unread, lastMsg };
+        });
+
+        // Filtra por busca
         if (searchTerm) {
-            list = list.filter(c => c.nome.toLowerCase().includes(searchTerm.toLowerCase()));
+            list = list.filter(c => c.nome?.toLowerCase().includes(searchTerm.toLowerCase()));
         }
 
+        // Ordena: Primeiro não lidas, depois data da mensagem, depois nome
         list.sort((a, b) => {
             if (a.unread > 0 && b.unread === 0) return -1;
             if (b.unread > 0 && a.unread === 0) return 1;
-            if (!a.lastMsg) return 1;
-            if (!b.lastMsg) return -1;
-            return new Date(b.lastMsg.created_date) - new Date(a.lastMsg.created_date);
+            if (a.lastMsg && b.lastMsg) return new Date(b.lastMsg.created_date) - new Date(a.lastMsg.created_date);
+            if (a.lastMsg && !b.lastMsg) return -1;
+            if (!a.lastMsg && b.lastMsg) return 1;
+            return a.nome?.localeCompare(b.nome);
         });
 
         return list;
-    }, [representantes, mensagens, searchTerm]);
+    }, [representantes, usuarios, clientes, mensagens, searchTerm, currentUser]);
 
-    const mensagensGerais = useMemo(() => {
-        return mensagens.filter(m => m.destinatario_email === 'todos');
-    }, [mensagens]);
+    const mensagensGerais = useMemo(() => mensagens.filter(m => m.destinatario_email === 'todos'), [mensagens]);
 
     const activeConversation = useMemo(() => {
         if (selectedContact === 'todos') return mensagensGerais;
-        
         return mensagens.filter(m => 
             (m.remetente_email === selectedContact && m.destinatario_email !== 'todos') || 
             (m.destinatario_email === selectedContact)
@@ -105,18 +133,25 @@ export default function VisionMessage() {
 
     const sendMutation = useMutation({
         mutationFn: async (conteudo) => {
-            return base44.entities.Mensagem.create({
-                conteudo,
-                remetente_email: currentUser.email,
-                remetente_nome: 'Fábrica J&C (Admin)',
-                destinatario_email: selectedContact, 
-                lida: false
-            });
+            try {
+                return await base44.entities.Mensagem.create({
+                    conteudo,
+                    remetente_email: currentUser.email,
+                    remetente_nome: currentUser?.user_metadata?.nome || currentUser?.email?.split('@')[0] || 'Admin',
+                    destinatario_email: selectedContact, 
+                    lida: false
+                });
+            } catch (error) {
+                throw new Error("Tabela 'Mensagem' não encontrada no banco de dados.");
+            }
         },
         onSuccess: () => {
             setNewMessage('');
             document.getElementById('admin-chat-input')?.focus();
             queryClient.invalidateQueries({ queryKey: ['chat_mensagens'] });
+        },
+        onError: (err) => {
+            toast.error(err.message || "Erro ao enviar mensagem.");
         }
     });
 
@@ -134,6 +169,12 @@ export default function VisionMessage() {
         return format(d, 'dd/MM');
     };
 
+    const getTypeIcon = (tipo) => {
+        if (tipo === 'Administração') return <ShieldAlert className="w-3 h-3 text-purple-500" />;
+        if (tipo === 'Cliente') return <Users className="w-3 h-3 text-amber-500" />;
+        return <Briefcase className="w-3 h-3 text-blue-500" />;
+    };
+
     if (!currentUser) return <div className="p-10 text-center text-slate-500"><Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" /> Carregando Vision Message...</div>;
 
     const activeContactData = selectedContact === 'todos' ? null : contactsList.find(c => c.email === selectedContact);
@@ -142,7 +183,7 @@ export default function VisionMessage() {
         <div className="flex h-[calc(100vh-80px)] bg-slate-100 p-4 gap-4 max-w-[1600px] mx-auto">
             
             {/* PAINEL ESQUERDO: LISTA DE CONTACTOS */}
-            <div className="w-1/3 min-w-[300px] max-w-[400px] bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
+            <div className="w-1/3 min-w-[320px] max-w-[400px] bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
                 <div className="p-5 bg-gradient-to-r from-blue-900 to-indigo-900 border-b border-slate-200 text-white">
                     <h2 className="text-xl font-black flex items-center gap-2 mb-4 tracking-tight">
                         <Eye className="w-6 h-6 text-blue-300" /> Vision Message
@@ -150,7 +191,7 @@ export default function VisionMessage() {
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         <Input 
-                            placeholder="Buscar representante..." 
+                            placeholder="Buscar contatos..." 
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="pl-9 bg-white text-slate-900 border-transparent rounded-xl focus-visible:ring-2 focus-visible:ring-blue-400"
@@ -178,13 +219,13 @@ export default function VisionMessage() {
                         </div>
                     </div>
 
-                    {/* LISTA DE REPRESENTANTES */}
                     <div className="p-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50 border-b border-slate-100">
-                        Representantes Conectados
+                        Todos os Contactos
                     </div>
+
                     {contactsList.map(contact => (
                         <div 
-                            key={contact.id}
+                            key={contact.id_unico}
                             onClick={() => setSelectedContact(contact.email)}
                             className={cn(
                                 "flex items-center gap-3 p-4 cursor-pointer border-b border-slate-100 transition-colors relative",
@@ -196,20 +237,26 @@ export default function VisionMessage() {
                             <Avatar className="w-12 h-12 shrink-0">
                                 {contact.foto_url ? <AvatarImage src={contact.foto_url} className="object-cover" /> : null}
                                 <AvatarFallback className="bg-slate-200 text-slate-600 font-bold">
-                                    {contact.nome.substring(0, 2).toUpperCase()}
+                                    {contact.nome?.substring(0, 2).toUpperCase() || 'U'}
                                 </AvatarFallback>
                             </Avatar>
                             
                             <div className="flex-1 min-w-0">
                                 <div className="flex justify-between items-baseline mb-1">
-                                    <h4 className="font-bold text-slate-800 truncate pr-2">{contact.nome}</h4>
+                                    <h4 className="font-bold text-slate-800 truncate pr-2 flex items-center gap-1">
+                                        {contact.nome}
+                                    </h4>
                                     <span className="text-[10px] text-slate-400 shrink-0">
                                         {formatLastMsgTime(contact.lastMsg?.created_date)}
                                     </span>
                                 </div>
+                                <div className="flex items-center gap-1 mb-1">
+                                    {getTypeIcon(contact.tipo)}
+                                    <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">{contact.tipo}</span>
+                                </div>
                                 <div className="flex justify-between items-center">
                                     <p className={cn("text-xs truncate pr-2", contact.unread > 0 ? "font-bold text-slate-800" : "text-slate-500")}>
-                                        {contact.lastMsg ? contact.lastMsg.conteudo : 'Sem mensagens'}
+                                        {contact.lastMsg ? contact.lastMsg.conteudo : 'Clique para iniciar conversa'}
                                     </p>
                                     {contact.unread > 0 && (
                                         <Badge className="bg-blue-600 hover:bg-blue-600 text-white shrink-0 px-1.5 min-w-[20px] h-5 flex justify-center text-[10px]">
@@ -243,13 +290,13 @@ export default function VisionMessage() {
                             <Avatar className="w-12 h-12">
                                 {activeContactData?.foto_url ? <AvatarImage src={activeContactData.foto_url} className="object-cover" /> : null}
                                 <AvatarFallback className="bg-slate-200 text-slate-600 font-bold text-lg">
-                                    {activeContactData?.nome?.substring(0, 2).toUpperCase()}
+                                    {activeContactData?.nome?.substring(0, 2).toUpperCase() || 'U'}
                                 </AvatarFallback>
                             </Avatar>
                             <div>
                                 <h3 className="font-bold text-slate-800 text-lg">{activeContactData?.nome}</h3>
-                                <p className="text-xs text-emerald-600 font-medium flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full block"></span> Conectado ao Vision
+                                <p className="text-xs text-slate-500 font-medium flex items-center gap-1">
+                                    {getTypeIcon(activeContactData?.tipo)} {activeContactData?.tipo}
                                 </p>
                             </div>
                         </>
@@ -267,7 +314,7 @@ export default function VisionMessage() {
                             <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm mb-3">
                                 <Eye className="w-8 h-8 text-blue-300" />
                             </div>
-                            <p className="font-medium text-slate-500">Nenhuma mensagem no Vision Message.</p>
+                            <p className="font-medium text-slate-500">Nenhuma mensagem com {activeContactData?.nome || 'este contato'}.</p>
                             <p className="text-sm">Envie a primeira mensagem abaixo.</p>
                         </div>
                     ) : (
