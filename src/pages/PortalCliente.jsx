@@ -570,6 +570,7 @@ function PortalClienteInner() {
   );
 }
 
+// Portal do Cliente - entry point
 export default function PortalCliente() {
   return (
     <AuthProvider>
