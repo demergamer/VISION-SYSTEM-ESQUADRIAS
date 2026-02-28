@@ -569,7 +569,6 @@ export default function PortalCliente() {
     </div>
   );
 }
-  const [loadingPin, setLoadingPin] = useState(true);
 
   useEffect(() => {
     // Verifica se já passou pelo PIN nesta sessão

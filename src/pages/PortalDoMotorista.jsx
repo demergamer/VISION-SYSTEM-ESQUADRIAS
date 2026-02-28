@@ -220,7 +220,6 @@ export default function PortalDoMotorista() {
     </div>
   );
 }
-    sessionStorage.removeItem('motorista_logado');
     setMotorista(null); setRegistroMotorista(null); setErroAcesso('');
     window.location.reload();
   };
