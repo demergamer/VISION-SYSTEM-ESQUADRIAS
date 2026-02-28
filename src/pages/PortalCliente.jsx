@@ -570,19 +570,6 @@ export default function PortalCliente() {
   );
 }
 
-    async function identificar() {
-      try {
-        const user = await base44.auth.me();
-        if (!user?.email) { setLoadingPin(false); return; }
-        const lista = await base44.entities.Cliente.filter({ email: user.email });
-        const encontrado = lista[0];
-        if (encontrado) setRegistroCliente(encontrado);
-      } catch {}
-      setLoadingPin(false);
-    }
-    identificar();
-  }, []);
-
   const handlePinOk = (registro) => {
     sessionStorage.setItem('portal_cliente_pin_ok', '1');
     setRegistroCliente(registro);
