@@ -570,32 +570,7 @@ export default function PortalCliente() {
   );
 }
 
-  const meusBorderos = useMemo(() => {
-    if (!clienteData) return [];
-    return borderos.filter(b => b.cliente_codigo === clienteData.codigo);
-  }, [borderos, clienteData]);
-
-  const meusCheques = useMemo(() => {
-    if (!clienteData) return { aVencer: [], compensados: [], devolvidos: [], pagos: [] };
-    let list = cheques.filter(c => c.cliente_codigo === clienteData.codigo);
-    
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    
-    return {
-      aVencer: list.filter(c => { const v = new Date(c.data_vencimento); v.setHours(0,0,0,0); return c.status === 'normal' && v > hoje; }),
-      compensados: list.filter(c => { const v = new Date(c.data_vencimento); v.setHours(0,0,0,0); return c.status === 'normal' && v <= hoje; }),
-      devolvidos: list.filter(c => c.status === 'devolvido'),
-      pagos: list.filter(c => c.status === 'pago')
-    };
-  }, [cheques, clienteData]);
-
-  const meusCreditos = useMemo(() => {
-    if (!clienteData) return [];
-    return creditos.filter(c => c.cliente_codigo === clienteData.codigo && c.status === 'disponivel');
-  }, [creditos, clienteData]);
-
-  const totais = useMemo(() => {
+  const _unusedEnd = null; // placeholder removed
     const totalPedidosAPagar = meusPedidos.aPagar.reduce((sum, p) => sum + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0);
     
     // Passivo de Cheques (A Vencer na Semana + Devolvidos)
