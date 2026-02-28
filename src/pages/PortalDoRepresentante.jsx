@@ -306,15 +306,7 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
             <p className="text-sm text-slate-500 font-medium">Nenhum item deste cliente em produção no momento.</p>
           </div>
           );
-          }
-
-          export default function PortalDoRepresentante() {
-          return (
-          <AuthProvider>
-            <PainelRepresentante />
-          </AuthProvider>
-          );
-          }
+        }
 
       const producaoAgrupada = safeProducao.reduce((acc, item) => {
         if (!acc[item.numero_pedido]) acc[item.numero_pedido] = [];
