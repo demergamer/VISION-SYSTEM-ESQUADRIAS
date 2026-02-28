@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRealtimeSync } from "@/components/hooks/useRealtimeSync";
-import { useAuth } from '@/components/providers/AuthContext';
+import { useAuth, AuthProvider } from '@/components/providers/AuthContext';
 
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
