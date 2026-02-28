@@ -569,14 +569,6 @@ export default function PortalCliente() {
     </div>
   );
 }
-
-  const handlePinOk = (registro) => {
-    sessionStorage.setItem('portal_cliente_pin_ok', '1');
-    setRegistroCliente(registro);
-    setPinOk(true);
-  };
-
-  const [showFiltrosPedidos, setShowFiltrosPedidos] = useState(false);
   const [showFiltrosCheques, setShowFiltrosCheques] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
