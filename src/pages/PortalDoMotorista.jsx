@@ -27,7 +27,7 @@ function gerarMeses() {
   return meses;
 }
 
-export default function PortalDoMotorista() {
+function PortalDoMotoristaInner() {
   useRealtimeSync();
   const meses = gerarMeses();
   const [mesSelecionado, setMesSelecionado] = useState(meses[0].value);
