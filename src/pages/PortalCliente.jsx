@@ -569,3 +569,11 @@ function PortalClienteInner() {
     </div>
   );
 }
+
+export default function PortalCliente() {
+  return (
+    <AuthProvider>
+      <PortalClienteInner />
+    </AuthProvider>
+  );
+}
