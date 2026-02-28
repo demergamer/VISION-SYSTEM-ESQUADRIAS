@@ -569,7 +569,6 @@ export default function PortalCliente() {
     </div>
   );
 }
-    if (saved) { setPinOk(true); }
 
     async function identificar() {
       try {

@@ -220,8 +220,6 @@ export default function PortalDoMotorista() {
     </div>
   );
 }
-  if (erroAcesso) return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center p-6">
       <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl p-8 text-center space-y-4">
         <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center mx-auto">
           <AlertCircle className="w-7 h-7 text-red-500" />
