@@ -59,7 +59,7 @@ const TabButton = ({ active, onClick, icon: Icon, label, count, colorClass, bgAc
   </button>
 );
 
-export default function PortalCliente() {
+function PortalClienteInner() {
   useRealtimeSync();
   const queryClient = useQueryClient();
   
