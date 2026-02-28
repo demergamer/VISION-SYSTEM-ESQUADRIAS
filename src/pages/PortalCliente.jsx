@@ -569,10 +569,6 @@ export default function PortalCliente() {
     </div>
   );
 }
-  const [showFiltrosCheques, setShowFiltrosCheques] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const queryClient = useQueryClient();
 
   const [filtros, setFiltros] = useState({ numeroPedido: '', rota: '', dataEntregaInicio: '', dataEntregaFim: '', valorMin: '', valorMax: '' });
   const [filtrosCheques, setFiltrosCheques] = useState({ numeroCheque: '', banco: '', dataVencimentoInicio: '', dataVencimentoFim: '' });
