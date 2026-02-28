@@ -570,29 +570,6 @@ export default function PortalCliente() {
   );
 }
 
-  const [filtros, setFiltros] = useState({ numeroPedido: '', rota: '', dataEntregaInicio: '', dataEntregaFim: '', valorMin: '', valorMax: '' });
-  const [filtrosCheques, setFiltrosCheques] = useState({ numeroCheque: '', banco: '', dataVencimentoInicio: '', dataVencimentoFim: '' });
-
-  const [abaPedidos, setAbaPedidos] = useState('producao'); // Padrão: Produção
-  const [abaCheques, setAbaCheques] = useState('aVencer');
-  const [subAbaPagos, setSubAbaPagos] = useState('borderos');
-
-  const [chequeDetalhe, setChequeDetalhe] = useState(null);
-  const [showChequeModal, setShowChequeModal] = useState(false);
-  const [showLiquidacaoModal, setShowLiquidacaoModal] = useState(false);
-  
-  // Estado para Modal de Borderô
-  const [borderoModal, setBorderoModal] = useState({ open: false, bordero: null });
-
-  // Queries
-  const { data: user } = useQuery({ queryKey: ['user'], queryFn: () => base44.auth.me() });
-  const { data: clientes = [] } = useQuery({ queryKey: ['clientes'], queryFn: () => base44.entities.Cliente.list() });
-  const { data: pedidos = [] } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list() });
-  const { data: cheques = [] } = useQuery({ queryKey: ['cheques'], queryFn: () => base44.entities.Cheque.list() });
-  const { data: creditos = [] } = useQuery({ queryKey: ['creditos'], queryFn: () => base44.entities.Credito.list() });
-  const { data: borderos = [] } = useQuery({ queryKey: ['borderos'], queryFn: () => base44.entities.Bordero.list() });
-  const { data: todosItensProducao = [] } = useQuery({ queryKey: ['producao_items'], queryFn: () => base44.entities.ProducaoItem.list(), refetchInterval: 60000 });
-
   const clienteData = useMemo(() => clientes.find(c => c.email === user?.email), [clientes, user]);
 
   const meusItensProducao = useMemo(() => {
