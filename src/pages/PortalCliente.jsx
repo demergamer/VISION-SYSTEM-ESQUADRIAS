@@ -569,7 +569,6 @@ export default function PortalCliente() {
     </div>
   );
 }
-  const [registroCliente, setRegistroCliente] = useState(null);
   const [loadingPin, setLoadingPin] = useState(true);
 
   useEffect(() => {
