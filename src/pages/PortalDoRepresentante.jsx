@@ -1,7 +1,9 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRealtimeSync } from "@/components/hooks/useRealtimeSync";
+import { useAuth } from '@/components/providers/AuthContext';
+
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -31,8 +33,6 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 // Componentes Internos
-import PinGateway from "@/components/portais/PinGateway";
-import OnboardingModalStandalone from "@/components/admin/OnboardingModalStandalone";
 import ModalContainer from "@/components/modals/ModalContainer";
 import SolicitarNovoCliente from "@/components/portais/representante/SolicitarNovoCliente";
 import LiquidacaoSelfService from "@/components/portais/cliente/LiquidacaoSelfService";
@@ -46,15 +46,7 @@ import RepresentanteDetails from "@/components/representantes/RepresentanteDetai
 import RepresentanteForm from "@/components/representantes/RepresentanteForm";
 import ClienteDetails from "@/components/clientes/ClienteDetails";
 import ClienteForm from "@/components/clientes/ClienteForm";
-
-// NOVO: Importando a Tabela de Produção
 import Emproduçaotable from "@/components/pedidos/Emproduçaotable";
-
-// --- UTILITÁRIOS ---
-const realizarLogout = () => {
-  try { localStorage.clear(); sessionStorage.clear(); window.location.href = '/'; } 
-  catch (e) { window.location.reload(); }
-};
 
 const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
@@ -77,7 +69,6 @@ const StatWidget = ({ title, value, subtitle, icon: Icon, colorClass }) => (
 // --- COMPONENTE: MODAL DE DETALHES ---
 const DetailsModal = ({ item, type, open, onOpenChange }) => {
   if (!item) return null;
-
   const getTitle = () => {
     if (type === 'pedido') return `Pedido #${item.numero_pedido}`;
     if (type === 'cheque') return `Cheque #${item.numero_cheque}`;
@@ -132,7 +123,6 @@ const PedidosView = ({ pedidos, itensProducao, onViewDetails }) => {
 
   const safePedidos = pedidos || [];
   const safeProducao = itensProducao || [];
-  
   const filtrarPorBusca = (lista) => {
     if (!searchTerm) return lista;
     return lista.filter(p => 
@@ -145,7 +135,7 @@ const PedidosView = ({ pedidos, itensProducao, onViewDetails }) => {
   const pedidosEmTransito = filtrarPorBusca(safePedidos.filter(p => p.status === 'em_transito' || p.status === 'aguardando'));
   const pedidosAbertos = filtrarPorBusca(safePedidos.filter(p => p.status === 'aberto' || p.status === 'parcial'));
   const pedidosLiquidados = filtrarPorBusca(safePedidos.filter(p => p.status === 'pago'));
-
+  
   const getPedidosAtuais = () => {
     switch(activeTab) {
       case 'transito': return pedidosEmTransito;
@@ -179,7 +169,6 @@ const PedidosView = ({ pedidos, itensProducao, onViewDetails }) => {
           </TabsList>
         </Tabs>
         
-        {/* Esconde a busca local se estiver na aba de Produção (pois o Emproduçaotable já tem a sua) */}
         {activeTab !== 'producao' && (
           <div className="relative w-full md:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -219,7 +208,6 @@ const PedidosView = ({ pedidos, itensProducao, onViewDetails }) => {
                   hoje.setHours(0,0,0,0);
                   const diasAtraso = p.data_entrega ? differenceInDays(hoje, parseISO(p.data_entrega)) : 0;
                   const isAtrasado = (p.status === 'aberto' || p.status === 'parcial') && diasAtraso > 15;
-
                   return (
                     <TableRow key={p.id} className="hover:bg-slate-50">
                       <TableCell className="text-sm text-slate-600">
@@ -254,8 +242,7 @@ const PedidosView = ({ pedidos, itensProducao, onViewDetails }) => {
                           {p.status === 'pago' ? '✅ Pago' : 
                            isAtrasado ? `⚠️ Atrasado (+${diasAtraso}d)` :
                            p.status === 'parcial' ? '⏳ Parcial' :
-                           p.status === 'em_transito' || p.status === 'aguardando' ? '🚚 Em Trânsito' :
-                           '📂 Aberto'}
+                           p.status === 'em_transito' || p.status === 'aguardando' ? '🚚 Em Trânsito' : '📂 Aberto'}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-center">
@@ -286,22 +273,19 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
   const safePedidos = pedidos || [];
   const safeCheques = cheques || [];
   const safeCreditos = creditos || [];
-  const safeProducao = itensProducao || []; 
-  
-  // 1. Cálculos de Filtros
+  const safeProducao = itensProducao || [];
+
   const hoje = new Date();
   hoje.setHours(0,0,0,0);
 
   const pedidosTransito = safePedidos.filter(p => ['em_transito', 'aguardando'].includes(p.status));
   const pedidosPagos = safePedidos.filter(p => p.status === 'pago');
   
-  // Regra > 15 dias
   const pedidosAtrasados = safePedidos.filter(p => {
     if ((p.status !== 'aberto' && p.status !== 'parcial') || !p.data_entrega) return false;
     return differenceInDays(hoje, parseISO(p.data_entrega)) > 15; 
   });
-  
-  // Aberto = Aberto/Parcial E NÃO Atrasado
+
   const pedidosAbertos = safePedidos.filter(p => 
     (['aberto', 'parcial'].includes(p.status)) && 
     !pedidosAtrasados.some(pa => pa.id === p.id)
@@ -310,11 +294,9 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
   const creditosDisponiveis = safeCreditos.filter(c => c.status === 'disponivel');
   const chequesDisponiveis = safeCheques.filter(c => c.status === 'normal');
 
-  // Cálculos Financeiros
   const totalDevendo = safePedidos.reduce((acc, p) => acc + (p.saldo_restante || 0), 0);
   const temAtraso = pedidosAtrasados.length > 0;
   
-  // Função para renderizar tabela condicional
   const renderTable = () => {
     if (innerTab === 'producao') {
       if (safeProducao.length === 0) {
@@ -326,7 +308,6 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
         );
       }
 
-      // Agrupa os itens de produção por pedido para ficar organizado
       const producaoAgrupada = safeProducao.reduce((acc, item) => {
         if (!acc[item.numero_pedido]) acc[item.numero_pedido] = [];
         acc[item.numero_pedido].push(item);
@@ -365,7 +346,6 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
       );
     }
 
-    // Renderização das outras abas (Pedidos, Cheques, Créditos)
     let data = [];
     let type = 'pedido';
 
@@ -400,12 +380,10 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
                     {data.map(item => (
                         <TableRow key={item.id} className="hover:bg-slate-50/50">
                             <TableCell className="font-mono font-medium">
-                                {type === 'pedido' ? `#${item.numero_pedido}` : 
-                                 type === 'cheque' ? item.numero_cheque : 
-                                 item.referencia}
+                                {type === 'pedido' ? `#${item.numero_pedido}` : type === 'cheque' ? item.numero_cheque : item.referencia}
                             </TableCell>
                             <TableCell className="text-slate-600 text-sm">
-                                {type === 'pedido' ? (item.data_entrega ? format(new Date(item.data_entrega), 'dd/MM/yy') : '-') : 
+                                 {type === 'pedido' ? (item.data_entrega ? format(new Date(item.data_entrega), 'dd/MM/yy') : '-') : 
                                  type === 'cheque' ? (item.data_vencimento ? format(new Date(item.data_vencimento), 'dd/MM/yy') : '-') :
                                  (item.data_emissao ? format(new Date(item.data_emissao), 'dd/MM/yy') : '-')}
                             </TableCell>
@@ -434,7 +412,7 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
             </Table>
         </div>
     );
-  };
+};
 
   return (
     <div className={`mb-4 bg-white rounded-2xl border transition-all duration-300 ${isExpanded ? 'shadow-md border-blue-200 ring-1 ring-blue-100' : 'shadow-sm border-slate-100'}`}>
@@ -492,7 +470,7 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
           </Tabs>
 
           <div className="flex justify-end gap-3 pt-4 border-t mt-4">
-            <Button onClick={() => onSolicitarLiquidacao(cliente)} disabled={pedidosAbertos.length === 0 && pedidosAtrasados.length === 0} className="bg-emerald-600 hover:bg-emerald-700"><DollarSign className="w-4 h-4 mr-2" /> Solicitar Liquidação</Button>
+             <Button onClick={() => onSolicitarLiquidacao(cliente)} disabled={pedidosAbertos.length === 0 && pedidosAtrasados.length === 0} className="bg-emerald-600 hover:bg-emerald-700"><DollarSign className="w-4 h-4 mr-2" /> Solicitar Liquidação</Button>
           </div>
         </div>
       )}
@@ -503,18 +481,18 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
 // --- COMPONENTE PRINCIPAL ---
 export default function PainelRepresentante() {
   useRealtimeSync();
-  const [user, setUser] = useState(null);
-  const [representante, setRepresentante] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   
+  // 🚀 PUXANDO A AUTENTICAÇÃO GLOBAL E 
+  const { user, loading: authLoading, signOut } = useAuth();
+  
+  const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('clientes');
   const [detailsModal, setDetailsModal] = useState({ open: false, item: null, type: null });
   const [showSolicitarClienteModal, setShowSolicitarClienteModal] = useState(false);
   const [showLiquidacaoModal, setShowLiquidacaoModal] = useState(false);
   const [showLiquidacaoGlobalModal, setShowLiquidacaoGlobalModal] = useState(false);
   const [clienteParaLiquidacao, setClienteParaLiquidacao] = useState(null);
-  
   const [clienteDetailsModal, setClienteDetailsModal] = useState({ open: false, cliente: null });
   const [editClienteModal, setEditClienteModal] = useState({ open: false, cliente: null });
   const [inviteClienteModal, setInviteClienteModal] = useState({ open: false, cliente: null });
@@ -522,61 +500,43 @@ export default function PainelRepresentante() {
   const [showOrcamentoModal, setShowOrcamentoModal] = useState(false);
   const [showComissaoModal, setShowComissaoModal] = useState(false);
   const [showAutorizacoesModal, setShowAutorizacoesModal] = useState(false);
-
-  // Perfil do representante
+  
   const [showPerfilModal, setShowPerfilModal] = useState(false);
   const [showEditPerfilModal, setShowEditPerfilModal] = useState(false);
 
-  const [pinOk, setPinOk] = useState(() => !!sessionStorage.getItem('portal_representante_pin_ok'));
-  const [registroRepresentante, setRegistroRepresentante] = useState(null);
+  // Busca os representantes para ligar ao e-mail do usuário logado
+  const { data: todosRepresentantes = [], isLoading: repsLoading } = useQuery({ 
+    queryKey: ['representantes'], 
+    queryFn: () => base44.entities.Representante.list() 
+  });
 
-  useEffect(() => {
-    let mounted = true;
-    async function loadData() {
-      try {
-        const u = await base44.auth.me();
-        if (mounted && u) {
-          setUser(u);
-          const reps = await base44.entities.Representante.list();
-          const rep = reps.find(r => r.email === u.email);
-          setRepresentante(rep);
-          if (rep) setRegistroRepresentante(rep);
-        }
-      } catch (e) { console.error(e); } 
-      finally { if (mounted) setLoading(false); }
-    }
-    loadData();
-    return () => { mounted = false };
-  }, []);
+  const representanteLogado = useMemo(() => {
+    if (!user?.email || !todosRepresentantes.length) return null;
+    return todosRepresentantes.find(r => r.email === user.email);
+  }, [user, todosRepresentantes]);
 
-  const handlePinOk = (registro) => {
-    sessionStorage.setItem('portal_representante_pin_ok', '1');
-    setRegistroRepresentante(registro);
-    setPinOk(true);
-  };
-
-  const { data: todosClientes = [], refetch: refetchClientes } = useQuery({ queryKey: ['clientes', representante?.id], queryFn: () => base44.entities.Cliente.list(), enabled: !!representante });
-  const { data: todosPedidos = [], refetch: refetchPedidos } = useQuery({ queryKey: ['pedidos', representante?.id], queryFn: () => base44.entities.Pedido.list(), enabled: !!representante });
-  const { data: todosCheques = [] } = useQuery({ queryKey: ['cheques', representante?.id], queryFn: () => base44.entities.Cheque.list(), enabled: !!representante });
-  const { data: todosCreditos = [] } = useQuery({ queryKey: ['creditos', representante?.id], queryFn: () => base44.entities.Credito.list(), enabled: !!representante });
+  const { data: todosClientes = [], refetch: refetchClientes } = useQuery({ queryKey: ['clientes', representanteLogado?.id], queryFn: () => base44.entities.Cliente.list(), enabled: !!representanteLogado });
+  const { data: todosPedidos = [], refetch: refetchPedidos } = useQuery({ queryKey: ['pedidos', representanteLogado?.id], queryFn: () => base44.entities.Pedido.list(), enabled: !!representanteLogado });
+  const { data: todosCheques = [] } = useQuery({ queryKey: ['cheques', representanteLogado?.id], queryFn: () => base44.entities.Cheque.list(), enabled: !!representanteLogado });
+  const { data: todosCreditos = [] } = useQuery({ queryKey: ['creditos', representanteLogado?.id], queryFn: () => base44.entities.Credito.list(), enabled: !!representanteLogado });
   const { data: todosBorderos = [] } = useQuery({ 
-    queryKey: ['borderos', representante?.id], 
+    queryKey: ['borderos', representanteLogado?.id], 
     queryFn: () => base44.entities.Bordero.list(), 
-    enabled: !!representante 
+    enabled: !!representanteLogado 
   });
   const { data: todosItensProducao = [] } = useQuery({
     queryKey: ['producao_items'],
     queryFn: () => base44.entities.ProducaoItem.list(),
-    enabled: !!representante,
+    enabled: !!representanteLogado,
     refetchInterval: 60000
   });
 
   // Meus Pedidos
   const meusPedidos = useMemo(() => {
-    if (!representante) return [];
+    if (!representanteLogado) return [];
     const safeTodosPedidos = todosPedidos || [];
-    return safeTodosPedidos.filter(p => p.representante_codigo === representante.codigo);
-  }, [representante, todosPedidos]);
+    return safeTodosPedidos.filter(p => p.representante_codigo === representanteLogado.codigo);
+  }, [representanteLogado, todosPedidos]);
 
   const meusPedidosAbertos = useMemo(() => {
     const safeMeusPedidos = meusPedidos || [];
@@ -584,7 +544,7 @@ export default function PainelRepresentante() {
   }, [meusPedidos]);
 
   const meusBorderos = useMemo(() => {
-    if (!representante) return [];
+    if (!representanteLogado) return [];
     const safeMeusPedidos = meusPedidos || [];
     const safeTodosBorderos = todosBorderos || [];
     const meusPedidosIds = safeMeusPedidos.map(p => p.id);
@@ -592,17 +552,17 @@ export default function PainelRepresentante() {
       const pedidosDoBordero = bordero.pedidos_ids || [];
       return pedidosDoBordero.some(pedidoId => meusPedidosIds.includes(pedidoId));
     });
-  }, [representante, todosBorderos, meusPedidos]);
+  }, [representanteLogado, todosBorderos, meusPedidos]);
 
   const meusClientes = useMemo(() => {
-    if (!representante) return [];
+    if (!representanteLogado) return [];
     const safeTodosClientes = todosClientes || [];
     const safeTodosPedidos = todosPedidos || [];
     const safeTodosCheques = todosCheques || [];
     const safeTodosCreditos = todosCreditos || [];
     const safeTodosItens = todosItensProducao || [];
     
-    let clientes = safeTodosClientes.filter(c => c.representante_codigo === representante.codigo);
+    let clientes = safeTodosClientes.filter(c => c.representante_codigo === representanteLogado.codigo);
     if (searchTerm) {
       clientes = clientes.filter(c => c.nome?.toLowerCase().includes(searchTerm.toLowerCase()) || c.codigo?.toLowerCase().includes(searchTerm.toLowerCase()));
     }
@@ -611,19 +571,17 @@ export default function PainelRepresentante() {
       pedidos: safeTodosPedidos.filter(p => p.cliente_codigo === c.codigo),
       cheques: safeTodosCheques.filter(ch => ch.cliente_codigo === c.codigo),
       creditos: safeTodosCreditos.filter(cr => cr.cliente_codigo === c.codigo),
-      // Correção do filtro aplicando String e trim para garantir que dê "match" perfeito
       itensProducao: safeTodosItens.filter(i => String(i.cliente_codigo).trim() === String(c.codigo).trim())
     }));
-  }, [representante, todosClientes, todosPedidos, todosCheques, todosCreditos, todosItensProducao, searchTerm]);
+  }, [representanteLogado, todosClientes, todosPedidos, todosCheques, todosCreditos, todosItensProducao, searchTerm]);
 
-  // NOVO: Meus Itens em Produção para passar para o PedidosView
   const meusItensProducao = useMemo(() => {
-    if (!representante) return [];
+    if (!representanteLogado) return [];
     const safeTodosItens = todosItensProducao || [];
     const codigosClientesMeus = meusClientes.map(c => String(c.codigo).trim());
     
     return safeTodosItens.filter(item => codigosClientesMeus.includes(String(item.cliente_codigo).trim()));
-  }, [representante, todosItensProducao, meusClientes]);
+  }, [representanteLogado, todosItensProducao, meusClientes]);
 
   const stats = useMemo(() => {
     const clientesComVendas30k = (meusClientes || []).filter(c => {
@@ -631,7 +589,6 @@ export default function PainelRepresentante() {
       return totalVendas > 30000;
     }).length;
     
-    // SOMA CORRETA DO SALDO
     const totalVendasAbertas = (meusPedidos || []).filter(p => p.status === 'aberto' || p.status === 'parcial').reduce((sum, p) => sum + (p.saldo_restante !== undefined ? p.saldo_restante : (p.valor_pedido - p.total_pago)), 0);
     
     const chequesTotal = (todosCheques || []).filter(c => (meusClientes || []).some(cli => cli.codigo === c.cliente_codigo)).reduce((sum, c) => sum + (c.valor || 0), 0);
@@ -645,30 +602,52 @@ export default function PainelRepresentante() {
   const handleEditClient = (cliente) => { setEditClienteModal({ open: true, cliente }); };
   const handleInviteClient = (cliente) => { setInviteClienteModal({ open: true, cliente }); };
   const handleViewBordero = (bordero) => { setBorderoModal({ open: true, bordero }); };
-
+  
   const handleSaveRepresentante = async (form) => {
-    await base44.entities.Representante.update(representante.id, form);
-    setRepresentante(prev => ({ ...prev, ...form }));
+    await base44.entities.Representante.update(representanteLogado.id, form);
+    queryClient.invalidateQueries({ queryKey: ['representantes'] });
     setShowEditPerfilModal(false);
     toast.success('Perfil atualizado com sucesso!');
   };
 
-  if (loading) return <div className="min-h-screen bg-[#F2F2F7] flex flex-col items-center justify-center"><Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" /><p className="text-slate-500 font-medium">Carregando portal...</p></div>;
-  if (!pinOk && registroRepresentante) return <PinGateway perfil="representante" registroPreIdentificado={registroRepresentante} onIdentificado={handlePinOk} onVoltar={() => window.history.back()} />;
-  if (!user || !representante) return <div className="min-h-screen bg-[#F2F2F7] flex items-center justify-center p-6"><Card className="p-8 max-w-md text-center border-amber-200 bg-amber-50"><AlertCircle className="w-12 h-12 text-amber-600 mx-auto mb-4" /><h2 className="text-xl font-bold text-slate-800 mb-2">Acesso Restrito</h2><p className="text-slate-600 mb-4">Email não vinculado a um representante.</p><div className="flex justify-center gap-3"><Button onClick={() => window.location.reload()} variant="outline" className="bg-white">Recarregar</Button><Button onClick={realizarLogout} variant="destructive">Sair</Button></div></Card></div>;
+  // ── LOADING GLOBAL ────────────────────────────────────────────────────────
+  if (authLoading || repsLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900">
+        <Loader2 className="animate-spin w-10 h-10 text-blue-400 mb-4" />
+        <p className="text-slate-400">Verificando credenciais...</p>
+      </div>
+    );
+  }
+
+  // ── ERRO DE ACESSO (Usuário logado, mas não é um Representante) ───────────
+  if (!representanteLogado) {
+    return (
+      <div className="min-h-screen bg-[#F2F2F7] flex items-center justify-center p-6">
+        <Card className="p-8 max-w-md text-center border-amber-200 bg-amber-50">
+          <AlertCircle className="w-12 h-12 text-amber-600 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-slate-800 mb-2">Acesso Restrito</h2>
+          <p className="text-slate-600 mb-4">Este e-mail ({user?.email}) não está vinculado a um representante ativo.</p>
+          <div className="flex justify-center gap-3">
+            <Button onClick={() => signOut()} variant="destructive">Sair</Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F2F2F7] pb-20 font-sans text-slate-900">
       <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-black/5 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all">
         <div className="flex items-center gap-5">
           <Avatar className="w-20 h-20 border-4 border-white shadow-lg cursor-pointer hover:opacity-90 transition-opacity shrink-0" onClick={() => setShowPerfilModal(true)}>
-            {representante.foto_url && <AvatarImage src={representante.foto_url} className="object-cover" />}
+            {representanteLogado.foto_url && <AvatarImage src={representanteLogado.foto_url} className="object-cover" />}
             <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-600 text-white text-2xl font-bold">
-              {(representante.nome_social || representante.nome || '').split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase()}
+              {(representanteLogado.nome_social || representanteLogado.nome || '').split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Olá, <span className="text-blue-600">{(representante.nome_social || representante.nome).split(' ')[0]}</span></h1>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Olá, <span className="text-blue-600">{(representanteLogado.nome_social || representanteLogado.nome).split(' ')[0]}</span></h1>
             <p className="text-sm text-slate-500 font-medium">Portal do Representante</p>
             <div className="flex items-center gap-2 mt-1">
               <Button variant="ghost" size="sm" onClick={() => setShowPerfilModal(true)} className="h-7 px-2 text-xs text-slate-500 hover:text-slate-800">
@@ -682,7 +661,7 @@ export default function PainelRepresentante() {
         </div>
         <div className="flex items-center gap-3">
           <div className="relative w-full md:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><Input placeholder="Buscar Cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 rounded-full bg-slate-100 border-transparent focus:bg-white transition-all" /></div>
-          <Button onClick={realizarLogout} variant="ghost" size="icon" className="rounded-full hover:bg-red-50 hover:text-red-600"><LogOut className="w-5 h-5" /></Button>
+          <Button onClick={() => signOut()} variant="ghost" size="icon" className="rounded-full hover:bg-red-50 hover:text-red-600"><LogOut className="w-5 h-5" /></Button>
         </div>
       </div>
       <div className="max-w-[1600px] mx-auto p-6 md:p-8 space-y-8">
@@ -715,6 +694,7 @@ export default function PainelRepresentante() {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+         
           <div className="bg-white border border-slate-200 rounded-xl p-1 flex gap-1"><Button variant={viewMode === 'clientes' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('clientes')} className={cn("rounded-lg h-9 gap-2", viewMode === 'clientes' && "bg-blue-600 hover:bg-blue-700 text-white shadow-sm")}><Building2 className="w-4 h-4" /> Clientes</Button><Button variant={viewMode === 'pedidos' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('pedidos')} className={cn("rounded-lg h-9 gap-2", viewMode === 'pedidos' && "bg-blue-600 hover:bg-blue-700 text-white shadow-sm")}><Package className="w-4 h-4" /> Pedidos</Button><Button variant={viewMode === 'borderos' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('borderos')} className={cn("rounded-lg h-9 gap-2", viewMode === 'borderos' && "bg-blue-600 hover:bg-blue-700 text-white shadow-sm")}><FileText className="w-4 h-4" /> Borderôs</Button></div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"><StatWidget title="Clientes na Carteira" value={stats.totalClientes} icon={Users} colorClass="bg-blue-500 shadow-blue-200" /><StatWidget title="Clientes +30k" value={stats.clientes30k} subtitle="VIPs" icon={Briefcase} colorClass="bg-purple-500 shadow-purple-200" /><StatWidget title="Vendas em Aberto" value={formatCurrency(stats.vendasAbertas)} icon={ShoppingCart} colorClass="bg-amber-500 shadow-amber-200" /><StatWidget title="Custódia de Cheques" value={formatCurrency(stats.carteiraCheques)} icon={CreditCard} colorClass="bg-emerald-500 shadow-emerald-200" /></div>
@@ -731,7 +711,6 @@ export default function PainelRepresentante() {
             )}
           </div>
         ) : viewMode === 'pedidos' ? (
-          // PASSANDO MEUS ITENS DE PRODUÇÃO AQUI
           <PedidosView pedidos={meusPedidos} itensProducao={meusItensProducao} onViewDetails={handleViewDetails} />
         ) : (
           <div className="space-y-4">
@@ -750,11 +729,17 @@ export default function PainelRepresentante() {
       </div>
 
       <DetailsModal open={detailsModal.open} onOpenChange={(open) => setDetailsModal(prev => ({ ...prev, open }))} item={detailsModal.item} type={detailsModal.type} />
-      <ModalContainer open={showSolicitarClienteModal} onClose={() => setShowSolicitarClienteModal(false)} title="Solicitar Cadastro de Cliente" description="Preencha os dados do novo cliente" size="lg"><SolicitarNovoCliente representante={representante} onSuccess={() => { setShowSolicitarClienteModal(false); toast.success('Solicitação enviada!'); }} onCancel={() => setShowSolicitarClienteModal(false)} /></ModalContainer>
-      <ModalContainer open={showLiquidacaoModal} onClose={() => { setShowLiquidacaoModal(false); setClienteParaLiquidacao(null); }} title="Solicitar Liquidação" description={clienteParaLiquidacao ? `Cliente: ${clienteParaLiquidacao.nome}` : ''} size="xl">{clienteParaLiquidacao && (<LiquidacaoSelfService pedidos={clienteParaLiquidacao.pedidos.filter(p => ['aberto', 'parcial', 'aguardando'].includes(p.status))} clienteCodigo={clienteParaLiquidacao.codigo} clienteNome={clienteParaLiquidacao.nome} onSuccess={() => { setShowLiquidacaoModal(false); setClienteParaLiquidacao(null); }} onCancel={() => { setShowLiquidacaoModal(false); setClienteParaLiquidacao(null); }} />)}</ModalContainer>
+      
+      <ModalContainer open={showSolicitarClienteModal} onClose={() => setShowSolicitarClienteModal(false)} title="Solicitar Cadastro de Cliente" description="Preencha os dados do novo cliente" size="lg">
+        <SolicitarNovoCliente representante={representanteLogado} onSuccess={() => { setShowSolicitarClienteModal(false); toast.success('Solicitação enviada!'); }} onCancel={() => setShowSolicitarClienteModal(false)} />
+      </ModalContainer>
+      
+      <ModalContainer open={showLiquidacaoModal} onClose={() => { setShowLiquidacaoModal(false); setClienteParaLiquidacao(null); }} title="Solicitar Liquidação" description={clienteParaLiquidacao ? `Cliente: ${clienteParaLiquidacao.nome}` : ''} size="xl">
+        {clienteParaLiquidacao && (<LiquidacaoSelfService pedidos={clienteParaLiquidacao.pedidos.filter(p => ['aberto', 'parcial', 'aguardando'].includes(p.status))} clienteCodigo={clienteParaLiquidacao.codigo} clienteNome={clienteParaLiquidacao.nome} onSuccess={() => { setShowLiquidacaoModal(false); setClienteParaLiquidacao(null); }} onCancel={() => { setShowLiquidacaoModal(false); setClienteParaLiquidacao(null); }} />)}
+      </ModalContainer>
+      
       <NovaLiquidacaoRepresentante open={showLiquidacaoGlobalModal} onClose={() => setShowLiquidacaoGlobalModal(false)} pedidos={meusPedidosAbertos} onSuccess={() => { setShowLiquidacaoGlobalModal(false); refetchPedidos(); }} />
       
-      {/* Modal Ver Cliente - usa ClienteDetails oficial */}
       <Dialog open={clienteDetailsModal.open} onOpenChange={(o) => !o && setClienteDetailsModal({ open: false, cliente: null })}>
         <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0">
           <DialogHeader className="p-6 pb-4 border-b shrink-0">
@@ -777,7 +762,6 @@ export default function PainelRepresentante() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal Editar Cliente - usa ClienteForm com isClientMode */}
       <Dialog open={editClienteModal.open} onOpenChange={(o) => !o && setEditClienteModal({ open: false, cliente: null })}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
           <DialogHeader className="p-6 pb-4 border-b shrink-0">
@@ -797,13 +781,13 @@ export default function PainelRepresentante() {
           </div>
         </DialogContent>
       </Dialog>
+      
       <ConviteClienteModal cliente={inviteClienteModal.cliente} open={inviteClienteModal.open} onClose={() => setInviteClienteModal({ open: false, cliente: null })} onSuccess={() => { refetchClientes(); setInviteClienteModal({ open: false, cliente: null }); }} />
       <BorderoDetailsModal bordero={borderoModal.bordero} pedidos={todosPedidos} open={borderoModal.open} onClose={() => setBorderoModal({ open: false, bordero: null })} />
-      <SolicitarOrcamentoModal open={showOrcamentoModal} onClose={() => setShowOrcamentoModal(false)} clientes={meusClientes} representanteCodigo={representante?.codigo} representanteNome={representante?.nome} />
-      <ComissaoModal open={showComissaoModal} onClose={() => setShowComissaoModal(false)} pedidos={meusPedidos} representante={representante} />
-      <MinhasAutorizacoesModal open={showAutorizacoesModal} onClose={() => setShowAutorizacoesModal(false)} representanteLogado={representante} pedidosAbertos={meusPedidosAbertos} />
+      <SolicitarOrcamentoModal open={showOrcamentoModal} onClose={() => setShowOrcamentoModal(false)} clientes={meusClientes} representanteCodigo={representanteLogado?.codigo} representanteNome={representanteLogado?.nome} />
+      <ComissaoModal open={showComissaoModal} onClose={() => setShowComissaoModal(false)} pedidos={meusPedidos} representante={representanteLogado} />
+      <MinhasAutorizacoesModal open={showAutorizacoesModal} onClose={() => setShowAutorizacoesModal(false)} representanteLogado={representanteLogado} pedidosAbertos={meusPedidosAbertos} />
 
-      {/* Modal Meus Dados (RepresentanteDetails) */}
       <Dialog open={showPerfilModal} onOpenChange={setShowPerfilModal}>
         <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
           <DialogHeader className="p-6 pb-4 border-b shrink-0">
@@ -812,20 +796,19 @@ export default function PainelRepresentante() {
             </DialogTitle>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto px-6 pb-4">
-            {representante && (
+            {representanteLogado && (
               <RepresentanteDetails
-                representante={representante}
+                representante={representanteLogado}
                 stats={{ totalClientes: meusClientes.length }}
                 onEdit={() => { setShowPerfilModal(false); setShowEditPerfilModal(true); }}
                 onClose={() => setShowPerfilModal(false)}
-                onAvatarUpdate={(url) => setRepresentante(prev => ({ ...prev, foto_url: url }))}
+                onAvatarUpdate={(url) => { queryClient.invalidateQueries({ queryKey: ['representantes'] }); }}
               />
             )}
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Modal Editar Perfil (RepresentanteForm com isSelfEditMode) */}
       <Dialog open={showEditPerfilModal} onOpenChange={setShowEditPerfilModal}>
         <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
           <DialogHeader className="p-6 pb-4 border-b shrink-0">
@@ -834,9 +817,9 @@ export default function PainelRepresentante() {
             </DialogTitle>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto p-6">
-            {representante && (
+            {representanteLogado && (
               <RepresentanteForm
-                representante={representante}
+                representante={representanteLogado}
                 isSelfEditMode={true}
                 onSave={handleSaveRepresentante}
                 onCancel={() => setShowEditPerfilModal(false)}
