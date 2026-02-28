@@ -569,23 +569,6 @@ export default function PortalCliente() {
     </div>
   );
 }
-    if (!clienteData) return { producao: [], transito: [], aPagar: [], pagos: [], cancelados: [] };
-    
-    let list = pedidos.filter(p => p.cliente_codigo === clienteData.codigo);
-    
-    // Filtros visuais
-    if (filtros.numeroPedido) list = list.filter(p => p.numero_pedido?.toLowerCase().includes(filtros.numeroPedido.toLowerCase()));
-    if (filtros.rota) list = list.filter(p => p.rota_codigo?.toLowerCase().includes(filtros.rota.toLowerCase()));
-    
-    return {
-      producao: list.filter(p => p.status === 'em_producao'),
-      // Renomeado lógica: Aguardando/Em Trânsito ficam juntos na aba "Em Trânsito"
-      transito: list.filter(p => p.status === 'aguardando' || p.status === 'em_transito'),
-      aPagar: list.filter(p => p.status === 'aberto' || p.status === 'parcial'),
-      pagos: list.filter(p => p.status === 'pago'),
-      cancelados: list.filter(p => p.status === 'cancelado')
-    };
-  }, [pedidos, clienteData, filtros]);
 
   const meusBorderos = useMemo(() => {
     if (!clienteData) return [];
