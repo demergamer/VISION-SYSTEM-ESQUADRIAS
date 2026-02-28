@@ -569,10 +569,6 @@ export default function PortalCliente() {
     </div>
   );
 }
-
-  const clienteData = useMemo(() => clientes.find(c => c.email === user?.email), [clientes, user]);
-
-  const meusItensProducao = useMemo(() => {
     if (!clienteData) return [];
     return todosItensProducao.filter(i => i.cliente_codigo === clienteData.codigo);
   }, [todosItensProducao, clienteData]);
