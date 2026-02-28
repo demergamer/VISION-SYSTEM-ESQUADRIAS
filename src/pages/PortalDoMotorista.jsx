@@ -220,12 +220,6 @@ export default function PortalDoMotorista() {
     </div>
   );
 }
-    <div className="min-h-screen flex items-center justify-center bg-slate-900">
-      <Loader2 className="animate-spin w-8 h-8 text-blue-400" />
-    </div>
-  );
-
-  // ── Erro de acesso ─────────────────────────────────────────────────────────
   if (erroAcesso) return (
     <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center p-6">
       <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl p-8 text-center space-y-4">

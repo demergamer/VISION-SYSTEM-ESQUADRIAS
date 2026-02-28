@@ -569,10 +569,6 @@ export default function PortalCliente() {
     </div>
   );
 }
-
-  useEffect(() => {
-    // Verifica se já passou pelo PIN nesta sessão
-    const saved = sessionStorage.getItem('portal_cliente_pin_ok');
     if (saved) { setPinOk(true); }
 
     async function identificar() {
