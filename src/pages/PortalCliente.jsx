@@ -569,12 +569,6 @@ export default function PortalCliente() {
     </div>
   );
 }
-    if (!clienteData) return [];
-    return todosItensProducao.filter(i => i.cliente_codigo === clienteData.codigo);
-  }, [todosItensProducao, clienteData]);
-
-  // Filtros e Dados
-  const meusPedidos = useMemo(() => {
     if (!clienteData) return { producao: [], transito: [], aPagar: [], pagos: [], cancelados: [] };
     
     let list = pedidos.filter(p => p.cliente_codigo === clienteData.codigo);
