@@ -305,8 +305,16 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
             <Factory className="w-8 h-8 text-slate-300 mx-auto mb-2" />
             <p className="text-sm text-slate-500 font-medium">Nenhum item deste cliente em produção no momento.</p>
           </div>
-        );
-      }
+          );
+          }
+
+          export default function PortalDoRepresentante() {
+          return (
+          <AuthProvider>
+            <PainelRepresentante />
+          </AuthProvider>
+          );
+          }
 
       const producaoAgrupada = safeProducao.reduce((acc, item) => {
         if (!acc[item.numero_pedido]) acc[item.numero_pedido] = [];
@@ -479,7 +487,7 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
 };
 
 // --- COMPONENTE PRINCIPAL ---
-export default function PainelRepresentante() {
+function PainelRepresentante() {
   useRealtimeSync();
   const queryClient = useQueryClient();
   
