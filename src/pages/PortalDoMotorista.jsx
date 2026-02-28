@@ -13,7 +13,7 @@ import { ptBR } from "date-fns/locale";
 import RotasListReadOnly from "@/components/pedidos/RotasListReadOnly";
 import RotasChecklistReadOnly from "@/components/pedidos/RotasChecklistReadOnly";
 import { useRealtimeSync } from "@/components/hooks/useRealtimeSync";
-import { useAuth } from '@/components/providers/AuthContext';
+import { useAuth, AuthProvider } from '@/components/providers/AuthContext';
 
 const formatCurrency = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
