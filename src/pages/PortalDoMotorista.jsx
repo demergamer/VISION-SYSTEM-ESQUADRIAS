@@ -220,45 +220,6 @@ export default function PortalDoMotorista() {
     </div>
   );
 }
-    setMotorista(null); setRegistroMotorista(null); setErroAcesso('');
-    window.location.reload();
-  };
-
-  const [anoStr, mesStr] = mesSelecionado.split('-');
-  const dataInicio = `${anoStr}-${mesStr}-01`;
-  const dataFim = format(endOfMonth(new Date(parseInt(anoStr), parseInt(mesStr) - 1, 1)), 'yyyy-MM-dd');
-
-  // Apenas rotas DO motorista logado
-  const { data: rotas = [], isLoading: loadingRotas } = useQuery({
-    queryKey: ['rotas_motorista_portal', motorista?.id, mesSelecionado],
-    queryFn: () => base44.entities.RotaImportada.list(),
-    enabled: !!motorista,
-    select: (all) => all.filter(r => {
-      const codigoMatch = r.motorista_codigo === motorista?.codigo || r.motorista_codigo === motorista?.id;
-      const dataRota = r.data_entrega || r.created_date;
-      return codigoMatch && dataRota >= dataInicio && dataRota <= dataFim;
-    })
-  });
-
-  // Apenas pedidos DO motorista logado
-  const { data: pedidos = [], isLoading: loadingPedidos } = useQuery({
-    queryKey: ['pedidos_motorista_portal', motorista?.id, mesSelecionado],
-    queryFn: () => base44.entities.Pedido.list(),
-    enabled: !!motorista,
-    select: (all) => all.filter(p => {
-      const codigoMatch = p.motorista_codigo === motorista?.codigo || p.motorista_codigo === motorista?.id;
-      const data = p.data_entrega || p.data_pagamento;
-      return codigoMatch && data && data >= dataInicio && data <= dataFim;
-    })
-  });
-
-  // Pedidos da rota selecionada (somente do motorista logado)
-  const pedidosDaRota = rotaSelecionada
-    ? pedidos.filter(p => p.rota_importada_id === rotaSelecionada.id || p.rota_codigo === rotaSelecionada.codigo_rota)
-    : [];
-
-  // ── Loading ────────────────────────────────────────────────────────────────
-  if (loadingSession) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-900">
       <Loader2 className="animate-spin w-8 h-8 text-blue-400" />
     </div>
