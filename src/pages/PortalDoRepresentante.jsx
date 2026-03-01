@@ -831,11 +831,3 @@ function PainelRepresentante() {
     </div>
   );
 }
-
-export default function PortalDoRepresentante() {
-  return (
-    <AuthProvider>
-      <PainelRepresentante />
-    </AuthProvider>
-  );
-}
