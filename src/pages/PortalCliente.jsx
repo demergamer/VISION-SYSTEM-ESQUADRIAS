@@ -568,8 +568,3 @@ export default function PortalCliente() {
     </div>
   );
 }
- export default function PortalCliente() {  // Em vez de PortalClienteInner
-   useRealtimeSync();
-   const queryClient = useQueryClient();
-   const { user, loading: authLoading, signOut } = useAuth();
-}
