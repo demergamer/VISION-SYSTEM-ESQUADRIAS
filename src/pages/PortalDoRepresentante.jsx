@@ -479,11 +479,9 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
 };
 
 // --- COMPONENTE PRINCIPAL ---
-function PainelRepresentante() {
+export default function PainelRepresentante() {
   useRealtimeSync();
   const queryClient = useQueryClient();
-  
-  // 🚀 PUXANDO A AUTENTICAÇÃO GLOBAL E 
   const { user, loading: authLoading, signOut } = useAuth();
   
   const [searchTerm, setSearchTerm] = useState('');
