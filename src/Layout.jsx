@@ -31,8 +31,6 @@ import { MessageSquare, MessageSquareDot } from 'lucide-react';
 import { usePresenca } from '@/components/hooks/usePresenca';
 
 const CalendarIcon = CalendarDays;
-
-// 🚀 ÍCONE INTELIGENTE (Usa os ícones nativos do sistema)
 const VisionMessageIcon = ({ className }) => {
   const { user } = useAuth();
   
@@ -67,7 +65,7 @@ const VisionMessageIcon = ({ className }) => {
   return <MessageSquare className={className} />;
 };
 
-// ESTRUTURA DO MENU (Agora usa o nosso Ícone Inteligente no Vision Message)
+// ESTRUTURA DO MENU
 const menuStructure = [
   {
     title: "Principal",
