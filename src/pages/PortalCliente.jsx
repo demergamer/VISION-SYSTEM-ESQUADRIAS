@@ -567,3 +567,4 @@ export default function PortalCliente() {
 
     </div>
   );
+}
