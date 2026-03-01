@@ -9,6 +9,8 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import PermissionGuard from "@/components/PermissionGuard";
 import VisionMessage from '@/pages/VisionMessage';
+import { AuthProvider as SecurityAuthProvider } from '@/components/providers/AuthContext';
+import { SecurityProvider } from '@/components/providers/SecurityProvider';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
