@@ -220,11 +220,3 @@ export default function PortalDoMotorista() {
     </div>
   );
 }
-
-export default function PortalDoMotorista() {
-  return (
-    <AuthProvider>
-      <PortalDoMotoristaInner />
-    </AuthProvider>
-  );
-}
