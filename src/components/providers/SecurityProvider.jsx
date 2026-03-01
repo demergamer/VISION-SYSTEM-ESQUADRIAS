@@ -35,10 +35,7 @@ function InativoBlockScreen({ signOut }) {
 export function SecurityProvider({ children }) {
   const { user, loading, signOut } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [isLocked, setIsLocked] = useState(() => {
-    // Se não há flag de sessão → começa bloqueado (exige PIN ao recarregar)
-    return !sessionStorage.getItem(SESSION_KEY);
-  });
+  const [isLocked, setIsLocked] = useState(true);
   const idleTimerRef = useRef(null);
   const sessionTimerRef = useRef(null);
 
