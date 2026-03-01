@@ -46,6 +46,9 @@ const PAGE_PERMISSIONS = {
 
 // --- PÁGINAS SEM SIDEBAR (PORTAIS E PÚBLICAS) ---
 const PORTAL_PAGES = [
+  'PortalCliente', 
+  'PortalDoRepresentante',
+  'PortalDoMotorista',
   'Lojajc',
   'Login', 
   'Welcome', 
@@ -55,10 +58,25 @@ const PORTAL_PAGES = [
 const LayoutWrapper = ({ children, currentPageName }) => {
   const isPortal = PORTAL_PAGES.includes(currentPageName);
 
+  // Páginas Administrativas (Roda o Layout completo com Windows/OS Mode)
   if (Layout && !isPortal) {
     return <Layout currentPageName={currentPageName}>{children}</Layout>;
   }
   
+  // 🚀 3. A MÁGICA: Aplica a Trava de PIN nos Portais, mas SEM o Modo Windows engolir a página!
+  const isSecurePortal = ['PortalCliente', 'PortalDoRepresentante', 'PortalDoMotorista'].includes(currentPageName);
+  
+  if (isSecurePortal) {
+    return (
+      <SecurityAuthProvider>
+        <SecurityProvider>
+          {children}
+        </SecurityProvider>
+      </SecurityAuthProvider>
+    );
+  }
+  
+  // Páginas públicas
   return <>{children}</>;
 };
 
