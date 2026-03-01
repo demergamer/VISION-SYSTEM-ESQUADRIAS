@@ -59,10 +59,9 @@ const TabButton = ({ active, onClick, icon: Icon, label, count, colorClass, bgAc
   </button>
 );
 
-function PortalClienteInner() {
+export default function PortalCliente() {
   useRealtimeSync();
   const queryClient = useQueryClient();
-  
   const { user, loading: authLoading, signOut } = useAuth();
 
   const [showFiltrosPedidos, setShowFiltrosPedidos] = useState(false);
@@ -569,12 +568,8 @@ function PortalClienteInner() {
     </div>
   );
 }
-
-// Portal do Cliente - entry point
-export default function PortalCliente() {
-  return (
-    <AuthProvider>
-      <PortalClienteInner />
-    </AuthProvider>
-  );
+ export default function PortalCliente() {  // Em vez de PortalClienteInner
+   useRealtimeSync();
+   const queryClient = useQueryClient();
+   const { user, loading: authLoading, signOut } = useAuth();
 }
