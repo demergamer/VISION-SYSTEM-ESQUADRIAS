@@ -70,6 +70,9 @@ import Motoristas from './pages/Motoristas';
 import Orcamentos from './pages/Orcamentos';
 import Pagamentos from './pages/Pagamentos';
 import Pedidos from './pages/Pedidos';
+import PortalCliente from './pages/PortalCliente';
+import PortalDoMotorista from './pages/PortalDoMotorista';
+import PortalDoRepresentante from './pages/PortalDoRepresentante';
 import Produtos from './pages/Produtos';
 import Relatorios from './pages/Relatorios';
 import Representantes from './pages/Representantes';
@@ -77,9 +80,6 @@ import Representation from './pages/Representation';
 import Usuarios from './pages/Usuarios';
 import VisionMessage from './pages/VisionMessage';
 import Welcome from './pages/Welcome';
-import PortalCliente from './pages/PortalCliente';
-import PortalDoMotorista from './pages/PortalDoMotorista';
-import PortalDoRepresentante from './pages/PortalDoRepresentante';
 import __Layout from './Layout.jsx';
 
 
@@ -107,6 +107,9 @@ export const PAGES = {
     "Orcamentos": Orcamentos,
     "Pagamentos": Pagamentos,
     "Pedidos": Pedidos,
+    "PortalCliente": PortalCliente,
+    "PortalDoMotorista": PortalDoMotorista,
+    "PortalDoRepresentante": PortalDoRepresentante,
     "Produtos": Produtos,
     "Relatorios": Relatorios,
     "Representantes": Representantes,
@@ -114,9 +117,6 @@ export const PAGES = {
     "Usuarios": Usuarios,
     "VisionMessage": VisionMessage,
     "Welcome": Welcome,
-    "PortalCliente": PortalCliente,
-    "PortalDoMotorista": PortalDoMotorista,
-    "PortalDoRepresentante": PortalDoRepresentante,
 }
 
 export const pagesConfig = {
