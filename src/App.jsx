@@ -46,9 +46,6 @@ const PAGE_PERMISSIONS = {
 
 // --- PÁGINAS SEM SIDEBAR (PORTAIS E PÚBLICAS) ---
 const PORTAL_PAGES = [
-  'PortalCliente', 
-  'PortalDoRepresentante',
-  'PortalDoMotorista',
   'Lojajc',
   'Login', 
   'Welcome', 
