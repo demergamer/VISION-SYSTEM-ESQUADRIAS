@@ -343,7 +343,7 @@ function LayoutInner({ children, currentPageName }) {
   const workspace = useWorkspace();
   const location = useLocation();
   const navigate = useNavigate();
-
+  const precisaConfigurarPerfil = user && !user.security_pin_hash;
   const uiMode = preferences?.ui_mode || 'os';
   const tbPos = preferences?.taskbar_position || 'top';
   const isOSMode = uiMode === 'os';
@@ -408,7 +408,11 @@ function LayoutInner({ children, currentPageName }) {
   return (
     <div className="min-h-screen bg-slate-50 relative overflow-x-hidden">
       <NotificationToastManager />
-
+      {precisaConfigurarPerfil && (
+         <div className="fixed inset-0 z-[99999] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center">
+            <OnboardingModal onComplete={() => window.location.reload()} />
+         </div>
+      )}
       {/* ── MOBILE HEADER (always classic on mobile) ── */}
       <div className="md:hidden">
         <ClassicHeader onOpenMenu={() => setMenuOpen(true)} user={user} userEmail={user?.email} />
