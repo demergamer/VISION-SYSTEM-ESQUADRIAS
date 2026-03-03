@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileText, X, Search } from "lucide-react";
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable'; // 🚀 Plugin para fazer a tabela igual ao Excel
+import autoTable from 'jspdf-autotable'; 
 
 export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
   const [pedidosSelecionados, setPedidosSelecionados] = useState([]);
