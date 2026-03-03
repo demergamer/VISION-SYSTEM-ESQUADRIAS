@@ -37,13 +37,12 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     }
   });
 
-  // Busca pedidos para extrair rotas únicas existentes
+  // Busca pedidos para extrair rotas únicas existentes e VALIDAR DUPLICIDADE
   const { data: todosPedidos = [] } = useQuery({
     queryKey: ['pedidos_rotas_form'],
     queryFn: () => base44.entities.Pedido.list()
   });
 
-  // NOVO: Busca PORTs disponíveis para auto-vínculo
   const { data: portsDisponiveis = [] } = useQuery({
     queryKey: ['ports_pedido_form'],
     queryFn: async () => {
@@ -52,7 +51,6 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     }
   });
 
-  // Rotas únicas derivadas dos pedidos existentes
   const rotasUnicas = useMemo(() => {
     const map = new Map();
     todosPedidos.forEach(p => {
@@ -71,11 +69,8 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     cliente_codigo: '',
     cliente_nome: '',
     cliente_regiao: '',
-    
-    // Representante
     representante_codigo: '',
     representante_nome: '',
-    
     data_entrega: '',
     numero_pedido: '',
     valor_pedido: 0,
@@ -84,22 +79,16 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     outras_informacoes: '',
     status: 'aberto',
     porcentagem_comissao: 5,
-    
-    // Logística
     rota_entrega: '', 
     motorista_codigo: '',
     motorista_atual: '',
-    
     desconto_tipo: 'valor',
     desconto_valor: 0,
-    
-    // Sinais
     sinais_historico: [],
     valor_sinal_informado: 0,
     arquivos_sinal: []
   });
 
-  // Lógica de Bloqueio do Representante
   const isRepresentanteLocked = !!pedido && !!pedido.representante_codigo;
 
   const [clienteSelecionadoDetalhes, setClienteSelecionadoDetalhes] = useState(null);
@@ -107,7 +96,6 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
   const [showNovoClienteModal, setShowNovoClienteModal] = useState(false);
   const [buscaCliente, setBuscaCliente] = useState(""); 
   const [novosClientesLocais, setNovosClientesLocais] = useState([]);
-  
   const [savingCliente, setSavingCliente] = useState(false);
 
   const todosClientes = useMemo(() => {
@@ -120,10 +108,8 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
         cliente_codigo: pedido.cliente_codigo || '',
         cliente_nome: pedido.cliente_nome || '',
         cliente_regiao: pedido.cliente_regiao || '',
-        
         representante_codigo: pedido.representante_codigo || '',
         representante_nome: pedido.representante_nome || '',
-        
         data_entrega: pedido.data_entrega || '',
         numero_pedido: pedido.numero_pedido || '',
         valor_pedido: pedido.valor_pedido || 0,
@@ -132,14 +118,11 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
         outras_informacoes: pedido.outras_informacoes || '',
         status: pedido.status || 'aberto',
         porcentagem_comissao: pedido.porcentagem_comissao || 5,
-        
         rota_entrega: pedido.rota_entrega || '', 
         motorista_codigo: pedido.motorista_codigo || '',
         motorista_atual: pedido.motorista_atual || '',
-        
         desconto_tipo: pedido.desconto_tipo || 'valor',
         desconto_valor: pedido.desconto_valor || 0,
-        
         sinais_historico: pedido.sinais_historico || [],
         valor_sinal_informado: pedido.valor_sinal_informado || 0,
         arquivos_sinal: pedido.arquivos_sinal || []
@@ -204,7 +187,35 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     setForm(prev => recalcularSaldo({ ...prev, sinais_historico: novosSinais }));
   };
 
+  // 🚀 LÓGICA DE BLOQUEIO DE SALVAMENTO DE DUPLICADOS
   const handleSave = () => {
+    const raw = String(form.numero_pedido).trim();
+    if (!raw) {
+      toast.error("Preencha o número do pedido antes de salvar.");
+      return;
+    }
+
+    const semPontos = raw.replace(/\./g, '');
+    const n = parseInt(semPontos, 10);
+    const formatado = !isNaN(n) ? n.toLocaleString('pt-BR').replace(/,/g, '.') : raw;
+
+    // Procura se já existe outro pedido com esse número exato
+    const duplicado = todosPedidos.find(p => 
+      p.id !== pedido?.id && (
+        String(p.numero_pedido) === formatado || 
+        String(p.numero_pedido) === raw ||
+        String(p.numero_pedido).replace(/\./g, '') === semPontos
+      )
+    );
+
+    if (duplicado) {
+      toast.error(`AÇÃO BLOQUEADA: O Pedido #${formatado} já existe para o cliente ${duplicado.cliente_nome}!`, { 
+        duration: 8000,
+        style: { background: '#FEF2F2', color: '#991B1B', border: '1px solid #F87171', fontWeight: 'bold' }
+      });
+      return; // IMPEDE A GRAVAÇÃO TOTALMENTE
+    }
+
     onSave(form);
   };
 
@@ -291,7 +302,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
               const n = parseInt(semPontos, 10);
               const formatado = !isNaN(n) ? n.toLocaleString('pt-BR').replace(/,/g, '.') : raw;
               
-              // 1. Verifica duplicidade
+              // 1. Verifica duplicidade (Para aviso ao sair do campo)
               const duplicado = todosPedidos.find(p => 
                 p.id !== pedido?.id && (
                   String(p.numero_pedido) === formatado || 
@@ -314,10 +325,8 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
 
               portsEncontrados.forEach(port => {
                 const itemPort = port.itens_port.find(i => String(i.numero_pedido_manual).replace(/\./g, '') === semPontos);
-                // Se não tiver valor alocado específico, pega o total disponível daquele PORT
                 const valorSinal = parseFloat(itemPort?.valor_alocado || port.saldo_disponivel || 0);
 
-                // Evita colocar duas vezes o mesmo port
                 const jaExiste = novosSinais.some(s => s._portId === port.id || String(s.referencia).includes(`PORT #${port.numero_port}`));
 
                 if (!jaExiste && valorSinal > 0) {
