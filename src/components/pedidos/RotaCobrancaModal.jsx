@@ -4,11 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Card } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { FileText, X, Search, Calendar } from "lucide-react";
+import { FileText, Search, Calendar } from "lucide-react";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import ModalContainer from "@/components/modals/ModalContainer"; // 🚀 Importado o ModalContainer
 
 export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
   const [pedidosSelecionados, setPedidosSelecionados] = useState([]);
@@ -131,14 +130,13 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
     const tableBody = [];
 
     clientesAgrupados.forEach((cliente, index) => {
-      // Buscar região e telefone na lista de clientes cadastrados
       const clienteDb = clientesDb.find(c => c.codigo === cliente.codigo) || {};
       const regiao = clienteDb.regiao || '';
       const dadosCliente = clienteDb.telefone ? `Tel: ${clienteDb.telefone}` : '';
       
       let clientSubtotal = 0;
 
-      // 🚀 Pula uma linha visual antes de cada cliente (exceto o primeiro)
+      // Pula uma linha visual antes de cada cliente (exceto o primeiro)
       if (index > 0) {
         tableBody.push([
           { content: '', colSpan: 8, styles: { fillColor: [255, 255, 255], minCellHeight: 6 } }
@@ -178,16 +176,16 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
         ]);
       });
 
-      // 🚀 Linha de Separação/Subtotal do Cliente (Mais Escura e com Nome do Cliente)
+      // Linha de Separação/Subtotal do Cliente
       tableBody.push([
-        { content: '', colSpan: 4, styles: { fillColor: [210, 210, 210] } }, // Cor cinza mais escura
+        { content: '', colSpan: 4, styles: { fillColor: [210, 210, 210] } },
         { content: `SUBTOTAL ${cliente.nome}:`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [210, 210, 210] } },
         { content: formatCurrency(clientSubtotal), styles: { fontStyle: 'bold', halign: 'right', fillColor: [210, 210, 210] } },
         { content: '', colSpan: 2, styles: { fillColor: [210, 210, 210] } }
       ]);
     });
 
-    // 3. Desenhar o Cabeçalho (Estilo da Planilha)
+    // 3. Desenhar o Cabeçalho
     doc.setFontSize(14);
     doc.setFont(undefined, 'bold');
     doc.text(`COBRANÇA GIL - ${diaDaSemanaStr}`, 14, 15);
@@ -195,7 +193,6 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
     doc.setFontSize(10);
     doc.setFont(undefined, 'normal');
     doc.text(`TABELA PRINCIPAL`, 14, 22);
-    // 🚀 Data no formato Brasileiro
     doc.text(`${dataBr}`, 55, 22); 
     doc.setFont(undefined, 'bold');
     doc.text(`TOTAL A RECEBER: ${formatCurrency(totalGeral)}`, 100, 22);
@@ -210,7 +207,7 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
         fontSize: 8, 
         cellPadding: 2, 
         textColor: [50, 50, 50],
-        lineColor: [200, 200, 200], // Cor da borda
+        lineColor: [200, 200, 200],
         lineWidth: 0.1,
       },
       headStyles: { 
@@ -220,13 +217,12 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
         halign: 'center'
       },
       columnStyles: {
-        3: { halign: 'right', cellWidth: 25 }, // Valor
-        4: { halign: 'right', cellWidth: 25 }, // Pago
-        5: { halign: 'right', cellWidth: 25 }, // Cobrar
-        6: { cellWidth: 40 }, // Obs
+        3: { halign: 'right', cellWidth: 25 },
+        4: { halign: 'right', cellWidth: 25 },
+        5: { halign: 'right', cellWidth: 25 },
+        6: { cellWidth: 40 },
       },
       didDrawPage: function (data) {
-        // Numeração de Página no Rodapé
         doc.setFontSize(8);
         doc.setFont(undefined, 'normal');
         doc.text(`Página ${doc.internal.getNumberOfPages()}`, data.settings.margin.left, doc.internal.pageSize.height - 10);
@@ -236,111 +232,108 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
     doc.save(`Rota_Cobranca_${dataBr.replace(/\//g, '-')}.pdf`);
   };
 
+  // 🚀 Utilizamos o ModalContainer como base principal
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-5xl max-h-[90vh] flex flex-col">
-        <div className="p-6 border-b flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-bold">Gerar Rota de Cobrança - Gilson</h2>
-            <p className="text-sm text-slate-500">Selecione pedidos e cheques para incluir na rota</p>
-          </div>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="w-5 h-5" />
-          </Button>
+    <ModalContainer
+      open={true}
+      onClose={onClose}
+      title="Gerar Rota de Cobrança - Gilson"
+      description="Selecione pedidos e cheques para incluir na rota (Formato Excel)"
+      size="3xl"
+    >
+      <div className="space-y-6 flex flex-col h-full">
+        {/* Campo de Pesquisa */}
+        <div className="relative shrink-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Input
+            placeholder="Buscar por cliente, código ou número de pedido/cheque..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
         </div>
 
-        <ScrollArea className="flex-1 p-6">
-          <div className="space-y-6">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <Input
-                placeholder="Buscar por cliente, código ou número de pedido/cheque..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+        {/* Listas (Pedidos e Cheques) */}
+        <div className="space-y-6 flex-1">
+          {/* Pedidos em Aberto */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-lg text-slate-700">Pedidos em Aberto ({pedidosAbertos.length})</h3>
+              <Button variant="outline" size="sm" onClick={selecionarTodosPedidos}>
+                {pedidosSelecionados.length === pedidosAbertos.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
+              </Button>
             </div>
-
-            {/* Pedidos em Aberto */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-lg">Pedidos em Aberto ({pedidosAbertos.length})</h3>
-                <Button variant="outline" size="sm" onClick={selecionarTodosPedidos}>
-                  {pedidosSelecionados.length === pedidosAbertos.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
-                </Button>
-              </div>
-              <div className="space-y-2">
-                {pedidosAbertos.map(pedido => {
-                  const saldo = pedido.saldo_restante || (pedido.valor_pedido - (pedido.total_pago || 0));
-                  return (
-                    <div key={pedido.id} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-slate-50">
-                      <Checkbox
-                        checked={pedidosSelecionados.includes(pedido.id)}
-                        onCheckedChange={() => togglePedido(pedido.id)}
-                      />
-                      <div className="flex-1 grid grid-cols-5 gap-2 text-sm">
-                        <div>
-                          <p className="font-medium">{pedido.cliente_nome}</p>
-                          <p className="text-xs text-slate-500">{pedido.cliente_codigo}</p>
-                        </div>
-                        <div>
-                          <p className="text-slate-600">Pedido: {pedido.numero_pedido}</p>
-                        </div>
-                        <div>
-                          <p className="text-slate-600">Total: {formatCurrency(pedido.valor_pedido)}</p>
-                        </div>
-                        <div>
-                          <p className="text-slate-600">Pago: {formatCurrency(pedido.total_pago || 0)}</p>
-                        </div>
-                        <div>
-                          <p className="font-bold text-red-600">Saldo: {formatCurrency(saldo)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Cheques Devolvidos */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-lg">Cheques Devolvidos ({chequesDevolvidos.length})</h3>
-                <Button variant="outline" size="sm" onClick={selecionarTodosCheques}>
-                  {chequesSelecionados.length === chequesDevolvidos.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
-                </Button>
-              </div>
-              <div className="space-y-2">
-                {chequesDevolvidos.map(cheque => (
-                  <div key={cheque.id} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-slate-50">
+            <div className="space-y-2">
+              {pedidosAbertos.map(pedido => {
+                const saldo = pedido.saldo_restante || (pedido.valor_pedido - (pedido.total_pago || 0));
+                return (
+                  <div key={pedido.id} className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
                     <Checkbox
-                      checked={chequesSelecionados.includes(cheque.id)}
-                      onCheckedChange={() => toggleCheque(cheque.id)}
+                      checked={pedidosSelecionados.includes(pedido.id)}
+                      onCheckedChange={() => togglePedido(pedido.id)}
                     />
-                    <div className="flex-1 grid grid-cols-4 gap-2 text-sm">
+                    <div className="flex-1 grid grid-cols-5 gap-2 text-sm">
                       <div>
-                        <p className="font-medium">{cheque.cliente_nome || cheque.emitente}</p>
-                        <p className="text-xs text-slate-500">{cheque.cliente_codigo}</p>
+                        <p className="font-medium text-slate-800">{pedido.cliente_nome}</p>
+                        <p className="text-xs text-slate-500">{pedido.cliente_codigo}</p>
                       </div>
                       <div>
-                        <p className="text-slate-600">Cheque: {cheque.numero_cheque}</p>
+                        <p className="text-slate-600">Pedido: <span className="font-mono">{pedido.numero_pedido}</span></p>
                       </div>
                       <div>
-                        <p className="text-slate-600">Banco: {cheque.banco}</p>
+                        <p className="text-slate-600">Total: {formatCurrency(pedido.valor_pedido)}</p>
                       </div>
                       <div>
-                        <p className="font-bold text-red-600">{formatCurrency(cheque.valor)}</p>
+                        <p className="text-slate-600">Pago: {formatCurrency(pedido.total_pago || 0)}</p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-red-600">Saldo: {formatCurrency(saldo)}</p>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           </div>
-        </ScrollArea>
 
-        {/* 🚀 RODAPÉ COM SELETOR DE DATA DA ROTA */}
-        <div className="p-5 border-t flex flex-col md:flex-row items-center justify-between gap-4 bg-slate-50 rounded-b-xl">
+          {/* Cheques Devolvidos */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-lg text-slate-700">Cheques Devolvidos ({chequesDevolvidos.length})</h3>
+              <Button variant="outline" size="sm" onClick={selecionarTodosCheques}>
+                {chequesSelecionados.length === chequesDevolvidos.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {chequesDevolvidos.map(cheque => (
+                <div key={cheque.id} className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+                  <Checkbox
+                    checked={chequesSelecionados.includes(cheque.id)}
+                    onCheckedChange={() => toggleCheque(cheque.id)}
+                  />
+                  <div className="flex-1 grid grid-cols-4 gap-2 text-sm">
+                    <div>
+                      <p className="font-medium text-slate-800">{cheque.cliente_nome || cheque.emitente}</p>
+                      <p className="text-xs text-slate-500">{cheque.cliente_codigo}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-600">Cheque: <span className="font-mono">{cheque.numero_cheque}</span></p>
+                    </div>
+                    <div>
+                      <p className="text-slate-600">Banco: {cheque.banco}</p>
+                    </div>
+                    <div>
+                      <p className="font-bold text-red-600">{formatCurrency(cheque.valor)}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Rodapé (Sticky na parte inferior do conteúdo do modal) */}
+        <div className="pt-5 mt-4 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4 shrink-0 pb-2">
           <div className="flex items-center gap-6 w-full md:w-auto">
             <p className="text-sm font-medium text-slate-600">
               <span className="text-blue-600 font-bold">{pedidosSelecionados.length}</span> pedido(s) e <span className="text-blue-600 font-bold">{chequesSelecionados.length}</span> cheque(s)
@@ -352,13 +345,13 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
                 type="date" 
                 value={dataRota} 
                 onChange={(e) => setDataRota(e.target.value)} 
-                className="h-8 text-sm w-36 bg-white"
+                className="h-9 text-sm w-36 bg-slate-50 border-slate-300"
               />
             </div>
           </div>
           
           <div className="flex gap-3 w-full md:w-auto">
-            <Button variant="outline" onClick={onClose} className="flex-1 md:flex-none bg-white">
+            <Button variant="outline" onClick={onClose} className="flex-1 md:flex-none">
               Cancelar
             </Button>
             <Button 
@@ -371,7 +364,8 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
             </Button>
           </div>
         </div>
-      </Card>
-    </div>
+
+      </div>
+    </ModalContainer>
   );
 }
