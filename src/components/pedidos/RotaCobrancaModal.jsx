@@ -8,13 +8,14 @@ import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileText, X, Search } from "lucide-react";
 import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable'; // 🚀 Plugin para fazer a tabela igual ao Excel
 
 export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
   const [pedidosSelecionados, setPedidosSelecionados] = useState([]);
   const [chequesSelecionados, setChequesSelecionados] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const { data: clientes = [] } = useQuery({
+  const { data: clientesDb = [] } = useQuery({
     queryKey: ['clientes'],
     queryFn: () => base44.entities.Cliente.list()
   });
@@ -87,35 +88,25 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
   const gerarPDF = () => {
     const doc = new jsPDF('landscape');
     
-    // Data de amanha
+    // Configurações de Data
     const amanha = new Date();
     amanha.setDate(amanha.getDate() + 1);
-    const dataFormatada = amanha.toLocaleDateString('pt-BR');
+    const dataIso = amanha.toISOString().split('T')[0]; // Formato 2026-02-09
+    const dataBr = amanha.toLocaleDateString('pt-BR');
     
-    const hoje = new Date();
-    
-    const calcularDiasAtraso = (dataEntrega) => {
-      const entrega = new Date(dataEntrega);
-      const diff = Math.floor((hoje - entrega) / (1000 * 60 * 60 * 24));
-      return diff > 0 ? diff : 0;
-    };
+    const diasSemana = ['DOMINGO', 'SEGUNDA-FEIRA', 'TERÇA-FEIRA', 'QUARTA-FEIRA', 'QUINTA-FEIRA', 'SEXTA-FEIRA', 'SÁBADO'];
+    const diaDaSemanaStr = diasSemana[amanha.getDay()];
 
-    // Pedidos e cheques selecionados
     const pedidosSel = pedidosAbertos.filter(p => pedidosSelecionados.includes(p.id));
     const chequesSel = chequesDevolvidos.filter(c => chequesSelecionados.includes(c.id));
 
-    // Agrupar por cliente
+    // 1. Agrupar por cliente
     const clientesMap = new Map();
 
     pedidosSel.forEach(pedido => {
       const clienteKey = pedido.cliente_codigo || pedido.cliente_nome;
       if (!clientesMap.has(clienteKey)) {
-        clientesMap.set(clienteKey, {
-          codigo: pedido.cliente_codigo,
-          nome: pedido.cliente_nome,
-          pedidos: [],
-          cheques: []
-        });
+        clientesMap.set(clienteKey, { codigo: pedido.cliente_codigo, nome: pedido.cliente_nome, pedidos: [], cheques: [] });
       }
       clientesMap.get(clienteKey).pedidos.push(pedido);
     });
@@ -123,193 +114,111 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
     chequesSel.forEach(cheque => {
       const clienteKey = cheque.cliente_codigo || cheque.cliente_nome;
       if (!clientesMap.has(clienteKey)) {
-        clientesMap.set(clienteKey, {
-          codigo: cheque.cliente_codigo,
-          nome: cheque.cliente_nome || cheque.emitente,
-          pedidos: [],
-          cheques: []
-        });
+        clientesMap.set(clienteKey, { codigo: cheque.cliente_codigo, nome: cheque.cliente_nome || cheque.emitente, pedidos: [], cheques: [] });
       }
       clientesMap.get(clienteKey).cheques.push(cheque);
     });
 
-    // Ordenar por nome do cliente
-    const clientes = Array.from(clientesMap.values()).sort((a, b) => 
-      a.nome.localeCompare(b.nome)
-    );
+    const clientesAgrupados = Array.from(clientesMap.values()).sort((a, b) => a.nome.localeCompare(b.nome));
 
-    // Logo/Header
-    doc.setFontSize(18);
-    doc.setFont(undefined, 'bold');
-    doc.text('ROTA DE COBRANCA - GILSON', 148, 15, { align: 'center' });
-    doc.setFontSize(12);
-    doc.setFont(undefined, 'normal');
-    doc.text(`Data: ${dataFormatada}`, 148, 22, { align: 'center' });
-    
-    // Linha separadora
-    doc.line(15, 26, 282, 26);
+    // 2. Montar as linhas da Tabela (Igual ao Excel)
+    let totalGeral = 0;
+    const tableBody = [];
 
-    let y = 32;
-    let numeroCliente = 1;
-
-    clientes.forEach((cliente, idx) => {
-      // Verificar espaco na pagina
-      if (y > 175) {
-        doc.addPage('landscape');
-        y = 15;
-      }
-
-      // Header do cliente com numero
-      doc.setFontSize(10);
-      doc.setFont(undefined, 'bold');
+    clientesAgrupados.forEach(cliente => {
+      // Buscar região e telefone na lista de clientes cadastrados
+      const clienteDb = clientesDb.find(c => c.codigo === cliente.codigo) || {};
+      const regiao = clienteDb.regiao || '';
+      const dadosCliente = clienteDb.telefone ? `Tel: ${clienteDb.telefone}` : '';
       
-      // Checkbox Visitado
-      doc.rect(15, y - 3, 3, 3);
-      
-      doc.text(`${numeroCliente}.`, 20, y);
-      doc.text(`Cliente: ${cliente.nome}`, 26, y);
-      if (cliente.codigo) {
-        doc.text(`Cod: ${cliente.codigo}`, 180, y);
-      }
-      y += 4;
-      
-      // Buscar telefone do cliente (buscar na lista de clientes da query)
-      const clienteDados = clientes.find(c => c.codigo === cliente.codigo);
-      if (clienteDados?.telefone) {
-        doc.setFont(undefined, 'normal');
-        doc.setFontSize(8);
-        doc.text(`Tel: ${clienteDados.telefone}`, 26, y);
-        y += 4;
-      } else {
-        y += 1;
-      }
-      
-      numeroCliente++;
+      let clientSubtotal = 0;
 
-      // Linha separadora
-      doc.line(15, y, 282, y);
-      y += 4;
-
-      doc.setFontSize(8);
-      doc.setFont(undefined, 'normal');
-
-      let subtotal = 0;
-
-      // Pedidos do cliente
-      cliente.pedidos.forEach(pedido => {
-        if (y > 185) {
-          doc.addPage('landscape');
-          y = 15;
-        }
-
-        const saldo = pedido.saldo_restante || (pedido.valor_pedido - (pedido.total_pago || 0));
-        subtotal += saldo;
-        const diasAtraso = calcularDiasAtraso(pedido.data_entrega);
-
-        doc.text(`Pedido: ${pedido.numero_pedido}`, 26, y);
-        if (diasAtraso > 0) {
-          doc.setTextColor(255, 0, 0);
-          doc.text(`(${diasAtraso}d atraso)`, 60, y);
-          doc.setTextColor(0, 0, 0);
-        }
-        doc.text(`Total: ${formatCurrency(pedido.valor_pedido)}`, 110, y);
-        doc.text(`Pago: ${formatCurrency(pedido.total_pago || 0)}`, 160, y);
-        doc.text(`Saldo: ${formatCurrency(saldo)}`, 210, y);
-        y += 4;
+      // Inserir Pedidos
+      cliente.pedidos.forEach(p => {
+        const saldo = p.saldo_restante || (p.valor_pedido - (p.total_pago || 0));
+        clientSubtotal += saldo;
+        totalGeral += saldo;
+        tableBody.push([
+          cliente.nome,
+          regiao,
+          p.numero_pedido,
+          formatCurrency(p.valor_pedido),
+          p.total_pago ? formatCurrency(p.total_pago) : '', // Se não tem pagamento, fica vazio para escrever a caneta
+          formatCurrency(saldo),
+          '', // Observações (Vazio para escrever)
+          dadosCliente
+        ]);
       });
 
-      // Cheques do cliente
-      cliente.cheques.forEach(cheque => {
-        if (y > 185) {
-          doc.addPage('landscape');
-          y = 15;
-        }
-
-        subtotal += cheque.valor;
-        const diasAtraso = calcularDiasAtraso(cheque.data_vencimento);
-
-        doc.setTextColor(255, 0, 0);
-        doc.setFont(undefined, 'bold');
-        doc.text(`CHEQUE DEVOLVIDO: ${cheque.numero_cheque}`, 26, y);
-        doc.setFont(undefined, 'normal');
-        if (diasAtraso > 0) {
-          doc.text(`(${diasAtraso}d)`, 95, y);
-        }
-        doc.text(`Valor: ${formatCurrency(cheque.valor)}`, 160, y);
-        doc.setTextColor(0, 0, 0);
-        y += 4;
+      // Inserir Cheques
+      cliente.cheques.forEach(c => {
+        clientSubtotal += c.valor;
+        totalGeral += c.valor;
+        tableBody.push([
+          cliente.nome,
+          regiao,
+          `CHQ: ${c.numero_cheque}`,
+          formatCurrency(c.valor),
+          '',
+          formatCurrency(c.valor),
+          'DEVOLVIDO',
+          dadosCliente
+        ]);
       });
 
-      // Subtotal do cliente
-      y += 1;
-      doc.setFont(undefined, 'bold');
-      doc.setFontSize(9);
-      doc.text(`SUBTOTAL: ${formatCurrency(subtotal)}`, 230, y);
-      y += 4;
-
-      // Campos de controle
-      doc.setFont(undefined, 'normal');
-      doc.setFontSize(7);
-      
-      // Motivo se não pagou
-      doc.text('Motivo se nao pagou:', 26, y);
-      doc.rect(60, y - 2.5, 2.5, 2.5);
-      doc.text('Sem dinheiro', 64, y);
-      doc.rect(92, y - 2.5, 2.5, 2.5);
-      doc.text('Viajando', 96, y);
-      doc.rect(118, y - 2.5, 2.5, 2.5);
-      doc.text('Discorda valor', 122, y);
-      doc.rect(154, y - 2.5, 2.5, 2.5);
-      doc.text('Outro: _______________________', 158, y);
-      y += 4;
-      
-      doc.text('Assinatura Cliente: ___________________________________________________________________________', 26, y);
-      
-      y += 6;
-      doc.setFontSize(8);
+      // Linha de Separação/Subtotal do Cliente (Emula a linha com zeros do Excel)
+      tableBody.push([
+        { content: '', colSpan: 4, styles: { fillColor: [248, 250, 252] } },
+        { content: 'SUBTOTAL:', styles: { fontStyle: 'bold', halign: 'right', fillColor: [248, 250, 252] } },
+        { content: formatCurrency(clientSubtotal), styles: { fontStyle: 'bold', halign: 'right', fillColor: [248, 250, 252] } },
+        { content: '', colSpan: 2, styles: { fillColor: [248, 250, 252] } }
+      ]);
     });
 
-    // Total geral
-    const totalGeral = clientes.reduce((sum, cliente) => {
-      const totalPedidos = cliente.pedidos.reduce((s, p) => 
-        s + (p.saldo_restante || (p.valor_pedido - (p.total_pago || 0))), 0
-      );
-      const totalCheques = cliente.cheques.reduce((s, c) => s + c.valor, 0);
-      return sum + totalPedidos + totalCheques;
-    }, 0);
-
-    if (y > 175) {
-      doc.addPage('landscape');
-      y = 15;
-    }
-
-    y += 3;
-    doc.line(15, y, 282, y);
-    y += 6;
-    
-    // Resumo do dia
-    doc.setFontSize(11);
+    // 3. Desenhar o Cabeçalho (Estilo da Planilha)
+    doc.setFontSize(14);
     doc.setFont(undefined, 'bold');
-    doc.text(`TOTAL A RECEBER: ${formatCurrency(totalGeral)}`, 15, y);
-    y += 7;
+    doc.text(`COBRANÇA GIL - ${diaDaSemanaStr}`, 14, 15);
     
-    doc.setFontSize(9);
+    doc.setFontSize(10);
     doc.setFont(undefined, 'normal');
-    doc.text('META DO DIA: R$ _______________', 15, y);
-    doc.text('TOTAL RECEBIDO: R$ _______________', 110, y);
-    y += 6;
-    
-    doc.text('OBSERVACOES GERAIS:', 15, y);
-    y += 4;
-    doc.text('______________________________________________________________________________________________________', 15, y);
-    y += 4;
-    doc.text('______________________________________________________________________________________________________', 15, y);
-    y += 7;
-    
-    doc.text('Assinatura Gilson: ____________________________', 15, y);
-    doc.text('Data/Hora: ___________', 200, y);
+    doc.text(`TABELA PRINCIPAL`, 14, 22);
+    doc.text(`${dataIso}`, 55, 22); // Formato de data da planilha
+    doc.setFont(undefined, 'bold');
+    doc.text(`TOTAL A RECEBER: ${formatCurrency(totalGeral)}`, 100, 22);
 
-    doc.save(`Rota_Cobranca_${dataFormatada.replace(/\//g, '-')}.pdf`);
+    // 4. Gerar a Tabela Automática
+    autoTable(doc, {
+      startY: 28,
+      head: [['CLIENTE', 'REGIÃO', 'PEDIDO', 'VALOR', 'PAGO', 'COBRAR', 'OBSERVAÇÕES', 'DADOS CLIENTE - SE NECESSARIO']],
+      body: tableBody,
+      theme: 'grid', // Borda em todas as células como no Excel
+      styles: { 
+        fontSize: 8, 
+        cellPadding: 2, 
+        textColor: [50, 50, 50] 
+      },
+      headStyles: { 
+        fillColor: [230, 230, 230], // Fundo cinza claro igual cabeçalho de excel
+        textColor: [0, 0, 0], 
+        fontStyle: 'bold',
+        halign: 'center'
+      },
+      columnStyles: {
+        3: { halign: 'right', cellWidth: 25 }, // Valor
+        4: { halign: 'right', cellWidth: 25 }, // Pago
+        5: { halign: 'right', cellWidth: 25 }, // Cobrar
+        6: { cellWidth: 40 }, // Obs
+      },
+      didDrawPage: function (data) {
+        // Numeração de Página no Rodapé
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'normal');
+        doc.text(`Página ${doc.internal.getNumberOfPages()}`, data.settings.margin.left, doc.internal.pageSize.height - 10);
+      }
+    });
+
+    doc.save(`Rota_Cobranca_${dataBr.replace(/\//g, '-')}.pdf`);
   };
 
   return (
@@ -317,8 +226,8 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
       <Card className="w-full max-w-5xl max-h-[90vh] flex flex-col">
         <div className="p-6 border-b flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold">Gerar Rota de Cobranca - Gilson</h2>
-            <p className="text-sm text-slate-500">Selecione pedidos e cheques para incluir na rota</p>
+            <h2 className="text-xl font-bold">Gerar Rota de Cobrança - Gilson</h2>
+            <p className="text-sm text-slate-500">Selecione pedidos e cheques para incluir na rota (Formato Excel)</p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="w-5 h-5" />
@@ -327,7 +236,6 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
 
         <ScrollArea className="flex-1 p-6">
           <div className="space-y-6">
-            {/* Campo de Pesquisa */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input
@@ -429,7 +337,7 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
               disabled={pedidosSelecionados.length === 0 && chequesSelecionados.length === 0}
             >
               <FileText className="w-4 h-4 mr-2" />
-              Gerar PDF
+              Gerar PDF (Planilha)
             </Button>
           </div>
         </div>
