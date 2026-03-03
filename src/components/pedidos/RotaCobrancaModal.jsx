@@ -6,14 +6,20 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FileText, X, Search } from "lucide-react";
+import { FileText, X, Search, Calendar } from "lucide-react";
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable'; 
+import autoTable from 'jspdf-autotable';
 
 export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
   const [pedidosSelecionados, setPedidosSelecionados] = useState([]);
   const [chequesSelecionados, setChequesSelecionados] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Define a data de amanhã como padrão no formato YYYY-MM-DD
+  const amanha = new Date();
+  amanha.setDate(amanha.getDate() + 1);
+  const amanhaIso = amanha.toISOString().split('T')[0];
+  const [dataRota, setDataRota] = useState(amanhaIso);
 
   const { data: clientesDb = [] } = useQuery({
     queryKey: ['clientes'],
@@ -88,14 +94,13 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
   const gerarPDF = () => {
     const doc = new jsPDF('landscape');
     
-    // Configurações de Data
-    const amanha = new Date();
-    amanha.setDate(amanha.getDate() + 1);
-    const dataIso = amanha.toISOString().split('T')[0]; // Formato 2026-02-09
-    const dataBr = amanha.toLocaleDateString('pt-BR');
+    // Configurações de Data com o formato dd/mm/aaaa
+    const [ano, mes, dia] = dataRota.split('-');
+    const dataBr = `${dia}/${mes}/${ano}`;
+    const dataObj = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
     
     const diasSemana = ['DOMINGO', 'SEGUNDA-FEIRA', 'TERÇA-FEIRA', 'QUARTA-FEIRA', 'QUINTA-FEIRA', 'SEXTA-FEIRA', 'SÁBADO'];
-    const diaDaSemanaStr = diasSemana[amanha.getDay()];
+    const diaDaSemanaStr = diasSemana[dataObj.getDay()];
 
     const pedidosSel = pedidosAbertos.filter(p => pedidosSelecionados.includes(p.id));
     const chequesSel = chequesDevolvidos.filter(c => chequesSelecionados.includes(c.id));
@@ -121,17 +126,24 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
 
     const clientesAgrupados = Array.from(clientesMap.values()).sort((a, b) => a.nome.localeCompare(b.nome));
 
-    // 2. Montar as linhas da Tabela (Igual ao Excel)
+    // 2. Montar as linhas da Tabela
     let totalGeral = 0;
     const tableBody = [];
 
-    clientesAgrupados.forEach(cliente => {
+    clientesAgrupados.forEach((cliente, index) => {
       // Buscar região e telefone na lista de clientes cadastrados
       const clienteDb = clientesDb.find(c => c.codigo === cliente.codigo) || {};
       const regiao = clienteDb.regiao || '';
       const dadosCliente = clienteDb.telefone ? `Tel: ${clienteDb.telefone}` : '';
       
       let clientSubtotal = 0;
+
+      // 🚀 Pula uma linha visual antes de cada cliente (exceto o primeiro)
+      if (index > 0) {
+        tableBody.push([
+          { content: '', colSpan: 8, styles: { fillColor: [255, 255, 255], minCellHeight: 6 } }
+        ]);
+      }
 
       // Inserir Pedidos
       cliente.pedidos.forEach(p => {
@@ -143,9 +155,9 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
           regiao,
           p.numero_pedido,
           formatCurrency(p.valor_pedido),
-          p.total_pago ? formatCurrency(p.total_pago) : '', // Se não tem pagamento, fica vazio para escrever a caneta
+          p.total_pago ? formatCurrency(p.total_pago) : '', 
           formatCurrency(saldo),
-          '', // Observações (Vazio para escrever)
+          '', 
           dadosCliente
         ]);
       });
@@ -166,12 +178,12 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
         ]);
       });
 
-      // Linha de Separação/Subtotal do Cliente (Emula a linha com zeros do Excel)
+      // 🚀 Linha de Separação/Subtotal do Cliente (Mais Escura e com Nome do Cliente)
       tableBody.push([
-        { content: '', colSpan: 4, styles: { fillColor: [248, 250, 252] } },
-        { content: 'SUBTOTAL:', styles: { fontStyle: 'bold', halign: 'right', fillColor: [248, 250, 252] } },
-        { content: formatCurrency(clientSubtotal), styles: { fontStyle: 'bold', halign: 'right', fillColor: [248, 250, 252] } },
-        { content: '', colSpan: 2, styles: { fillColor: [248, 250, 252] } }
+        { content: '', colSpan: 4, styles: { fillColor: [210, 210, 210] } }, // Cor cinza mais escura
+        { content: `SUBTOTAL ${cliente.nome}:`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [210, 210, 210] } },
+        { content: formatCurrency(clientSubtotal), styles: { fontStyle: 'bold', halign: 'right', fillColor: [210, 210, 210] } },
+        { content: '', colSpan: 2, styles: { fillColor: [210, 210, 210] } }
       ]);
     });
 
@@ -183,7 +195,8 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
     doc.setFontSize(10);
     doc.setFont(undefined, 'normal');
     doc.text(`TABELA PRINCIPAL`, 14, 22);
-    doc.text(`${dataIso}`, 55, 22); // Formato de data da planilha
+    // 🚀 Data no formato Brasileiro
+    doc.text(`${dataBr}`, 55, 22); 
     doc.setFont(undefined, 'bold');
     doc.text(`TOTAL A RECEBER: ${formatCurrency(totalGeral)}`, 100, 22);
 
@@ -192,14 +205,16 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
       startY: 28,
       head: [['CLIENTE', 'REGIÃO', 'PEDIDO', 'VALOR', 'PAGO', 'COBRAR', 'OBSERVAÇÕES', 'DADOS CLIENTE - SE NECESSARIO']],
       body: tableBody,
-      theme: 'grid', // Borda em todas as células como no Excel
+      theme: 'grid',
       styles: { 
         fontSize: 8, 
         cellPadding: 2, 
-        textColor: [50, 50, 50] 
+        textColor: [50, 50, 50],
+        lineColor: [200, 200, 200], // Cor da borda
+        lineWidth: 0.1,
       },
       headStyles: { 
-        fillColor: [230, 230, 230], // Fundo cinza claro igual cabeçalho de excel
+        fillColor: [220, 220, 220],
         textColor: [0, 0, 0], 
         fontStyle: 'bold',
         halign: 'center'
@@ -227,7 +242,7 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
         <div className="p-6 border-b flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold">Gerar Rota de Cobrança - Gilson</h2>
-            <p className="text-sm text-slate-500">Selecione pedidos e cheques para incluir na rota (Formato Excel)</p>
+            <p className="text-sm text-slate-500">Selecione pedidos e cheques para incluir na rota</p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="w-5 h-5" />
@@ -324,20 +339,35 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
           </div>
         </ScrollArea>
 
-        <div className="p-6 border-t flex items-center justify-between bg-slate-50">
-          <p className="text-sm text-slate-600">
-            {pedidosSelecionados.length} pedido(s) + {chequesSelecionados.length} cheque(s) selecionados
-          </p>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={onClose}>
+        {/* 🚀 RODAPÉ COM SELETOR DE DATA DA ROTA */}
+        <div className="p-5 border-t flex flex-col md:flex-row items-center justify-between gap-4 bg-slate-50 rounded-b-xl">
+          <div className="flex items-center gap-6 w-full md:w-auto">
+            <p className="text-sm font-medium text-slate-600">
+              <span className="text-blue-600 font-bold">{pedidosSelecionados.length}</span> pedido(s) e <span className="text-blue-600 font-bold">{chequesSelecionados.length}</span> cheque(s)
+            </p>
+            <div className="flex items-center gap-2 border-l border-slate-300 pl-6">
+              <Calendar className="w-4 h-4 text-slate-500" />
+              <span className="text-xs font-bold text-slate-600 uppercase">Data da Rota:</span>
+              <Input 
+                type="date" 
+                value={dataRota} 
+                onChange={(e) => setDataRota(e.target.value)} 
+                className="h-8 text-sm w-36 bg-white"
+              />
+            </div>
+          </div>
+          
+          <div className="flex gap-3 w-full md:w-auto">
+            <Button variant="outline" onClick={onClose} className="flex-1 md:flex-none bg-white">
               Cancelar
             </Button>
             <Button 
               onClick={gerarPDF}
+              className="flex-1 md:flex-none bg-blue-600 hover:bg-blue-700 text-white"
               disabled={pedidosSelecionados.length === 0 && chequesSelecionados.length === 0}
             >
               <FileText className="w-4 h-4 mr-2" />
-              Gerar PDF (Planilha)
+              Gerar Relatório
             </Button>
           </div>
         </div>
