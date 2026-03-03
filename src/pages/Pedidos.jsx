@@ -1414,6 +1414,14 @@ export default function Pedidos() {
             )}
           </ModalContainer>
 
+          {showRotaCobrancaModal && (
+            <RotaCobrancaModal 
+              pedidos={pedidos} 
+              cheques={cheques} 
+              onClose={() => setShowRotaCobrancaModal(false)} 
+            />
+          )}
+
         </div>
       </div>
     </PermissionGuard>
