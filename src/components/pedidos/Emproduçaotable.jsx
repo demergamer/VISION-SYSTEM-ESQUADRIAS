@@ -1,28 +1,61 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { base44 } from '@/api/base44Client';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
     Search, Loader2, Factory, FileText, 
-    UserCheck, Clock, ChevronLeft, ChevronRight
+    UserCheck, Clock, ChevronLeft, ChevronRight, Trash2
 } from "lucide-react";
+import { toast } from "sonner";
 
 export default function Emproduçaotable({ data = [], isLoading, isPreview, lastSync }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 20; // Mostra 20 pedidos por página para não travar
+    const [isDeleting, setIsDeleting] = useState(false);
+    const queryClient = useQueryClient();
+    const itemsPerPage = 20;
 
-    // Reseta a página sempre que buscar algo novo
     useEffect(() => {
         setCurrentPage(1);
     }, [searchTerm]);
 
-    // --- LÓGICA DE VISUALIZAÇÃO: AGRUPAMENTO E FILTROS ---
+    // 🚀 LÓGICA ROBUSTA PARA APAGAR A FÁBRICA
+    const handleLimparProducao = async () => {
+        if (!window.confirm("ATENÇÃO: Isso vai apagar TODOS os itens em produção do sistema. Tem certeza absoluta?")) return;
+        
+        setIsDeleting(true);
+        toast.loading("Esvaziando a fábrica... Isso pode demorar alguns segundos.", { id: 'limpar-fabrica' });
+        
+        try {
+            // Busca diretamente da API para ter os IDs mais frescos
+            const itensParaApagar = await base44.entities.ProducaoItem.list();
+            
+            const BATCH_SIZE = 50; // Lote menor para não derrubar o servidor/API
+
+            for (let i = 0; i < itensParaApagar.length; i += BATCH_SIZE) {
+                const lote = itensParaApagar.slice(i, i + BATCH_SIZE);
+                await Promise.all(lote.map(item => base44.entities.ProducaoItem.delete(item.id)));
+                // Dá um fôlego para a API não bloquear as requisições
+                await new Promise(r => setTimeout(r, 200)); 
+            }
+            
+            // Recarrega tudo e limpa o cache
+            await queryClient.invalidateQueries({ queryKey: ['producao_items'] });
+            toast.success("A base de produção foi totalmente esvaziada!", { id: 'limpar-fabrica' });
+        } catch (error) {
+            toast.error("Erro ao limpar a base de produção. Tente novamente.", { id: 'limpar-fabrica' });
+            console.error(error);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     const dadosAgrupados = useMemo(() => {
         let dadosFiltrados = data;
         
-        // 1. Aplica o filtro de busca local
         if (searchTerm) {
             const termo = searchTerm.toLowerCase();
             dadosFiltrados = data.filter(item => 
@@ -34,7 +67,6 @@ export default function Emproduçaotable({ data = [], isLoading, isPreview, last
             );
         }
 
-        // 2. Agrupa por Pedido
         const grupos = {};
         dadosFiltrados.forEach(item => {
             if (!grupos[item.numero_pedido]) {
@@ -50,15 +82,12 @@ export default function Emproduçaotable({ data = [], isLoading, isPreview, last
             grupos[item.numero_pedido].total_pecas += (item.quantidade || 0);
         });
 
-        // 3. Converte para array
         return Object.values(grupos);
     }, [data, searchTerm]);
 
-    // LÓGICA DE PAGINAÇÃO
     const totalPages = Math.ceil(dadosAgrupados.length / itemsPerPage);
     const paginatedGrupos = dadosAgrupados.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-    // Resumo para os widgets do topo
     const stats = useMemo(() => {
         const totalPecas = data.reduce((sum, item) => sum + (item.quantidade || 0), 0);
         const pedidosUnicos = new Set(data.map(item => item.numero_pedido)).size;
@@ -66,24 +95,28 @@ export default function Emproduçaotable({ data = [], isLoading, isPreview, last
         return { totalPecas, pedidosUnicos, clientesUnicos };
     }, [data]);
 
-    if (isLoading) {
-        return <div className="p-10 text-center text-slate-500"><Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-blue-500" /> Carregando base...</div>;
+    if (isLoading || isDeleting) {
+        return (
+            <div className="p-10 flex flex-col items-center justify-center text-slate-500 bg-white rounded-xl border border-slate-200">
+                <Loader2 className="w-10 h-10 animate-spin mb-3 text-blue-500" /> 
+                <p className="font-medium">{isDeleting ? "Esvaziando a fábrica..." : "Carregando base..."}</p>
+            </div>
+        );
     }
 
     if (data.length === 0) {
         return (
-            <div className="p-16 text-center border border-slate-200 rounded-xl bg-white">
+            <div className="p-16 text-center border border-slate-200 rounded-xl bg-white shadow-sm">
                 <Factory className="w-16 h-16 text-slate-200 mx-auto mb-4" />
-                <h3 className="text-lg font-bold text-slate-400">Fábrica Vazia</h3>
-                <p className="text-slate-500">Faça o upload do relatório do Neo para alimentar o sistema.</p>
+                <h3 className="text-xl font-bold text-slate-600 mb-1">A Fábrica está Vazia</h3>
+                <p className="text-slate-500">Faça o upload do relatório do Neo no painel acima para alimentar o sistema.</p>
             </div>
         );
     }
 
     return (
         <div className="space-y-6">
-            {/* DASHBOARD RESUMO DA PRODUÇÃO */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white p-4 rounded-xl border border-slate-200 flex items-center gap-4 shadow-sm">
                     <div className="p-3 bg-blue-50 text-blue-600 rounded-lg"><FileText className="w-6 h-6" /></div>
                     <div>
@@ -121,14 +154,28 @@ export default function Emproduçaotable({ data = [], isLoading, isPreview, last
                         )}
                     </div>
                     
-                    <div className="relative w-full md:w-80">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        <Input 
-                            placeholder="Buscar por pedido, cliente ou peça..." 
-                            value={searchTerm} 
-                            onChange={(e) => setSearchTerm(e.target.value)} 
-                            className="pl-9 h-9 bg-white" 
-                        />
+                    <div className="flex items-center gap-3 w-full md:w-auto">
+                        <div className="relative flex-1 md:w-80">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <Input 
+                                placeholder="Buscar por pedido, cliente ou peça..." 
+                                value={searchTerm} 
+                                onChange={(e) => setSearchTerm(e.target.value)} 
+                                className="pl-9 h-9 bg-white" 
+                            />
+                        </div>
+                        
+                        {/* 🚀 BOTÃO ESVAZIAR BASE MOVIDO E CORRIGIDO PARA CÁ! */}
+                        {!isPreview && data.length > 0 && (
+                            <Button 
+                                variant="outline" 
+                                size="sm"
+                                className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 shrink-0 h-9" 
+                                onClick={handleLimparProducao}
+                            >
+                                <Trash2 className="w-4 h-4 mr-2" /> Esvaziar
+                            </Button>
+                        )}
                     </div>
                 </div>
                 
@@ -138,7 +185,6 @@ export default function Emproduçaotable({ data = [], isLoading, isPreview, last
                     ) : (
                         paginatedGrupos.map((grupo) => (
                             <div key={grupo.numero_pedido} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                                {/* CABEÇALHO DO PEDIDO */}
                                 <div className="bg-slate-100/50 p-3 px-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-2">
                                     <div className="flex items-center gap-3">
                                         <div className="bg-blue-600 text-white font-bold px-3 py-1.5 rounded-lg font-mono text-sm shadow-sm">
@@ -156,7 +202,6 @@ export default function Emproduçaotable({ data = [], isLoading, isPreview, last
                                     </div>
                                 </div>
                                 
-                                {/* LISTA DE PEÇAS DESTE PEDIDO */}
                                 <div className="divide-y divide-slate-100 max-h-[300px] overflow-y-auto custom-scrollbar">
                                     {grupo.itens.map((item, idx) => (
                                         <div key={idx} className="p-3 px-4 flex items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors">
@@ -180,7 +225,6 @@ export default function Emproduçaotable({ data = [], isLoading, isPreview, last
                     )}
                 </div>
 
-                {/* CONTROLES DE PAGINAÇÃO */}
                 {totalPages > 1 && (
                     <div className="p-4 border-t bg-white flex items-center justify-between">
                         <span className="text-sm text-slate-500">
