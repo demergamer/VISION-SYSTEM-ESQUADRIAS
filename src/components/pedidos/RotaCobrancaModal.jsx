@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { FileText, Search, Calendar } from "lucide-react";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import ModalContainer from "@/components/modals/ModalContainer"; // 🚀 Importado o ModalContainer
+import ModalContainer from "@/components/modals/ModalContainer";
 
 export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
   const [pedidosSelecionados, setPedidosSelecionados] = useState([]);
@@ -139,7 +139,7 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
       // Pula uma linha visual antes de cada cliente (exceto o primeiro)
       if (index > 0) {
         tableBody.push([
-          { content: '', colSpan: 8, styles: { fillColor: [255, 255, 255], minCellHeight: 6 } }
+          { content: '', colSpan: 8, styles: { fillColor: [255, 255, 255], minCellHeight: 4 } }
         ]);
       }
 
@@ -176,12 +176,23 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
         ]);
       });
 
-      // Linha de Separação/Subtotal do Cliente
+      // 🚀 Linha de Separação/Subtotal do Cliente (Em 1 linha só)
+      // O colSpan: 5 permite que o texto ocupe as primeiras 5 colunas sem quebrar linha
       tableBody.push([
-        { content: '', colSpan: 4, styles: { fillColor: [210, 210, 210] } },
-        { content: `SUBTOTAL ${cliente.nome}:`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [210, 210, 210] } },
-        { content: formatCurrency(clientSubtotal), styles: { fontStyle: 'bold', halign: 'right', fillColor: [210, 210, 210] } },
-        { content: '', colSpan: 2, styles: { fillColor: [210, 210, 210] } }
+        { 
+          content: `SUBTOTAL ${cliente.nome}:`, 
+          colSpan: 5, 
+          styles: { fontStyle: 'bold', halign: 'right', fillColor: [210, 210, 210] } 
+        },
+        { 
+          content: formatCurrency(clientSubtotal), 
+          styles: { fontStyle: 'bold', halign: 'right', fillColor: [210, 210, 210] } 
+        },
+        { 
+          content: '', 
+          colSpan: 2, 
+          styles: { fillColor: [210, 210, 210] } 
+        }
       ]);
     });
 
@@ -232,7 +243,6 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
     doc.save(`Rota_Cobranca_${dataBr.replace(/\//g, '-')}.pdf`);
   };
 
-  // 🚀 Utilizamos o ModalContainer como base principal
   return (
     <ModalContainer
       open={true}
@@ -332,7 +342,7 @@ export default function RotaCobrancaModal({ pedidos, cheques, onClose }) {
           </div>
         </div>
 
-        {/* Rodapé (Sticky na parte inferior do conteúdo do modal) */}
+        {/* Rodapé */}
         <div className="pt-5 mt-4 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4 shrink-0 pb-2">
           <div className="flex items-center gap-6 w-full md:w-auto">
             <p className="text-sm font-medium text-slate-600">
