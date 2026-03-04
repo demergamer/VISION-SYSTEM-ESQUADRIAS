@@ -12,24 +12,24 @@ import {
 } from 'recharts';
 import { 
   ArrowLeft, Calendar, TrendingUp, AlertTriangle, DollarSign, 
-  Users, Package, MapPin, MessageCircle, Download, Filter, TrendingDown, CreditCard
+  Users, Package, MapPin, MessageCircle, Download, CreditCard, Activity, Link as LinkIcon 
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import PermissionGuard from "@/components/PermissionGuard";
 import { 
-  differenceInDays, format, startOfWeek, endOfWeek, 
-  startOfMonth, endOfMonth, subMonths, isSameDay, parseISO, isWithinInterval 
+  format, startOfMonth, endOfMonth, parseISO, isWithinInterval, subMonths, isPast, differenceInDays, isSameDay 
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export default function Relatorios() {
-  const [activeTab, setActiveTab] = useState('diario');
+  const [activeTab, setActiveTab] = useState('financeiro');
   const [periodo, setPeriodo] = useState({
     inicio: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
     fim: format(endOfMonth(new Date()), 'yyyy-MM-dd')
   });
 
+  // --- QUERIES ---
   const { data: pedidos = [] } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list() });
   const { data: cheques = [] } = useQuery({ queryKey: ['cheques'], queryFn: () => base44.entities.Cheque.list() });
   const { data: clientes = [] } = useQuery({ queryKey: ['clientes'], queryFn: () => base44.entities.Cliente.list() });
@@ -38,8 +38,8 @@ export default function Relatorios() {
 
   const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
-  // --- FILTRO DE DATA APLICADO ---
-  const filtrarPorPeriodo = (dataStr) => {
+  // --- FILTRO DE PERÍODO ---
+  const filtrar = (dataStr) => {
     if (!dataStr) return false;
     const data = parseISO(dataStr.split('T')[0]);
     return isWithinInterval(data, { 
@@ -48,229 +48,149 @@ export default function Relatorios() {
     });
   };
 
-  // --- DADOS DIÁRIOS (FOCO EM CAIXA) ---
-  const dadosDiario = useMemo(() => {
-    const hoje = new Date();
-    const borderosPeriodo = borderos.filter(b => filtrarPorPeriodo(b.created_date));
+  // --- ANALYTICS FINANCEIRO ---
+  const analytics = useMemo(() => {
+    const borderosPeriodo = borderos.filter(b => filtrar(b.created_date));
+    
+    const mix = {
+      dinheiro: { label: 'Dinheiro', valor: 0, color: '#10b981' },
+      pix: { label: 'PIX', valor: 0, color: '#06b6d4' },
+      cartao: { label: 'Cartões', valor: 0, color: '#3b82f6' },
+      cheque: { label: 'Cheques', valor: 0, color: '#8b5cf6' }
+    };
 
-    const recebimentos = { dinheiro: 0, cheque: 0, pix: 0, outros: 0 };
     borderosPeriodo.forEach(b => {
-      const forma = b.forma_pagamento?.toLowerCase() || '';
-      if (forma.includes('dinheiro')) recebimentos.dinheiro += b.valor_total || 0;
-      else if (forma.includes('cheque')) recebimentos.cheque += b.valor_total || 0;
-      else if (forma.includes('pix')) recebimentos.pix += b.valor_total || 0;
-      else recebimentos.outros += b.valor_total || 0;
+      const f = b.forma_pagamento?.toLowerCase() || '';
+      if (f.includes('dinheiro')) mix.dinheiro.valor += b.valor_total;
+      else if (f.includes('pix')) mix.pix.valor += b.valor_total;
+      else if (f.includes('cartao') || f.includes('cartão') || f.includes('link')) mix.cartao.valor += b.valor_total;
+      else if (f.includes('cheque')) mix.cheque.valor += b.valor_total;
     });
 
-    const venciamos = pedidos.filter(p => {
-      if (p.status === 'pago' || p.status === 'cancelado') return false;
-      return p.data_entrega && parseISO(p.data_entrega) < hoje;
-    }).sort((a,b) => differenceInDays(hoje, parseISO(b.data_entrega)) - differenceInDays(hoje, parseISO(a.data_entrega)));
-
-    return { recebimentos, venciamos: venciamos.slice(0, 6) };
-  }, [borderos, pedidos, periodo]);
-
-  // --- DADOS ESTRATÉGICOS (MENSAL/GLOBAL) ---
-  const dadosEstrategicos = useMemo(() => {
-    // 1. Receita por Representante
-    const porRep = representantes.map(rep => ({
-      name: rep.nome.split(' ')[0],
-      total: pedidos
-        .filter(p => p.representante_codigo === rep.codigo && p.status === 'pago' && filtrarPorPeriodo(p.data_pagamento || p.updated_date))
-        .reduce((sum, p) => sum + (p.valor_pedido || 0), 0)
-    })).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
-
-    // 2. Saúde Financeira (A Receber vs Vencido)
     const totalAberto = pedidos
       .filter(p => p.status === 'aberto' || p.status === 'parcial')
       .reduce((sum, p) => sum + (p.saldo_restante || 0), 0);
-    
+
     const totalVencido = pedidos
-      .filter(p => (p.status === 'aberto' || p.status === 'parcial') && p.data_entrega && parseISO(p.data_entrega) < new Date())
+      .filter(p => (p.status === 'aberto' || p.status === 'parcial') && p.data_entrega && isPast(parseISO(p.data_entrega)))
       .reduce((sum, p) => sum + (p.saldo_restante || 0), 0);
 
-    return { porRep, saude: [
-      { name: 'Em Dia', valor: totalAberto - totalVencido },
-      { name: 'Vencido', valor: totalVencido }
-    ]};
-  }, [pedidos, representantes, periodo]);
+    const porRep = representantes.map(rep => ({
+      name: rep.nome.split(' ')[0],
+      total: pedidos
+        .filter(p => p.representante_codigo === rep.codigo && p.status === 'pago' && filtrar(p.updated_date || p.data_pagamento))
+        .reduce((sum, p) => sum + (p.valor_pedido || 0), 0)
+    })).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
 
-  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+    return { mix, totalAberto, totalVencido, porRep, faturamentoTotal: Object.values(mix).reduce((a,b) => a + b.valor, 0) };
+  }, [borderos, pedidos, periodo, representantes]);
 
   return (
     <PermissionGuard setor="Relatorios">
       <div className="min-h-screen bg-slate-50 p-4 md:p-8">
         <div className="max-w-7xl mx-auto space-y-6">
           
-          {/* HEADER COM FILTRO DE DATA */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white p-6 rounded-2xl shadow-sm border">
+          {/* HEADER CONTROL PANEL */}
+          <div className="bg-white p-6 rounded-3xl shadow-sm border flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="flex items-center gap-4">
               <Link to={createPageUrl('Dashboard')}><Button variant="ghost" size="icon" className="rounded-full border"><ArrowLeft className="w-5 h-5" /></Button></Link>
               <div>
-                <h1 className="text-2xl font-black text-slate-900 tracking-tight">BI & RELATÓRIOS</h1>
-                <p className="text-sm text-slate-500 font-medium">Análise de performance e saúde financeira</p>
+                <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase">Dashboard Inteligente</h1>
+                <p className="text-sm text-slate-500 font-medium">Análise de dados: {format(parseISO(periodo.inicio), 'dd/MM')} à {format(parseISO(periodo.fim), 'dd/MM')}</p>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl border">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 bg-slate-100 p-2 rounded-2xl border">
                 <Calendar className="w-4 h-4 text-slate-500 ml-2" />
                 <Input type="date" value={periodo.inicio} onChange={(e) => setPeriodo({...periodo, inicio: e.target.value})} className="h-8 border-none bg-transparent text-xs font-bold w-32" />
-                <span className="text-slate-400">até</span>
                 <Input type="date" value={periodo.fim} onChange={(e) => setPeriodo({...periodo, fim: e.target.value})} className="h-8 border-none bg-transparent text-xs font-bold w-32" />
               </div>
-              <Button variant="outline" size="sm" className="gap-2 h-11"><Download className="w-4 h-4"/> Exportar</Button>
+              <Button variant="outline" className="rounded-xl h-12 gap-2"><Download className="w-4 h-4"/> Exportar BI</Button>
             </div>
           </div>
 
-          {/* INDICADORES RÁPIDOS */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card className="p-4 flex items-center gap-4 border-none shadow-sm">
-                  <div className="p-3 bg-blue-100 text-blue-600 rounded-2xl"><DollarSign/></div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase">Receita no Período</p>
-                    <p className="text-xl font-black text-slate-800">{formatCurrency(dadosDiario.recebimentos.dinheiro + dadosDiario.recebimentos.pix + dadosDiario.recebimentos.cheque)}</p>
-                  </div>
-              </Card>
-              <Card className="p-4 flex items-center gap-4 border-none shadow-sm">
-                  <div className="p-3 bg-red-100 text-red-600 rounded-2xl"><AlertTriangle/></div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase">Total Inadimplente</p>
-                    <p className="text-xl font-black text-red-600">{formatCurrency(dadosEstrategicos.saude[1].valor)}</p>
-                  </div>
-              </Card>
-              <Card className="p-4 flex items-center gap-4 border-none shadow-sm">
-                  <div className="p-3 bg-emerald-100 text-emerald-600 rounded-2xl"><TrendingUp/></div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase">Ticket Médio</p>
-                    <p className="text-xl font-black text-slate-800">R$ 4.250</p>
-                  </div>
-              </Card>
-              <Card className="p-4 flex items-center gap-4 border-none shadow-sm">
-                  <div className="p-3 bg-purple-100 text-purple-600 rounded-2xl"><Package/></div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase">Volume Pedidos</p>
-                    <p className="text-xl font-black text-slate-800">{pedidos.length}</p>
-                  </div>
-              </Card>
-          </div>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+            <TabsList className="bg-slate-200/50 p-1 rounded-2xl w-fit">
+              <TabsTrigger value="financeiro" className="rounded-xl px-8 font-bold gap-2">Financeiro</TabsTrigger>
+              <TabsTrigger value="vendas" className="rounded-xl px-8 font-bold gap-2">Vendas & Ranking</TabsTrigger>
+            </TabsList>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            {/* COLUNA 1 & 2: GRÁFICOS */}
-            <div className="lg:col-span-2 space-y-6">
-              <Card className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-bold text-slate-800 flex items-center gap-2"><TrendingUp className="text-blue-600"/> Vendas por Representante</h3>
-                  <Badge variant="outline">Top Performance</Badge>
-                </div>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={dadosEstrategicos.porRep} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                      <YAxis hide />
-                      <Tooltip formatter={(v) => formatCurrency(v)} cursor={{fill: '#f1f5f9'}} />
-                      <Bar dataKey="total" fill="#3b82f6" radius={[8, 8, 0, 0]} barSize={40} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </Card>
-
-              <Card className="p-6">
-                <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><CreditCard className="text-emerald-600"/> Mix de Pagamentos</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                  <div className="h-[250px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={[
-                            { name: 'Dinheiro', value: dadosDiario.recebimentos.dinheiro },
-                            { name: 'PIX', value: dadosDiario.recebimentos.pix },
-                            { name: 'Cheque', value: dadosDiario.recebimentos.cheque },
-                            { name: 'Outros', value: dadosDiario.recebimentos.outros }
-                          ].filter(d => d.value > 0)}
-                          innerRadius={70} outerRadius={90} paddingAngle={8} dataKey="value"
-                        >
-                          {COLORS.map((col, i) => <Cell key={i} fill={col} stroke="none" />)}
-                        </Pie>
-                        <Tooltip formatter={(v) => formatCurrency(v)} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="space-y-4">
-                    {['Dinheiro', 'PIX', 'Cheque', 'Outros'].map((label, i) => (
-                      <div key={i} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full" style={{backgroundColor: COLORS[i]}} />
-                          <span className="text-sm font-medium text-slate-600">{label}</span>
-                        </div>
-                        <span className="text-sm font-bold text-slate-800">
-                          {formatCurrency(Object.values(dadosDiario.recebimentos)[i])}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </Card>
-            </div>
-
-            {/* COLUNA 3: SIDEBAR DE ALERTAS E SAÚDE */}
-            <div className="space-y-6">
-              <Card className="p-6 bg-slate-900 text-white border-none shadow-2xl">
-                 <h3 className="font-bold text-indigo-300 mb-4 flex items-center gap-2 uppercase tracking-widest text-xs">Saúde do Contas a Receber</h3>
-                 <div className="h-[200px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                       <PieChart>
+            <TabsContent value="financeiro" className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* MIX DE RECEBIMENTOS */}
+                <Card className="p-6 border-none shadow-xl rounded-3xl lg:col-span-2">
+                  <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><CreditCard className="text-blue-600 w-5 h-5"/> Mix de Recebimento no Período</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="h-[250px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
                           <Pie
-                            data={dadosEstrategicos.saude}
-                            innerRadius={50} outerRadius={70} dataKey="valor"
+                            data={Object.values(analytics.mix).filter(m => m.valor > 0)}
+                            innerRadius={70} outerRadius={90} paddingAngle={5} dataKey="valor"
                           >
-                             <Cell fill="#10b981" />
-                             <Cell fill="#ef4444" />
+                            {Object.values(analytics.mix).map((entry, i) => <Cell key={i} fill={entry.color} stroke="none" />)}
                           </Pie>
-                          <Tooltip />
-                       </PieChart>
+                          <Tooltip formatter={(v) => formatCurrency(v)} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="space-y-4 flex flex-col justify-center">
+                        {Object.values(analytics.mix).map((item, i) => (
+                            <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                                <span className="text-sm font-bold text-slate-600 flex items-center gap-2">
+                                    <div className="w-3 h-3 rounded-full" style={{backgroundColor: item.color}} />
+                                    {item.label}
+                                </span>
+                                <span className="font-black text-slate-800">{formatCurrency(item.valor)}</span>
+                            </div>
+                        ))}
+                    </div>
+                  </div>
+                </Card>
+
+                {/* SAÚDE DO CAIXA */}
+                <Card className="p-6 bg-slate-900 text-white border-none shadow-2xl rounded-3xl flex flex-col justify-between">
+                   <div>
+                     <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-widest mb-6">Saúde do Contas a Receber</h3>
+                     <div className="space-y-6">
+                        <div>
+                            <p className="text-xs text-slate-400 font-bold mb-1 uppercase">Total em Aberto</p>
+                            <p className="text-3xl font-black text-white">{formatCurrency(analytics.totalAberto)}</p>
+                        </div>
+                        <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
+                            <p className="text-xs text-red-400 font-bold mb-1 uppercase">Vencido (Atraso)</p>
+                            <p className="text-2xl font-black text-red-400">{formatCurrency(analytics.totalVencido)}</p>
+                            <p className="text-[10px] text-slate-400 mt-1">Representa {((analytics.totalVencido / (analytics.totalAberto || 1)) * 100).toFixed(1)}% do total</p>
+                        </div>
+                     </div>
+                   </div>
+                   <Button className="w-full mt-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl">Ver Inadimplentes</Button>
+                </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="vendas" className="space-y-6">
+               <Card className="p-6 border-none shadow-xl rounded-3xl">
+                  <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><TrendingUp className="text-emerald-600 w-5 h-5"/> Ranking de Performance por Representante</h3>
+                  <div className="h-[350px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={analytics.porRep}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                            <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                            <YAxis hide />
+                            <Tooltip formatter={(v) => formatCurrency(v)} cursor={{fill: '#f8fafc'}} />
+                            <Bar dataKey="total" fill="#3b82f6" radius={[10, 10, 0, 0]} barSize={50} />
+                        </BarChart>
                     </ResponsiveContainer>
-                 </div>
-                 <div className="flex justify-between mt-4">
-                    <div className="text-center">
-                       <p className="text-[10px] text-slate-400 font-bold">EM DIA</p>
-                       <p className="text-emerald-400 font-bold">{formatCurrency(dadosEstrategicos.saude[0].valor)}</p>
-                    </div>
-                    <div className="text-center">
-                       <p className="text-[10px] text-slate-400 font-bold">VENCIDO</p>
-                       <p className="text-red-400 font-bold">{formatCurrency(dadosEstrategicos.saude[1].valor)}</p>
-                    </div>
-                 </div>
-              </Card>
+                  </div>
+               </Card>
+            </TabsContent>
+          </Tabs>
 
-              <Card className="p-6">
-                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><AlertTriangle className="text-red-600 w-5 h-5"/> Cobrança Urgente</h3>
-                <div className="space-y-3">
-                  {dadosDiario.venciamos.map(p => (
-                    <div key={p.id} className="p-3 bg-white border rounded-xl hover:shadow-md transition-all">
-                       <div className="flex justify-between items-start mb-1">
-                          <p className="text-xs font-bold text-slate-800 truncate max-w-[150px]">{p.cliente_nome}</p>
-                          <Badge className="text-[9px] bg-red-100 text-red-700 border-none">+{differenceInDays(new Date(), parseISO(p.data_entrega))} dias</Badge>
-                       </div>
-                       <div className="flex justify-between items-center">
-                          <p className="text-sm font-black text-slate-700">{formatCurrency(p.saldo_restante)}</p>
-                          <Button size="icon" variant="ghost" className="h-7 w-7 text-emerald-600 rounded-full hover:bg-emerald-50" onClick={() => window.open(`https://wa.me/?text=Olá, somos da Vision Esquadrias...`, '_blank')}>
-                            <MessageCircle className="w-4 h-4"/>
-                          </Button>
-                       </div>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            </div>
-
-          </div>
         </div>
       </div>
     </PermissionGuard>
   );
 }
-
-const isPast = (date) => date < new Date();
