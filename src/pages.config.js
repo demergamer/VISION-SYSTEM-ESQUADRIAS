@@ -73,13 +73,13 @@ import PortalCliente from './pages/PortalCliente';
 import PortalDoMotorista from './pages/PortalDoMotorista';
 import PortalDoRepresentante from './pages/PortalDoRepresentante';
 import Produtos from './pages/Produtos';
-import Relatorios from './pages/Relatorios';
 import Representantes from './pages/Representantes';
 import Representation from './pages/Representation';
 import Usuarios from './pages/Usuarios';
 import VisionMessage from './pages/VisionMessage';
 import Welcome from './pages/Welcome';
 import Cheques from './pages/Cheques';
+import Relatorios from './pages/Relatorios';
 import __Layout from './Layout.jsx';
 
 
@@ -110,13 +110,13 @@ export const PAGES = {
     "PortalDoMotorista": PortalDoMotorista,
     "PortalDoRepresentante": PortalDoRepresentante,
     "Produtos": Produtos,
-    "Relatorios": Relatorios,
     "Representantes": Representantes,
     "Representation": Representation,
     "Usuarios": Usuarios,
     "VisionMessage": VisionMessage,
     "Welcome": Welcome,
     "Cheques": Cheques,
+    "Relatorios": Relatorios,
 }
 
 export const pagesConfig = {
