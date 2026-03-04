@@ -527,23 +527,74 @@ export default function Cheques() {
               </div>
           </div>
         </div>
-
-        <ModalContainer open={showFormModal} onClose={() => setShowFormModal(false)} title={selectedCheque ? "Editar Cheque" : "Novo Cheque"} size="xl">
-          <ChequeForm cheque={selectedCheque} clientes={clientes} onSave={(data) => selectedCheque ? updateMutation.mutate({id: selectedCheque.id, data}) : createMutation.mutate(data)} onCancel={() => setShowFormModal(false)} isLoading={createMutation.isPending || updateMutation.isPending} />
+        
+        {/* Cadastro e Edição */}
+        <ModalContainer 
+          open={showFormModal} 
+          onClose={() => setShowFormModal(false)} 
+          title={selectedCheque ? "Editar Cheque" : "Novo Cheque"} 
+          size="xl"
+        >
+          <ChequeForm 
+            cheque={selectedCheque} 
+            clientes={clientes} 
+            onSave={(data) => selectedCheque ? updateMutation.mutate({id: selectedCheque.id, data}) : createMutation.mutate(data)} 
+            onCancel={() => setShowFormModal(false)} 
+            isLoading={createMutation.isPending || updateMutation.isPending} 
+          />
         </ModalContainer>
 
-        <ModalContainer open={showDetailsModal} onClose={() => setShowDetailsModal(false)} title="Detalhes do Cheque">
-          {selectedCheque && <ChequeDetails cheque={selectedCheque} clientes={clientes} onEdit={() => { setShowDetailsModal(false); handleEdit(selectedCheque); }} onClose={() => setShowDetailsModal(false)} />}
+        {/* Visualização de Detalhes */}
+        <ModalContainer 
+          open={showDetailsModal} 
+          onClose={() => setShowDetailsModal(false)} 
+          title="Detalhes do Cheque"
+        >
+          {selectedCheque && (
+            <ChequeDetails 
+              cheque={selectedCheque} 
+              clientes={clientes} 
+              onEdit={() => { setShowDetailsModal(false); handleEdit(selectedCheque); }} 
+              onClose={() => setShowDetailsModal(false)} 
+            />
+          )}
         </ModalContainer>
 
+        {/* Registro de Devolução (Fluxo Wizard) */}
         {showDevolucaoModal && (
-            <RegistrarDevolucaoModal isOpen={showDevolucaoModal} onClose={() => setShowDevolucaoModal(false)} todosCheques={cheques} preSelectedIds={selectedIds} onSave={handleSaveDevolucao} />
+          <RegistrarDevolucaoModal 
+            isOpen={showDevolucaoModal} 
+            onClose={() => setShowDevolucaoModal(false)} 
+            todosCheques={cheques} 
+            preSelectedIds={selectedIds} 
+            onSave={handleSaveDevolucao} 
+          />
         )}
 
-        <ChequePagamentoModal isOpen={showPagamentoModal} onClose={() => setShowPagamentoModal(false)} cheque={chequeParaPagamento} onSave={handleSavePagamentoDevolvido} isProcessing={isProcessing} representantes={representantes} />
+        {/* Liquidação de Cheque Devolvido (Pagamento) */}
+        <ChequePagamentoModal 
+          isOpen={showPagamentoModal} 
+          onClose={() => setShowPagamentoModal(false)} 
+          cheque={chequeParaPagamento} 
+          onSave={handleSavePagamentoDevolvido} 
+          isProcessing={isProcessing} 
+          representantes={representantes} 
+        />
 
-        <ModalContainer open={showDuplicateModal} onClose={() => setShowDuplicateModal(false)} title="Resolver Duplicatas" description="Selecione o cheque original/correto para manter. Os outros serão excluídos." size="2xl">
-            <ResolveDuplicatesModal duplicateGroups={duplicateGroups} onResolve={handleResolveDuplicates} onCancel={() => setShowDuplicateModal(false)} isProcessing={isProcessing} />
+        {/* Resolução de Duplicatas */}
+        <ModalContainer 
+          open={showDuplicateModal} 
+          onClose={() => setShowDuplicateModal(false)} 
+          title="Resolver Duplicatas" 
+          description="Selecione o cheque original para manter no sistema. Os outros serão marcados como excluídos." 
+          size="2xl"
+        >
+          <ResolveDuplicatesModal 
+            duplicateGroups={duplicateGroups} 
+            onResolve={handleResolveDuplicates} 
+            onCancel={() => setShowDuplicateModal(false)} 
+            isProcessing={isProcessing} 
+          />
         </ModalContainer>
 
       </div>
