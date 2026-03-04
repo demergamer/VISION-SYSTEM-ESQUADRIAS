@@ -18,6 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { format, isPast, parseISO } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 // Componentes Internos
@@ -96,7 +97,7 @@ export default function Cheques() {
     onError: (error) => toast.error('Erro: ' + error.message)
   });
 
-  // INTELIGÊNCIA: AUTO-COMPENSAÇÃO VISUAL
+  // INTELIGÊNCIA: AUTO-COMPENSAÇÃO VISUAL (REGRAS 1 E 3)
   const chequesTransformados = useMemo(() => {
     const hoje = new Date();
     hoje.setHours(0,0,0,0);
@@ -113,15 +114,15 @@ export default function Cheques() {
         let status_exibicao = c.status;
         let destino_exibicao = c.fornecedor_repassado_nome;
 
+        // Regra 1: Cheque em carteira (normal) Vencido -> Vai para Compensado (Sem Informação)
         if (c.status === 'normal' && isVencido) {
             status_exibicao = 'compensado';
             destino_exibicao = 'Sem Informação';
-        } else if (c.status === 'repassado' && isVencido) {
-            status_exibicao = 'compensado';
-            destino_exibicao = c.fornecedor_repassado_nome || 'Repassado';
-        }
+        } 
+        // Regra 3: Cheque Repassado Vencido -> MANTÉM REPASSADO, apenas a Flag (isVencido) muda!
+        // Não jogamos mais pro status 'compensado'.
 
-        return { ...c, status_exibicao, destino_exibicao, is_auto_compensado: status_exibicao !== c.status };
+        return { ...c, status_exibicao, destino_exibicao, is_auto_compensado: status_exibicao !== c.status, isVencido };
     });
   }, [cheques]);
 
@@ -143,9 +144,12 @@ export default function Cheques() {
 
     const totais = {
         emMaos: listaGlobal.filter(c => c.status_exibicao === 'normal').reduce((a,c)=>a+c.valor,0),
-        repassados: listaGlobal.filter(c => c.status_exibicao === 'repassado').reduce((a,c)=>a+c.valor,0),
         devolvidosPendentes: listaGlobal.filter(c => c.status_exibicao === 'devolvido' && c.status_pagamento_devolucao !== 'pago').reduce((a,c)=>a+c.valor,0),
         
+        // REPASSADOS AGORA SÃO DIVIDIDOS EM DOIS PONTOS
+        repassadosAVencer: listaGlobal.filter(c => c.status_exibicao === 'repassado' && !c.isVencido).reduce((a,c)=>a+c.valor,0),
+        repassadosCompensados: listaGlobal.filter(c => c.status_exibicao === 'repassado' && c.isVencido).reduce((a,c)=>a+c.valor,0),
+
         countNormal: listaGlobal.filter(c => c.status_exibicao === 'normal').length,
         countRepassado: listaGlobal.filter(c => c.status_exibicao === 'repassado').length,
         countDevolvido: listaGlobal.filter(c => c.status_exibicao === 'devolvido').length,
@@ -160,12 +164,16 @@ export default function Cheques() {
         compBIG: listaGlobal.filter(c => c.status_exibicao === 'compensado' && c.destino_exibicao === 'BIG METAIS').reduce((a,c)=>a+c.valor,0),
         compOliver: listaGlobal.filter(c => c.status_exibicao === 'compensado' && c.destino_exibicao === 'OLIVER EXTRUSORA').reduce((a,c)=>a+c.valor,0),
         compSemInfo: listaGlobal.filter(c => c.status_exibicao === 'compensado' && c.destino_exibicao === 'Sem Informação').reduce((a,c)=>a+c.valor,0),
-        compRepassado: listaGlobal.filter(c => c.status_exibicao === 'compensado' && c.destino_exibicao !== 'Sem Informação' && c.destino_exibicao !== 'J&C ESQUADRIAS' && c.destino_exibicao !== 'BIG METAIS' && c.destino_exibicao !== 'OLIVER EXTRUSORA').reduce((a,c)=>a+c.valor,0),
     };
 
     let listaFinal = listaGlobal.filter(c => c.status_exibicao === mainTab);
 
-    if (mainTab === 'devolvido') {
+    // FILTROS DE SUB-ABAS (FLAGS)
+    if (mainTab === 'repassado') {
+        if (subTab === 'a_vencer') listaFinal = listaFinal.filter(c => !c.isVencido);
+        if (subTab === 'compensados') listaFinal = listaFinal.filter(c => c.isVencido);
+    }
+    else if (mainTab === 'devolvido') {
         if (subTab === 'aqui') listaFinal = listaFinal.filter(c => !c.fornecedor_repassado_nome && c.status_pagamento_devolucao !== 'pago');
         if (subTab === 'nao_aqui') listaFinal = listaFinal.filter(c => !!c.fornecedor_repassado_nome && c.status_pagamento_devolucao !== 'pago');
         if (subTab === 'resolvidos') listaFinal = listaFinal.filter(c => c.status_pagamento_devolucao === 'pago');
@@ -175,7 +183,6 @@ export default function Cheques() {
         if (subTab === 'big') listaFinal = listaFinal.filter(c => c.destino_exibicao === 'BIG METAIS');
         if (subTab === 'oliver') listaFinal = listaFinal.filter(c => c.destino_exibicao === 'OLIVER EXTRUSORA');
         if (subTab === 'sem_info') listaFinal = listaFinal.filter(c => c.destino_exibicao === 'Sem Informação');
-        if (subTab === 'repassado') listaFinal = listaFinal.filter(c => c.destino_exibicao !== 'Sem Informação' && c.destino_exibicao !== 'J&C ESQUADRIAS' && c.destino_exibicao !== 'BIG METAIS' && c.destino_exibicao !== 'OLIVER EXTRUSORA');
     }
 
     return { listaFinal, totais };
@@ -252,7 +259,7 @@ export default function Cheques() {
                     valor: parseFloat(chequeData.valor),
                     data_vencimento: chequeData.vencimento,
                     emitente: chequeData.emitente || 'Troca',
-                    status: 'normal', // Cheque novo entra normal
+                    status: 'normal',
                     observacao: `Troca ref. devolução dos cheques: ${cheques_ids.join(', ')}`
                 });
             });
@@ -332,23 +339,36 @@ export default function Cheques() {
                       <p className="text-[10px] font-bold text-blue-600 flex items-center gap-1"><Clock className="w-3 h-3"/> Em Carteira</p>
                       <p className="text-lg font-bold text-blue-900">{formatCurrency(dadosProcessados.totais.emMaos)}</p>
                   </div>
+                  <div className="bg-purple-50 border border-purple-100 px-4 py-2 rounded-lg min-w-[150px]">
+                      <p className="text-[10px] font-bold text-purple-600 flex items-center gap-1"><ArrowRightLeft className="w-3 h-3"/> Repassados (A Vencer)</p>
+                      <p className="text-lg font-bold text-purple-900">{formatCurrency(dadosProcessados.totais.repassadosAVencer)}</p>
+                  </div>
                   <div className="bg-red-50 border border-red-100 px-4 py-2 rounded-lg min-w-[150px]">
                       <p className="text-[10px] font-bold text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Devolvidos Pendentes</p>
                       <p className="text-lg font-bold text-red-900">{formatCurrency(dadosProcessados.totais.devolvidosPendentes)}</p>
                   </div>
               </div>
               <div className="h-8 w-px bg-slate-200 mx-2 hidden sm:block" />
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                   {canDo('Cheques', 'editar') && (
                       <Button onClick={() => setShowDevolucaoModal(true)} className="gap-2 border-red-200 text-red-700 bg-white hover:bg-red-50 shadow-sm border transition-all hover:shadow-md">
                           <AlertTriangle className="w-4 h-4" /> Registrar Devolução
                       </Button>
                   )}
                   {canDo('Cheques', 'editar') && (
-                      <Button variant="outline" onClick={handleCheckDuplicates} disabled={isCheckingDuplicates} className="gap-2 bg-white border-amber-200 text-amber-700 hover:bg-amber-50 min-w-[170px]">
-                          {isCheckingDuplicates ? <><Loader2 className="w-4 h-4 animate-spin" /> Varrendo...</> : <><RefreshCw className="w-4 h-4" /> Verificar Duplicatas</>}
+                      <Button variant="outline" onClick={handleCheckDuplicates} disabled={isCheckingDuplicates} className="gap-2 bg-white border-amber-200 text-amber-700 hover:bg-amber-50">
+                          {isCheckingDuplicates ? <><Loader2 className="w-4 h-4 animate-spin" /> Varrendo...</> : <><RefreshCw className="w-4 h-4" /> Duplicatas</>}
                       </Button>
                   )}
+                  {/* Botão de Excluídos movido para o topo */}
+                  <Button 
+                      variant="outline" 
+                      onClick={() => handleMainTabChange('excluido')} 
+                      className={cn("gap-2 border transition-all", mainTab === 'excluido' ? "bg-slate-800 text-white border-slate-800" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100")}
+                  >
+                      <Trash2 className="w-4 h-4" /> Excluídos
+                  </Button>
+
                   {canDo('Cheques', 'adicionar') && (
                     <Button onClick={handleNew} className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200"><Plus className="w-4 h-4" /> Novo Cheque</Button>
                   )}
@@ -359,15 +379,15 @@ export default function Cheques() {
 
         <div className="px-6 py-6 space-y-6 w-full max-w-[1800px] mx-auto">
           
-          {/* ABAS (STATUS ESTritos DO SCHEMA) */}
+          {/* ABAS REORDENADAS */}
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
               <Tabs value={mainTab} onValueChange={handleMainTabChange} className="w-full lg:w-auto">
                   <TabsList className="bg-slate-100 p-1 h-auto flex-wrap">
                       <TabsTrigger value="normal" className="gap-2 px-4 py-2"><Clock className="w-4 h-4" /> Em Carteira <Badge className="ml-1 bg-blue-100 text-blue-700">{dadosProcessados.totais.countNormal}</Badge></TabsTrigger>
+                      <TabsTrigger value="compensado" className="gap-2 px-4 py-2"><CheckCircle2 className="w-4 h-4" /> Compensados <Badge className="ml-1 bg-green-100 text-green-700">{dadosProcessados.totais.countCompensado}</Badge></TabsTrigger>
                       <TabsTrigger value="repassado" className="gap-2 px-4 py-2"><ArrowRightLeft className="w-4 h-4" /> Repassados <Badge className="ml-1 bg-purple-100 text-purple-700">{dadosProcessados.totais.countRepassado}</Badge></TabsTrigger>
                       <TabsTrigger value="devolvido" className="gap-2 px-4 py-2"><AlertCircle className="w-4 h-4" /> Devolvidos <Badge className="ml-1 bg-red-100 text-red-700">{dadosProcessados.totais.countDevolvido}</Badge></TabsTrigger>
-                      <TabsTrigger value="compensado" className="gap-2 px-4 py-2"><CheckCircle2 className="w-4 h-4" /> Compensados <Badge className="ml-1 bg-green-100 text-green-700">{dadosProcessados.totais.countCompensado}</Badge></TabsTrigger>
-                      <TabsTrigger value="excluido" className="gap-2 px-4 py-2"><Trash2 className="w-4 h-4" /> Excluídos</TabsTrigger>
+                      <TabsTrigger value="excluido" className="hidden">Excluidos Oculto</TabsTrigger>
                   </TabsList>
               </Tabs>
               
@@ -392,6 +412,17 @@ export default function Cheques() {
 
           {/* SUB-ABAS (FLAGS) */}
           <div className="flex gap-2 overflow-x-auto pb-2 animate-in fade-in slide-in-from-left-2">
+              {mainTab === 'repassado' && (
+                  <>
+                      <Button variant={subTab === 'todos' ? 'default' : 'outline'} onClick={() => setSubTab('todos')} className="rounded-full h-8 text-xs">Todos</Button>
+                      <Button variant={subTab === 'a_vencer' ? 'default' : 'outline'} onClick={() => setSubTab('a_vencer')} className={cn("rounded-full h-8 text-xs", subTab === 'a_vencer' && "bg-purple-600 hover:bg-purple-700")}>
+                          <Clock className="w-3 h-3 mr-1"/> A Vencer ({formatCurrency(dadosProcessados.totais.repassadosAVencer)})
+                      </Button>
+                      <Button variant={subTab === 'compensados' ? 'default' : 'outline'} onClick={() => setSubTab('compensados')} className={cn("rounded-full h-8 text-xs", subTab === 'compensados' && "bg-green-600 hover:bg-green-700")}>
+                          <CheckCircle2 className="w-3 h-3 mr-1"/> Compensados ({formatCurrency(dadosProcessados.totais.repassadosCompensados)})
+                      </Button>
+                  </>
+              )}
               {mainTab === 'devolvido' && (
                   <>
                       <Button variant={subTab === 'todos' ? 'default' : 'outline'} onClick={() => setSubTab('todos')} className="rounded-full h-8 text-xs">Todos</Button>
@@ -406,13 +437,11 @@ export default function Cheques() {
                       <Button variant={subTab === 'jc' ? 'default' : 'outline'} onClick={() => setSubTab('jc')} className={cn("rounded-full h-8 text-xs", subTab === 'jc' && "bg-emerald-600 hover:bg-emerald-700")}><Landmark className="w-3 h-3 mr-1"/> J&C ({formatCurrency(dadosProcessados.totais.compJC)})</Button>
                       <Button variant={subTab === 'big' ? 'default' : 'outline'} onClick={() => setSubTab('big')} className={cn("rounded-full h-8 text-xs", subTab === 'big' && "bg-emerald-600 hover:bg-emerald-700")}><Landmark className="w-3 h-3 mr-1"/> Big Metais ({formatCurrency(dadosProcessados.totais.compBIG)})</Button>
                       <Button variant={subTab === 'oliver' ? 'default' : 'outline'} onClick={() => setSubTab('oliver')} className={cn("rounded-full h-8 text-xs", subTab === 'oliver' && "bg-emerald-600 hover:bg-emerald-700")}><Landmark className="w-3 h-3 mr-1"/> Oliver ({formatCurrency(dadosProcessados.totais.compOliver)})</Button>
-                      <Button variant={subTab === 'repassado' ? 'default' : 'outline'} onClick={() => setSubTab('repassado')} className={cn("rounded-full h-8 text-xs", subTab === 'repassado' && "bg-purple-600 hover:bg-purple-700")}><ArrowRightLeft className="w-3 h-3 mr-1"/> Repassados ({formatCurrency(dadosProcessados.totais.compRepassado)})</Button>
                       <Button variant={subTab === 'sem_info' ? 'default' : 'outline'} onClick={() => setSubTab('sem_info')} className={cn("rounded-full h-8 text-xs", subTab === 'sem_info' && "bg-slate-600 hover:bg-slate-700 text-white")}><Info className="w-3 h-3 mr-1"/> Sem Informação ({formatCurrency(dadosProcessados.totais.compSemInfo)})</Button>
                   </>
               )}
           </div>
 
-          {/* TABELA */}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm flex flex-col">
               <Table>
                   <TableHeader className="bg-slate-50">
@@ -437,7 +466,7 @@ export default function Cheques() {
                                       <TableCell onClick={(e) => e.stopPropagation()}><Checkbox checked={selectedIds.includes(cheque.id)} onCheckedChange={() => handleSelectOne(cheque.id)} /></TableCell>
                                       <TableCell><div className="font-mono font-bold text-slate-700">#{cheque.numero_cheque}</div><div className="text-xs text-slate-500 uppercase">{cheque.banco}</div></TableCell>
                                       <TableCell><div className="font-medium text-slate-800">{cheque.cliente_nome}</div>{cliente?.representante_nome && <div className="text-[10px] text-blue-600 flex gap-1"><User className="w-3 h-3"/>{cliente.representante_nome.split(' ')[0]}</div>}</TableCell>
-                                      <TableCell><div className={cn("text-sm", (cheque.status_exibicao==='normal' && isPast(parseISO(cheque.data_vencimento))) ? "text-red-600 font-bold" : "text-slate-600")}>{cheque.data_vencimento ? format(parseISO(cheque.data_vencimento), 'dd/MM/yyyy') : '-'}</div></TableCell>
+                                      <TableCell><div className={cn("text-sm", (cheque.status_exibicao==='normal' && cheque.isVencido) ? "text-red-600 font-bold" : "text-slate-600")}>{cheque.data_vencimento ? format(parseISO(cheque.data_vencimento), 'dd/MM/yyyy') : '-'}</div></TableCell>
                                       <TableCell className="text-right font-bold text-slate-700">{formatCurrency(cheque.valor)}</TableCell>
                                       <TableCell className="text-center">
                                           {cheque.status_exibicao === 'compensado' ? (
@@ -451,7 +480,12 @@ export default function Cheques() {
                                            (cheque.status_exibicao === 'devolvido' && cheque.status_pagamento_devolucao === 'pago') ? <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">Resolvido</Badge> :
                                            cheque.status_exibicao === 'devolvido' ? <Badge className="bg-red-100 text-red-700 border-red-200">Devolvido Pendente</Badge> :
                                            cheque.status_exibicao === 'excluido' ? <Badge variant="outline" className="border-slate-300 text-slate-400">Excluído</Badge> :
-                                           cheque.status_exibicao === 'repassado' ? <Badge className="bg-purple-100 text-purple-700 border-purple-200">Repassado</Badge> :
+                                           cheque.status_exibicao === 'repassado' ? (
+                                             <div className="flex flex-col items-center justify-center gap-1">
+                                                <Badge className="bg-purple-100 text-purple-700 border-purple-200">Repassado</Badge>
+                                                {cheque.isVencido && <span className="text-[9px] text-emerald-600 font-bold flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/> Compensado</span>}
+                                             </div>
+                                           ) :
                                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Em Carteira</Badge>}
                                       </TableCell>
                                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
@@ -494,7 +528,6 @@ export default function Cheques() {
           </div>
         </div>
 
-        {/* MODAIS GLOBAIS COM MODAL CONTAINER */}
         <ModalContainer open={showFormModal} onClose={() => setShowFormModal(false)} title={selectedCheque ? "Editar Cheque" : "Novo Cheque"} size="xl">
           <ChequeForm cheque={selectedCheque} clientes={clientes} onSave={(data) => selectedCheque ? updateMutation.mutate({id: selectedCheque.id, data}) : createMutation.mutate(data)} onCancel={() => setShowFormModal(false)} isLoading={createMutation.isPending || updateMutation.isPending} />
         </ModalContainer>
@@ -503,9 +536,9 @@ export default function Cheques() {
           {selectedCheque && <ChequeDetails cheque={selectedCheque} clientes={clientes} onEdit={() => { setShowDetailsModal(false); handleEdit(selectedCheque); }} onClose={() => setShowDetailsModal(false)} />}
         </ModalContainer>
 
-        <ModalContainer open={showDevolucaoModal} onClose={() => setShowDevolucaoModal(false)} title="Registrar Devolução" size="3xl">
-            <RegistrarDevolucaoModal todosCheques={cheques} preSelectedIds={selectedIds} onSave={handleSaveDevolucao} onCancel={() => setShowDevolucaoModal(false)} />
-        </ModalContainer>
+        {showDevolucaoModal && (
+            <RegistrarDevolucaoModal isOpen={showDevolucaoModal} onClose={() => setShowDevolucaoModal(false)} todosCheques={cheques} preSelectedIds={selectedIds} onSave={handleSaveDevolucao} />
+        )}
 
         <ChequePagamentoModal isOpen={showPagamentoModal} onClose={() => setShowPagamentoModal(false)} cheque={chequeParaPagamento} onSave={handleSavePagamentoDevolvido} isProcessing={isProcessing} representantes={representantes} />
 
