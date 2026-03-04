@@ -12,7 +12,7 @@ import {
 } from 'recharts';
 import { 
   ArrowLeft, Calendar, TrendingUp, AlertTriangle, DollarSign, 
-  Users, Package, MapPin, MessageCircle, Download, Filter, TrendingDown, CreditCard
+  Users, Package, MapPin, MessageCircle, Download, Filter, TrendingDown
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
