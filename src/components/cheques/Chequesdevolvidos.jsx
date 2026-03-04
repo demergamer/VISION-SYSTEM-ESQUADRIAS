@@ -1,8 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Search, Upload, ChevronRight, AlertCircle, Loader2, CheckCircle2, 
-  Wallet, CreditCard, Banknote, QrCode, RefreshCw, ArrowLeft, Image as ImageIcon,
-  CalendarDays, Hash, DollarSign, Building2, User, Plus, Trash2
+  Wallet, CreditCard, Banknote, QrCode, Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,16 +11,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import ModalContainer from "@/components/modals/ModalContainer"; // 🚀 Modificado
 
 const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
-
-// --- COMPONENTES VISUAIS ---
 
 const StepIndicator = ({ currentStep }) => (
   <div className="flex items-center justify-center w-full py-4 bg-slate-50/50 border-b border-slate-100">
@@ -69,8 +66,6 @@ const PaymentMethodCard = ({ icon: Icon, label, selected, onClick, colorClass })
   </div>
 );
 
-// --- COMPONENTE PRINCIPAL ---
-
 export default function RegistrarDevolucaoModal({ isOpen, onClose, todosCheques, onSave, preSelectedIds }) {
   const [step, setStep] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
@@ -84,10 +79,7 @@ export default function RegistrarDevolucaoModal({ isOpen, onClose, todosCheques,
     metodo: 'dinheiro',
     parcelas: 1,
     comprovante: null,
-    // AGORA É UM ARRAY PARA SUPORTAR MÚLTIPLOS CHEQUES
-    novosCheques: [
-        { banco: '', agencia: '', conta: '', numero: '', valor: '', vencimento: '', emitente: '' }
-    ]
+    novosCheques: [{ banco: '', agencia: '', conta: '', numero: '', valor: '', vencimento: '', emitente: '' }]
   });
 
   const chequesDisponiveis = useMemo(() => {
@@ -105,7 +97,6 @@ export default function RegistrarDevolucaoModal({ isOpen, onClose, todosCheques,
 
   const totalDivida = chequesSelecionados.reduce((acc, c) => acc + c.valor, 0);
 
-  // Manipulação de múltiplos cheques
   const handleUpdateCheque = (index, field, value) => {
       const novos = [...pagamentoForm.novosCheques];
       novos[index][field] = value;
@@ -120,12 +111,11 @@ export default function RegistrarDevolucaoModal({ isOpen, onClose, todosCheques,
   };
 
   const handleRemoveCheque = (index) => {
-      if (pagamentoForm.novosCheques.length === 1) return; // Não remove o último
+      if (pagamentoForm.novosCheques.length === 1) return; 
       const novos = pagamentoForm.novosCheques.filter((_, i) => i !== index);
       setPagamentoForm({ ...pagamentoForm, novosCheques: novos });
   };
 
-  // Soma automática dos cheques para validar
   const totalChequesLancados = pagamentoForm.novosCheques.reduce((acc, c) => acc + (parseFloat(c.valor) || 0), 0);
 
   const handleUpload = async (file, chequeId) => {
@@ -152,39 +142,24 @@ export default function RegistrarDevolucaoModal({ isOpen, onClose, todosCheques,
     
     if (pagarAgora) {
         if (!pagamentoForm.valor) return toast.error("Informe o valor total do pagamento.");
-        
         if (pagamentoForm.metodo === 'cheque_troca') {
-            // Valida se todos os cheques têm dados
             const chequesValidos = pagamentoForm.novosCheques.every(c => c.numero && c.valor && c.banco);
             if (!chequesValidos) return toast.error("Preencha Número, Banco e Valor de todos os cheques.");
-            
-            // Valida soma (opcional, mas bom ter)
             const diff = Math.abs(parseFloat(pagamentoForm.valor) - totalChequesLancados);
             if (diff > 0.05) return toast.warning(`A soma dos cheques (${formatCurrency(totalChequesLancados)}) difere do valor do pagamento (${formatCurrency(pagamentoForm.valor)}).`, { duration: 5000 });
         }
     }
 
-    onSave({
-      cheques_ids: selectedIds,
-      detalhes_devolucao: devolucaoDetails,
-      pagamento: pagarAgora ? pagamentoForm : null
-    });
+    onSave({ cheques_ids: selectedIds, detalhes_devolucao: devolucaoDetails, pagamento: pagarAgora ? pagamentoForm : null });
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-0 gap-0 overflow-hidden bg-[#F8FAFC]">
-        
-        {/* HEADER */}
-        <div className="bg-white border-b border-slate-200">
-            <div className="p-6 pb-2">
-                <DialogTitle className="text-xl font-bold text-slate-800">Registrar Devolução</DialogTitle>
-            </div>
+    <ModalContainer open={isOpen} onClose={onClose} title="Registrar Devolução" size="3xl">
+        <div className="-mt-4 -mx-4 sm:-mt-6 sm:-mx-6 mb-6">
             <StepIndicator currentStep={step} />
         </div>
 
-        {/* BODY */}
-        <div className="flex-1 overflow-y-auto p-6 md:px-12">
+        <div className="flex-1 overflow-y-auto">
           <AnimatePresence mode="wait">
             
             {/* PASSO 1: SELEÇÃO */}
@@ -219,14 +194,10 @@ export default function RegistrarDevolucaoModal({ isOpen, onClose, todosCheques,
                     </TableBody>
                   </Table>
                 </div>
-                <div className="flex justify-between items-center bg-blue-50 text-blue-800 p-4 rounded-xl border border-blue-100">
-                    <span className="font-medium">Selecionados: <strong>{selectedIds.length}</strong></span>
-                    <span className="text-lg font-bold">{formatCurrency(chequesSelecionados.reduce((a,c)=>a+c.valor,0))}</span>
-                </div>
               </motion.div>
             )}
 
-            {/* PASSO 2: MOTIVOS (MANTIDO IGUAL) */}
+            {/* PASSO 2: MOTIVOS */}
             {step === 2 && (
               <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
                 <div className="grid grid-cols-1 gap-4">
@@ -271,7 +242,7 @@ export default function RegistrarDevolucaoModal({ isOpen, onClose, todosCheques,
               </motion.div>
             )}
 
-            {/* --- PASSO 3: FINANCEIRO (COM MÚLTIPLOS CHEQUES) --- */}
+            {/* PASSO 3: FINANCEIRO */}
             {step === 3 && (
               <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
                 
@@ -295,7 +266,6 @@ export default function RegistrarDevolucaoModal({ isOpen, onClose, todosCheques,
                         <PaymentMethodCard icon={RefreshCw} label="Troca (Cheque)" colorClass="blue" selected={pagamentoForm.metodo === 'cheque_troca'} onClick={() => setPagamentoForm(p => ({...p, metodo: 'cheque_troca'}))} />
                     </div>
 
-                    {/* VALOR GLOBAL DO PAGAMENTO */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
                             <Label>Valor Total do Pagamento</Label>
@@ -305,7 +275,6 @@ export default function RegistrarDevolucaoModal({ isOpen, onClose, todosCheques,
                             </div>
                             <p className="text-xs text-slate-400 text-right">Dívida Total: {formatCurrency(totalDivida)}</p>
                         </div>
-
                         <div className="space-y-2">
                             <Label>Comprovante Geral</Label>
                             <div className="relative">
@@ -318,7 +287,6 @@ export default function RegistrarDevolucaoModal({ isOpen, onClose, todosCheques,
                         </div>
                     </div>
 
-                    {/* --- LISTA DE MÚLTIPLOS CHEQUES DE TROCA --- */}
                     {pagamentoForm.metodo === 'cheque_troca' && (
                       <div className="space-y-4">
                           <div className="flex justify-between items-center">
@@ -327,7 +295,6 @@ export default function RegistrarDevolucaoModal({ isOpen, onClose, todosCheques,
                                   Soma: {formatCurrency(totalChequesLancados)}
                               </Badge>
                           </div>
-
                           {pagamentoForm.novosCheques.map((novoCheque, index) => (
                               <motion.div key={index} initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden relative group">
                                 <div className="bg-slate-50 px-4 py-2 border-b border-slate-100 flex items-center justify-between">
@@ -337,63 +304,18 @@ export default function RegistrarDevolucaoModal({ isOpen, onClose, todosCheques,
                                     )}
                                 </div>
                                 <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-1">
-                                        <Label className="text-xs">Número *</Label>
-                                        <Input placeholder="Ex: 000123" value={novoCheque.numero} onChange={(e) => handleUpdateCheque(index, 'numero', e.target.value)} />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label className="text-xs">Banco *</Label>
-                                        <Select onValueChange={(v) => handleUpdateCheque(index, 'banco', v)} value={novoCheque.banco}>
-                                            <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="BRADESCO">Bradesco</SelectItem>
-                                                <SelectItem value="ITAU">Itaú</SelectItem>
-                                                <SelectItem value="SANTANDER">Santander</SelectItem>
-                                                <SelectItem value="CAIXA">Caixa</SelectItem>
-                                                <SelectItem value="BRASIL">Banco do Brasil</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label className="text-xs">Agência</Label>
-                                        <Input placeholder="0000" value={novoCheque.agencia} onChange={(e) => handleUpdateCheque(index, 'agencia', e.target.value)} />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label className="text-xs">Conta</Label>
-                                        <Input placeholder="00000-0" value={novoCheque.conta} onChange={(e) => handleUpdateCheque(index, 'conta', e.target.value)} />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label className="text-xs">Valor (R$) *</Label>
-                                        <Input type="number" value={novoCheque.valor} onChange={(e) => handleUpdateCheque(index, 'valor', e.target.value)} />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label className="text-xs">Bom Para *</Label>
-                                        <Input type="date" value={novoCheque.vencimento} onChange={(e) => handleUpdateCheque(index, 'vencimento', e.target.value)} />
-                                    </div>
-                                    <div className="md:col-span-2 space-y-1">
-                                        <Label className="text-xs">Titular / Emitente</Label>
-                                        <div className="relative">
-                                            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
-                                            <Input className="pl-8" placeholder="Nome do titular" value={novoCheque.emitente} onChange={(e) => handleUpdateCheque(index, 'emitente', e.target.value)} />
-                                        </div>
-                                    </div>
+                                    <div className="space-y-1"><Label className="text-xs">Número *</Label><Input placeholder="Ex: 000123" value={novoCheque.numero} onChange={(e) => handleUpdateCheque(index, 'numero', e.target.value)} /></div>
+                                    <div className="space-y-1"><Label className="text-xs">Banco *</Label><Select onValueChange={(v) => handleUpdateCheque(index, 'banco', v)} value={novoCheque.banco}><SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Selecione..." /></SelectTrigger><SelectContent><SelectItem value="BRADESCO">Bradesco</SelectItem><SelectItem value="ITAU">Itaú</SelectItem><SelectItem value="SANTANDER">Santander</SelectItem><SelectItem value="CAIXA">Caixa</SelectItem><SelectItem value="BRASIL">Banco do Brasil</SelectItem></SelectContent></Select></div>
+                                    <div className="space-y-1"><Label className="text-xs">Agência</Label><Input placeholder="0000" value={novoCheque.agencia} onChange={(e) => handleUpdateCheque(index, 'agencia', e.target.value)} /></div>
+                                    <div className="space-y-1"><Label className="text-xs">Conta</Label><Input placeholder="00000-0" value={novoCheque.conta} onChange={(e) => handleUpdateCheque(index, 'conta', e.target.value)} /></div>
+                                    <div className="space-y-1"><Label className="text-xs">Valor (R$) *</Label><Input type="number" value={novoCheque.valor} onChange={(e) => handleUpdateCheque(index, 'valor', e.target.value)} /></div>
+                                    <div className="space-y-1"><Label className="text-xs">Bom Para *</Label><Input type="date" value={novoCheque.vencimento} onChange={(e) => handleUpdateCheque(index, 'vencimento', e.target.value)} /></div>
                                 </div>
                               </motion.div>
                           ))}
-
-                          <Button variant="outline" className="w-full border-dashed border-2 text-blue-600 border-blue-100 hover:bg-blue-50" onClick={handleAddCheque}>
-                              <Plus className="w-4 h-4 mr-2"/> Adicionar Outro Cheque
-                          </Button>
+                          <Button variant="outline" className="w-full border-dashed border-2 text-blue-600 border-blue-100 hover:bg-blue-50" onClick={handleAddCheque}><Plus className="w-4 h-4 mr-2"/> Adicionar Outro Cheque</Button>
                       </div>
                     )}
-
-                    {pagamentoForm.metodo === 'cartao' && (
-                        <div className="space-y-2 animate-in fade-in">
-                            <Label>Parcelas</Label>
-                            <Input type="number" min="1" value={pagamentoForm.parcelas} onChange={(e) => setPagamentoForm({...pagamentoForm, parcelas: e.target.value})} className="h-11 bg-white" />
-                        </div>
-                    )}
-
                   </motion.div>
                 )}
               </motion.div>
@@ -401,24 +323,29 @@ export default function RegistrarDevolucaoModal({ isOpen, onClose, todosCheques,
           </AnimatePresence>
         </div>
 
-        {/* FOOTER */}
-        <DialogFooter className="bg-white p-4 border-t border-slate-100 flex items-center justify-between w-full">
-          {step > 1 ? (
-            <Button variant="outline" onClick={() => setStep(step - 1)} className="gap-2 h-11"><ArrowLeft className="w-4 h-4"/> Voltar</Button>
-          ) : <div/>}
-          
-          {step < 3 ? (
-            <Button onClick={() => setStep(step + 1)} disabled={selectedIds.length === 0} className="bg-slate-900 hover:bg-slate-800 text-white h-11 px-8 gap-2 shadow-lg shadow-slate-200">
-              Próximo <ChevronRight className="w-4 h-4" />
-            </Button>
-          ) : (
-            <Button onClick={handleFinalizar} disabled={isUploading} className="bg-red-600 hover:bg-red-700 text-white h-11 px-8 gap-2 shadow-lg shadow-red-200">
-              {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertCircle className="w-4 h-4" />}
-              Confirmar Devolução
-            </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        {/* FOOTER EMBUTIDO DO MODAL CONTAINER */}
+        <div className="bg-slate-50 border-t border-slate-200 p-4 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 mt-4 flex items-center justify-between rounded-b-lg">
+            <div className="flex items-center gap-4">
+                <div className="flex flex-col">
+                    <span className="text-[10px] uppercase font-bold text-slate-500">Selecionados</span>
+                    <span className="font-bold text-lg text-blue-700">{selectedIds.length}</span>
+                </div>
+                <div className="h-8 w-px bg-slate-300"></div>
+                <div className="flex flex-col">
+                    <span className="text-[10px] uppercase font-bold text-slate-500">Total</span>
+                    <span className="font-bold text-lg text-red-600">{formatCurrency(chequesSelecionados.reduce((a,c)=>a+c.valor,0))}</span>
+                </div>
+            </div>
+            
+            <div className="flex gap-2">
+                {step > 1 && <Button variant="outline" onClick={() => setStep(step - 1)}>Voltar</Button>}
+                {step < 3 ? (
+                    <Button onClick={() => setStep(step + 1)} disabled={selectedIds.length === 0} className="bg-slate-900 hover:bg-slate-800 text-white">Próximo</Button>
+                ) : (
+                    <Button onClick={handleFinalizar} disabled={isUploading} className="bg-red-600 hover:bg-red-700 text-white">Confirmar</Button>
+                )}
+            </div>
+        </div>
+    </ModalContainer>
   );
 }
