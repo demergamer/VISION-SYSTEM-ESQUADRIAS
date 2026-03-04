@@ -114,13 +114,10 @@ export default function Cheques() {
         let status_exibicao = c.status;
         let destino_exibicao = c.fornecedor_repassado_nome;
 
-        // Regra 1: Cheque em carteira (normal) Vencido -> Vai para Compensado (Sem Informação)
         if (c.status === 'normal' && isVencido) {
             status_exibicao = 'compensado';
             destino_exibicao = 'Sem Informação';
         } 
-        // Regra 3: Cheque Repassado Vencido -> MANTÉM REPASSADO, apenas a Flag (isVencido) muda!
-        // Não jogamos mais pro status 'compensado'.
 
         return { ...c, status_exibicao, destino_exibicao, is_auto_compensado: status_exibicao !== c.status, isVencido };
     });
@@ -146,7 +143,6 @@ export default function Cheques() {
         emMaos: listaGlobal.filter(c => c.status_exibicao === 'normal').reduce((a,c)=>a+c.valor,0),
         devolvidosPendentes: listaGlobal.filter(c => c.status_exibicao === 'devolvido' && c.status_pagamento_devolucao !== 'pago').reduce((a,c)=>a+c.valor,0),
         
-        // REPASSADOS AGORA SÃO DIVIDIDOS EM DOIS PONTOS
         repassadosAVencer: listaGlobal.filter(c => c.status_exibicao === 'repassado' && !c.isVencido).reduce((a,c)=>a+c.valor,0),
         repassadosCompensados: listaGlobal.filter(c => c.status_exibicao === 'repassado' && c.isVencido).reduce((a,c)=>a+c.valor,0),
 
@@ -168,7 +164,6 @@ export default function Cheques() {
 
     let listaFinal = listaGlobal.filter(c => c.status_exibicao === mainTab);
 
-    // FILTROS DE SUB-ABAS (FLAGS)
     if (mainTab === 'repassado') {
         if (subTab === 'a_vencer') listaFinal = listaFinal.filter(c => !c.isVencido);
         if (subTab === 'compensados') listaFinal = listaFinal.filter(c => c.isVencido);
@@ -327,6 +322,8 @@ export default function Cheques() {
   return (
     <PermissionGuard setor="Cheques">
       <div className="min-h-screen bg-[#F8FAFC] pb-10 w-full">
+        
+        {/* HEADER E TOTAIS */}
         <div className="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-20 shadow-sm">
           <div className="flex flex-col xl:flex-row justify-between xl:items-center gap-4 w-full">
             <div>
@@ -360,7 +357,6 @@ export default function Cheques() {
                           {isCheckingDuplicates ? <><Loader2 className="w-4 h-4 animate-spin" /> Varrendo...</> : <><RefreshCw className="w-4 h-4" /> Duplicatas</>}
                       </Button>
                   )}
-                  {/* Botão de Excluídos movido para o topo */}
                   <Button 
                       variant="outline" 
                       onClick={() => handleMainTabChange('excluido')} 
@@ -377,9 +373,9 @@ export default function Cheques() {
           </div>
         </div>
 
+        {/* CONTEÚDO PRINCIPAL (ÚNICO) */}
         <div className="px-6 py-6 space-y-6 w-full max-w-[1800px] mx-auto">
           
-          {/* ABAS REORDENADAS */}
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
               <Tabs value={mainTab} onValueChange={handleMainTabChange} className="w-full lg:w-auto">
                   <TabsList className="bg-slate-100 p-1 h-auto flex-wrap">
@@ -442,6 +438,7 @@ export default function Cheques() {
               )}
           </div>
 
+          {/* TABELA COM PAGINAÇÃO */}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm flex flex-col">
               <Table>
                   <TableHeader className="bg-slate-50">
@@ -527,55 +524,22 @@ export default function Cheques() {
               </div>
           </div>
         </div>
-        
-        {/* Cadastro e Edição */}
-        <ModalContainer 
-          open={showFormModal} 
-          onClose={() => setShowFormModal(false)} 
-          title={selectedCheque ? "Editar Cheque" : "Novo Cheque"} 
-          size="xl"
-        >
-          <ChequeForm 
-            cheque={selectedCheque} 
-            clientes={clientes} 
-            onSave={(data) => selectedCheque ? updateMutation.mutate({id: selectedCheque.id, data}) : createMutation.mutate(data)} 
-            onCancel={() => setShowFormModal(false)} 
-            isLoading={createMutation.isPending || updateMutation.isPending} 
-          />
+
+        {/* MODAIS GLOBAIS COM MODAL CONTAINER */}
+        <ModalContainer open={showFormModal} onClose={() => setShowFormModal(false)} title={selectedCheque ? "Editar Cheque" : "Novo Cheque"} size="xl">
+          <ChequeForm cheque={selectedCheque} clientes={clientes} onSave={(data) => selectedCheque ? updateMutation.mutate({id: selectedCheque.id, data}) : createMutation.mutate(data)} onCancel={() => setShowFormModal(false)} isLoading={createMutation.isPending || updateMutation.isPending} />
         </ModalContainer>
 
-        {/* Registro de Devolução */}
-        <RegistrarDevolucaoModal 
-            isOpen={showDevolucaoModal} 
-            onClose={() => setShowDevolucaoModal(false)}
-            todosCheques={cheques}
-            preSelectedIds={selectedIds}
-            onSave={handleSaveDevolucao}
-        />
+        <ModalContainer open={showDetailsModal} onClose={() => setShowDetailsModal(false)} title="Detalhes do Cheque">
+          {selectedCheque && <ChequeDetails cheque={selectedCheque} clientes={clientes} onEdit={() => { setShowDetailsModal(false); handleEdit(selectedCheque); }} onClose={() => setShowDetailsModal(false)} />}
+        </ModalContainer>
 
-        {/* Pagamento de Devolução */}
-        <ChequePagamentoModal 
-            isOpen={showPagamentoModal}
-            onClose={() => setShowPagamentoModal(false)}
-            cheque={chequeParaPagamento}
-            onSave={handleSavePagamentoDevolvido}
-            isProcessing={isProcessing}
-            representantes={representantes}
-        />
+        <RegistrarDevolucaoModal isOpen={showDevolucaoModal} onClose={() => setShowDevolucaoModal(false)} todosCheques={cheques} preSelectedIds={selectedIds} onSave={handleSaveDevolucao} />
 
-        {/* Resolução de Duplicatas */}
-        <ModalContainer 
-            open={showDuplicateModal} 
-            onClose={() => setShowDuplicateModal(false)} 
-            title="Resolver Duplicatas" 
-            size="2xl"
-        >
-            <ResolveDuplicatesModal 
-                duplicateGroups={duplicateGroups} 
-                onResolve={handleResolveDuplicates} 
-                onCancel={() => setShowDuplicateModal(false)} 
-                isProcessing={isProcessing} 
-            />
+        <ChequePagamentoModal isOpen={showPagamentoModal} onClose={() => setShowPagamentoModal(false)} cheque={chequeParaPagamento} onSave={handleSavePagamentoDevolvido} isProcessing={isProcessing} representantes={representantes} />
+
+        <ModalContainer open={showDuplicateModal} onClose={() => setShowDuplicateModal(false)} title="Resolver Duplicatas" description="Selecione o cheque original/correto para manter. Os outros serão excluídos." size="2xl">
+            <ResolveDuplicatesModal duplicateGroups={duplicateGroups} onResolve={handleResolveDuplicates} onCancel={() => setShowDuplicateModal(false)} isProcessing={isProcessing} />
         </ModalContainer>
 
       </div>
