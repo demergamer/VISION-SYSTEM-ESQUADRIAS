@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Upload, Loader2, Wallet, CheckCircle2, AlertTriangle, ChevronRight, ArrowLeft } from "lucide-react";
+import { Search, Upload, Loader2, Wallet, CheckCircle2, AlertTriangle, AlertCircle, ChevronRight, ArrowLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
