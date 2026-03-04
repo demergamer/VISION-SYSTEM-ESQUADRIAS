@@ -60,28 +60,20 @@ export default function ResolveDuplicatesModal({ duplicateGroups, onResolve, onC
                       <Badge variant="outline" className="capitalize bg-white">{cheque.status}</Badge>
                     </div>
                     
-                    {/* INFO EXTRA DE VÍNCULOS */}
                     <div className="mt-2 text-xs text-slate-600 bg-white/60 border border-slate-100 p-2 rounded flex flex-col gap-1">
                         <div className="flex justify-between items-center">
-                            <p><strong>Titular:</strong> {cheque.titular || cheque.emitente || 'N/A'}</p>
+                            <p><strong>Emitente:</strong> {cheque.emitente || 'N/A'}</p>
                             <p><strong>Venc:</strong> {cheque.data_vencimento ? format(parseISO(cheque.data_vencimento), 'dd/MM/yyyy') : 'N/A'}</p>
                         </div>
                         
                         <div className="flex gap-4 mt-1 pt-1 border-t border-slate-200/60">
-                            <p><strong>Origem:</strong> {cheque.origem || 'Lançamento Manual'}</p>
-                            
                             {cheque.pedido_id && (
-                                <p className="flex items-center gap-1 text-blue-700 font-medium">
-                                    <FileText className="w-3 h-3"/> Pedido #{cheque.pedido_id}
-                                </p>
+                                <p className="flex items-center gap-1 text-blue-700 font-medium"><FileText className="w-3 h-3"/> Pedido #{cheque.pedido_id}</p>
                             )}
-                            
-                            {/* 🚀 DESTAQUE PARA BORDERÔ */}
                             {cheque.bordero_numero && (
-                                <p className="flex items-center gap-1 text-purple-700 font-bold bg-purple-100 px-2 py-0.5 rounded">
-                                    <Receipt className="w-3 h-3"/> Borderô #{cheque.bordero_numero}
-                                </p>
+                                <p className="flex items-center gap-1 text-purple-700 font-bold bg-purple-100 px-2 py-0.5 rounded"><Receipt className="w-3 h-3"/> Borderô #{cheque.bordero_numero}</p>
                             )}
+                            {!cheque.pedido_id && !cheque.bordero_numero && <p>Lançamento Manual</p>}
                         </div>
                     </div>
                   </div>
