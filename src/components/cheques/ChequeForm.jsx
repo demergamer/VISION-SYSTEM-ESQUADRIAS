@@ -49,37 +49,18 @@ function BancoCombobox({ value, onChange }) {
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start">
         <div className="p-2 border-b">
-          <Input
-            placeholder="Buscar banco..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            autoFocus
-            className="h-8"
-          />
+          <Input placeholder="Buscar banco..." value={search} onChange={e => setSearch(e.target.value)} autoFocus className="h-8" />
         </div>
         <div className="max-h-52 overflow-y-auto">
           {bancosFiltrados.map(b => (
-            <button
-              key={b.codigo}
-              type="button"
-              className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 transition-colors ${value === b.codigo || value === b.nome ? 'bg-blue-50 text-blue-700 font-medium' : ''}`}
-              onClick={() => { onChange(b.codigo); setOpen(false); setSearch(''); }}
-            >
+            <button key={b.codigo} type="button" className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 transition-colors ${value === b.codigo || value === b.nome ? 'bg-blue-50 text-blue-700 font-medium' : ''}`} onClick={() => { onChange(b.codigo); setOpen(false); setSearch(''); }}>
               <span className="font-mono text-xs text-slate-400 mr-2">{b.codigo}</span>
               {b.nome}
             </button>
           ))}
-          {bancosFiltrados.length === 0 && (
-            <div className="p-3 text-sm text-slate-400 text-center">Nenhum banco encontrado</div>
-          )}
         </div>
-        {/* Opção digitada manualmente */}
         <div className="border-t p-2">
-          <button
-            type="button"
-            className="w-full text-xs text-slate-500 hover:text-slate-700 py-1"
-            onClick={() => { if (search) { onChange(search); setOpen(false); setSearch(''); } }}
-          >
+          <button type="button" className="w-full text-xs text-slate-500 hover:text-slate-700 py-1" onClick={() => { if (search) { onChange(search); setOpen(false); setSearch(''); } }}>
             Usar "{search || '...'}" manualmente
           </button>
         </div>
@@ -89,148 +70,84 @@ function BancoCombobox({ value, onChange }) {
 }
 
 export default function ChequeForm({ cheque, clientes = [], onSave, onCancel, isLoading }) {
-  // Busca lista para validar duplicidade
-  const { data: todosCheques = [] } = useQuery({
-    queryKey: ['cheques'],
-    queryFn: () => base44.entities.Cheque.list(),
-    enabled: !cheque // Só busca se for criação nova
-  });
+  const { data: todosCheques = [] } = useQuery({ queryKey: ['cheques'], queryFn: () => base44.entities.Cheque.list(), enabled: !cheque });
 
+  // STRICT SCHEMA MAPPING
   const [formData, setFormData] = useState(cheque || {
-    numero_cheque: '',
-    banco: '',
-    agencia: '',
-    conta: '',
-    emitente: '',
-    emitente_cpf_cnpj: '',
-    cliente_codigo: '',
-    cliente_nome: '',
-    valor: '',
-    data_emissao: new Date().toISOString().split('T')[0], // Padrão hoje
-    data_vencimento: '',
-    status: 'normal',
-    observacao: '',
-    anexo_fotos_cheque: [], 
-    anexo_microfilmagem: [], 
-    anexo_devolucao: [], 
-    anexo_video_url: null 
+    numero_cheque: '', banco: '', agencia: '', conta: '', emitente: '', emitente_cpf_cnpj: '',
+    cliente_codigo: '', cliente_nome: '', valor: '', data_emissao: new Date().toISOString().split('T')[0],
+    data_vencimento: '', status: 'normal', observacao: '', 
+    anexo_fotos_cheque: [], anexo_microfilmagem: [], anexo_devolucao: [], anexo_video_url: '',
+    fornecedor_repassado_nome: '', data_compensacao: ''
   });
 
   const [uploading, setUploading] = useState({ fotos: false, micro: false, dev: false, video: false });
-  const [isDragging, setIsDragging] = useState(false);
 
-  // --- HANDLERS DE DADOS ---
   const handleClienteChange = (codigoCliente) => {
     const cliente = clientes.find(c => c.codigo === codigoCliente);
     setFormData(prev => ({
       ...prev,
       cliente_codigo: codigoCliente,
       cliente_nome: cliente?.nome || '',
-      // Só preenche emitente se estiver vazio
       emitente: prev.emitente || cliente?.nome || '',
       emitente_cpf_cnpj: prev.emitente_cpf_cnpj || cliente?.cnpj || ''
     }));
   };
 
   const handleSave = () => {
-    // Validação Básica
     if (!formData.numero_cheque || !formData.banco || !formData.valor || !formData.data_vencimento) {
-        toast.error("Preencha os campos obrigatórios (*)");
-        return;
+        return toast.error("Preencha os campos obrigatórios (*)");
     }
 
-    // Validação de Duplicidade (Só ao criar)
     if (!cheque) {
-      const duplicado = todosCheques.find(c => 
-        c.banco === formData.banco && 
-        c.numero_cheque === formData.numero_cheque &&
-        c.status !== 'excluido' // Ignora excluídos
-      );
-
-      if (duplicado) {
-        toast.error('Cheque já cadastrado!', {
-          description: `Cheque #${duplicado.numero_cheque} do cliente ${duplicado.cliente_nome} (${formatCurrency(duplicado.valor)})`
-        });
-        return;
-      }
+      const duplicado = todosCheques.find(c => c.banco === formData.banco && c.numero_cheque === formData.numero_cheque && c.status !== 'excluido');
+      if (duplicado) return toast.error(`Cheque #${duplicado.numero_cheque} já cadastrado para o cliente ${duplicado.cliente_nome}!`);
     }
     
-    onSave(formData);
+    // Limpeza de dados baseada no status
+    const dataToSave = { ...formData, valor: parseFloat(formData.valor) };
+    if (dataToSave.status !== 'repassado') { dataToSave.fornecedor_repassado_nome = ''; }
+    if (dataToSave.status !== 'compensado') { dataToSave.data_compensacao = ''; }
+    if (dataToSave.status !== 'devolvido') { dataToSave.motivo_devolucao = ''; }
+
+    onSave(dataToSave);
   };
 
-  // --- HANDLERS DE UPLOAD ---
   const handleUpload = async (tipo, files) => {
     if (!files || files.length === 0) return;
-
     setUploading(prev => ({ ...prev, [tipo]: true }));
-    
     try {
-      const uploadPromises = Array.from(files).map(file => 
-        base44.integrations.Core.UploadFile({ file })
-      );
-      
+      const uploadPromises = Array.from(files).map(file => base44.integrations.Core.UploadFile({ file }));
       const results = await Promise.all(uploadPromises);
       const newUrls = results.map(r => r.file_url);
 
-      const fieldMap = {
-        'fotos': 'anexo_fotos_cheque',
-        'micro': 'anexo_microfilmagem',
-        'dev': 'anexo_devolucao',
-        'video': 'anexo_video_url'
-      };
-
+      const fieldMap = { 'fotos': 'anexo_fotos_cheque', 'micro': 'anexo_microfilmagem', 'dev': 'anexo_devolucao', 'video': 'anexo_video_url' };
       const field = fieldMap[tipo];
 
-      if (tipo === 'video') {
-          setFormData(prev => ({ ...prev, [field]: newUrls[0] }));
-      } else {
-          const current = Array.isArray(formData[field]) ? formData[field] : [];
-          setFormData(prev => ({ ...prev, [field]: [...current, ...newUrls] }));
-      }
+      if (tipo === 'video') setFormData(prev => ({ ...prev, [field]: newUrls[0] }));
+      else setFormData(prev => ({ ...prev, [field]: [...(prev[field] || []), ...newUrls] }));
 
       toast.success(`${files.length} arquivo(s) anexado(s)!`);
-    } catch (error) {
-      toast.error('Erro ao enviar arquivos');
-      console.error(error);
-    } finally {
-      setUploading(prev => ({ ...prev, [tipo]: false }));
-    }
+    } catch (error) { toast.error('Erro ao enviar arquivos'); } finally { setUploading(prev => ({ ...prev, [tipo]: false })); }
   };
 
   const removeAnexo = (tipo, index) => {
-      const fieldMap = {
-        'fotos': 'anexo_fotos_cheque',
-        'micro': 'anexo_microfilmagem',
-        'dev': 'anexo_devolucao'
-      };
+      const fieldMap = { 'fotos': 'anexo_fotos_cheque', 'micro': 'anexo_microfilmagem', 'dev': 'anexo_devolucao' };
       const field = fieldMap[tipo];
       const current = [...(formData[field] || [])];
       current.splice(index, 1);
       setFormData({ ...formData, [field]: current });
   };
 
-  // --- DRAG AND DROP ---
-  const handleDragEnter = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); };
-  const handleDragLeave = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); };
-  const handleDragOver = (e) => { e.preventDefault(); e.stopPropagation(); };
-  const handleDrop = (e) => { 
-      e.preventDefault(); e.stopPropagation(); setIsDragging(false);
-      const files = e.dataTransfer.files;
-      if (files?.length > 0) handleUpload('fotos', files);
-  };
-
   const AnexoSlot = ({ tipo, label, icon: Icon, files, single = false }) => (
     <div className="space-y-2">
       <Label>{label}</Label>
-      
       {single && files ? (
           <div className="relative group mb-2">
              <a href={files} target="_blank" rel="noopener noreferrer" className="block p-3 border rounded-lg bg-slate-50 hover:bg-blue-50 transition flex items-center gap-2">
                 <Video className="w-5 h-5 text-purple-600" /> <span className="text-sm truncate max-w-[200px]">Vídeo Anexado</span>
              </a>
-             <Button size="icon" variant="ghost" className="absolute top-1 right-1 h-6 w-6 text-red-500 hover:bg-red-100" onClick={() => setFormData({...formData, anexo_video_url: null})}>
-                <Trash2 className="w-3 h-3" />
-             </Button>
+             <Button size="icon" variant="ghost" className="absolute top-1 right-1 h-6 w-6 text-red-500 hover:bg-red-100" onClick={() => setFormData({...formData, anexo_video_url: null})}><Trash2 className="w-3 h-3" /></Button>
           </div>
       ) : (
           files && files.length > 0 && (
@@ -238,19 +155,14 @@ export default function ChequeForm({ cheque, clientes = [], onSave, onCancel, is
                 {files.map((url, idx) => (
                     <div key={idx} className="relative group">
                         <img src={url} className="w-full h-20 object-cover rounded-lg border" alt="Anexo" />
-                        <Button size="icon" variant="destructive" className="absolute -top-2 -right-2 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removeAnexo(tipo, idx)}>
-                            <X className="w-3 h-3" />
-                        </Button>
+                        <Button size="icon" variant="destructive" className="absolute -top-2 -right-2 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removeAnexo(tipo, idx)}><X className="w-3 h-3" /></Button>
                     </div>
                 ))}
             </div>
           )
       )}
 
-      <label className={cn(
-        "flex flex-col items-center justify-center gap-1 h-20 px-4 rounded-xl border-2 border-dashed cursor-pointer transition-all",
-        uploading[tipo] ? "border-blue-300 bg-blue-50" : "border-slate-300 bg-white hover:border-blue-400 hover:bg-blue-50"
-      )}>
+      <label className={cn("flex flex-col items-center justify-center gap-1 h-20 px-4 rounded-xl border-2 border-dashed cursor-pointer transition-all", uploading[tipo] ? "border-blue-300 bg-blue-50" : "border-slate-300 bg-white hover:border-blue-400 hover:bg-blue-50")}>
         {uploading[tipo] ? <Loader2 className="w-5 h-5 text-blue-600 animate-spin" /> : <Icon className="w-5 h-5 text-slate-400" />}
         <span className="text-xs font-medium text-slate-600 text-center">{uploading[tipo] ? 'Enviando...' : 'Adicionar'}</span>
         <input type="file" accept={tipo === 'video' ? "video/*" : "image/*,.pdf"} multiple={!single} onChange={(e) => handleUpload(tipo, e.target.files)} className="hidden" disabled={uploading[tipo]} />
@@ -259,22 +171,10 @@ export default function ChequeForm({ cheque, clientes = [], onSave, onCancel, is
   );
 
   return (
-    <div className="space-y-6 relative" onDragEnter={handleDragEnter} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
-      {isDragging && (
-        <div className="absolute inset-0 z-50 bg-blue-500/20 backdrop-blur-sm border-4 border-blue-500 border-dashed rounded-xl flex items-center justify-center">
-            <div className="bg-white p-8 rounded-2xl shadow-xl text-center">
-                <Upload className="w-16 h-16 text-blue-600 mx-auto mb-4 animate-bounce" />
-                <h3 className="text-2xl font-bold text-slate-800">Solte as Fotos Aqui</h3>
-            </div>
-        </div>
-      )}
-
+    <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
         <div><Label>Número do Cheque *</Label><Input value={formData.numero_cheque} onChange={(e) => setFormData({ ...formData, numero_cheque: e.target.value })} /></div>
-        <div>
-          <Label>Banco *</Label>
-          <BancoCombobox value={formData.banco} onChange={(v) => setFormData({ ...formData, banco: v })} />
-        </div>
+        <div><Label>Banco *</Label><BancoCombobox value={formData.banco} onChange={(v) => setFormData({ ...formData, banco: v })} /></div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -287,9 +187,7 @@ export default function ChequeForm({ cheque, clientes = [], onSave, onCancel, is
             <Label>Cliente Vinculado *</Label>
             <Select value={formData.cliente_codigo} onValueChange={handleClienteChange}>
                 <SelectTrigger><SelectValue placeholder="Selecione o cliente" /></SelectTrigger>
-                <SelectContent>
-                {clientes.map(c => (<SelectItem key={c.id} value={c.codigo}>{c.nome}</SelectItem>))}
-                </SelectContent>
+                <SelectContent>{clientes.map(c => (<SelectItem key={c.id} value={c.codigo}>{c.nome}</SelectItem>))}</SelectContent>
             </Select>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -317,8 +215,15 @@ export default function ChequeForm({ cheque, clientes = [], onSave, onCancel, is
                 </SelectContent>
             </Select>
           </div>
+          
           {formData.status === 'devolvido' && (
-              <div><Label>Motivo Devolução</Label><Input value={formData.motivo_devolucao} onChange={(e) => setFormData({...formData, motivo_devolucao: e.target.value})} placeholder="Ex: 11, 12..." /></div>
+              <div><Label>Motivo Devolução</Label><Input value={formData.motivo_devolucao || ''} onChange={(e) => setFormData({...formData, motivo_devolucao: e.target.value})} placeholder="Ex: 11, 12..." /></div>
+          )}
+          {formData.status === 'repassado' && (
+              <div><Label>Destino (Fornecedor)</Label><Input value={formData.fornecedor_repassado_nome || ''} onChange={(e) => setFormData({...formData, fornecedor_repassado_nome: e.target.value})} placeholder="Nome do fornecedor" /></div>
+          )}
+          {formData.status === 'compensado' && (
+              <div><Label>Destino (Depósito)</Label><Input value={formData.fornecedor_repassado_nome || ''} onChange={(e) => setFormData({...formData, fornecedor_repassado_nome: e.target.value})} placeholder="Ex: J&C ESQUADRIAS" /></div>
           )}
       </div>
 
