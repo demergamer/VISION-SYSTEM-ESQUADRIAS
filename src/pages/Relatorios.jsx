@@ -12,7 +12,8 @@ import {
 } from 'recharts';
 import { 
   ArrowLeft, Calendar, TrendingUp, AlertTriangle, DollarSign, 
-  Users, Package, MapPin, Activity, ShieldAlert, Target, HeartPulse, Download, Crown, Ghost
+  Users, Package, MapPin, Activity, ShieldAlert, Target, HeartPulse, Download, Crown, Ghost,
+  CheckCircle2, Clock
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
