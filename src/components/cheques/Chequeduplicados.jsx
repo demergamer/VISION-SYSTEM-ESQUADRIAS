@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Loader2, CheckCircle } from "lucide-react";
+import { AlertTriangle, Loader2, CheckCircle, Receipt, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -35,7 +35,7 @@ export default function ResolveDuplicatesModal({ duplicateGroups, onResolve, onC
         <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
         <div className="text-sm text-amber-800">
           <p className="font-bold">Atenção: Cheques Duplicados</p>
-          <p>Selecione o registro original para manter. Os outros serão arquivados como "Excluídos".</p>
+          <p>Selecione o registro original para manter. Os outros serão arquivados como "Excluídos". Preste atenção aos cheques vinculados a <strong>Borderôs</strong>!</p>
         </div>
       </div>
 
@@ -53,14 +53,39 @@ export default function ResolveDuplicatesModal({ duplicateGroups, onResolve, onC
                   <RadioGroupItem value={cheque.id} id={cheque.id} className="mt-1" />
                   <div className="flex-1">
                     <div className="flex justify-between items-start">
-                      <div><Label className="font-bold cursor-pointer text-slate-800">ID: {cheque.id}</Label><p className="text-xs text-slate-500">Cadastrado: {format(parseISO(cheque.created_date || new Date().toISOString()), 'dd/MM/yyyy')}</p></div>
+                      <div>
+                          <Label className="font-bold cursor-pointer text-slate-800">ID do Sistema: {cheque.id}</Label>
+                          <p className="text-xs text-slate-500">Cadastrado: {format(parseISO(cheque.created_date || new Date().toISOString()), 'dd/MM/yyyy HH:mm')}</p>
+                      </div>
                       <Badge variant="outline" className="capitalize bg-white">{cheque.status}</Badge>
                     </div>
-                    <div className="mt-2 text-xs text-slate-600 bg-white/50 p-2 rounded">
-                        <p><strong>Origem:</strong> {cheque.pedido_id ? `Pedido #${cheque.pedido_id}` : (cheque.origem || 'Manual')}</p>
+                    
+                    {/* INFO EXTRA DE VÍNCULOS */}
+                    <div className="mt-2 text-xs text-slate-600 bg-white/60 border border-slate-100 p-2 rounded flex flex-col gap-1">
+                        <div className="flex justify-between items-center">
+                            <p><strong>Titular:</strong> {cheque.titular || cheque.emitente || 'N/A'}</p>
+                            <p><strong>Venc:</strong> {cheque.data_vencimento ? format(parseISO(cheque.data_vencimento), 'dd/MM/yyyy') : 'N/A'}</p>
+                        </div>
+                        
+                        <div className="flex gap-4 mt-1 pt-1 border-t border-slate-200/60">
+                            <p><strong>Origem:</strong> {cheque.origem || 'Lançamento Manual'}</p>
+                            
+                            {cheque.pedido_id && (
+                                <p className="flex items-center gap-1 text-blue-700 font-medium">
+                                    <FileText className="w-3 h-3"/> Pedido #{cheque.pedido_id}
+                                </p>
+                            )}
+                            
+                            {/* 🚀 DESTAQUE PARA BORDERÔ */}
+                            {cheque.bordero_numero && (
+                                <p className="flex items-center gap-1 text-purple-700 font-bold bg-purple-100 px-2 py-0.5 rounded">
+                                    <Receipt className="w-3 h-3"/> Borderô #{cheque.bordero_numero}
+                                </p>
+                            )}
+                        </div>
                     </div>
                   </div>
-                  {selectedKeepers[key] === cheque.id && (<div className="absolute top-2 right-2 text-green-600"><CheckCircle className="w-4 h-4"/></div>)}
+                  {selectedKeepers[key] === cheque.id && (<div className="absolute top-3 right-3 text-green-600"><CheckCircle className="w-5 h-5"/></div>)}
                 </div>
               ))}
             </RadioGroup>
@@ -70,7 +95,7 @@ export default function ResolveDuplicatesModal({ duplicateGroups, onResolve, onC
 
       <div className="flex justify-end gap-3 pt-4 border-t">
         <Button variant="outline" onClick={onCancel} disabled={isProcessing}>Cancelar</Button>
-        <Button onClick={handleConfirm} disabled={isProcessing} className="bg-green-600 hover:bg-green-700 text-white">{isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />} Resolver</Button>
+        <Button onClick={handleConfirm} disabled={isProcessing} className="bg-green-600 hover:bg-green-700 text-white">{isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />} Resolver Duplicatas</Button>
       </div>
     </div>
   );
