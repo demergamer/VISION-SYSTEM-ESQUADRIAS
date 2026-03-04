@@ -544,57 +544,38 @@ export default function Cheques() {
           />
         </ModalContainer>
 
-        {/* Visualização de Detalhes */}
-        <ModalContainer 
-          open={showDetailsModal} 
-          onClose={() => setShowDetailsModal(false)} 
-          title="Detalhes do Cheque"
-        >
-          {selectedCheque && (
-            <ChequeDetails 
-              cheque={selectedCheque} 
-              clientes={clientes} 
-              onEdit={() => { setShowDetailsModal(false); handleEdit(selectedCheque); }} 
-              onClose={() => setShowDetailsModal(false)} 
-            />
-          )}
-        </ModalContainer>
-
-        {/* Registro de Devolução (Fluxo Wizard) */}
-        {showDevolucaoModal && (
-          <RegistrarDevolucaoModal 
+        {/* Registro de Devolução */}
+        <RegistrarDevolucaoModal 
             isOpen={showDevolucaoModal} 
-            onClose={() => setShowDevolucaoModal(false)} 
-            todosCheques={cheques} 
-            preSelectedIds={selectedIds} 
-            onSave={handleSaveDevolucao} 
-          />
-        )}
+            onClose={() => setShowDevolucaoModal(false)}
+            todosCheques={cheques}
+            preSelectedIds={selectedIds}
+            onSave={handleSaveDevolucao}
+        />
 
-        {/* Liquidação de Cheque Devolvido (Pagamento) */}
+        {/* Pagamento de Devolução */}
         <ChequePagamentoModal 
-          isOpen={showPagamentoModal} 
-          onClose={() => setShowPagamentoModal(false)} 
-          cheque={chequeParaPagamento} 
-          onSave={handleSavePagamentoDevolvido} 
-          isProcessing={isProcessing} 
-          representantes={representantes} 
+            isOpen={showPagamentoModal}
+            onClose={() => setShowPagamentoModal(false)}
+            cheque={chequeParaPagamento}
+            onSave={handleSavePagamentoDevolvido}
+            isProcessing={isProcessing}
+            representantes={representantes}
         />
 
         {/* Resolução de Duplicatas */}
         <ModalContainer 
-          open={showDuplicateModal} 
-          onClose={() => setShowDuplicateModal(false)} 
-          title="Resolver Duplicatas" 
-          description="Selecione o cheque original para manter no sistema. Os outros serão marcados como excluídos." 
-          size="2xl"
+            open={showDuplicateModal} 
+            onClose={() => setShowDuplicateModal(false)} 
+            title="Resolver Duplicatas" 
+            size="2xl"
         >
-          <ResolveDuplicatesModal 
-            duplicateGroups={duplicateGroups} 
-            onResolve={handleResolveDuplicates} 
-            onCancel={() => setShowDuplicateModal(false)} 
-            isProcessing={isProcessing} 
-          />
+            <ResolveDuplicatesModal 
+                duplicateGroups={duplicateGroups} 
+                onResolve={handleResolveDuplicates} 
+                onCancel={() => setShowDuplicateModal(false)} 
+                isProcessing={isProcessing} 
+            />
         </ModalContainer>
 
       </div>
