@@ -47,7 +47,8 @@ function BancoCombobox({ value, onChange }) {
           <span className="ml-2 text-slate-400">▼</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-72 p-0" align="start">
+      {/* 🚀 CORREÇÃO 2: z-[99999] garante que a lista de bancos não fique atrás do modal */}
+      <PopoverContent className="w-72 p-0 z-[99999]" align="start">
         <div className="p-2 border-b">
           <Input placeholder="Buscar banco..." value={search} onChange={e => setSearch(e.target.value)} autoFocus className="h-8" />
         </div>
@@ -72,7 +73,6 @@ function BancoCombobox({ value, onChange }) {
 export default function ChequeForm({ cheque, clientes = [], onSave, onCancel, isLoading }) {
   const { data: todosCheques = [] } = useQuery({ queryKey: ['cheques'], queryFn: () => base44.entities.Cheque.list(), enabled: !cheque });
 
-  // STRICT SCHEMA MAPPING
   const [formData, setFormData] = useState(cheque || {
     numero_cheque: '', banco: '', agencia: '', conta: '', emitente: '', emitente_cpf_cnpj: '',
     cliente_codigo: '', cliente_nome: '', valor: '', data_emissao: new Date().toISOString().split('T')[0],
@@ -104,7 +104,6 @@ export default function ChequeForm({ cheque, clientes = [], onSave, onCancel, is
       if (duplicado) return toast.error(`Cheque #${duplicado.numero_cheque} já cadastrado para o cliente ${duplicado.cliente_nome}!`);
     }
     
-    // Limpeza de dados baseada no status
     const dataToSave = { ...formData, valor: parseFloat(formData.valor) };
     if (dataToSave.status !== 'repassado') { dataToSave.fornecedor_repassado_nome = ''; }
     if (dataToSave.status !== 'compensado') { dataToSave.data_compensacao = ''; }
@@ -187,7 +186,8 @@ export default function ChequeForm({ cheque, clientes = [], onSave, onCancel, is
             <Label>Cliente Vinculado *</Label>
             <Select value={formData.cliente_codigo} onValueChange={handleClienteChange}>
                 <SelectTrigger><SelectValue placeholder="Selecione o cliente" /></SelectTrigger>
-                <SelectContent>{clientes.map(c => (<SelectItem key={c.id} value={c.codigo}>{c.nome}</SelectItem>))}</SelectContent>
+                {/* 🚀 CORREÇÃO 2: z-[99999] garante que a lista de clientes não fique atrás do modal */}
+                <SelectContent className="z-[99999]">{clientes.map(c => (<SelectItem key={c.id} value={c.codigo}>{c.nome}</SelectItem>))}</SelectContent>
             </Select>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -207,7 +207,8 @@ export default function ChequeForm({ cheque, clientes = [], onSave, onCancel, is
             <Label>Status</Label>
             <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
+                {/* 🚀 CORREÇÃO 2: z-[99999] na lista de status também */}
+                <SelectContent className="z-[99999]">
                 <SelectItem value="normal">Normal (Em Carteira)</SelectItem>
                 <SelectItem value="repassado">Repassado</SelectItem>
                 <SelectItem value="devolvido">Devolvido</SelectItem>
@@ -249,5 +250,3 @@ export default function ChequeForm({ cheque, clientes = [], onSave, onCancel, is
     </div>
   );
 }
-
-const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
