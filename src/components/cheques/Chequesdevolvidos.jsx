@@ -13,7 +13,7 @@ import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-// 🚀 ESSENCIAL: O Modal de Devolução agora usa o ModalContainer oficial
+// O Modal de Devolução agora usa o ModalContainer oficial
 import ModalContainer from "@/components/modals/ModalContainer";
 
 const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
