@@ -166,15 +166,18 @@ export default function Relatorios() {
           const f = b.forma_pagamento?.toLowerCase() || '';
           const cliente = b.cliente_nome || 'Cliente Não Informado';
 
-          else if (f.includes('dinheiro')) chave = 'dinheiro';
+          let chave = null;
+          if (f.includes('dinheiro')) chave = 'dinheiro';
           else if (f.includes('pix')) chave = 'pix';
           else if (f.includes('débito') || f.includes('debito')) chave = 'cdeb';
           else if (f.includes('crédito') || f.includes('credito') || f.includes('cartao')) chave = 'ccred';
           else if (f.includes('link')) chave = 'link';
           else if (f.includes('cheque')) chave = 'cheque';
 
-             if (!topClientesMap[chave][cliente]) topClientesMap[chave][cliente] = 0;
-             topClientesMap[chave][cliente] += b.valor_total;
+          if (chave) {
+              mixMap[chave] += b.valor_total;
+              if (!topClientesMap[chave][cliente]) topClientesMap[chave][cliente] = 0;
+              topClientesMap[chave][cliente] += b.valor_total;
           }
       });
 
