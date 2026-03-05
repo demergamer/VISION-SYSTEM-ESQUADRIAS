@@ -14,14 +14,14 @@ import {
 } from 'recharts';
 import { 
   ArrowLeft, Calendar, TrendingUp, AlertTriangle, DollarSign, 
-  Users, Package, Activity, ShieldAlert, Target, HeartPulse, Download, 
-  Crown, PieChart as PieChartIcon, List, ChevronLeft, ChevronRight, Ghost
+  Users, Activity, Target, Download, Crown, PieChart as PieChartIcon, 
+  List, ChevronLeft, ChevronRight, Ghost
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import PermissionGuard from "@/components/PermissionGuard";
 import { 
-  differenceInDays, format, subMonths, isPast, parseISO, addDays, startOfMonth, endOfMonth, isWithinInterval
+  differenceInDays, format, subMonths, isPast, parseISO, startOfMonth, endOfMonth, isWithinInterval
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -54,6 +54,19 @@ export default function Relatorios() {
   const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
   const hoje = new Date();
 
+  // ============================================================================
+  // 🧹 PURGA DE DADOS INTERNOS (EXPURGA FORMA DE PAGAMENTO "SERVIÇO")
+  // ============================================================================
+  const isPagamentoServico = (forma) => {
+      if (!forma) return false;
+      const str = String(forma).toLowerCase();
+      return str.includes('serviç') || str.includes('servic');
+  };
+
+  // Usa essas listas validadas em todos os cálculos do sistema
+  const pedidosValidos = useMemo(() => pedidos.filter(p => !isPagamentoServico(p.forma_pagamento)), [pedidos]);
+  const borderosValidos = useMemo(() => borderos.filter(b => !isPagamentoServico(b.forma_pagamento)), [borderos]);
+
   // --- HELPERS E FILTROS INTELIGENTES ---
   const filtrar = (dataStr) => {
     if (!dataStr) return false;
@@ -62,12 +75,12 @@ export default function Relatorios() {
   };
 
   const getVencimentoReal = (p) => {
-    // Se tiver data_programada, ela sobrepõe a data de entrega para fins de inadimplência
+    // A data programada protege o pedido de constar como atrasado caso tenha sido adiado
     return p.data_programada ? p.data_programada : p.data_entrega;
   };
 
   const isDevedor = (p) => {
-    // Inclui agora o representante_recebe na lógica de dívida na rua
+    // Inclui representante_recebe na lista de verificação de dívida
     if (!['aberto', 'parcial', 'representante_recebe'].includes(p.status)) return false;
     const vencimento = getVencimentoReal(p);
     if (!vencimento) return false;
@@ -80,21 +93,23 @@ export default function Relatorios() {
   };
 
   // ============================================================================
-  // 🧠 MOTORES DE PROCESSAMENTO
+  // 🧠 MOTORES DE PROCESSAMENTO DE BI
   // ============================================================================
 
   // --- VISÃO CEO ---
   const visaoCEO = useMemo(() => {
-      const pedidosNoPeriodo = pedidos.filter(p => filtrar(p.created_date));
+      const pedidosNoPeriodo = pedidosValidos.filter(p => filtrar(p.created_date));
       const totalReceita = pedidosNoPeriodo.reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
       const qtdPedidos = pedidosNoPeriodo.length;
+      
+      // Ticket Médio Geral (Por Pedido)
       const ticketMedio = qtdPedidos > 0 ? totalReceita / qtdPedidos : 0;
 
       // Curva de Crescimento (12 meses)
       const curva12Meses = Array.from({ length: 12 }, (_, i) => {
           const dataRef = subMonths(hoje, 11 - i);
           const mesAnoStr = format(dataRef, 'yyyy-MM');
-          const faturamento = borderos
+          const faturamento = borderosValidos
               .filter(b => b.created_date && b.created_date.startsWith(mesAnoStr))
               .reduce((sum, b) => sum + (b.valor_total || 0), 0);
           return { mes: format(dataRef, 'MMM/yy', { locale: ptBR }), faturamento };
@@ -110,18 +125,19 @@ export default function Relatorios() {
           if (diasFuturo >= 0 && diasFuturo <= 30) proj30d.trinta += valor;
       };
       cheques.filter(c => c.status === 'normal' || c.status === 'repassado').forEach(c => somaProjecao(c.data_vencimento, c.valor));
-      pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial' || p.status === 'representante_recebe').forEach(p => somaProjecao(getVencimentoReal(p), parseFloat(p.saldo_restante || p.valor_pedido)));
+      pedidosValidos.filter(p => p.status === 'aberto' || p.status === 'parcial' || p.status === 'representante_recebe').forEach(p => somaProjecao(getVencimentoReal(p), parseFloat(p.saldo_restante || p.valor_pedido)));
 
       return { totalReceita, qtdPedidos, ticketMedio, curva12Meses, proj30d: proj30d.trinta };
-  }, [pedidos, borderos, cheques, periodo]);
+  }, [pedidosValidos, borderosValidos, cheques, periodo]);
 
   // --- 1. FINANCEIRO (INADIMPLÊNCIA) ---
   const financeiro = useMemo(() => {
+    // Baldes específicos de tempo exigidos
     const buckets = { d1_10: 0, d11_15: 0, d16_35: 0, d36_60: 0, d61_90: 0, d90_plus: 0 };
     const clientesDevedoresMap = {};
     let totalAtrasado = 0;
 
-    pedidos.filter(isDevedor).forEach(p => {
+    pedidosValidos.filter(isDevedor).forEach(p => {
         const diasAtraso = getDiasAtraso(p);
         const saldo = parseFloat(p.saldo_restante || (p.valor_pedido - (p.total_pago || 0)));
 
@@ -139,23 +155,24 @@ export default function Relatorios() {
         if (diasAtraso > clientesDevedoresMap[p.cliente_codigo].dias) clientesDevedoresMap[p.cliente_codigo].dias = diasAtraso;
     });
 
+    // Cores bem distintas para cada faixa de risco
     const grafInadimplencia = [
-        { name: '1-10 dias', value: buckets.d1_10, color: '#3b82f6' }, // Azul
-        { name: '11-15 dias', value: buckets.d11_15, color: '#10b981' }, // Verde
-        { name: '16-35 dias', value: buckets.d16_35, color: '#facc15' }, // Amarelo
-        { name: '36-60 dias', value: buckets.d36_60, color: '#f97316' }, // Laranja
-        { name: '61-90 dias', value: buckets.d61_90, color: '#ef4444' }, // Vermelho
-        { name: '90+ dias', value: buckets.d90_plus, color: '#450a0a' }, // Vermelho Escuro / Preto
+        { name: '1-10 dias', value: buckets.d1_10, color: '#3b82f6' },      // Azul (Leve)
+        { name: '11-15 dias', value: buckets.d11_15, color: '#10b981' },     // Verde (Seguro)
+        { name: '16-35 dias', value: buckets.d16_35, color: '#facc15' },     // Amarelo (Atenção)
+        { name: '36-60 dias', value: buckets.d36_60, color: '#f97316' },     // Laranja (Alerta)
+        { name: '61-90 dias', value: buckets.d61_90, color: '#ef4444' },     // Vermelho (Crítico)
+        { name: '90+ dias', value: buckets.d90_plus, color: '#450a0a' },     // Vermelho Escuro/Preto (Perdido)
     ];
 
     const topDevedores = Object.values(clientesDevedoresMap).sort((a,b) => b.valor - a.valor).slice(0, 5);
 
     return { grafInadimplencia, topDevedores, totalAtrasado };
-  }, [pedidos]);
+  }, [pedidosValidos]);
 
-  // --- 4. FLUXO DE CAIXA ---
+  // --- 4. FLUXO DE CAIXA E MIX DE PAGAMENTOS ---
   const fluxoCaixa = useMemo(() => {
-      const bPeriodo = borderos.filter(b => filtrar(b.created_date));
+      const bPeriodo = borderosValidos.filter(b => filtrar(b.created_date));
       let totalRecebido = 0;
       
       const mixMap = { dinheiro: 0, pix: 0, cdeb: 0, ccred: 0, link: 0, cheque: 0 };
@@ -166,7 +183,7 @@ export default function Relatorios() {
           const f = b.forma_pagamento?.toLowerCase() || '';
           const cliente = b.cliente_nome || 'Cliente Não Informado';
 
-          let chave = null;
+          let chave = 'outros';
           if (f.includes('dinheiro')) chave = 'dinheiro';
           else if (f.includes('pix')) chave = 'pix';
           else if (f.includes('débito') || f.includes('debito')) chave = 'cdeb';
@@ -174,10 +191,10 @@ export default function Relatorios() {
           else if (f.includes('link')) chave = 'link';
           else if (f.includes('cheque')) chave = 'cheque';
 
-          if (chave) {
-              mixMap[chave] += b.valor_total;
-              if (!topClientesMap[chave][cliente]) topClientesMap[chave][cliente] = 0;
-              topClientesMap[chave][cliente] += b.valor_total;
+          if(chave !== 'outros') {
+             mixMap[chave] += b.valor_total;
+             if (!topClientesMap[chave][cliente]) topClientesMap[chave][cliente] = 0;
+             topClientesMap[chave][cliente] += b.valor_total;
           }
       });
 
@@ -198,7 +215,7 @@ export default function Relatorios() {
       const evolucaoMix = Array.from({ length: 6 }, (_, i) => {
           const dataRef = subMonths(hoje, 5 - i);
           const mesAnoStr = format(dataRef, 'yyyy-MM');
-          const bMes = borderos.filter(b => b.created_date && b.created_date.startsWith(mesAnoStr));
+          const bMes = borderosValidos.filter(b => b.created_date && b.created_date.startsWith(mesAnoStr));
 
           let d=0, p=0, ccd=0, ccc=0, l=0, c=0;
           bMes.forEach(b => {
@@ -214,9 +231,9 @@ export default function Relatorios() {
       });
 
       return { totalRecebido, mixArr, top5PorForma, evolucaoMix };
-  }, [borderos, periodo]);
+  }, [borderosValidos, periodo]);
 
-  // --- 3. COMERCIAL (REPRESENTANTES, SCORE CLIENTES E LTV) ---
+  // --- 3. COMERCIAL (REPRESENTANTES E LTV) ---
   const comercial = useMemo(() => {
       const calcScore = (mapa) => {
           const maxVol = Math.max(...Object.values(mapa).map(x => x.vol)) || 1;
@@ -233,25 +250,22 @@ export default function Relatorios() {
       const cliMap = {};
       clientes.forEach(c => cliMap[c.codigo] = { nome: c.nome, vol: 0, qtd: 0, inadimplencia: 0 });
 
-      pedidos.filter(p => filtrar(p.created_date)).forEach(p => {
+      pedidosValidos.filter(p => filtrar(p.created_date)).forEach(p => {
           if (repMap[p.representante_codigo]) {
               repMap[p.representante_codigo].vol += p.valor_pedido;
               repMap[p.representante_codigo].qtd += 1;
-              if (isDevedor(p)) {
-                  repMap[p.representante_codigo].inadimplencia += parseFloat(p.saldo_restante || p.valor_pedido);
-              }
+              if (isDevedor(p)) repMap[p.representante_codigo].inadimplencia += parseFloat(p.saldo_restante || p.valor_pedido);
           }
           if (cliMap[p.cliente_codigo]) {
               cliMap[p.cliente_codigo].vol += p.valor_pedido;
               cliMap[p.cliente_codigo].qtd += 1;
-              if (isDevedor(p)) {
-                  cliMap[p.cliente_codigo].inadimplencia += parseFloat(p.saldo_restante || p.valor_pedido);
-              }
+              if (isDevedor(p)) cliMap[p.cliente_codigo].inadimplencia += parseFloat(p.saldo_restante || p.valor_pedido);
           }
       });
 
+      // LTV Histórico (O LTV não usa o filtro de período, ele mostra o Lifetime Value real desde sempre)
       const ltvMap = {};
-      pedidos.forEach(p => {
+      pedidosValidos.forEach(p => {
           if (!ltvMap[p.cliente_codigo]) ltvMap[p.cliente_codigo] = { nome: p.cliente_nome, ltv: 0, qtd: 0, lastOrder: parseISO(p.created_date) };
           ltvMap[p.cliente_codigo].ltv += p.valor_pedido;
           ltvMap[p.cliente_codigo].qtd += 1;
@@ -275,9 +289,9 @@ export default function Relatorios() {
       const churn = curvaABC.filter(c => (c.classe === 'A' || c.classe === 'B') && differenceInDays(hoje, c.lastOrder) > 90);
 
       return { repRanking: calcScore(repMap), clientRanking: calcScore(cliMap), topLTV: curvaABC.slice(0, 10), churn };
-  }, [pedidos, representantes, clientes, periodo]);
+  }, [pedidosValidos, representantes, clientes, periodo]);
 
-  // Lógica de Paginação
+  // Paginação Lógica
   const totalClientPages = Math.ceil(comercial.clientRanking.length / clientItemsPerPage);
   const paginatedClients = comercial.clientRanking.slice((clientPage - 1) * clientItemsPerPage, clientPage * clientItemsPerPage);
 
@@ -490,6 +504,7 @@ export default function Relatorios() {
                     </Card>
                 </div>
 
+                {/* RANKING TOP 5 POR FORMA DE PAGTO */}
                 <h3 className="text-xl font-black text-slate-800 mt-10 mb-4 uppercase tracking-tight">Top 5 Clientes por Modalidade</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {Object.keys(fluxoCaixa.top5PorForma).map((chave) => {
@@ -519,7 +534,7 @@ export default function Relatorios() {
             <TabsContent value="com" className="space-y-6">
                 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* RANKING REPRESENTANTES (RESTAURADO COM PAGINAÇÃO) */}
+                    {/* RANKING REPRESENTANTES (COM PAGINAÇÃO) */}
                     <Card className="p-6 shadow-xl rounded-3xl bg-white border-none flex flex-col h-full">
                         <div className="flex-1">
                             <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Crown className="text-yellow-500"/> Ranking de Representantes (Score Engine)</h3>
@@ -547,7 +562,7 @@ export default function Relatorios() {
                         <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 p-2 rounded-xl border border-slate-100">
                             <div className="flex items-center gap-2 text-sm text-slate-500">
                                 <span>Exibir:</span>
-                                <select value={repItemsPerPage} onChange={(e) => { setRepItemsPerPage(Number(e.target.value)); setRepPage(1); }} className="h-8 rounded-md border-slate-300 px-2 bg-white text-slate-700 outline-none">
+                                <select value={repItemsPerPage} onChange={(e) => { setRepItemsPerPage(Number(e.target.value)); setRepPage(1); }} className="h-8 rounded-md border-slate-300 px-2 bg-white text-slate-700 outline-none text-sm">
                                     <option value={5}>5</option><option value={10}>10</option><option value={20}>20</option>
                                 </select>
                             </div>
@@ -584,7 +599,7 @@ export default function Relatorios() {
 
                       <Card className="p-6 border-red-200 shadow-md">
                           <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Ghost className="text-slate-400"/> Churn Alert (Galinhas dos Ovos de Ouro)</h3>
-                          <p className="text-xs text-slate-500 mb-4">Clientes Classe A ou B que não compram há mais de 90 dias.</p>
+                          <p className="text-xs text-slate-500 mb-4">Clientes Curva A/B inativos há +90 dias.</p>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               {comercial.churn.length === 0 ? (
                                   <p className="text-emerald-600 font-bold p-2">Nenhum cliente importante inativo!</p>
