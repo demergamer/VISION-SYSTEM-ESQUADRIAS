@@ -15,7 +15,7 @@ import {
 import { 
   ArrowLeft, Calendar, TrendingUp, AlertTriangle, DollarSign, 
   Users, Package, Activity, ShieldAlert, Target, HeartPulse, Download, 
-  Crown, PieChart as PieChartIcon, List, ChevronLeft, ChevronRight
+  Crown, PieChart as PieChartIcon, List, ChevronLeft, ChevronRight, Ghost
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -28,15 +28,14 @@ import { ptBR } from 'date-fns/locale';
 export default function Relatorios() {
   const [activeTab, setActiveTab] = useState('ceo');
   
-  // 2. Filtro de Data Global
+  // Filtro de Data Global
   const [periodo, setPeriodo] = useState({
     inicio: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
     fim: format(endOfMonth(new Date()), 'yyyy-MM-dd')
   });
 
-  const [viewMixMode, setViewMixMode] = useState('chart'); // 'chart' ou 'table'
+  const [viewMixMode, setViewMixMode] = useState('chart');
   
-  // Paginação Clientes
   const [clientPage, setClientPage] = useState(1);
   const [clientItemsPerPage, setClientItemsPerPage] = useState(10);
 
@@ -50,7 +49,7 @@ export default function Relatorios() {
   const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
   const hoje = new Date();
 
-  // --- MOTOR DE FILTRAGEM ---
+  // --- FILTRO ---
   const filtrar = (dataStr) => {
     if (!dataStr) return false;
     const data = parseISO(dataStr.split('T')[0]);
@@ -58,22 +57,43 @@ export default function Relatorios() {
   };
 
   // ============================================================================
-  // 🧠 MOTOR DE PROCESSAMENTO DE BI
+  // 🧠 MOTORES DE PROCESSAMENTO
   // ============================================================================
 
-  // --- VISÃO CEO & GERAL ---
+  // --- VISÃO CEO ---
   const visaoCEO = useMemo(() => {
       const pedidosNoPeriodo = pedidos.filter(p => filtrar(p.created_date));
       const totalReceita = pedidosNoPeriodo.reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
       const qtdPedidos = pedidosNoPeriodo.length;
       const ticketMedio = qtdPedidos > 0 ? totalReceita / qtdPedidos : 0;
 
-      return { totalReceita, qtdPedidos, ticketMedio };
-  }, [pedidos, periodo]);
+      // Curva de Crescimento (12 meses)
+      const curva12Meses = Array.from({ length: 12 }, (_, i) => {
+          const dataRef = subMonths(hoje, 11 - i);
+          const mesAnoStr = format(dataRef, 'yyyy-MM');
+          const faturamento = borderos
+              .filter(b => b.created_date && b.created_date.startsWith(mesAnoStr))
+              .reduce((sum, b) => sum + (b.valor_total || 0), 0);
+          return { mes: format(dataRef, 'MMM/yy', { locale: ptBR }), faturamento };
+      });
+      const ultimos3 = curva12Meses.slice(-3).reduce((a, b) => a + b.faturamento, 0) / 3;
+      curva12Meses.push({ mes: 'Projeção', faturamento: ultimos3 });
 
-  // --- 1. FINANCEIRO (INADIMPLÊNCIA INTELIGENTE) ---
+      // Projeção Caixa Futuro
+      const proj30d = { trinta: 0 };
+      const somaProjecao = (dataVenc, valor) => {
+          if (!dataVenc) return;
+          const diasFuturo = differenceInDays(parseISO(dataVenc), hoje);
+          if (diasFuturo >= 0 && diasFuturo <= 30) proj30d.trinta += valor;
+      };
+      cheques.filter(c => c.status === 'normal' || c.status === 'repassado').forEach(c => somaProjecao(c.data_vencimento, c.valor));
+      pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial').forEach(p => somaProjecao(p.data_entrega, parseFloat(p.saldo_restante || p.valor_pedido)));
+
+      return { totalReceita, qtdPedidos, ticketMedio, curva12Meses, proj30d: proj30d.trinta };
+  }, [pedidos, borderos, cheques, periodo]);
+
+  // --- 1. FINANCEIRO (INADIMPLÊNCIA) ---
   const financeiro = useMemo(() => {
-    // 3. Formatos Específicos: 1-10, 10-15, 15-35, 35-60, 60-90, 90+
     const buckets = { d1_10: 0, d11_15: 0, d16_35: 0, d36_60: 0, d61_90: 0, d90_plus: 0 };
     const clientesDevedoresMap = {};
     let totalAtrasado = 0;
@@ -110,7 +130,7 @@ export default function Relatorios() {
     return { grafInadimplencia, topDevedores, totalAtrasado };
   }, [pedidos]);
 
-  // --- 4. FLUXO DE CAIXA E MIX DE PAGAMENTOS ---
+  // --- 4. FLUXO DE CAIXA ---
   const fluxoCaixa = useMemo(() => {
       const bPeriodo = borderos.filter(b => filtrar(b.created_date));
       let totalRecebido = 0;
@@ -138,7 +158,6 @@ export default function Relatorios() {
           }
       });
 
-      // Formatar Graficos Mix
       const mixArr = [
           { name: 'Dinheiro', valor: mixMap.dinheiro, color: '#10b981' },
           { name: 'PIX', valor: mixMap.pix, color: '#06b6d4' },
@@ -148,13 +167,11 @@ export default function Relatorios() {
           { name: 'Cheque', valor: mixMap.cheque, color: '#8b5cf6' }
       ].map(item => ({ ...item, perc: totalRecebido > 0 ? ((item.valor / totalRecebido) * 100).toFixed(1) : 0 }));
 
-      // Formatar Top Clientes
       const top5PorForma = {};
       Object.keys(topClientesMap).forEach(k => {
           top5PorForma[k] = Object.entries(topClientesMap[k]).map(([nome, valor]) => ({nome, valor})).sort((a,b)=>b.valor - a.valor).slice(0,5);
       });
 
-      // 5. Comparativo Evolução 6 Meses
       const evolucaoMix = Array.from({ length: 6 }, (_, i) => {
           const dataRef = subMonths(hoje, 5 - i);
           const mesAnoStr = format(dataRef, 'yyyy-MM');
@@ -176,9 +193,8 @@ export default function Relatorios() {
       return { totalRecebido, mixArr, top5PorForma, evolucaoMix };
   }, [borderos, periodo]);
 
-  // --- 3. COMERCIAL (SCORE DE REPRESENTANTES E CLIENTES) ---
+  // --- 3. COMERCIAL (REPRESENTANTES, SCORE CLIENTES E LTV) ---
   const comercial = useMemo(() => {
-      // Calculador Genérico de Score
       const calcScore = (mapa) => {
           const maxVol = Math.max(...Object.values(mapa).map(x => x.vol)) || 1;
           return Object.values(mapa).map(item => {
@@ -188,16 +204,13 @@ export default function Relatorios() {
           }).filter(x => x.vol > 0).sort((a,b) => b.score - a.score);
       };
 
-      // Representantes
       const repMap = {};
       representantes.forEach(r => repMap[r.codigo] = { nome: r.nome, vol: 0, qtd: 0, inadimplencia: 0 });
       
-      // Clientes (7. Score para Clientes)
       const cliMap = {};
       clientes.forEach(c => cliMap[c.codigo] = { nome: c.nome, vol: 0, qtd: 0, inadimplencia: 0 });
 
       pedidos.filter(p => filtrar(p.created_date)).forEach(p => {
-          // Add to Rep
           if (repMap[p.representante_codigo]) {
               repMap[p.representante_codigo].vol += p.valor_pedido;
               repMap[p.representante_codigo].qtd += 1;
@@ -205,7 +218,6 @@ export default function Relatorios() {
                   repMap[p.representante_codigo].inadimplencia += parseFloat(p.saldo_restante || p.valor_pedido);
               }
           }
-          // Add to Client
           if (cliMap[p.cliente_codigo]) {
               cliMap[p.cliente_codigo].vol += p.valor_pedido;
               cliMap[p.cliente_codigo].qtd += 1;
@@ -215,10 +227,35 @@ export default function Relatorios() {
           }
       });
 
-      return { repRanking: calcScore(repMap), clientRanking: calcScore(cliMap) };
+      // LTV Historico (Ignora Filtro de Período para calcular LTV Real)
+      const ltvMap = {};
+      pedidos.forEach(p => {
+          if (!ltvMap[p.cliente_codigo]) ltvMap[p.cliente_codigo] = { nome: p.cliente_nome, ltv: 0, qtd: 0, lastOrder: parseISO(p.created_date) };
+          ltvMap[p.cliente_codigo].ltv += p.valor_pedido;
+          ltvMap[p.cliente_codigo].qtd += 1;
+          const orderDate = parseISO(p.created_date);
+          if (orderDate > ltvMap[p.cliente_codigo].lastOrder) ltvMap[p.cliente_codigo].lastOrder = orderDate;
+      });
+
+      const ltvList = Object.values(ltvMap).sort((a,b) => b.ltv - a.ltv);
+      const totalGlobal = ltvList.reduce((a,b) => a + b.ltv, 0);
+      let acc = 0;
+      
+      const curvaABC = ltvList.map(c => {
+          acc += c.ltv;
+          const perc = (acc / totalGlobal) * 100;
+          let classe = 'C';
+          if (perc <= 80) classe = 'A';
+          else if (perc <= 95) classe = 'B';
+          return { ...c, classe, ticket: c.ltv / c.qtd };
+      });
+
+      const churn = curvaABC.filter(c => (c.classe === 'A' || c.classe === 'B') && differenceInDays(hoje, c.lastOrder) > 90);
+
+      return { repRanking: calcScore(repMap), clientRanking: calcScore(cliMap), topLTV: curvaABC.slice(0, 10), churn };
   }, [pedidos, representantes, clientes, periodo]);
 
-  // Paginação Clientes Logic
+  // Paginação
   const totalClientPages = Math.ceil(comercial.clientRanking.length / clientItemsPerPage);
   const paginatedClients = comercial.clientRanking.slice((clientPage - 1) * clientItemsPerPage, clientPage * clientItemsPerPage);
 
@@ -229,7 +266,6 @@ export default function Relatorios() {
       <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-8 font-sans">
         <div className="max-w-[1600px] mx-auto space-y-6">
           
-          {/* HEADER EXECUTIVO & FILTRO DATA GLOBAL */}
           <div className="bg-slate-900 text-white p-8 rounded-3xl shadow-xl flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative overflow-hidden">
             <div className="absolute right-0 top-0 opacity-10 pointer-events-none"><Activity className="w-96 h-96" /></div>
             <div className="flex items-center gap-6 relative z-10">
@@ -259,26 +295,52 @@ export default function Relatorios() {
             </TabsList>
 
             {/* ============================================================================== */}
-            {/* VISÃO CEO */}
+            {/* VISÃO CEO (Restaurada e Aprimorada) */}
             {/* ============================================================================== */}
             <TabsContent value="ceo" className="space-y-6 animate-in fade-in">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <Card className="p-6 border-l-4 border-l-blue-500 shadow-sm">
                         <p className="text-slate-500 text-xs font-bold uppercase mb-1">Receita Faturada (Período)</p>
-                        <p className="text-4xl font-black text-slate-800">{formatCurrency(visaoCEO.totalReceita)}</p>
+                        <p className="text-3xl font-black text-slate-800">{formatCurrency(visaoCEO.totalReceita)}</p>
                         <Badge className="bg-blue-100 text-blue-700 mt-2">{visaoCEO.qtdPedidos} Pedidos gerados</Badge>
                     </Card>
                     <Card className="p-6 border-l-4 border-l-emerald-500 shadow-sm bg-emerald-50/30">
-                        <p className="text-emerald-700 text-xs font-bold uppercase mb-1">Ticket Médio (Por Pedido)</p>
-                        <p className="text-4xl font-black text-emerald-900">{formatCurrency(visaoCEO.ticketMedio)}</p>
+                        <p className="text-emerald-700 text-xs font-bold uppercase mb-1">Ticket Médio Global</p>
+                        <p className="text-3xl font-black text-emerald-900">{formatCurrency(visaoCEO.ticketMedio)}</p>
                         <Badge className="bg-emerald-200 text-emerald-800 mt-2 border-none">Valorização de Vendas</Badge>
                     </Card>
                     <Card className="p-6 border-l-4 border-l-red-500 shadow-sm">
                         <p className="text-slate-500 text-xs font-bold uppercase mb-1">Passivo de Risco (Inadimplência)</p>
-                        <p className="text-4xl font-black text-red-600">{formatCurrency(financeiro.totalAtrasado)}</p>
+                        <p className="text-3xl font-black text-red-600">{formatCurrency(financeiro.totalAtrasado)}</p>
                         <Badge className="bg-red-100 text-red-700 mt-2 border-none">Atenção Imediata</Badge>
                     </Card>
+                    <Card className="p-6 border-l-4 border-l-purple-500 shadow-sm">
+                        <p className="text-slate-500 text-xs font-bold uppercase mb-1">Projeção de Entrada (30 Dias)</p>
+                        <p className="text-3xl font-black text-purple-700">{formatCurrency(visaoCEO.proj30d)}</p>
+                        <Badge className="bg-purple-100 text-purple-700 mt-2 border-none">Garantido em papel/sistema</Badge>
+                    </Card>
                 </div>
+
+                <Card className="p-6 shadow-sm border-slate-200">
+                    <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><TrendingUp className="text-indigo-600"/> Evolução e Projeção de Faturamento (12 Meses)</h3>
+                    <div className="h-[300px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={visaoCEO.curva12Meses}>
+                                <defs>
+                                    <linearGradient id="colorFatur" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="mes" tick={{fontSize: 12}} />
+                                <YAxis tickFormatter={(val) => `R$ ${(val/1000).toFixed(0)}k`} />
+                                <Tooltip formatter={(v) => formatCurrency(v)} />
+                                <Area type="monotone" dataKey="faturamento" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorFatur)" />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </Card>
             </TabsContent>
 
             {/* ============================================================================== */}
@@ -341,7 +403,6 @@ export default function Relatorios() {
                 </Card>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* MIX DE PAGAMENTOS: TABELA VS GRAFICO */}
                     <Card className="p-6 shadow-lg rounded-3xl">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="font-bold text-slate-800">Composição de Recebimentos</h3>
@@ -372,9 +433,7 @@ export default function Relatorios() {
                                             <TableRow key={i}>
                                                 <TableCell className="font-bold flex items-center gap-2"><div className="w-3 h-3 rounded-full" style={{backgroundColor: m.color}}/> {m.name}</TableCell>
                                                 <TableCell className="text-right font-black">{formatCurrency(m.valor)}</TableCell>
-                                                <TableCell className="text-right">
-                                                    <Badge variant="outline" className="bg-slate-50">{m.perc}%</Badge>
-                                                </TableCell>
+                                                <TableCell className="text-right"><Badge variant="outline" className="bg-slate-50">{m.perc}%</Badge></TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>
@@ -383,7 +442,6 @@ export default function Relatorios() {
                         )}
                     </Card>
 
-                    {/* GRAFICO COMPARATIVO EVOLUTIVO */}
                     <Card className="p-6 shadow-lg rounded-3xl">
                         <h3 className="font-bold text-slate-800 mb-6">Evolução do Uso de Formas de Pagamento (6 Meses)</h3>
                         <div className="h-[300px]">
@@ -404,7 +462,6 @@ export default function Relatorios() {
                     </Card>
                 </div>
 
-                {/* RANKING TOP 5 POR FORMA DE PAGTO */}
                 <h3 className="text-xl font-black text-slate-800 mt-10 mb-4 uppercase tracking-tight">Top 5 Clientes por Modalidade</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {Object.keys(fluxoCaixa.top5PorForma).map((chave) => {
@@ -429,14 +486,80 @@ export default function Relatorios() {
             </TabsContent>
 
             {/* ============================================================================== */}
-            {/* 3. COMERCIAL (SCORE DE CLIENTES COM PAGINAÇÃO) */}
+            {/* 3. COMERCIAL (REPRESENTANTES, SCORE CLIENTES E LTV) */}
             {/* ============================================================================== */}
             <TabsContent value="com" className="space-y-6">
-                <Card className="p-6 shadow-xl rounded-3xl bg-white border-none">
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* RANKING REPRESENTANTES (RESTAURADO) */}
+                    <Card className="p-6 shadow-xl rounded-3xl bg-white border-none">
+                        <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Crown className="text-yellow-500"/> Ranking de Representantes (Score Engine)</h3>
+                        <p className="text-xs text-slate-500 mb-6">O Score penaliza inadimplência e premia volume e ticket médio.</p>
+                        <div className="space-y-4">
+                            {comercial.repRanking.map((rep, i) => (
+                                <div key={i} className="flex items-center gap-4 p-3 bg-slate-50 rounded-xl border hover:scale-[1.01] transition-transform">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-white ${i===0?'bg-yellow-400':i===1?'bg-slate-400':i===2?'bg-amber-600':'bg-slate-300'}`}>{i+1}</div>
+                                    <div className="flex-1">
+                                        <div className="flex justify-between"><span className="font-bold text-slate-800">{rep.nome}</span><span className="font-black text-indigo-600">Score: {rep.score.toFixed(0)}</span></div>
+                                        <div className="text-xs text-slate-500 flex justify-between mt-1">
+                                            <span>Vol: {formatCurrency(rep.vol)}</span>
+                                            <span className="text-red-500">Inad: {formatCurrency(rep.inadimplencia)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </Card>
+
+                    {/* LTV & CURVA ABC (RESTAURADO) */}
+                    <div className="space-y-6">
+                      <Card className="p-6 shadow-xl rounded-3xl bg-white border-none">
+                          <h3 className="font-bold text-slate-800 mb-2">LTV & Curva ABC (Top Clientes Ouro)</h3>
+                          <p className="text-xs text-slate-500 mb-6">Clientes classe A representam 80% do faturamento histórico de toda a vida da empresa.</p>
+                          <div className="space-y-3">
+                              {comercial.topLTV.map((cli, i) => (
+                                  <div key={i} className="flex justify-between items-center p-3 border-b last:border-0">
+                                      <div>
+                                          <p className="font-bold text-sm text-slate-700 flex items-center gap-2">
+                                              {cli.nome} 
+                                              {cli.classe === 'A' && <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-100">Classe A</Badge>}
+                                          </p>
+                                          <p className="text-xs text-slate-400">Total Comprado: {formatCurrency(cli.ltv)} ({cli.qtd} pedidos)</p>
+                                      </div>
+                                      <span className="font-black text-slate-800">LTV: {formatCurrency(cli.ltv)}</span>
+                                  </div>
+                              ))}
+                          </div>
+                      </Card>
+
+                      {/* CHURN ALERT (RESTAURADO) */}
+                      <Card className="p-6 border-red-200 shadow-md">
+                          <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Ghost className="text-slate-400"/> Churn Alert (Galinhas dos Ovos de Ouro)</h3>
+                          <p className="text-xs text-slate-500 mb-4">Clientes Classe A ou B que não compram há mais de 90 dias.</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              {comercial.churn.length === 0 ? (
+                                  <p className="text-emerald-600 font-bold p-2">Nenhum cliente importante inativo!</p>
+                              ) : (
+                                  comercial.churn.slice(0,4).map((c, i) => (
+                                      <div key={i} className="p-3 border border-red-100 rounded-xl bg-red-50/30 flex flex-col justify-between">
+                                          <div>
+                                              <p className="font-bold text-slate-800 text-sm truncate">{c.nome}</p>
+                                              <p className="text-xs text-red-500 mt-1 font-medium">Inativo há {differenceInDays(hoje, c.lastOrder)} dias</p>
+                                          </div>
+                                      </div>
+                                  ))
+                              )}
+                          </div>
+                      </Card>
+                    </div>
+                </div>
+
+                {/* SCORE DE CLIENTES PAGINADO */}
+                <Card className="p-6 shadow-xl rounded-3xl bg-white border-none mt-6">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
                         <div>
-                            <h3 className="font-black text-xl text-slate-800 flex items-center gap-2"><Crown className="text-yellow-500"/> Score Ranking de Clientes</h3>
-                            <p className="text-xs text-slate-500 mt-1">Fórmula: (Volume * 0.4) + (Ticket Médio * 0.3) - (Inadimplência * 0.3)</p>
+                            <h3 className="font-black text-xl text-slate-800 flex items-center gap-2"><Crown className="text-indigo-500"/> Score Ranking de Clientes (No Período)</h3>
+                            <p className="text-xs text-slate-500 mt-1">Medindo rentabilidade e bom pagador de forma automática.</p>
                         </div>
                         <Badge className="bg-indigo-100 text-indigo-800 mt-4 sm:mt-0">{comercial.clientRanking.length} Clientes Ativos</Badge>
                     </div>
@@ -447,7 +570,7 @@ export default function Relatorios() {
                                 <TableRow>
                                     <TableHead className="w-16 text-center">Rank</TableHead>
                                     <TableHead>Cliente</TableHead>
-                                    <TableHead className="text-right">Volume (Período)</TableHead>
+                                    <TableHead className="text-right">Volume Faturado</TableHead>
                                     <TableHead className="text-right">Ticket Médio</TableHead>
                                     <TableHead className="text-right text-red-600">Inadimplência</TableHead>
                                     <TableHead className="text-right">Score Final</TableHead>
@@ -455,7 +578,7 @@ export default function Relatorios() {
                             </TableHeader>
                             <TableBody>
                                 {paginatedClients.map((cli, i) => (
-                                    <TableRow key={i} className="hover:bg-indigo-50/30">
+                                    <TableRow key={i} className="hover:bg-indigo-50/30 transition-colors">
                                         <TableCell className="text-center font-black text-slate-400">#{(clientPage - 1) * clientItemsPerPage + i + 1}</TableCell>
                                         <TableCell className="font-bold text-slate-700">{cli.nome}</TableCell>
                                         <TableCell className="text-right font-black text-emerald-600">{formatCurrency(cli.vol)}</TableCell>
@@ -472,7 +595,7 @@ export default function Relatorios() {
                         </Table>
                     </div>
                     
-                    {/* CONTROLES DE PAGINAÇÃO DOS CLIENTES */}
+                    {/* CONTROLES DE PAGINAÇÃO */}
                     <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
                         <div className="flex items-center gap-2 text-sm text-slate-500">
                             <span>Mostrar:</span>
