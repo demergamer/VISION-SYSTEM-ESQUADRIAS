@@ -36,8 +36,13 @@ export default function Relatorios() {
 
   const [viewMixMode, setViewMixMode] = useState('chart');
   
+  // Paginação Clientes
   const [clientPage, setClientPage] = useState(1);
   const [clientItemsPerPage, setClientItemsPerPage] = useState(10);
+
+  // Paginação Representantes
+  const [repPage, setRepPage] = useState(1);
+  const [repItemsPerPage, setRepItemsPerPage] = useState(5);
 
   // --- QUERIES ---
   const { data: pedidos = [] } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list() });
@@ -49,11 +54,29 @@ export default function Relatorios() {
   const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
   const hoje = new Date();
 
-  // --- FILTRO ---
+  // --- HELPERS E FILTROS INTELIGENTES ---
   const filtrar = (dataStr) => {
     if (!dataStr) return false;
     const data = parseISO(dataStr.split('T')[0]);
     return isWithinInterval(data, { start: parseISO(periodo.inicio), end: parseISO(periodo.fim) });
+  };
+
+  const getVencimentoReal = (p) => {
+    // Se tiver data_programada, ela sobrepõe a data de entrega para fins de inadimplência
+    return p.data_programada ? p.data_programada : p.data_entrega;
+  };
+
+  const isDevedor = (p) => {
+    // Inclui agora o representante_recebe na lógica de dívida na rua
+    if (!['aberto', 'parcial', 'representante_recebe'].includes(p.status)) return false;
+    const vencimento = getVencimentoReal(p);
+    if (!vencimento) return false;
+    return isPast(parseISO(vencimento));
+  };
+
+  const getDiasAtraso = (p) => {
+      const vencimento = getVencimentoReal(p);
+      return differenceInDays(hoje, parseISO(vencimento));
   };
 
   // ============================================================================
@@ -87,7 +110,7 @@ export default function Relatorios() {
           if (diasFuturo >= 0 && diasFuturo <= 30) proj30d.trinta += valor;
       };
       cheques.filter(c => c.status === 'normal' || c.status === 'repassado').forEach(c => somaProjecao(c.data_vencimento, c.valor));
-      pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial').forEach(p => somaProjecao(p.data_entrega, parseFloat(p.saldo_restante || p.valor_pedido)));
+      pedidos.filter(p => p.status === 'aberto' || p.status === 'parcial' || p.status === 'representante_recebe').forEach(p => somaProjecao(getVencimentoReal(p), parseFloat(p.saldo_restante || p.valor_pedido)));
 
       return { totalReceita, qtdPedidos, ticketMedio, curva12Meses, proj30d: proj30d.trinta };
   }, [pedidos, borderos, cheques, periodo]);
@@ -98,8 +121,8 @@ export default function Relatorios() {
     const clientesDevedoresMap = {};
     let totalAtrasado = 0;
 
-    pedidos.filter(p => (p.status === 'aberto' || p.status === 'parcial') && p.data_entrega && isPast(parseISO(p.data_entrega))).forEach(p => {
-        const diasAtraso = differenceInDays(hoje, parseISO(p.data_entrega));
+    pedidos.filter(isDevedor).forEach(p => {
+        const diasAtraso = getDiasAtraso(p);
         const saldo = parseFloat(p.saldo_restante || (p.valor_pedido - (p.total_pago || 0)));
 
         if (diasAtraso >= 1 && diasAtraso <= 10) buckets.d1_10 += saldo;
@@ -117,12 +140,12 @@ export default function Relatorios() {
     });
 
     const grafInadimplencia = [
-        { name: '1-10 dias', value: buckets.d1_10, color: '#fef08a' },
-        { name: '11-15 dias', value: buckets.d11_15, color: '#fde047' },
-        { name: '16-35 dias', value: buckets.d16_35, color: '#facc15' },
-        { name: '36-60 dias', value: buckets.d36_60, color: '#f97316' },
-        { name: '61-90 dias', value: buckets.d61_90, color: '#ef4444' },
-        { name: '+90 dias', value: buckets.d90_plus, color: '#991b1b' },
+        { name: '1-10 dias', value: buckets.d1_10, color: '#3b82f6' }, // Azul
+        { name: '11-15 dias', value: buckets.d11_15, color: '#10b981' }, // Verde
+        { name: '16-35 dias', value: buckets.d16_35, color: '#facc15' }, // Amarelo
+        { name: '36-60 dias', value: buckets.d36_60, color: '#f97316' }, // Laranja
+        { name: '61-90 dias', value: buckets.d61_90, color: '#ef4444' }, // Vermelho
+        { name: '90+ dias', value: buckets.d90_plus, color: '#450a0a' }, // Vermelho Escuro / Preto
     ];
 
     const topDevedores = Object.values(clientesDevedoresMap).sort((a,b) => b.valor - a.valor).slice(0, 5);
@@ -214,20 +237,19 @@ export default function Relatorios() {
           if (repMap[p.representante_codigo]) {
               repMap[p.representante_codigo].vol += p.valor_pedido;
               repMap[p.representante_codigo].qtd += 1;
-              if ((p.status === 'aberto' || p.status === 'parcial') && p.data_entrega && isPast(parseISO(p.data_entrega))) {
+              if (isDevedor(p)) {
                   repMap[p.representante_codigo].inadimplencia += parseFloat(p.saldo_restante || p.valor_pedido);
               }
           }
           if (cliMap[p.cliente_codigo]) {
               cliMap[p.cliente_codigo].vol += p.valor_pedido;
               cliMap[p.cliente_codigo].qtd += 1;
-              if ((p.status === 'aberto' || p.status === 'parcial') && p.data_entrega && isPast(parseISO(p.data_entrega))) {
+              if (isDevedor(p)) {
                   cliMap[p.cliente_codigo].inadimplencia += parseFloat(p.saldo_restante || p.valor_pedido);
               }
           }
       });
 
-      // LTV Historico (Ignora Filtro de Período para calcular LTV Real)
       const ltvMap = {};
       pedidos.forEach(p => {
           if (!ltvMap[p.cliente_codigo]) ltvMap[p.cliente_codigo] = { nome: p.cliente_nome, ltv: 0, qtd: 0, lastOrder: parseISO(p.created_date) };
@@ -255,9 +277,12 @@ export default function Relatorios() {
       return { repRanking: calcScore(repMap), clientRanking: calcScore(cliMap), topLTV: curvaABC.slice(0, 10), churn };
   }, [pedidos, representantes, clientes, periodo]);
 
-  // Paginação
+  // Lógica de Paginação
   const totalClientPages = Math.ceil(comercial.clientRanking.length / clientItemsPerPage);
   const paginatedClients = comercial.clientRanking.slice((clientPage - 1) * clientItemsPerPage, clientPage * clientItemsPerPage);
+
+  const totalRepPages = Math.ceil(comercial.repRanking.length / repItemsPerPage);
+  const paginatedReps = comercial.repRanking.slice((repPage - 1) * repItemsPerPage, repPage * repItemsPerPage);
 
   const MIX_COLORS = { Dinheiro: '#10b981', PIX: '#06b6d4', Debito: '#6366f1', Credito: '#3b82f6', Link: '#f59e0b', Cheque: '#8b5cf6' };
 
@@ -266,6 +291,7 @@ export default function Relatorios() {
       <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-8 font-sans">
         <div className="max-w-[1600px] mx-auto space-y-6">
           
+          {/* HEADER EXECUTIVO & FILTRO DATA GLOBAL */}
           <div className="bg-slate-900 text-white p-8 rounded-3xl shadow-xl flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative overflow-hidden">
             <div className="absolute right-0 top-0 opacity-10 pointer-events-none"><Activity className="w-96 h-96" /></div>
             <div className="flex items-center gap-6 relative z-10">
@@ -295,28 +321,28 @@ export default function Relatorios() {
             </TabsList>
 
             {/* ============================================================================== */}
-            {/* VISÃO CEO (Restaurada e Aprimorada) */}
+            {/* VISÃO CEO */}
             {/* ============================================================================== */}
             <TabsContent value="ceo" className="space-y-6 animate-in fade-in">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <Card className="p-6 border-l-4 border-l-blue-500 shadow-sm">
                         <p className="text-slate-500 text-xs font-bold uppercase mb-1">Receita Faturada (Período)</p>
-                        <p className="text-3xl font-black text-slate-800">{formatCurrency(visaoCEO.totalReceita)}</p>
+                        <p className="text-4xl font-black text-slate-800">{formatCurrency(visaoCEO.totalReceita)}</p>
                         <Badge className="bg-blue-100 text-blue-700 mt-2">{visaoCEO.qtdPedidos} Pedidos gerados</Badge>
                     </Card>
                     <Card className="p-6 border-l-4 border-l-emerald-500 shadow-sm bg-emerald-50/30">
-                        <p className="text-emerald-700 text-xs font-bold uppercase mb-1">Ticket Médio Global</p>
-                        <p className="text-3xl font-black text-emerald-900">{formatCurrency(visaoCEO.ticketMedio)}</p>
-                        <Badge className="bg-emerald-200 text-emerald-800 mt-2 border-none">Valorização de Vendas</Badge>
+                        <p className="text-emerald-700 text-xs font-bold uppercase mb-1">Ticket Médio Global (Por Pedido)</p>
+                        <p className="text-4xl font-black text-emerald-900">{formatCurrency(visaoCEO.ticketMedio)}</p>
+                        <Badge className="bg-emerald-200 text-emerald-800 mt-2 border-none">Geral Todos Clientes</Badge>
                     </Card>
                     <Card className="p-6 border-l-4 border-l-red-500 shadow-sm">
                         <p className="text-slate-500 text-xs font-bold uppercase mb-1">Passivo de Risco (Inadimplência)</p>
-                        <p className="text-3xl font-black text-red-600">{formatCurrency(financeiro.totalAtrasado)}</p>
+                        <p className="text-4xl font-black text-red-600">{formatCurrency(financeiro.totalAtrasado)}</p>
                         <Badge className="bg-red-100 text-red-700 mt-2 border-none">Atenção Imediata</Badge>
                     </Card>
                     <Card className="p-6 border-l-4 border-l-purple-500 shadow-sm">
                         <p className="text-slate-500 text-xs font-bold uppercase mb-1">Projeção de Entrada (30 Dias)</p>
-                        <p className="text-3xl font-black text-purple-700">{formatCurrency(visaoCEO.proj30d)}</p>
+                        <p className="text-4xl font-black text-purple-700">{formatCurrency(visaoCEO.proj30d)}</p>
                         <Badge className="bg-purple-100 text-purple-700 mt-2 border-none">Garantido em papel/sistema</Badge>
                     </Card>
                 </div>
@@ -344,7 +370,7 @@ export default function Relatorios() {
             </TabsContent>
 
             {/* ============================================================================== */}
-            {/* 1. FINANCEIRO (INADIMPLÊNCIA) */}
+            {/* 1. FINANCEIRO (INADIMPLÊNCIA INTELIGENTE) */}
             {/* ============================================================================== */}
             <TabsContent value="fin" className="space-y-6">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -403,6 +429,7 @@ export default function Relatorios() {
                 </Card>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* MIX DE PAGAMENTOS: TABELA VS GRAFICO */}
                     <Card className="p-6 shadow-lg rounded-3xl">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="font-bold text-slate-800">Composição de Recebimentos</h3>
@@ -442,6 +469,7 @@ export default function Relatorios() {
                         )}
                     </Card>
 
+                    {/* GRAFICO COMPARATIVO EVOLUTIVO */}
                     <Card className="p-6 shadow-lg rounded-3xl">
                         <h3 className="font-bold text-slate-800 mb-6">Evolução do Uso de Formas de Pagamento (6 Meses)</h3>
                         <div className="h-[300px]">
@@ -491,31 +519,53 @@ export default function Relatorios() {
             <TabsContent value="com" className="space-y-6">
                 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* RANKING REPRESENTANTES (RESTAURADO) */}
-                    <Card className="p-6 shadow-xl rounded-3xl bg-white border-none">
-                        <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Crown className="text-yellow-500"/> Ranking de Representantes (Score Engine)</h3>
-                        <p className="text-xs text-slate-500 mb-6">O Score penaliza inadimplência e premia volume e ticket médio.</p>
-                        <div className="space-y-4">
-                            {comercial.repRanking.map((rep, i) => (
-                                <div key={i} className="flex items-center gap-4 p-3 bg-slate-50 rounded-xl border hover:scale-[1.01] transition-transform">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-white ${i===0?'bg-yellow-400':i===1?'bg-slate-400':i===2?'bg-amber-600':'bg-slate-300'}`}>{i+1}</div>
-                                    <div className="flex-1">
-                                        <div className="flex justify-between"><span className="font-bold text-slate-800">{rep.nome}</span><span className="font-black text-indigo-600">Score: {rep.score.toFixed(0)}</span></div>
-                                        <div className="text-xs text-slate-500 flex justify-between mt-1">
-                                            <span>Vol: {formatCurrency(rep.vol)}</span>
-                                            <span className="text-red-500">Inad: {formatCurrency(rep.inadimplencia)}</span>
+                    {/* RANKING REPRESENTANTES (RESTAURADO COM PAGINAÇÃO) */}
+                    <Card className="p-6 shadow-xl rounded-3xl bg-white border-none flex flex-col h-full">
+                        <div className="flex-1">
+                            <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Crown className="text-yellow-500"/> Ranking de Representantes (Score Engine)</h3>
+                            <p className="text-xs text-slate-500 mb-6">O Score penaliza inadimplência e premia volume e ticket médio.</p>
+                            <div className="space-y-4">
+                                {paginatedReps.map((rep, i) => {
+                                    const rankPos = (repPage - 1) * repItemsPerPage + i + 1;
+                                    return (
+                                        <div key={i} className="flex items-center gap-4 p-3 bg-slate-50 rounded-xl border hover:scale-[1.01] transition-transform">
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-white ${rankPos===1?'bg-yellow-400':rankPos===2?'bg-slate-400':rankPos===3?'bg-amber-600':'bg-slate-300'}`}>{rankPos}</div>
+                                            <div className="flex-1">
+                                                <div className="flex justify-between"><span className="font-bold text-slate-800">{rep.nome}</span><span className="font-black text-indigo-600">Score: {rep.score.toFixed(0)}</span></div>
+                                                <div className="text-xs text-slate-500 flex justify-between mt-1">
+                                                    <span>Vol: {formatCurrency(rep.vol)}</span>
+                                                    <span className="text-red-500">Inad: {formatCurrency(rep.inadimplencia)}</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+
+                        {/* CONTROLES DE PAGINAÇÃO DOS REPRESENTANTES */}
+                        <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                            <div className="flex items-center gap-2 text-sm text-slate-500">
+                                <span>Exibir:</span>
+                                <select value={repItemsPerPage} onChange={(e) => { setRepItemsPerPage(Number(e.target.value)); setRepPage(1); }} className="h-8 rounded-md border-slate-300 px-2 bg-white text-slate-700 outline-none">
+                                    <option value={5}>5</option><option value={10}>10</option><option value={20}>20</option>
+                                </select>
+                            </div>
+                            {totalRepPages > 1 && (
+                                <div className="flex items-center gap-2">
+                                    <Button variant="outline" size="sm" onClick={() => setRepPage(p => Math.max(1, p - 1))} disabled={repPage === 1} className="h-8 px-2"><ChevronLeft className="w-4 h-4"/></Button>
+                                    <span className="text-xs font-bold">Pág. {repPage}/{totalRepPages}</span>
+                                    <Button variant="outline" size="sm" onClick={() => setRepPage(p => Math.min(totalRepPages, p + 1))} disabled={repPage === totalRepPages} className="h-8 px-2"><ChevronRight className="w-4 h-4"/></Button>
                                 </div>
-                            ))}
+                            )}
                         </div>
                     </Card>
 
-                    {/* LTV & CURVA ABC (RESTAURADO) */}
+                    {/* LTV & CHURN */}
                     <div className="space-y-6">
                       <Card className="p-6 shadow-xl rounded-3xl bg-white border-none">
                           <h3 className="font-bold text-slate-800 mb-2">LTV & Curva ABC (Top Clientes Ouro)</h3>
-                          <p className="text-xs text-slate-500 mb-6">Clientes classe A representam 80% do faturamento histórico de toda a vida da empresa.</p>
+                          <p className="text-xs text-slate-500 mb-6">Clientes classe A representam 80% do faturamento histórico.</p>
                           <div className="space-y-3">
                               {comercial.topLTV.map((cli, i) => (
                                   <div key={i} className="flex justify-between items-center p-3 border-b last:border-0">
@@ -532,7 +582,6 @@ export default function Relatorios() {
                           </div>
                       </Card>
 
-                      {/* CHURN ALERT (RESTAURADO) */}
                       <Card className="p-6 border-red-200 shadow-md">
                           <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Ghost className="text-slate-400"/> Churn Alert (Galinhas dos Ovos de Ouro)</h3>
                           <p className="text-xs text-slate-500 mb-4">Clientes Classe A ou B que não compram há mais de 90 dias.</p>
@@ -595,7 +644,7 @@ export default function Relatorios() {
                         </Table>
                     </div>
                     
-                    {/* CONTROLES DE PAGINAÇÃO */}
+                    {/* CONTROLES DE PAGINAÇÃO DOS CLIENTES */}
                     <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
                         <div className="flex items-center gap-2 text-sm text-slate-500">
                             <span>Mostrar:</span>
