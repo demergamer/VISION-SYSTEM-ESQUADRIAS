@@ -486,7 +486,7 @@ export default function Relatorios() {
                             <div className="flex items-center gap-2">
                                 <Button variant="outline" size="sm" onClick={() => setClientPage(p => Math.max(1, p - 1))} disabled={clientPage === 1}><ChevronLeft className="w-4 h-4 mr-1"/> Anterior</Button>
                                 <span className="text-sm font-bold px-3">Pág. {clientPage} de {totalClientPages}</span>
-                                <Button variant="outline" size="sm" onClick={() => setClientPage(p => Math.min(totalClientPages, p + 1))} disabled={clientPage === totalPages}>Próxima <ChevronRight className="w-4 h-4 ml-1"/></Button>
+                                <Button variant="outline" size="sm" onClick={() => setClientPage(p => Math.min(totalClientPages, p + 1))} disabled={clientPage === totalClientPages}>Próxima <ChevronRight className="w-4 h-4 ml-1"/></Button>
                             </div>
                         )}
                     </div>
