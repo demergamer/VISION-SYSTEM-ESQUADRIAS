@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { cn } from "@/lib/utils";
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
@@ -44,12 +44,20 @@ export default function Relatorios() {
   const [repPage, setRepPage] = useState(1);
   const [repItemsPerPage, setRepItemsPerPage] = useState(5);
 
-  // --- QUERIES ---
-  const { data: pedidos = [] } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list() });
-  const { data: cheques = [] } = useQuery({ queryKey: ['cheques'], queryFn: () => base44.entities.Cheque.list() });
-  const { data: clientes = [] } = useQuery({ queryKey: ['clientes'], queryFn: () => base44.entities.Cliente.list() });
-  const { data: representantes = [] } = useQuery({ queryKey: ['representantes'], queryFn: () => base44.entities.Representante.list() });
-  const { data: borderos = [] } = useQuery({ queryKey: ['borderos'], queryFn: () => base44.entities.Bordero.list() });
+  // 🚀 MELHORIA 3: Resetar a paginação ao mudar a data
+  useEffect(() => {
+    setClientPage(1);
+    setRepPage(1);
+  }, [periodo]);
+
+  // --- QUERIES (🚀 MELHORIA 1: Capturando estado de carregamento) ---
+  const { data: pedidos = [], isLoading: loadPedidos } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list() });
+  const { data: cheques = [], isLoading: loadCheques } = useQuery({ queryKey: ['cheques'], queryFn: () => base44.entities.Cheque.list() });
+  const { data: clientes = [], isLoading: loadClientes } = useQuery({ queryKey: ['clientes'], queryFn: () => base44.entities.Cliente.list() });
+  const { data: representantes = [], isLoading: loadReps } = useQuery({ queryKey: ['representantes'], queryFn: () => base44.entities.Representante.list() });
+  const { data: borderos = [], isLoading: loadBorderos } = useQuery({ queryKey: ['borderos'], queryFn: () => base44.entities.Bordero.list() });
+
+  const isLoadingGlobal = loadPedidos || loadCheques || loadClientes || loadReps || loadBorderos;
 
   const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
   const hoje = new Date();
@@ -67,11 +75,16 @@ export default function Relatorios() {
   const pedidosValidos = useMemo(() => pedidos.filter(p => !isPagamentoServico(p.forma_pagamento)), [pedidos]);
   const borderosValidos = useMemo(() => borderos.filter(b => !isPagamentoServico(b.forma_pagamento)), [borderos]);
 
-  // --- HELPERS E FILTROS INTELIGENTES ---
+  // 🚀 MELHORIA 2: Otimização de Performance no Filtro de Datas
+  const datasFiltro = useMemo(() => ({
+    start: parseISO(periodo.inicio),
+    end: parseISO(periodo.fim)
+  }), [periodo]);
+
   const filtrar = (dataStr) => {
     if (!dataStr) return false;
     const data = parseISO(dataStr.split('T')[0]);
-    return isWithinInterval(data, { start: parseISO(periodo.inicio), end: parseISO(periodo.fim) });
+    return isWithinInterval(data, datasFiltro);
   };
 
   const getVencimentoReal = (p) => {
@@ -128,7 +141,7 @@ export default function Relatorios() {
       pedidosValidos.filter(p => p.status === 'aberto' || p.status === 'parcial' || p.status === 'representante_recebe').forEach(p => somaProjecao(getVencimentoReal(p), parseFloat(p.saldo_restante || p.valor_pedido)));
 
       return { totalReceita, qtdPedidos, ticketMedio, curva12Meses, proj30d: proj30d.trinta };
-  }, [pedidosValidos, borderosValidos, cheques, periodo]);
+  }, [pedidosValidos, borderosValidos, cheques, datasFiltro]);
 
   // --- 1. FINANCEIRO (INADIMPLÊNCIA) ---
   const financeiro = useMemo(() => {
@@ -231,7 +244,7 @@ export default function Relatorios() {
       });
 
       return { totalRecebido, mixArr, top5PorForma, evolucaoMix };
-  }, [borderosValidos, periodo]);
+  }, [borderosValidos, datasFiltro]);
 
   // --- 3. COMERCIAL (REPRESENTANTES E LTV) ---
   const comercial = useMemo(() => {
@@ -279,17 +292,18 @@ export default function Relatorios() {
       
       const curvaABC = ltvList.map(c => {
           acc += c.ltv;
-          const perc = (acc / totalGlobal) * 100;
+          // 🚀 MELHORIA 4: Proteção contra divisão por zero no LTV
+          const perc = totalGlobal > 0 ? (acc / totalGlobal) * 100 : 0;
           let classe = 'C';
           if (perc <= 80) classe = 'A';
           else if (perc <= 95) classe = 'B';
-          return { ...c, classe, ticket: c.ltv / c.qtd };
+          return { ...c, classe, ticket: c.qtd > 0 ? c.ltv / c.qtd : 0 };
       });
 
       const churn = curvaABC.filter(c => (c.classe === 'A' || c.classe === 'B') && differenceInDays(hoje, c.lastOrder) > 90);
 
       return { repRanking: calcScore(repMap), clientRanking: calcScore(cliMap), topLTV: curvaABC.slice(0, 10), churn };
-  }, [pedidosValidos, representantes, clientes, periodo]);
+  }, [pedidosValidos, representantes, clientes, datasFiltro]);
 
   // Paginação Lógica
   const totalClientPages = Math.ceil(comercial.clientRanking.length / clientItemsPerPage);
@@ -299,6 +313,16 @@ export default function Relatorios() {
   const paginatedReps = comercial.repRanking.slice((repPage - 1) * repItemsPerPage, repPage * repItemsPerPage);
 
   const MIX_COLORS = { Dinheiro: '#10b981', PIX: '#06b6d4', Debito: '#6366f1', Credito: '#3b82f6', Link: '#f59e0b', Cheque: '#8b5cf6' };
+
+  // 🚀 MELHORIA 1: Renderizar tela de Loading centralizada enquanto os dados carregam
+  if (isLoadingGlobal) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F8FAFC]">
+        <div className="w-10 h-10 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin"></div>
+        <p className="mt-4 text-slate-500 font-bold animate-pulse">Processando inteligência de dados...</p>
+      </div>
+    );
+  }
 
   return (
     <PermissionGuard setor="Relatorios">
@@ -323,11 +347,23 @@ export default function Relatorios() {
                   <span className="text-slate-400 font-black">ATÉ</span>
                   <Input type="date" value={periodo.fim} onChange={(e) => setPeriodo({...periodo, fim: e.target.value})} className="border-none shadow-none font-bold text-white bg-transparent w-36" style={{colorScheme: 'dark'}} />
                 </div>
+                
+                {/* 🚀 MELHORIA 5: Botão nativo de Exportar/Imprimir PDF */}
+                <div className="w-px h-6 bg-white/20 mx-2 hidden sm:block"></div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => window.print()}
+                  className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white"
+                >
+                  <Download className="w-4 h-4 mr-2" /> Exportar Relatório
+                </Button>
             </div>
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="bg-white/60 p-1.5 rounded-2xl border w-full lg:w-auto h-auto flex flex-wrap shadow-sm">
+            {/* 🚀 MELHORIA 6: Responsividade das Abas (scroll horizontal nativo no celular) */}
+            <TabsList className="bg-white/60 p-1.5 rounded-2xl border w-full lg:w-auto h-auto flex flex-nowrap overflow-x-auto whitespace-nowrap shadow-sm no-scrollbar">
               <TabsTrigger value="ceo" className="rounded-xl px-6 py-2.5 font-bold"><Target className="w-4 h-4 mr-2"/> Visão CEO</TabsTrigger>
               <TabsTrigger value="fin" className="rounded-xl px-6 py-2.5 font-bold"><AlertTriangle className="w-4 h-4 mr-2"/> Financeiro & Risco</TabsTrigger>
               <TabsTrigger value="fluxo" className="rounded-xl px-6 py-2.5 font-bold"><DollarSign className="w-4 h-4 mr-2"/> Fluxo de Caixa (Mix)</TabsTrigger>
