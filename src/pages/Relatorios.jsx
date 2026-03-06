@@ -88,7 +88,6 @@ export default function Relatorios() {
   };
 
   const getVencimentoReal = (p) => {
-    // A data programada protege o pedido de constar como atrasado caso tenha sido adiado
     return p.data_programada ? p.data_programada : p.data_entrega;
   };
 
@@ -96,7 +95,6 @@ export default function Relatorios() {
     if (!['aberto', 'parcial', 'representante_recebe'].includes(p.status)) return false;
     const vencimento = getVencimentoReal(p);
     if (!vencimento) return false;
-    // Garante matematicamente que só soma se o atraso for de 1 dia ou mais (jamais soma "a receber")
     return differenceInDays(hoje, parseISO(vencimento)) > 0;
   };
 
@@ -173,6 +171,7 @@ export default function Relatorios() {
 
   // --- 1. FINANCEIRO (INADIMPLÊNCIA) ---
   const financeiro = useMemo(() => {
+    // Baldes específicos de tempo exigidos
     const buckets = { d1_10: 0, d11_15: 0, d16_35: 0, d36_60: 0, d61_90: 0, d90_plus: 0 };
     const clientesDevedoresMap = {};
     let totalAtrasado = 0;
@@ -196,12 +195,12 @@ export default function Relatorios() {
     });
 
     const grafInadimplencia = [
-        { name: '1-10 dias', value: buckets.d1_10, color: '#3b82f6' },      // Azul (Leve)
-        { name: '11-15 dias', value: buckets.d11_15, color: '#10b981' },     // Verde (Seguro)
-        { name: '16-35 dias', value: buckets.d16_35, color: '#facc15' },     // Amarelo (Atenção)
-        { name: '36-60 dias', value: buckets.d36_60, color: '#f97316' },     // Laranja (Alerta)
-        { name: '61-90 dias', value: buckets.d61_90, color: '#ef4444' },     // Vermelho (Crítico)
-        { name: '90+ dias', value: buckets.d90_plus, color: '#450a0a' },     // Vermelho Escuro/Preto (Perdido)
+        { name: '1-10 dias', value: buckets.d1_10, color: '#3b82f6' },      
+        { name: '11-15 dias', value: buckets.d11_15, color: '#10b981' },     
+        { name: '16-35 dias', value: buckets.d16_35, color: '#facc15' },     
+        { name: '36-60 dias', value: buckets.d36_60, color: '#f97316' },     
+        { name: '61-90 dias', value: buckets.d61_90, color: '#ef4444' },     
+        { name: '90+ dias', value: buckets.d90_plus, color: '#450a0a' },     
     ];
 
     const topDevedores = Object.values(clientesDevedoresMap).sort((a,b) => b.valor - a.valor).slice(0, 5);
@@ -302,7 +301,6 @@ export default function Relatorios() {
           }
       });
 
-      // LTV Histórico
       const ltvMap = {};
       pedidosValidos.forEach(p => {
           if (!ltvMap[p.cliente_codigo]) ltvMap[p.cliente_codigo] = { nome: p.cliente_nome, ltv: 0, qtd: 0, lastOrder: parseISO(p.created_date) };
@@ -330,7 +328,6 @@ export default function Relatorios() {
       return { repRanking: calcScore(repMap), clientRanking: calcScore(cliMap), topLTV: curvaABC.slice(0, 10), churn };
   }, [pedidosValidos, representantes, clientes, datasFiltro]);
 
-  // Paginação Lógica
   const totalClientPages = Math.ceil(comercial.clientRanking.length / clientItemsPerPage);
   const paginatedClients = comercial.clientRanking.slice((clientPage - 1) * clientItemsPerPage, clientPage * clientItemsPerPage);
 
@@ -353,7 +350,6 @@ export default function Relatorios() {
       <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-8 font-sans">
         <div className="max-w-[1600px] mx-auto space-y-6">
           
-          {/* HEADER EXECUTIVO & FILTRO DATA GLOBAL */}
           <div className="bg-slate-900 text-white p-8 rounded-3xl shadow-xl flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative overflow-hidden">
             <div className="absolute right-0 top-0 opacity-10 pointer-events-none"><Activity className="w-96 h-96" /></div>
             <div className="flex items-center gap-6 relative z-10">
@@ -371,14 +367,8 @@ export default function Relatorios() {
                   <span className="text-slate-400 font-black">ATÉ</span>
                   <Input type="date" value={periodo.fim} onChange={(e) => setPeriodo({...periodo, fim: e.target.value})} className="border-none shadow-none font-bold text-white bg-transparent w-36" style={{colorScheme: 'dark'}} />
                 </div>
-
                 <div className="w-px h-6 bg-white/20 mx-2 hidden sm:block"></div>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => window.print()}
-                  className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white h-10 rounded-2xl"
-                >
+                <Button variant="outline" size="sm" onClick={() => window.print()} className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white h-10 rounded-2xl">
                   <Download className="w-4 h-4 mr-2" /> Exportar
                 </Button>
             </div>
@@ -403,7 +393,7 @@ export default function Relatorios() {
                         <Badge className="bg-blue-100 text-blue-700 mt-2">{visaoCEO.qtdPedidos} Pedidos gerados</Badge>
                     </Card>
                     <Card className="p-6 border-l-4 border-l-emerald-500 shadow-sm bg-emerald-50/30">
-                        <p className="text-emerald-700 text-xs font-bold uppercase mb-1">Ticket Médio Global</p>
+                        <p className="text-emerald-700 text-xs font-bold uppercase mb-1">Ticket Médio Global (Por Pedido)</p>
                         <p className="text-4xl font-black text-emerald-900">{formatCurrency(visaoCEO.ticketMedio)}</p>
                         <Badge className="bg-emerald-200 text-emerald-800 mt-2 border-none">Geral Todos Clientes</Badge>
                     </Card>
@@ -419,11 +409,12 @@ export default function Relatorios() {
                     </Card>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* 🚀 MELHORIA: GRÁFICOS EMPILHADOS E MAIS ALTOS (400px) */}
+                <div className="grid grid-cols-1 gap-8 mt-8">
                     {/* 1. Pedidos Entregues */}
                     <Card className="p-6 shadow-sm border-slate-200">
                         <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><TrendingUp className="text-indigo-600"/> Evolução e Projeção: Pedidos Entregues</h3>
-                        <div className="h-[280px]">
+                        <div className="h-[400px]">
                             <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={visaoCEO.curva12Meses}>
                                     <defs>
@@ -445,7 +436,7 @@ export default function Relatorios() {
                     {/* 2. Ticket Médio */}
                     <Card className="p-6 shadow-sm border-slate-200">
                         <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Target className="text-emerald-600"/> Evolução e Projeção: Ticket Médio</h3>
-                        <div className="h-[280px]">
+                        <div className="h-[400px]">
                             <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={visaoCEO.curva12Meses}>
                                     <defs>
@@ -467,7 +458,7 @@ export default function Relatorios() {
                     {/* 3. Pedidos Cancelados */}
                     <Card className="p-6 shadow-sm border-slate-200">
                         <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><AlertTriangle className="text-red-500"/> Evolução e Projeção: Pedidos Cancelados</h3>
-                        <div className="h-[280px]">
+                        <div className="h-[400px]">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={visaoCEO.curva12Meses}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -483,7 +474,7 @@ export default function Relatorios() {
                     {/* 4. Comparativo de 3 Linhas */}
                     <Card className="p-6 shadow-sm border-slate-200">
                         <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Activity className="text-slate-700"/> Entregues vs Pagos vs Cancelados</h3>
-                        <div className="h-[280px]">
+                        <div className="h-[400px]">
                             <ResponsiveContainer width="100%" height="100%">
                                 <LineChart data={visaoCEO.curva12Meses}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -502,7 +493,7 @@ export default function Relatorios() {
             </TabsContent>
 
             {/* ============================================================================== */}
-            {/* 1. FINANCEIRO (INADIMPLÊNCIA INTELIGENTE) */}
+            {/* 1. FINANCEIRO (INADIMPLÊNCIA) */}
             {/* ============================================================================== */}
             <TabsContent value="fin" className="space-y-6">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -561,7 +552,6 @@ export default function Relatorios() {
                 </Card>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* MIX DE PAGAMENTOS: TABELA VS GRAFICO */}
                     <Card className="p-6 shadow-lg rounded-3xl">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="font-bold text-slate-800">Composição de Recebimentos</h3>
@@ -601,7 +591,6 @@ export default function Relatorios() {
                         )}
                     </Card>
 
-                    {/* GRAFICO COMPARATIVO EVOLUTIVO */}
                     <Card className="p-6 shadow-lg rounded-3xl">
                         <h3 className="font-bold text-slate-800 mb-6">Evolução do Uso de Formas de Pagamento (6 Meses)</h3>
                         <div className="h-[300px]">
@@ -622,7 +611,6 @@ export default function Relatorios() {
                     </Card>
                 </div>
 
-                {/* RANKING TOP 5 POR FORMA DE PAGTO */}
                 <h3 className="text-xl font-black text-slate-800 mt-10 mb-4 uppercase tracking-tight">Top 5 Clientes por Modalidade</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {Object.keys(fluxoCaixa.top5PorForma).map((chave) => {
@@ -647,12 +635,11 @@ export default function Relatorios() {
             </TabsContent>
 
             {/* ============================================================================== */}
-            {/* 3. COMERCIAL (REPRESENTANTES, SCORE CLIENTES E LTV) */}
+            {/* 3. COMERCIAL (REPRESENTANTES E CLIENTES) */}
             {/* ============================================================================== */}
             <TabsContent value="com" className="space-y-6">
                 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* RANKING REPRESENTANTES (COM PAGINAÇÃO) */}
                     <Card className="p-6 shadow-xl rounded-3xl bg-white border-none flex flex-col h-full">
                         <div className="flex-1">
                             <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Crown className="text-yellow-500"/> Ranking de Representantes (Score Engine)</h3>
@@ -676,7 +663,6 @@ export default function Relatorios() {
                             </div>
                         </div>
 
-                        {/* CONTROLES DE PAGINAÇÃO DOS REPRESENTANTES */}
                         <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 p-2 rounded-xl border border-slate-100">
                             <div className="flex items-center gap-2 text-sm text-slate-500">
                                 <span>Exibir:</span>
@@ -694,7 +680,6 @@ export default function Relatorios() {
                         </div>
                     </Card>
 
-                    {/* LTV & CHURN */}
                     <div className="space-y-6">
                       <Card className="p-6 shadow-xl rounded-3xl bg-white border-none">
                           <h3 className="font-bold text-slate-800 mb-2">LTV & Curva ABC (Top Clientes Ouro)</h3>
@@ -736,7 +721,6 @@ export default function Relatorios() {
                     </div>
                 </div>
 
-                {/* SCORE DE CLIENTES PAGINADO */}
                 <Card className="p-6 shadow-xl rounded-3xl bg-white border-none mt-6">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
                         <div>
@@ -777,7 +761,6 @@ export default function Relatorios() {
                         </Table>
                     </div>
                     
-                    {/* CONTROLES DE PAGINAÇÃO DOS CLIENTES */}
                     <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
                         <div className="flex items-center gap-2 text-sm text-slate-500">
                             <span>Mostrar:</span>
