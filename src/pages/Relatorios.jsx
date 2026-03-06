@@ -44,13 +44,13 @@ export default function Relatorios() {
   const [repPage, setRepPage] = useState(1);
   const [repItemsPerPage, setRepItemsPerPage] = useState(5);
 
-  // 🚀 MELHORIA 3: Resetar a paginação ao mudar a data
+  // Resetar a paginação ao mudar a data
   useEffect(() => {
     setClientPage(1);
     setRepPage(1);
   }, [periodo]);
 
-  // --- QUERIES (🚀 MELHORIA 1: Capturando estado de carregamento) ---
+  // --- QUERIES E LOADING STATE ---
   const { data: pedidos = [], isLoading: loadPedidos } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list() });
   const { data: cheques = [], isLoading: loadCheques } = useQuery({ queryKey: ['cheques'], queryFn: () => base44.entities.Cheque.list() });
   const { data: clientes = [], isLoading: loadClientes } = useQuery({ queryKey: ['clientes'], queryFn: () => base44.entities.Cliente.list() });
@@ -75,7 +75,7 @@ export default function Relatorios() {
   const pedidosValidos = useMemo(() => pedidos.filter(p => !isPagamentoServico(p.forma_pagamento)), [pedidos]);
   const borderosValidos = useMemo(() => borderos.filter(b => !isPagamentoServico(b.forma_pagamento)), [borderos]);
 
-  // 🚀 MELHORIA 2: Otimização de Performance no Filtro de Datas
+  // --- HELPERS E FILTROS INTELIGENTES ---
   const datasFiltro = useMemo(() => ({
     start: parseISO(periodo.inicio),
     end: parseISO(periodo.fim)
@@ -93,11 +93,11 @@ export default function Relatorios() {
   };
 
   const isDevedor = (p) => {
-    // Inclui representante_recebe na lista de verificação de dívida
     if (!['aberto', 'parcial', 'representante_recebe'].includes(p.status)) return false;
     const vencimento = getVencimentoReal(p);
     if (!vencimento) return false;
-    return isPast(parseISO(vencimento));
+    // Garante matematicamente que só soma se o atraso for de 1 dia ou mais (jamais soma "a receber")
+    return differenceInDays(hoje, parseISO(vencimento)) > 0;
   };
 
   const getDiasAtraso = (p) => {
@@ -114,21 +114,49 @@ export default function Relatorios() {
       const pedidosNoPeriodo = pedidosValidos.filter(p => filtrar(p.created_date));
       const totalReceita = pedidosNoPeriodo.reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
       const qtdPedidos = pedidosNoPeriodo.length;
-      
-      // Ticket Médio Geral (Por Pedido)
       const ticketMedio = qtdPedidos > 0 ? totalReceita / qtdPedidos : 0;
 
-      // Curva de Crescimento (12 meses)
+      // Curva de Crescimento Múltipla (12 meses)
       const curva12Meses = Array.from({ length: 12 }, (_, i) => {
           const dataRef = subMonths(hoje, 11 - i);
           const mesAnoStr = format(dataRef, 'yyyy-MM');
-          const faturamento = borderosValidos
+          
+          // 1. Entregues: Baseado na data de entrega (exclui orçamentos e cancelados)
+          const pedEntregues = pedidosValidos.filter(p => 
+              (p.data_entrega?.startsWith(mesAnoStr) || (!p.data_entrega && p.created_date?.startsWith(mesAnoStr))) 
+              && p.status !== 'cancelado' && p.status !== 'orcamento'
+          );
+          const faturamentoEntregues = pedEntregues.reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
+          const qtdEntregues = pedEntregues.length;
+          const ticket = qtdEntregues > 0 ? faturamentoEntregues / qtdEntregues : 0;
+
+          // 2. Cancelados: Baseado na data do sistema
+          const pedCancelados = pedidosValidos.filter(p => p.created_date?.startsWith(mesAnoStr) && p.status === 'cancelado');
+          const faturamentoCancelados = pedCancelados.reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
+
+          // 3. Pagos (Recebidos): Baseado nos Borderôs liquidados (Entrada real de dinheiro)
+          const faturamentoPagos = borderosValidos
               .filter(b => b.created_date && b.created_date.startsWith(mesAnoStr))
               .reduce((sum, b) => sum + (b.valor_total || 0), 0);
-          return { mes: format(dataRef, 'MMM/yy', { locale: ptBR }), faturamento };
+
+          return { 
+              mes: format(dataRef, 'MMM/yy', { locale: ptBR }), 
+              faturamento: faturamentoEntregues, 
+              ticket: ticket,
+              cancelados: faturamentoCancelados,
+              pagos: faturamentoPagos
+          };
       });
-      const ultimos3 = curva12Meses.slice(-3).reduce((a, b) => a + b.faturamento, 0) / 3;
-      curva12Meses.push({ mes: 'Projeção', faturamento: ultimos3 });
+
+      // Projeções Inteligentes (Média dos últimos 3 meses)
+      const ultimos3 = curva12Meses.slice(-3);
+      curva12Meses.push({ 
+          mes: 'Projeção', 
+          faturamento: ultimos3.reduce((a, b) => a + b.faturamento, 0) / 3,
+          ticket: ultimos3.reduce((a, b) => a + b.ticket, 0) / 3,
+          cancelados: ultimos3.reduce((a, b) => a + b.cancelados, 0) / 3,
+          pagos: ultimos3.reduce((a, b) => a + b.pagos, 0) / 3
+      });
 
       // Projeção Caixa Futuro
       const proj30d = { trinta: 0 };
@@ -145,7 +173,6 @@ export default function Relatorios() {
 
   // --- 1. FINANCEIRO (INADIMPLÊNCIA) ---
   const financeiro = useMemo(() => {
-    // Baldes específicos de tempo exigidos
     const buckets = { d1_10: 0, d11_15: 0, d16_35: 0, d36_60: 0, d61_90: 0, d90_plus: 0 };
     const clientesDevedoresMap = {};
     let totalAtrasado = 0;
@@ -168,7 +195,6 @@ export default function Relatorios() {
         if (diasAtraso > clientesDevedoresMap[p.cliente_codigo].dias) clientesDevedoresMap[p.cliente_codigo].dias = diasAtraso;
     });
 
-    // Cores bem distintas para cada faixa de risco
     const grafInadimplencia = [
         { name: '1-10 dias', value: buckets.d1_10, color: '#3b82f6' },      // Azul (Leve)
         { name: '11-15 dias', value: buckets.d11_15, color: '#10b981' },     // Verde (Seguro)
@@ -276,7 +302,7 @@ export default function Relatorios() {
           }
       });
 
-      // LTV Histórico (O LTV não usa o filtro de período, ele mostra o Lifetime Value real desde sempre)
+      // LTV Histórico
       const ltvMap = {};
       pedidosValidos.forEach(p => {
           if (!ltvMap[p.cliente_codigo]) ltvMap[p.cliente_codigo] = { nome: p.cliente_nome, ltv: 0, qtd: 0, lastOrder: parseISO(p.created_date) };
@@ -292,7 +318,6 @@ export default function Relatorios() {
       
       const curvaABC = ltvList.map(c => {
           acc += c.ltv;
-          // 🚀 MELHORIA 4: Proteção contra divisão por zero no LTV
           const perc = totalGlobal > 0 ? (acc / totalGlobal) * 100 : 0;
           let classe = 'C';
           if (perc <= 80) classe = 'A';
@@ -314,7 +339,6 @@ export default function Relatorios() {
 
   const MIX_COLORS = { Dinheiro: '#10b981', PIX: '#06b6d4', Debito: '#6366f1', Credito: '#3b82f6', Link: '#f59e0b', Cheque: '#8b5cf6' };
 
-  // 🚀 MELHORIA 1: Renderizar tela de Loading centralizada enquanto os dados carregam
   if (isLoadingGlobal) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#F8FAFC]">
@@ -340,29 +364,27 @@ export default function Relatorios() {
               </div>
             </div>
             
-            <div className="relative z-10 flex flex-wrap items-center gap-3 bg-white/10 p-2 rounded-2xl border border-white/20 backdrop-blur-md">
-                <div className="flex items-center gap-2 px-2">
+            <div className="relative z-10 flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 px-2 bg-white/10 p-2 rounded-2xl border border-white/20 backdrop-blur-md">
                   <Calendar className="w-5 h-5 text-indigo-400" />
                   <Input type="date" value={periodo.inicio} onChange={(e) => setPeriodo({...periodo, inicio: e.target.value})} className="border-none shadow-none font-bold text-white bg-transparent w-36" style={{colorScheme: 'dark'}} />
                   <span className="text-slate-400 font-black">ATÉ</span>
                   <Input type="date" value={periodo.fim} onChange={(e) => setPeriodo({...periodo, fim: e.target.value})} className="border-none shadow-none font-bold text-white bg-transparent w-36" style={{colorScheme: 'dark'}} />
                 </div>
-                
-                {/* 🚀 MELHORIA 5: Botão nativo de Exportar/Imprimir PDF */}
+
                 <div className="w-px h-6 bg-white/20 mx-2 hidden sm:block"></div>
                 <Button 
                   variant="outline" 
                   size="sm"
                   onClick={() => window.print()}
-                  className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white"
+                  className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white h-10 rounded-2xl"
                 >
-                  <Download className="w-4 h-4 mr-2" /> Exportar Relatório
+                  <Download className="w-4 h-4 mr-2" /> Exportar
                 </Button>
             </div>
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            {/* 🚀 MELHORIA 6: Responsividade das Abas (scroll horizontal nativo no celular) */}
             <TabsList className="bg-white/60 p-1.5 rounded-2xl border w-full lg:w-auto h-auto flex flex-nowrap overflow-x-auto whitespace-nowrap shadow-sm no-scrollbar">
               <TabsTrigger value="ceo" className="rounded-xl px-6 py-2.5 font-bold"><Target className="w-4 h-4 mr-2"/> Visão CEO</TabsTrigger>
               <TabsTrigger value="fin" className="rounded-xl px-6 py-2.5 font-bold"><AlertTriangle className="w-4 h-4 mr-2"/> Financeiro & Risco</TabsTrigger>
@@ -381,14 +403,14 @@ export default function Relatorios() {
                         <Badge className="bg-blue-100 text-blue-700 mt-2">{visaoCEO.qtdPedidos} Pedidos gerados</Badge>
                     </Card>
                     <Card className="p-6 border-l-4 border-l-emerald-500 shadow-sm bg-emerald-50/30">
-                        <p className="text-emerald-700 text-xs font-bold uppercase mb-1">Ticket Médio Global (Por Pedido)</p>
+                        <p className="text-emerald-700 text-xs font-bold uppercase mb-1">Ticket Médio Global</p>
                         <p className="text-4xl font-black text-emerald-900">{formatCurrency(visaoCEO.ticketMedio)}</p>
                         <Badge className="bg-emerald-200 text-emerald-800 mt-2 border-none">Geral Todos Clientes</Badge>
                     </Card>
                     <Card className="p-6 border-l-4 border-l-red-500 shadow-sm">
-                        <p className="text-slate-500 text-xs font-bold uppercase mb-1">Passivo de Risco (Inadimplência)</p>
+                        <p className="text-slate-500 text-xs font-bold uppercase mb-1">Total em Atraso (Vencido)</p>
                         <p className="text-4xl font-black text-red-600">{formatCurrency(financeiro.totalAtrasado)}</p>
-                        <Badge className="bg-red-100 text-red-700 mt-2 border-none">Atenção Imediata</Badge>
+                        <Badge className="bg-red-100 text-red-700 mt-2 border-none">Dívida real já vencida</Badge>
                     </Card>
                     <Card className="p-6 border-l-4 border-l-purple-500 shadow-sm">
                         <p className="text-slate-500 text-xs font-bold uppercase mb-1">Projeção de Entrada (30 Dias)</p>
@@ -397,26 +419,86 @@ export default function Relatorios() {
                     </Card>
                 </div>
 
-                <Card className="p-6 shadow-sm border-slate-200">
-                    <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><TrendingUp className="text-indigo-600"/> Evolução e Projeção de Faturamento (12 Meses)</h3>
-                    <div className="h-[300px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={visaoCEO.curva12Meses}>
-                                <defs>
-                                    <linearGradient id="colorFatur" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="mes" tick={{fontSize: 12}} />
-                                <YAxis tickFormatter={(val) => `R$ ${(val/1000).toFixed(0)}k`} />
-                                <Tooltip formatter={(v) => formatCurrency(v)} />
-                                <Area type="monotone" dataKey="faturamento" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorFatur)" />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
-                </Card>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* 1. Pedidos Entregues */}
+                    <Card className="p-6 shadow-sm border-slate-200">
+                        <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><TrendingUp className="text-indigo-600"/> Evolução e Projeção: Pedidos Entregues</h3>
+                        <div className="h-[280px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={visaoCEO.curva12Meses}>
+                                    <defs>
+                                        <linearGradient id="colorFatur" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="mes" tick={{fontSize: 12}} />
+                                    <YAxis tickFormatter={(val) => `R$ ${(val/1000).toFixed(0)}k`} width={60} />
+                                    <Tooltip formatter={(v) => formatCurrency(v)} />
+                                    <Area type="monotone" name="Valor Entregue" dataKey="faturamento" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorFatur)" />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </Card>
+
+                    {/* 2. Ticket Médio */}
+                    <Card className="p-6 shadow-sm border-slate-200">
+                        <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Target className="text-emerald-600"/> Evolução e Projeção: Ticket Médio</h3>
+                        <div className="h-[280px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={visaoCEO.curva12Meses}>
+                                    <defs>
+                                        <linearGradient id="colorTicket" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="mes" tick={{fontSize: 12}} />
+                                    <YAxis tickFormatter={(val) => `R$ ${(val/1000).toFixed(0)}k`} width={60} />
+                                    <Tooltip formatter={(v) => formatCurrency(v)} />
+                                    <Area type="monotone" name="Ticket Médio" dataKey="ticket" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorTicket)" />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </Card>
+
+                    {/* 3. Pedidos Cancelados */}
+                    <Card className="p-6 shadow-sm border-slate-200">
+                        <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><AlertTriangle className="text-red-500"/> Evolução e Projeção: Pedidos Cancelados</h3>
+                        <div className="h-[280px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={visaoCEO.curva12Meses}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="mes" tick={{fontSize: 12}} />
+                                    <YAxis tickFormatter={(val) => `R$ ${(val/1000).toFixed(0)}k`} width={60} />
+                                    <Tooltip formatter={(v) => formatCurrency(v)} cursor={{fill: 'transparent'}} />
+                                    <Bar name="Valor Cancelado" dataKey="cancelados" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </Card>
+
+                    {/* 4. Comparativo de 3 Linhas */}
+                    <Card className="p-6 shadow-sm border-slate-200">
+                        <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Activity className="text-slate-700"/> Entregues vs Pagos vs Cancelados</h3>
+                        <div className="h-[280px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={visaoCEO.curva12Meses}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="mes" tick={{fontSize: 12}} />
+                                    <YAxis tickFormatter={(val) => `R$ ${(val/1000).toFixed(0)}k`} width={60} />
+                                    <Tooltip formatter={(v) => formatCurrency(v)} />
+                                    <Legend verticalAlign="top" height={36} />
+                                    <Line type="monotone" name="Entregues" dataKey="faturamento" stroke="#3b82f6" strokeWidth={3} dot={{r: 4}} activeDot={{r: 6}} />
+                                    <Line type="monotone" name="Pagos (Caixa)" dataKey="pagos" stroke="#10b981" strokeWidth={3} dot={{r: 4}} activeDot={{r: 6}} />
+                                    <Line type="monotone" name="Cancelados" dataKey="cancelados" stroke="#ef4444" strokeWidth={3} dot={{r: 4}} activeDot={{r: 6}} />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </Card>
+                </div>
             </TabsContent>
 
             {/* ============================================================================== */}
