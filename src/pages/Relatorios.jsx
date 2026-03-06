@@ -96,8 +96,8 @@ export default function Relatorios() {
     if (!['aberto', 'parcial', 'representante_recebe'].includes(p.status)) return false;
     const vencimento = getVencimentoReal(p);
     if (!vencimento) return false;
-    // Garante matematicamente que só soma se o atraso for de 1 dia ou mais (jamais soma "a receber")
-    return differenceInDays(hoje, parseISO(vencimento)) > 0;
+    // Garante matematicamente que só soma se o atraso for de 15 dia ou mais (jamais soma "a receber")
+    return differenceInDays(hoje, parseISO(vencimento)) > 15;
   };
 
   const getDiasAtraso = (p) => {
