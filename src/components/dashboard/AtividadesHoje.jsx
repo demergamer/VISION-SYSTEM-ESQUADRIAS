@@ -78,7 +78,7 @@ export default function AtividadesHoje({ user }) {
         <CardTitle className="text-sm font-bold text-amber-800 flex items-center justify-between">
           <span className="flex items-center gap-2">
             <CheckSquare className="w-4 h-4" />
-            Resumo do Dia — {format(new Date(), "dd 'de' MMMM", { locale: { code: 'pt-BR', formatLong: {}, localize: {}, match: {}, options: { weekStartsOn: 0, firstWeekContainsDate: 1 } } })}
+            Resumo do Dia — {format(new Date(), "dd 'de' MMMM", { locale: ptBR })}
             <Badge className="bg-amber-500 text-white text-[10px]">{tarefasHoje.length}</Badge>
           </span>
           <Link to={createPageUrl('Calendario')}>
