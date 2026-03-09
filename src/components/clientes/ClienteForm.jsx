@@ -401,7 +401,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
             </AccordionContent>
           </AccordionItem>
 
-          // acordeão endereço
+
           <AccordionItem value="endereco" className="border rounded-xl bg-white px-4 shadow-sm">
             <AccordionTrigger className="hover:no-underline py-4"><div className="flex items-center gap-2 text-slate-800"><MapPin className="w-5 h-5 text-red-500" /><span className="font-semibold text-base">Endereço</span></div></AccordionTrigger>
             <AccordionContent className="pb-4 pt-2">
@@ -410,7 +410,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
                   <Lock className="w-3.5 h-3.5 shrink-0" /> Os campos de endereço só podem ser alterados pelo administrador.
                 </p>
               )}
-              // campos dados de endereço
+
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-1 md:col-span-1"><Label className={labelClass}>CEP</Label><Input name="cep" value={form.cep} onChange={handleInputChange} onBlur={!isClientMode ? handleBlurCEP : undefined} disabled={isClientMode} className={cn(inputClass, isClientMode && "bg-slate-100 cursor-not-allowed opacity-70")} /></div>
                 <div className="space-y-1 md:col-span-2"><Label className={labelClass}>Endereço</Label><Input name="endereco" value={form.endereco} onChange={handleInputChange} disabled={isClientMode} className={cn(inputClass, isClientMode && "bg-slate-100 cursor-not-allowed opacity-70")} /></div>
