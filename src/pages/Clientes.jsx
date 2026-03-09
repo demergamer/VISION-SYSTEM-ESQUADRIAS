@@ -258,43 +258,33 @@ export default function ClientesPage() {
         // NOVO: Geocodificação automática (se ainda não tiver lat/lng)
         // ────────────────────────────────────────────────
         if (!cliente.latitude || !cliente.longitude || isNaN(cliente.latitude) || isNaN(cliente.longitude)) {
-       // Usa dados atualizados (newData) ou fallback para os originais
-       const enderecoCompleto = [
-         newData.endereco   || cliente.endereco   || '',
-         newData.numero     || cliente.numero     || '',
-         newData.complemento|| cliente.complemento|| '',
-         newData.bairro     || cliente.bairro     || '',
-         newData.cidade     || cliente.cidade     || '',
-         newData.estado     || cliente.estado     || '',
-         'Brasil'
-       ].filter(Boolean).join(', ').trim();
+          const enderecoCompleto = [
+            newData.endereco    || cliente.endereco    || '',
+            newData.numero      || cliente.numero      || '',
+            newData.complemento || cliente.complemento || '',
+            newData.bairro      || cliente.bairro      || '',
+            newData.cidade      || cliente.cidade      || '',
+            newData.estado      || cliente.estado      || '',
+            'Brasil'
+          ].filter(Boolean).join(', ').trim();
 
-       if (enderecoCompleto.length > 20) {
-         addLog(`Geocodificando ${cliente.nome || cliente.codigo}...`, 'info');
-
-         const coords = await geocodeEndereco(enderecoCompleto);
-
-         if (coords?.latitude && coords?.longitude) {
-           await base44.entities.Cliente.update(cliente.id, {
-             latitude: coords.latitude,
-             longitude: coords.longitude
-           });
-           addLog(`→ Coordenadas salvas: ${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`, 'success');
-         } else {
-           addLog(`→ Não conseguiu geocodificar ${cliente.nome || cliente.codigo}`, 'warning');
-         }
-
-        // Delay obrigatório para respeitar limite free (~1 req/s)
-        await sleep(1200);
-      } else {
-        addLog(`→ Endereço incompleto para geocodificação: ${cliente.nome}`, 'warning');
-      }
-  }
-  // ────────────────────────────────────────────────
-
-} // fim do loop for
-
-        
+          if (enderecoCompleto.length > 20) {
+            addLog(`Geocodificando ${cliente.nome || cliente.codigo}...`, 'info');
+            const coords = await geocodeEndereco(enderecoCompleto);
+            if (coords?.latitude && coords?.longitude) {
+              await base44.entities.Cliente.update(cliente.id, {
+                latitude: coords.latitude,
+                longitude: coords.longitude
+              });
+              addLog(`→ Coordenadas salvas: ${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`, 'success');
+            } else {
+              addLog(`→ Não conseguiu geocodificar ${cliente.nome || cliente.codigo}`, 'warning');
+            }
+            await sleep(1200);
+          } else {
+            addLog(`→ Endereço incompleto para geocodificação: ${cliente.nome}`, 'warning');
+          }
+        }
 
       } catch (error) {
         addLog(`Erro: ${cliente.nome} - Falha na consulta`, 'error');
