@@ -401,6 +401,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
             </AccordionContent>
           </AccordionItem>
 
+          // acordeão endereço
           <AccordionItem value="endereco" className="border rounded-xl bg-white px-4 shadow-sm">
             <AccordionTrigger className="hover:no-underline py-4"><div className="flex items-center gap-2 text-slate-800"><MapPin className="w-5 h-5 text-red-500" /><span className="font-semibold text-base">Endereço</span></div></AccordionTrigger>
             <AccordionContent className="pb-4 pt-2">
@@ -409,14 +410,18 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
                   <Lock className="w-3.5 h-3.5 shrink-0" /> Os campos de endereço só podem ser alterados pelo administrador.
                 </p>
               )}
+              // campos dados de endereço
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-1 md:col-span-1"><Label className={labelClass}>CEP</Label><Input name="cep" value={form.cep} onChange={handleInputChange} onBlur={!isClientMode ? handleBlurCEP : undefined} disabled={isClientMode} className={cn(inputClass, isClientMode && "bg-slate-100 cursor-not-allowed opacity-70")} /></div>
                 <div className="space-y-1 md:col-span-2"><Label className={labelClass}>Endereço</Label><Input name="endereco" value={form.endereco} onChange={handleInputChange} disabled={isClientMode} className={cn(inputClass, isClientMode && "bg-slate-100 cursor-not-allowed opacity-70")} /></div>
                 <div className="space-y-1 md:col-span-1"><Label className={labelClass}>Número</Label><Input name="numero" value={form.numero} onChange={handleInputChange} disabled={isClientMode} className={cn(inputClass, isClientMode && "bg-slate-100 cursor-not-allowed opacity-70")} /></div>
+                <div className="space-y-1 md:col-span-2"><Label className={labelClass}>Complemento</Label><Input name="complemento" value={form.complemento || ''} onChange={handleInputChange} disabled={isClientMode} className={cn(inputClass, isClientMode && "bg-slate-100 cursor-not-allowed opacity-70")} placeholder="Apto 101, Bloco B, Sala 3" /></div>
                 <div className="space-y-1 md:col-span-1"><Label className={labelClass}>Bairro</Label><Input name="bairro" value={form.bairro} onChange={handleInputChange} disabled={isClientMode} className={cn(inputClass, isClientMode && "bg-slate-100 cursor-not-allowed opacity-70")} /></div>
                 <div className="space-y-1 md:col-span-1"><Label className={labelClass}>Cidade</Label><Input name="cidade" value={form.cidade} onChange={handleInputChange} disabled={isClientMode} className={cn(inputClass, isClientMode && "bg-slate-100 cursor-not-allowed opacity-70")} /></div>
                 <div className="space-y-1 md:col-span-1"><Label className={labelClass}>UF</Label><Input name="estado" value={form.estado} onChange={handleInputChange} disabled={isClientMode} className={cn(inputClass, isClientMode && "bg-slate-100 cursor-not-allowed opacity-70")} maxLength={2} /></div>
                 <div className="space-y-1 md:col-span-1"><Label className={labelClass}>Região</Label><Input name="regiao" value={form.regiao} onChange={handleInputChange} disabled={isClientMode} className={cn(inputClass, isClientMode && "bg-slate-100 cursor-not-allowed opacity-70")} /></div>
+                <div className="space-y-1 md:col-span-1"><Label className={labelClass}>Latitude</Label><Input name="latitude" type="number" step="0.000001" value={form.latitude || ''} onChange={handleInputChange} className={inputClass} placeholder="-23.550520" /></div>
+                <div className="space-y-1 md:col-span-1"><Label className={labelClass}>Longitude</Label><Input name="longitude" type="number" step="0.000001" value={form.longitude || ''} onChange={handleInputChange} className={inputClass} placeholder="-46.633309" /></div>
               </div>
             </AccordionContent>
           </AccordionItem>
