@@ -36,6 +36,7 @@ import { isSameDay, parseISO } from "date-fns";
 
 // --- WIDGETS AUXILIARES (Relógio/Calendário) ---
 const AnalogClock = ({ time }) => {
+  if (!time) return null;
   const seconds = time.getSeconds();
   const minutes = time.getMinutes();
   const hours = time.getHours();
@@ -57,16 +58,19 @@ const AnalogClock = ({ time }) => {
   );
 };
 
-const DigitalClock = ({ time }) => (
-  <div className="flex flex-col items-center justify-center h-48">
-    <div className="text-6xl font-bold text-slate-800 font-mono tracking-tighter drop-shadow-sm">
-      {time.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+const DigitalClock = ({ time }) => {
+  if (!time) return null;
+  return (
+    <div className="flex flex-col items-center justify-center h-48">
+      <div className="text-6xl font-bold text-slate-800 font-mono tracking-tighter drop-shadow-sm">
+        {time.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+      </div>
+      <div className="text-xl text-slate-500 font-medium mt-2">
+        {time.toLocaleTimeString('pt-BR', { second: '2-digit' })}
+      </div>
     </div>
-    <div className="text-xl text-slate-500 font-medium mt-2">
-      {time.toLocaleTimeString('pt-BR', { second: '2-digit' })}
-    </div>
-  </div>
-);
+  );
+};
 
 const MiniCalendar = ({ user, tarefas = [], onNavigate }) => {
   const today = new Date();
@@ -76,15 +80,18 @@ const MiniCalendar = ({ user, tarefas = [], onNavigate }) => {
   const firstDayIndex = new Date(today.getFullYear(), today.getMonth(), 1).getDay();
   
   const [diaSelecionado, setDiaSelecionado] = useState(null);
-  const [viewMode, setViewMode] = useState('meu'); // Novo estado do Toggle (Meu vs Geral)
+  const [viewMode, setViewMode] = useState('meu'); 
   const queryClient = useQueryClient();
 
   const days = [];
   for (let i = 0; i < firstDayIndex; i++) days.push(null);
   for (let i = 1; i <= daysInMonth; i++) days.push(i);
 
-  // Lógica de Filtro Inteligente (Igual a tela Calendario.jsx)
-  const tarefasVisiveis = tarefas.filter(t => {
+  // PROTEÇÃO CONTRA CRASH: Usar fallback para array vazio se tarefas não existir
+  const safeTarefas = Array.isArray(tarefas) ? tarefas : [];
+
+  const tarefasVisiveis = safeTarefas.filter(t => {
+    if (!t) return false;
     const escopo = t.escopo || t.tipo || 'geral';
     if (viewMode === 'geral') return escopo === 'geral';
     const isGeral = escopo === 'geral';
@@ -96,7 +103,15 @@ const MiniCalendar = ({ user, tarefas = [], onNavigate }) => {
   const tarefasDia = (dia) => {
     if (!dia) return [];
     const d = new Date(today.getFullYear(), today.getMonth(), dia);
-    return tarefasVisiveis.filter(t => { try { return t.data && isSameDay(parseISO(t.data), d); } catch { return false; } });
+    return tarefasVisiveis.filter(t => { 
+      try { 
+        // Proteção extra contra datas nulas ou inválidas que causavam o Crash
+        if (!t.data) return false;
+        return isSameDay(parseISO(t.data), d); 
+      } catch { 
+        return false; 
+      } 
+    });
   };
 
   const toggleMutation = useMutation({
@@ -117,7 +132,6 @@ const MiniCalendar = ({ user, tarefas = [], onNavigate }) => {
         </button>
       </div>
 
-      {/* TOGGLE VS COMPACTO (Mini Calendário) */}
       <div className="flex items-center relative bg-slate-100/80 border border-slate-200/60 rounded-lg p-1 w-full shadow-inner mb-4">
         <button
           onClick={() => setViewMode('meu')}
@@ -126,7 +140,6 @@ const MiniCalendar = ({ user, tarefas = [], onNavigate }) => {
           <UserIcon className="w-3.5 h-3.5" /> Pessoal
         </button>
         
-        {/* Selo Centralizado do VS Mini */}
         <div className="absolute left-1/2 -translate-x-1/2 z-20 flex items-center justify-center w-6 h-6 rounded-full bg-white border border-slate-200 shadow-sm">
           <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">VS</span>
         </div>
@@ -144,7 +157,7 @@ const MiniCalendar = ({ user, tarefas = [], onNavigate }) => {
       </div>
       <div className="grid grid-cols-7 gap-1 text-center">
         {days.map((day, i) => {
-          const hasTarefas = tarefasDia(day).length > 0;
+          const hasTarefas = day ? tarefasDia(day).length > 0 : false;
           return (
             <div
               key={i}
@@ -164,7 +177,6 @@ const MiniCalendar = ({ user, tarefas = [], onNavigate }) => {
         })}
       </div>
 
-      {/* POP-UP DE TAREFAS DO DIA */}
       {diaSelecionado && (
         <div className="mt-3 border border-slate-200 rounded-xl bg-white p-3 shadow-lg animate-in fade-in slide-in-from-top-2">
           <p className="text-xs font-bold text-slate-600 mb-2">
@@ -173,7 +185,7 @@ const MiniCalendar = ({ user, tarefas = [], onNavigate }) => {
           {tarefasDiaSelecionado.length === 0 ? (
             <p className="text-xs text-slate-400">Sem tarefas neste dia.</p>
           ) : (
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
               {tarefasDiaSelecionado.map(t => (
                 <div key={t.id} className="flex items-center gap-2">
                   <button
@@ -184,7 +196,7 @@ const MiniCalendar = ({ user, tarefas = [], onNavigate }) => {
                   >
                     {t.status === 'concluida' && <span className="text-white text-[8px] font-bold">✓</span>}
                   </button>
-                  <span className={cn("text-xs text-slate-700", t.status === 'concluida' && "line-through text-slate-400")}>{t.titulo}</span>
+                  <span className={cn("text-xs text-slate-700 truncate", t.status === 'concluida' && "line-through text-slate-400")}>{t.titulo}</span>
                 </div>
               ))}
             </div>
@@ -200,7 +212,7 @@ export default function Dashboard() {
   const { canDo } = usePermissions();
   const { preferences } = usePreferences();
   const navigate = useNavigate();
-  const workspace = useWorkspace(); // pode ser null fora do WorkspaceProvider
+  const workspace = useWorkspace(); 
 
   const handleNavigate = (pageName) => {
     const uiMode = preferences?.ui_mode || 'os';
@@ -213,15 +225,12 @@ export default function Dashboard() {
   const [time, setTime] = useState(new Date());
   const [clockType, setClockType] = useState(() => localStorage.getItem('jc_clock_pref') || 'digital');
 
-  const queryClient = useQueryClient();
-
   const { data: tarefas = [] } = useQuery({
     queryKey: ['tarefas'],
     queryFn: () => base44.entities.Tarefa.list(),
     enabled: !!user
   });
 
-  // --- DADOS DO PERFIL DO USUÁRIO ---
   const avatarUrl = user?.avatar_url || null;
   const preferredName = user?.preferred_name || user?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Administrador';
   const initials = (user?.preferred_name || user?.full_name || user?.email || 'AD')
@@ -321,7 +330,6 @@ export default function Dashboard() {
           {/* ESQUERDA: MÓDULOS */}
           <div className="xl:col-span-3 space-y-10">
             
-            {/* CABEÇALHO ATUALIZADO COM PERFIL E DROPDOWN */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/50">
               <div className="flex flex-col gap-1">
                 <h1 className="text-4xl font-bold text-slate-800 tracking-tight drop-shadow-sm">
@@ -330,7 +338,6 @@ export default function Dashboard() {
                 <p className="text-slate-600 text-lg font-medium">Selecione um módulo para começar a trabalhar.</p>
               </div>
 
-              {/* MENU DE PERFIL DO ADMINISTRADOR */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <div className="flex items-center gap-3 cursor-pointer hover:bg-slate-100/50 p-2 pr-4 rounded-full transition-all border border-transparent hover:border-slate-200">
@@ -366,7 +373,6 @@ export default function Dashboard() {
 
             <div className="space-y-4">
               {menuGroups.map((group, idx) => {
-                // VOLTOU O FILTRO PADRÃO APENAS BASEADO EM PERMISSÕES (allowed para execões)
                 const allowedItems = group.items.filter(item => canDo(item.name, 'visualizar') || item.name === 'Relatorios'|| item.name === 'LojaJC');
                 if (allowedItems.length === 0) return null;
                 const isOpen = !!openGroups[idx];
@@ -431,7 +437,6 @@ export default function Dashboard() {
 
             <AtividadesHoje user={user} />
 
-            {/* WIDGETS PERSONALIZÁVEIS */}
             <WidgetGrid />
           </div>
 
