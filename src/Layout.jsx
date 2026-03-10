@@ -6,7 +6,8 @@ import {
   BarChart3, Home, Briefcase, Banknote, ScrollText, CreditCard,
   Menu, Building2, Truck, CalendarDays, Bell, Lock, X
 } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+// 🚀 NOVIDADE: Importando os detectores globais de carregamento
+import { useQuery, useIsFetching, useIsMutating } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useSecurity } from '@/components/providers/SecurityProvider';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -40,7 +41,7 @@ const VisionMessageIcon = ({ className }) => {
       try {
         return await base44.entities.Mensagem.list('-created_date', 50);
       } catch (e) {
-        return []; // Evita quebrar a tela se a tabela não existir ainda
+        return []; 
       }
     },
     enabled: !!user
@@ -57,11 +58,9 @@ const VisionMessageIcon = ({ className }) => {
   }).length;
 
   if (unreadCount > 0) {
-    // Ícone COM PONTO (Não lidas)
     return <MessageSquareDot className={cn("text-blue-500 animate-pulse", className)} />;
   }
   
-  // Ícone NORMAL (Tudo lido)
   return <MessageSquare className={className} />;
 };
 
@@ -224,7 +223,7 @@ function ClassicSidebar({ open, onClose, currentPageName, canDo, user, signOut, 
   );
 }
 
-// ─── Classic Header (when ui_mode = classico) ─────────────────────────────────
+// ─── Classic Header ───────────────────────────────────────────────────────────
 function ClassicHeader({ onOpenMenu, user, userEmail }) {
   return (
     <div className="fixed top-0 left-0 right-0 h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 z-50 shadow-sm">
@@ -251,7 +250,7 @@ function ClassicHeader({ onOpenMenu, user, userEmail }) {
   );
 }
 
-// ─── Start Menu (OS mode, Sidebar flutuante) ──────────────────────────────────
+// ─── Start Menu ───────────────────────────────────────────────────────────────
 function StartMenu({ open, onClose, currentPageName, canDo, user, signOut, lockScreen }) {
   const workspace = useWorkspace();
 
@@ -347,6 +346,11 @@ function LayoutInner({ children, currentPageName }) {
   const uiMode = preferences?.ui_mode || 'os';
   const tbPos = preferences?.taskbar_position || 'top';
   const isOSMode = uiMode === 'os';
+
+  // 🚀 NOVIDADE: Verifica globalmente se o banco de dados está processando algo
+  const isFetching = useIsFetching();
+  const isMutating = useIsMutating();
+  const isGlobalLoading = isFetching > 0 || isMutating > 0;
   
   const prevModeRef = useRef(uiMode);
   useEffect(() => {
@@ -407,6 +411,27 @@ function LayoutInner({ children, currentPageName }) {
 
   return (
     <div className="min-h-screen bg-slate-50 relative overflow-x-hidden">
+      
+      {/* 🚀 NOVIDADE: A BARRA DE PROGRESSO GLOBAL (ESTILO YOUTUBE) */}
+      {isGlobalLoading && (
+        <div className="fixed top-0 left-0 w-full h-1 z-[999999] overflow-hidden bg-blue-50/50">
+          <div className="h-full bg-blue-600 shadow-[0_0_10px_#2563eb]"
+               style={{
+                 width: '50%',
+                 animation: 'global-loading-bar 1.5s infinite ease-in-out',
+               }}
+          >
+            <style>{`
+              @keyframes global-loading-bar {
+                0% { transform: translateX(-100%); width: 10%; }
+                50% { width: 50%; }
+                100% { transform: translateX(250%); width: 10%; }
+              }
+            `}</style>
+          </div>
+        </div>
+      )}
+
       <NotificationToastManager />
       {precisaConfigurarPerfil && (
          <div className="fixed inset-0 z-[99999] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center">
