@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton"; // <- IMPORT DO SKELETON
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ShoppingCart, Plus, Search, RefreshCw, DollarSign, AlertTriangle,
@@ -30,7 +31,7 @@ import ModalContainer from "@/components/modals/ModalContainer";
 import PedidoForm from "@/components/pedidos/PedidoForm";
 import PedidoDetails from "@/components/pedidos/PedidoDetails";
 import PedidoTable from "@/components/pedidos/PedidoTable";
-import Emproduçaotable from "@/components/pedidos/Emproduçaotable"; // <- Ajuste fino do nome do arquivo!
+import Emproduçaotable from "@/components/pedidos/Emproduçaotable";
 import LiquidacaoForm from "@/components/pedidos/LiquidacaoForm";
 import ImportarPedidos from "@/components/pedidos/ImportarPedidos";
 import RotasList from "@/components/pedidos/RotasList";
@@ -48,6 +49,63 @@ import MesclarNFModal from "@/components/pedidos/MesclarNFModal";
 import PermissionGuard from "@/components/PermissionGuard";
 import { usePermissions } from "@/components/hooks/usePermissions";
 import PaginacaoControles, { SeletorItensPorPagina } from "@/components/pedidos/PaginacaoControles";
+
+// --- SKELETON LOADERS VISUAIS (NOVOS) ---
+const PedidoGridSkeleton = () => (
+  <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col gap-3 h-full shadow-sm">
+    <div className="flex justify-between items-start">
+      <div className="flex-1 space-y-2">
+        <Skeleton className="h-3 w-16" />
+        <Skeleton className="h-4 w-3/4" />
+        <Skeleton className="h-3 w-20" />
+      </div>
+      <Skeleton className="h-6 w-16 rounded-full" />
+    </div>
+    <div className="py-3 border-t border-b border-slate-100 space-y-2 mt-2">
+      <Skeleton className="h-3 w-24" />
+      <Skeleton className="h-3 w-32" />
+    </div>
+    <div className="flex justify-between items-end mt-auto pt-2">
+      <div className="space-y-1"><Skeleton className="h-3 w-10"/><Skeleton className="h-5 w-20"/></div>
+      <div className="space-y-1 flex flex-col items-end"><Skeleton className="h-3 w-10"/><Skeleton className="h-4 w-16"/></div>
+    </div>
+    <div className="flex justify-end gap-2 pt-2 border-t border-slate-50 mt-2">
+      <Skeleton className="h-8 w-8 rounded-lg" />
+      <Skeleton className="h-8 w-8 rounded-lg" />
+      <Skeleton className="h-8 w-8 rounded-lg" />
+    </div>
+  </div>
+);
+
+const AutorizacaoSkeleton = () => (
+  <Card className="p-5 border-slate-200 bg-white">
+    <div className="flex justify-between items-start mb-4">
+      <Skeleton className="h-5 w-28 rounded-full" />
+      <Skeleton className="h-3 w-16" />
+    </div>
+    <Skeleton className="h-5 w-48 mb-2" />
+    <Skeleton className="h-4 w-24 mb-4" />
+    <div className="flex justify-between items-end">
+      <Skeleton className="h-3 w-16" />
+      <Skeleton className="h-7 w-24" />
+    </div>
+  </Card>
+);
+
+const BorderoSkeleton = () => (
+  <Card className="p-5 border-slate-200 bg-white">
+    <div className="flex justify-between items-center mb-4">
+      <Skeleton className="h-5 w-32" />
+      <Skeleton className="h-5 w-20 rounded-full" />
+    </div>
+    <Skeleton className="h-4 w-40 mb-2" />
+    <Skeleton className="h-3 w-32 mb-4" />
+    <div className="flex justify-between items-end border-t border-slate-100 pt-4">
+      <Skeleton className="h-3 w-20" />
+      <Skeleton className="h-7 w-28" />
+    </div>
+  </Card>
+);
 
 // --- PAINEL DE FILTROS ---
 const FilterPanel = ({ filters, setFilters, onClear, isOpen }) => {
@@ -399,8 +457,6 @@ export default function Pedidos() {
   useEffect(() => { setCurrentPageBorderos(1); }, [searchTerm]);
 
   // --- STATS DINÂMICOS ---
-  // pedidosFiltradosBusca: todos os pedidos filtrados apenas pela busca (sem filtro de aba/sub-aba)
-  // Usado para badges das abas e totalizadores financeiros que devem reagir à busca global
   const pedidosFiltradosBusca = useMemo(() => {
     if (!searchTerm) return pedidos;
     const lower = searchTerm.toLowerCase().replace(/\./g, '');
@@ -416,24 +472,20 @@ export default function Pedidos() {
     const hoje = new Date();
     hoje.setHours(0,0,0,0);
 
-    // Contagens de abas: reagem à busca global
     const transitoCount = pedidosFiltradosBusca.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado').length;
     const abertosCount = pedidosFiltradosBusca.filter(p => p.status === 'aberto' || p.status === 'parcial').length;
     const trocasCount = pedidosFiltradosBusca.filter(p => p.status === 'troca').length;
     const repRecebeCount = pedidosFiltradosBusca.filter(p => p.status === 'representante_recebe').length;
 
-    // Sub-abas de "Abertos": reagem à busca
     const abertosBase = pedidosFiltradosBusca.filter(p =>
       (p.status === 'aberto' || p.status === 'parcial') && p.status !== 'representante_recebe'
     );
     const emDiaCount = abertosBase.filter(p => !p.data_entrega || differenceInDays(hoje, parseISO(p.data_entrega)) <= 15).length;
     const atrasadoCount = abertosBase.filter(p => p.data_entrega && differenceInDays(hoje, parseISO(p.data_entrega)) > 15).length;
 
-    // Contagens fixas (não reagem à busca - contexto global do sistema)
     const autorizacoesCount = liquidacoesPendentes.filter(lp => lp.status === 'pendente').length;
     const rotasAtivasCount = rotas.filter(r => r.status === 'pendente' || r.status === 'parcial').length;
 
-    // Totalizadores financeiros: usam pedidosFiltradosBusca
     const abertosNaBusca = pedidosFiltradosBusca.filter(p =>
       (p.status === 'aberto' || p.status === 'parcial') &&
       p.status !== 'troca' && p.status !== 'representante_recebe'
@@ -461,11 +513,9 @@ export default function Pedidos() {
     if (!searchTerm) return borderos;
     const lower = searchTerm.toLowerCase();
     return borderos.filter(b => {
-      // Busca no próprio borderô
       if (b.numero_bordero?.toString().includes(searchTerm)) return true;
       if (b.cliente_nome?.toLowerCase().includes(lower)) return true;
       if (b.liquidado_por?.toLowerCase().includes(lower)) return true;
-      // Busca profunda: verifica se algum número de pedido dentro do borderô bate
       if (b.pedidos_ids && Array.isArray(b.pedidos_ids)) {
         const pedidosDoBordero = pedidos.filter(p => b.pedidos_ids.includes(p.id));
         if (pedidosDoBordero.some(p =>
@@ -477,14 +527,12 @@ export default function Pedidos() {
     });
   }, [borderos, searchTerm, pedidos]);
 
-  // Paginação de borderôs (independente)
   const totalPagesBorderos = Math.ceil(filteredBorderos.length / borderosPerPage);
   const currentBorderos = filteredBorderos.slice(
     (currentPageBorderos - 1) * borderosPerPage,
     currentPageBorderos * borderosPerPage
   );
 
-  // Handler para mudar status especial
   const handleMudarStatusEspecial = async (pedido, novoStatus) => {
     setIsProcessing(true);
     try {
@@ -499,7 +547,6 @@ export default function Pedidos() {
     }
   };
 
-  // --- HANDLERS ---
   const handleEdit = (pedido) => { setSelectedPedido(pedido); setShowEditModal(true); };
   const handleView = (pedido) => { if (pedido.isBordero) { setSelectedPedido(pedido); setShowDetailsModal(true); } else { setSelectedPedido(pedido); setShowDetailsModal(true); } };
   const handleLiquidar = (pedido) => { setSelectedPedido(pedido); setShowLiquidarModal(true); };
@@ -521,7 +568,6 @@ export default function Pedidos() {
     }
   };
   
-  // FUNÇÃO ATUALIZADA: LIMPEZA INTELIGENTE DE RESÍDUOS
   const handleRefresh = async () => {
     setRefreshingData(true);
     setRefreshMessage('Conectando ao banco de dados...');
@@ -563,7 +609,6 @@ export default function Pedidos() {
         });
         await Promise.all(promisesClientes.filter(Boolean));
 
-        // NOVA LÓGICA DE LIMPEZA (INCLUI DESCONTO E ZEROS REAIS)
         setRefreshMessage('Analisando resíduos e pagamentos...');
         let residuosLimpos = 0;
         const promisesResiduos = latestPedidos
@@ -696,17 +741,14 @@ export default function Pedidos() {
       finally { setIsProcessing(false); }
   };
 
-  // REGRA 8: Após liquidação em massa, apenas fecha modal e refresca — sem redirecionar
   const handleLiquidacaoMassa = async () => {
       await Promise.all([refetchPedidos(), refetchBorderos()]);
       setShowLiquidacaoMassaModal(false);
-      // NÃO redireciona de aba — usuário permanece onde estava
   };
 
   const [pedidoJaPagoAlerta, setPedidoJaPagoAlerta] = useState(null);
 
   const handleConfirmarEntrega = async (pedido) => {
-      // REGRA 9: Alerta se pedido já consta como pago
       if (pedido.status === 'pago' && pedido.bordero_numero) {
           setPedidoJaPagoAlerta(pedido);
           return;
@@ -723,7 +765,6 @@ export default function Pedidos() {
               status: novoStatus
           });
 
-          // REGRA 11: Atualiza PORT/Caução vinculado para "Em Separação"
           try {
               const todosPortsAtivos = await base44.entities.Port.list();
               const portVinculado = todosPortsAtivos.find(port =>
@@ -737,7 +778,7 @@ export default function Pedidos() {
                   await base44.entities.Port.update(portVinculado.id, { status: 'em_separacao' });
                   toast.info(`💰 PORT #${portVinculado.numero_port} atualizado para "Em Separação".`);
               }
-          } catch(e) { /* non-critical */ }
+          } catch(e) { }
 
           await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
           toast.success('Entrega confirmada com sucesso!');
@@ -749,38 +790,28 @@ export default function Pedidos() {
       }
   };
 
-  const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
-
-  // --- FUNÇÃO CORRIGIDA: APROVAÇÃO COM GERAÇÃO DE CRÉDITO E PARCIAL ---
   const handleAprovarSolicitacao = async (dadosAprovacao) => {
-      console.log("Iniciando aprovação com:", dadosAprovacao);
       setIsProcessing(true);
       try {
           const user = await base44.auth.me();
           const { pedidosSelecionados, descontoValor, devolucao, formasPagamento, comprovantes, totais } = dadosAprovacao;
           
-          // 1. Consolidação de Valores
           const valorDesconto = parseFloat(descontoValor) || 0;
           const valorDevolucao = parseFloat(devolucao) || 0;
-          const valorPagoDinheiro = parseFloat(totais.totalPago) || 0; // O que entrou de caixa
+          const valorPagoDinheiro = parseFloat(totais.totalPago) || 0; 
           
-          // Total que está sendo abatido da dívida
           const totalAbatimento = valorPagoDinheiro + valorDesconto + valorDevolucao;
 
-          // Total da Dívida dos pedidos selecionados
           const totalDivida = pedidosSelecionados.reduce((sum, p) => {
               return sum + (p.saldo_restante !== undefined ? parseFloat(p.saldo_restante) : (parseFloat(p.valor_pedido) - parseFloat(p.total_pago || 0)));
           }, 0);
 
-          // 2. Cálculo do Resultado (Sobra ou Falta)
           const diferenca = totalAbatimento - totalDivida;
           let creditoGerado = 0;
 
-          // LÓGICA DE CRÉDITO (SOBRA > 0.01)
           if (diferenca > 0.01) {
               creditoGerado = diferenca;
               
-              // Cria o crédito para o cliente
               await base44.entities.Credito.create({
                   cliente_codigo: selectedAutorizacao.cliente_codigo,
                   cliente_nome: selectedAutorizacao.cliente_nome,
@@ -799,14 +830,12 @@ export default function Pedidos() {
                   style: { background: '#ECFDF5', color: '#047857', fontWeight: 'bold' }
               });
           } 
-          // LÓGICA DE PARCIAL (FALTA > 0.01)
           else if (diferenca < -0.01) {
               toast.warning(`⚠️ Pagamento Parcial: Faltam ${formatCurrency(Math.abs(diferenca))}. Os pedidos permanecerão com saldo.`, {
                   duration: 6000
               });
           }
 
-          // 3. Criar Borderô
           const todosBorderos = await base44.entities.Bordero.list();
           const proximoNumeroBordero = todosBorderos.length > 0 ? Math.max(...todosBorderos.map(b => b.numero_bordero || 0)) + 1 : 1;
 
@@ -818,7 +847,7 @@ export default function Pedidos() {
               cliente_codigo: selectedAutorizacao.cliente_codigo,
               cliente_nome: selectedAutorizacao.cliente_nome,
               pedidos_ids: pedidosSelecionados.map(p => p.id),
-              valor_total: valorPagoDinheiro, // Registra apenas o que entrou de dinheiro
+              valor_total: valorPagoDinheiro,
               valor_desconto_aplicado: valorDesconto, 
               forma_pagamento: formasStr,
               comprovantes_urls: comprovantes,
@@ -826,7 +855,6 @@ export default function Pedidos() {
               liquidado_por: user.email
           });
 
-          // 4. Baixa Waterfall (Cascata) nos Pedidos
           let montanteParaDistribuir = Math.min(totalAbatimento, totalDivida);
           
           for (const pedido of pedidosSelecionados) {
@@ -855,7 +883,6 @@ export default function Pedidos() {
               });
           }
 
-          // 5. Finalizar a Solicitação
           await base44.entities.LiquidacaoPendente.update(selectedAutorizacao.id, {
               status: 'aprovado',
               aprovado_por: user.email,
@@ -981,7 +1008,6 @@ export default function Pedidos() {
                             <Filter className="w-4 h-4 mr-2"/> Filtros
                         </Button>
                         
-                        {/* SELETORES DE VIEW MODE */}
                         <div className="bg-white border border-slate-200 rounded-xl p-1 flex">
                             <Button variant="ghost" size="sm" className={cn("h-8 px-2 rounded-lg transition-all", viewMode === 'table' ? "bg-slate-100 text-slate-900" : "text-slate-400 hover:text-slate-600")} onClick={() => setViewMode('table')} title="Lista"><List className="w-4 h-4" /></Button>
                             <Button variant="ghost" size="sm" className={cn("h-8 px-2 rounded-lg transition-all", viewMode === 'grid' ? "bg-slate-100 text-slate-900" : "text-slate-400 hover:text-slate-600")} onClick={() => setViewMode('grid')} title="Grade"><LayoutGrid className="w-4 h-4" /></Button>
@@ -1037,80 +1063,84 @@ export default function Pedidos() {
 
             <TabsContent value="transito">
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {currentPedidos.length > 0 ? currentPedidos.map(p => (
-                        <div key={p.id} className={cn(
-                            "border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col gap-3",
-                            p.cliente_pendente ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200"
-                        )}>
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <span className={cn(
-                                        "font-bold text-xs uppercase tracking-wider mb-1 block",
-                                        p.cliente_pendente ? "text-amber-700" : "text-slate-400"
-                                    )}>
-                                        #{p.numero_pedido}
-                                    </span>
-                                    <h3 className="font-bold text-slate-800 line-clamp-1" title={p.cliente_nome}>
-                                        {p.cliente_nome}
-                                    </h3>
+                    {loadingPedidos ? (
+                        [...Array(6)].map((_, i) => <PedidoGridSkeleton key={i} />)
+                    ) : currentPedidos.length > 0 ? (
+                        currentPedidos.map(p => (
+                            <div key={p.id} className={cn(
+                                "border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col gap-3",
+                                p.cliente_pendente ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200"
+                            )}>
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <span className={cn(
+                                            "font-bold text-xs uppercase tracking-wider mb-1 block",
+                                            p.cliente_pendente ? "text-amber-700" : "text-slate-400"
+                                        )}>
+                                            #{p.numero_pedido}
+                                        </span>
+                                        <h3 className="font-bold text-slate-800 line-clamp-1" title={p.cliente_nome}>
+                                            {p.cliente_nome}
+                                        </h3>
+                                        {p.cliente_pendente ? (
+                                            <Badge variant="outline" className="mt-1 bg-amber-100 text-amber-700 border-amber-300 text-[10px]">
+                                                <AlertTriangle className="w-3 h-3 mr-1" /> Cliente Não Cadastrado
+                                            </Badge>
+                                        ) : (
+                                            <p className="text-xs text-slate-500 font-mono mt-0.5">{p.cliente_codigo}</p>
+                                        )}
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Valor</span>
+                                        <span className="text-lg font-bold text-emerald-600">{formatCurrency(p.valor_pedido)}</span>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-4 text-xs text-slate-500 py-2 border-t border-slate-100/50 border-b">
+                                    <div className="flex items-center gap-1">
+                                        <Calendar className="w-3.5 h-3.5" /> 
+                                        {p.data_entrega ? format(new Date(p.data_entrega), 'dd/MM/yyyy') : '-'}
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <MapPin className="w-3.5 h-3.5" /> 
+                                        {p.cliente_regiao || 'Sem região'}
+                                    </div>
+                                </div>
+
+                                <div className="mt-auto pt-2">
                                     {p.cliente_pendente ? (
-                                        <Badge variant="outline" className="mt-1 bg-amber-100 text-amber-700 border-amber-300 text-[10px]">
-                                            <AlertTriangle className="w-3 h-3 mr-1" /> Cliente Não Cadastrado
-                                        </Badge>
+                                        <Button 
+                                            className="w-full bg-amber-500 hover:bg-amber-600 text-white shadow-sm shadow-amber-200" 
+                                            onClick={() => { 
+                                                setPedidoParaCadastro(p); 
+                                                setShowCadastrarClienteModal(true); 
+                                            }}
+                                        >
+                                            <UserPlus className="w-4 h-4 mr-2" /> Cadastrar Cliente
+                                        </Button>
                                     ) : (
-                                        <p className="text-xs text-slate-500 font-mono mt-0.5">{p.cliente_codigo}</p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <Button 
+                                                size="sm" 
+                                                className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm" 
+                                                onClick={() => handleConfirmarEntrega(p)}
+                                            >
+                                                <CheckCircle className="w-4 h-4 mr-2" /> Confirmar
+                                            </Button>
+                                            <Button 
+                                                size="sm" 
+                                                variant="outline" 
+                                                className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300" 
+                                                onClick={() => handleCancelar(p)}
+                                            >
+                                                Cancelar
+                                            </Button>
+                                        </div>
                                     )}
                                 </div>
-                                <div className="text-right">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Valor</span>
-                                    <span className="text-lg font-bold text-emerald-600">{formatCurrency(p.valor_pedido)}</span>
-                                </div>
                             </div>
-
-                            <div className="flex items-center gap-4 text-xs text-slate-500 py-2 border-t border-slate-100/50 border-b">
-                                <div className="flex items-center gap-1">
-                                    <Calendar className="w-3.5 h-3.5" /> 
-                                    {p.data_entrega ? format(new Date(p.data_entrega), 'dd/MM/yyyy') : '-'}
-                                </div>
-                                <div className="flex items-center gap-1">
-                                    <MapPin className="w-3.5 h-3.5" /> 
-                                    {p.cliente_regiao || 'Sem região'}
-                                </div>
-                            </div>
-
-                            <div className="mt-auto pt-2">
-                                {p.cliente_pendente ? (
-                                    <Button 
-                                        className="w-full bg-amber-500 hover:bg-amber-600 text-white shadow-sm shadow-amber-200" 
-                                        onClick={() => { 
-                                            setPedidoParaCadastro(p); 
-                                            setShowCadastrarClienteModal(true); 
-                                        }}
-                                    >
-                                        <UserPlus className="w-4 h-4 mr-2" /> Cadastrar Cliente
-                                    </Button>
-                                ) : (
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <Button 
-                                            size="sm" 
-                                            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm" 
-                                            onClick={() => handleConfirmarEntrega(p)}
-                                        >
-                                            <CheckCircle className="w-4 h-4 mr-2" /> Confirmar
-                                        </Button>
-                                        <Button 
-                                            size="sm" 
-                                            variant="outline" 
-                                            className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300" 
-                                            onClick={() => handleCancelar(p)}
-                                        >
-                                            Cancelar
-                                        </Button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )) : (
+                        ))
+                    ) : (
                         <div className="col-span-full flex flex-col items-center justify-center py-16 text-center border-dashed border-2 border-slate-200 rounded-xl bg-slate-50/50">
                             <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm border border-slate-100">
                                 <Truck className="w-8 h-8 text-slate-300" />
@@ -1120,26 +1150,34 @@ export default function Pedidos() {
                         </div>
                     )}
                 </div>
-                <PaginacaoControles currentPage={currentPage} totalPages={totalPages} totalItems={processedPedidos.length} itemsPerPage={itemsPerPage} onPageChange={setCurrentPage} />
+                {!loadingPedidos && currentPedidos.length > 0 && (
+                    <PaginacaoControles currentPage={currentPage} totalPages={totalPages} totalItems={processedPedidos.length} itemsPerPage={itemsPerPage} onPageChange={setCurrentPage} />
+                )}
             </TabsContent>
 
             <TabsContent value="autorizacoes">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {liquidacoesPendentes.filter(lp => lp.status === 'pendente').map(aut => (
-                        <Card key={aut.id} className="p-5 border-orange-200 bg-orange-50/30 cursor-pointer hover:shadow-md transition-all" onClick={() => { setSelectedAutorizacao(aut); setShowAutorizacaoModal(true); }}>
-                            <div className="flex justify-between items-start mb-2">
-                                <Badge className="bg-orange-100 text-orange-700">Solicitação #{aut.numero_solicitacao}</Badge>
-                                <span className="text-xs text-slate-500">{format(new Date(aut.created_date), 'dd/MM HH:mm')}</span>
-                            </div>
-                            <p className="font-bold text-slate-800 mb-1">{aut.cliente_nome}</p>
-                            <p className="text-sm text-slate-600 mb-3">{aut.pedidos_ids?.length || 0} pedidos</p>
-                            <div className="flex justify-between items-end">
-                                <div className="text-xs text-slate-500">Proposto:</div>
-                                <div className="font-bold text-lg text-emerald-600">{formatCurrency(aut.valor_final_proposto)}</div>
-                            </div>
-                        </Card>
-                    ))}
-                    {liquidacoesPendentes.filter(lp => lp.status === 'pendente').length === 0 && <p className="col-span-full text-center py-10 text-slate-500">Nenhuma autorização pendente.</p>}
+                    {loadingAutorizacoes ? (
+                        [...Array(6)].map((_, i) => <AutorizacaoSkeleton key={i} />)
+                    ) : (
+                        <>
+                            {liquidacoesPendentes.filter(lp => lp.status === 'pendente').map(aut => (
+                                <Card key={aut.id} className="p-5 border-orange-200 bg-orange-50/30 cursor-pointer hover:shadow-md transition-all" onClick={() => { setSelectedAutorizacao(aut); setShowAutorizacaoModal(true); }}>
+                                    <div className="flex justify-between items-start mb-2">
+                                        <Badge className="bg-orange-100 text-orange-700">Solicitação #{aut.numero_solicitacao}</Badge>
+                                        <span className="text-xs text-slate-500">{format(new Date(aut.created_date), 'dd/MM HH:mm')}</span>
+                                    </div>
+                                    <p className="font-bold text-slate-800 mb-1">{aut.cliente_nome}</p>
+                                    <p className="text-sm text-slate-600 mb-3">{aut.pedidos_ids?.length || 0} pedidos</p>
+                                    <div className="flex justify-between items-end">
+                                        <div className="text-xs text-slate-500">Proposto:</div>
+                                        <div className="font-bold text-lg text-emerald-600">{formatCurrency(aut.valor_final_proposto)}</div>
+                                    </div>
+                                </Card>
+                            ))}
+                            {liquidacoesPendentes.filter(lp => lp.status === 'pendente').length === 0 && <p className="col-span-full text-center py-10 text-slate-500">Nenhuma autorização pendente.</p>}
+                        </>
+                    )}
                 </div>
             </TabsContent>
 
@@ -1164,36 +1202,56 @@ export default function Pedidos() {
                 {liquidacaoView === 'bordero' ? (
                     <>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {currentBorderos.length > 0 ? currentBorderos.map(bordero => (
-                            <Card key={bordero.id} className="p-5 hover:shadow-md transition-all cursor-pointer border-slate-200" onClick={() => { setSelectedPedido({...bordero, isBordero: true}); setShowDetailsModal(true); }}>
-                                <div className="flex justify-between mb-2">
-                                    <span className="font-bold text-slate-700">Borderô #{bordero.numero_bordero}</span>
-                                    <Badge variant="outline" className="border-emerald-200 text-emerald-700 bg-emerald-50">Liquidado</Badge>
-                                </div>
-                                <p className="text-sm text-slate-600 mb-1">{bordero.cliente_nome || "Vários Clientes"}</p>
-                                <p className="text-xs text-slate-400 mb-3">{format(new Date(bordero.created_date), 'dd/MM/yyyy HH:mm')}</p>
-                                <div className="flex justify-between items-end border-t pt-3">
-                                    <span className="text-xs text-slate-500">{bordero.pedidos_ids?.length || 0} pedidos</span>
-                                    <span className="font-bold text-emerald-600 text-lg">{formatCurrency(bordero.valor_total)}</span>
-                                </div>
-                            </Card>
-                        )) : <p className="col-span-full text-center py-10 text-slate-500">Nenhum borderô encontrado.</p>}
+                        {loadingBorderos ? (
+                            [...Array(6)].map((_, i) => <BorderoSkeleton key={i} />)
+                        ) : currentBorderos.length > 0 ? (
+                            currentBorderos.map(bordero => (
+                                <Card key={bordero.id} className="p-5 hover:shadow-md transition-all cursor-pointer border-slate-200" onClick={() => { setSelectedPedido({...bordero, isBordero: true}); setShowDetailsModal(true); }}>
+                                    <div className="flex justify-between mb-2">
+                                        <span className="font-bold text-slate-700">Borderô #{bordero.numero_bordero}</span>
+                                        <Badge variant="outline" className="border-emerald-200 text-emerald-700 bg-emerald-50">Liquidado</Badge>
+                                    </div>
+                                    <p className="text-sm text-slate-600 mb-1">{bordero.cliente_nome || "Vários Clientes"}</p>
+                                    <p className="text-xs text-slate-400 mb-3">{format(new Date(bordero.created_date), 'dd/MM/yyyy HH:mm')}</p>
+                                    <div className="flex justify-between items-end border-t pt-3">
+                                        <span className="text-xs text-slate-500">{bordero.pedidos_ids?.length || 0} pedidos</span>
+                                        <span className="font-bold text-emerald-600 text-lg">{formatCurrency(bordero.valor_total)}</span>
+                                    </div>
+                                </Card>
+                            ))
+                        ) : <p className="col-span-full text-center py-10 text-slate-500">Nenhum borderô encontrado.</p>}
                     </div>
-                    <PaginacaoControles currentPage={currentPageBorderos} totalPages={totalPagesBorderos} totalItems={filteredBorderos.length} itemsPerPage={borderosPerPage} onPageChange={setCurrentPageBorderos} />
+                    {!loadingBorderos && currentBorderos.length > 0 && (
+                        <PaginacaoControles currentPage={currentPageBorderos} totalPages={totalPagesBorderos} totalItems={filteredBorderos.length} itemsPerPage={borderosPerPage} onPageChange={setCurrentPageBorderos} />
+                    )}
                     </>
                 ) : (
                     <>
-                    <PedidoTable 
-                        pedidos={currentPedidos} 
-                        onEdit={handleEdit} 
-                        onView={handleView} 
-                        onLiquidar={handleLiquidar} 
-                        onCancelar={handleCancelar} 
-                        onReverter={(p) => { setPedidoParaReverter(p); setShowReverterDialog(true); }}
-                        isLoading={loadingPedidos}
-                        showBorderoRef={true}
-                    />
-                    <PaginacaoControles currentPage={currentPage} totalPages={totalPages} totalItems={processedPedidos.length} itemsPerPage={itemsPerPage} onPageChange={setCurrentPage} />
+                    {viewMode === 'table' ? (
+                        <PedidoTable 
+                            pedidos={currentPedidos} 
+                            onEdit={handleEdit} 
+                            onView={handleView} 
+                            onLiquidar={handleLiquidar} 
+                            onCancelar={handleCancelar} 
+                            onReverter={(p) => { setPedidoParaReverter(p); setShowReverterDialog(true); }}
+                            isLoading={loadingPedidos}
+                            showBorderoRef={true}
+                        />
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                            {loadingPedidos ? (
+                                [...Array(8)].map((_, i) => <PedidoGridSkeleton key={i} />)
+                            ) : (
+                                currentPedidos.map(pedido => (
+                                    <PedidoGridCard key={pedido.id} pedido={pedido} onEdit={handleEdit} onView={handleView} onLiquidar={handleLiquidar} onCancelar={handleCancelar} canDo={canDo} />
+                                ))
+                            )}
+                        </div>
+                    )}
+                    {!loadingPedidos && currentPedidos.length > 0 && (
+                        <PaginacaoControles currentPage={currentPage} totalPages={totalPages} totalItems={processedPedidos.length} itemsPerPage={itemsPerPage} onPageChange={setCurrentPage} />
+                    )}
                     </>
                 )}
             </TabsContent>
@@ -1215,15 +1273,21 @@ export default function Pedidos() {
                     />
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {currentPedidos.map(pedido => (
-                            <PedidoGridCard key={pedido.id} pedido={pedido} onEdit={handleEdit} onView={handleView} onLiquidar={handleLiquidar} onCancelar={handleCancelar} canDo={canDo} />
-                        ))}
+                        {loadingPedidos ? (
+                            [...Array(8)].map((_, i) => <PedidoGridSkeleton key={i} />)
+                        ) : (
+                            currentPedidos.map(pedido => (
+                                <PedidoGridCard key={pedido.id} pedido={pedido} onEdit={handleEdit} onView={handleView} onLiquidar={handleLiquidar} onCancelar={handleCancelar} canDo={canDo} />
+                            ))
+                        )}
                     </div>
                 )}
-                <PaginacaoControles currentPage={currentPage} totalPages={totalPages} totalItems={processedPedidos.length} itemsPerPage={itemsPerPage} onPageChange={setCurrentPage} />
+                {!loadingPedidos && currentPedidos.length > 0 && (
+                    <PaginacaoControles currentPage={currentPage} totalPages={totalPages} totalItems={processedPedidos.length} itemsPerPage={itemsPerPage} onPageChange={setCurrentPage} />
+                )}
             </TabsContent>
 
-            {/* ABERTOS & CANCELADOS */}
+            {/* ABERTOS */}
             <TabsContent value="abertos">
                 {viewMode === 'table' ? (
                     <PedidoTable 
@@ -1240,20 +1304,26 @@ export default function Pedidos() {
                     />
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {currentPedidos.map(pedido => (
-                            <PedidoGridCard 
-                                key={pedido.id} 
-                                pedido={pedido} 
-                                onEdit={handleEdit} 
-                                onView={handleView} 
-                                onLiquidar={handleLiquidar} 
-                                onCancelar={handleCancelar} 
-                                canDo={canDo} 
-                            />
-                        ))}
+                        {loadingPedidos ? (
+                            [...Array(8)].map((_, i) => <PedidoGridSkeleton key={i} />)
+                        ) : (
+                            currentPedidos.map(pedido => (
+                                <PedidoGridCard 
+                                    key={pedido.id} 
+                                    pedido={pedido} 
+                                    onEdit={handleEdit} 
+                                    onView={handleView} 
+                                    onLiquidar={handleLiquidar} 
+                                    onCancelar={handleCancelar} 
+                                    canDo={canDo} 
+                                />
+                            ))
+                        )}
                     </div>
                 )}
-                <PaginacaoControles currentPage={currentPage} totalPages={totalPages} totalItems={processedPedidos.length} itemsPerPage={itemsPerPage} onPageChange={setCurrentPage} />
+                {!loadingPedidos && currentPedidos.length > 0 && (
+                    <PaginacaoControles currentPage={currentPage} totalPages={totalPages} totalItems={processedPedidos.length} itemsPerPage={itemsPerPage} onPageChange={setCurrentPage} />
+                )}
             </TabsContent>
 
             <TabsContent value="cancelados">
@@ -1269,20 +1339,26 @@ export default function Pedidos() {
                     />
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {currentPedidos.map(pedido => (
-                            <PedidoGridCard 
-                                key={pedido.id} 
-                                pedido={pedido} 
-                                onEdit={handleEdit} 
-                                onView={handleView} 
-                                onLiquidar={handleLiquidar} 
-                                onCancelar={handleCancelar} 
-                                canDo={canDo} 
-                            />
-                        ))}
+                        {loadingPedidos ? (
+                            [...Array(8)].map((_, i) => <PedidoGridSkeleton key={i} />)
+                        ) : (
+                            currentPedidos.map(pedido => (
+                                <PedidoGridCard 
+                                    key={pedido.id} 
+                                    pedido={pedido} 
+                                    onEdit={handleEdit} 
+                                    onView={handleView} 
+                                    onLiquidar={handleLiquidar} 
+                                    onCancelar={handleCancelar} 
+                                    canDo={canDo} 
+                                />
+                            ))
+                        )}
                     </div>
                 )}
-                <PaginacaoControles currentPage={currentPage} totalPages={totalPages} totalItems={processedPedidos.length} itemsPerPage={itemsPerPage} onPageChange={setCurrentPage} />
+                {!loadingPedidos && currentPedidos.length > 0 && (
+                    <PaginacaoControles currentPage={currentPage} totalPages={totalPages} totalItems={processedPedidos.length} itemsPerPage={itemsPerPage} onPageChange={setCurrentPage} />
+                )}
             </TabsContent>
 
           </Tabs>
@@ -1440,14 +1516,12 @@ function ProducaoTab({ canDo }) {
         queryFn: () => base44.entities.ProducaoItem.list() 
     });
 
-    // LEITOR OFICIAL PARA ARQUIVOS .XLSX (COM FÔLEGO ANTI-TRAVAMENTO)
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         setUploadState({ isUploading: true, msg: 'Lendo arquivo (aguarde uns segundos)...' });
         
-        // Fôlego para o React conseguir desenhar o Loading na tela antes de ler o arquivo
         await new Promise(r => setTimeout(r, 200));
 
         try {
@@ -1456,7 +1530,6 @@ function ProducaoTab({ canDo }) {
             setUploadState({ isUploading: true, msg: 'Descompactando planilha .xlsx...' });
             await new Promise(r => setTimeout(r, 100));
 
-            // Lê o Excel de forma oficial
             const workbook = XLSX.read(buffer, { type: 'array' });
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
             const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
@@ -1468,7 +1541,6 @@ function ProducaoTab({ canDo }) {
             const totalRows = rows.length;
 
             for (let i = 0; i < totalRows; i++) {
-                // Fôlego de 5 milissegundos a cada 500 linhas processadas para não congelar o Chrome!
                 if (i > 0 && i % 500 === 0) {
                     setUploadState({ isUploading: true, msg: `Analisando linha ${i} de ${totalRows}...` });
                     await new Promise(r => setTimeout(r, 5));
@@ -1479,10 +1551,8 @@ function ProducaoTab({ canDo }) {
 
                 const colA = String(row[0]).trim();
                 
-                // Se chegar no rodapé, para a leitura
                 if (colA.toLowerCase().includes('total geral')) break;
 
-                // 1. CAPTURA O CABEÇALHO DO PEDIDO
                 if (colA === 'Pedido:') {
                     currentPedido = String(row[1]).replace('.0', '').trim();
                     currentClienteCodigo = String(row[7]).trim(); 
@@ -1495,7 +1565,6 @@ function ProducaoTab({ canDo }) {
                     continue;
                 }
 
-                // 2. CAPTURA A LINHA DA PEÇA
                 const isItemRow = colA !== '' && colA.length < 15 && /^(\d+(\.\d+)?)$/.test(colA);
 
                 if (currentPedido && isItemRow) {
@@ -1506,7 +1575,6 @@ function ProducaoTab({ canDo }) {
                         descricaoProd = row.find((c, idx) => idx > 1 && typeof c === 'string' && c.trim().length > 5) || 'Produto sem descrição';
                     }
 
-                    // Puxa a quantidade da direita para a esquerda
                     let qtdeProd = parseFloat(row[10]);
                     if (isNaN(qtdeProd) || qtdeProd <= 0) {
                         for (let c = row.length - 1; c >= 2; c--) {
@@ -1548,13 +1616,12 @@ function ProducaoTab({ canDo }) {
         }
     };
 
-    // FUNÇÃO DE GRAVAÇÃO (WIPE & REPLACE) EM LOTES
     const handleSalvarProducao = async () => {
         if (!previewData || previewData.length === 0) return;
         setIsSaving(true);
         setUploadState({ isUploading: true, msg: 'Preparando envio...' });
         
-        const BATCH_SIZE = 400; // Envia de 400 em 400
+        const BATCH_SIZE = 400;
 
         try {
             if (producaoAtual.length > 0) {
