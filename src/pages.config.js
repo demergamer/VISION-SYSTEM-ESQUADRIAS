@@ -53,6 +53,7 @@ import Cadastro from './pages/Cadastro';
 import CaixaDiario from './pages/CaixaDiario';
 import Calendario from './pages/Calendario';
 import Cheques from './pages/Cheques';
+import Clientes from './pages/Clientes';
 import Comissoes from './pages/Comissoes';
 import Configuracoes from './pages/Configuracoes';
 import ConfiguracoesLojas from './pages/ConfiguracoesLojas';
@@ -79,7 +80,6 @@ import Representation from './pages/Representation';
 import Usuarios from './pages/Usuarios';
 import VisionMessage from './pages/VisionMessage';
 import Welcome from './pages/Welcome';
-import Clientes from './pages/Clientes';
 import __Layout from './Layout.jsx';
 
 
@@ -90,6 +90,7 @@ export const PAGES = {
     "CaixaDiario": CaixaDiario,
     "Calendario": Calendario,
     "Cheques": Cheques,
+    "Clientes": Clientes,
     "Comissoes": Comissoes,
     "Configuracoes": Configuracoes,
     "ConfiguracoesLojas": ConfiguracoesLojas,
@@ -116,7 +117,6 @@ export const PAGES = {
     "Usuarios": Usuarios,
     "VisionMessage": VisionMessage,
     "Welcome": Welcome,
-    "Clientes": Clientes,
 }
 
 export const pagesConfig = {
