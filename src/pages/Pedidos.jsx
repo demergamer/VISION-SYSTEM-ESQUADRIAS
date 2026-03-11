@@ -295,7 +295,7 @@ export default function Pedidos() {
     setIsProcessing(true);
     try {
       const user = await base44.auth.me();
-      const todosPedidos = await base44.entities.Pedido.list();
+      const todosPedidos = await base44.entities.Pedido.list('-created_date', 5000);
       const proximoNumero = todosPedidos.length > 0
         ? String(Math.max(...todosPedidos.map(p => parseInt(p.numero_pedido?.replace(/\D/g,'')) || 0)) + 1)
         : '1';
@@ -573,7 +573,7 @@ export default function Pedidos() {
     setRefreshMessage('Conectando ao banco de dados...');
     try {
         const [latestPedidos, latestRotas, latestClientes] = await Promise.all([
-            base44.entities.Pedido.list(),
+            base44.entities.Pedido.list('-created_date', 5000),
             base44.entities.RotaImportada.list(),
             base44.entities.Cliente.list()
         ]);
