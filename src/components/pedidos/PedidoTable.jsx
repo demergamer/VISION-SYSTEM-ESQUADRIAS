@@ -110,7 +110,7 @@ export default function PedidoTable({
                 </div>
               </TableCell>
               <TableCell className="text-sm text-slate-600">
-                {pedido.data_entrega ? format(new Date(pedido.data_entrega), 'dd/MM/yyyy') : '-'}
+                {pedido.data_entrega ? (() => { const d = new Date(pedido.data_entrega); return isNaN(d.getTime()) ? '-' : format(d, 'dd/MM/yyyy'); })() : '-'}
               </TableCell>
               <TableCell className="text-right font-medium text-slate-700">
                 {formatCurrency(pedido.valor_pedido)}
