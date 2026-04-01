@@ -234,6 +234,7 @@ export default function Pedidos() {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showLiquidarModal, setShowLiquidarModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [importTipo, setImportTipo] = useState('producao'); // 'producao' | 'rota'
   const [showRotaModal, setShowRotaModal] = useState(false);
   const [showAlterarPortadorModal, setShowAlterarPortadorModal] = useState(false);
   const [showCadastrarClienteModal, setShowCadastrarClienteModal] = useState(false);
@@ -966,9 +967,31 @@ export default function Pedidos() {
                         <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Ações</DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => setShowImportModal(true)}><Upload className="w-4 h-4 mr-2" /> Importar Planilha</DropdownMenuItem>
+                            <DropdownMenuLabel className="text-xs text-slate-400 font-normal">Importação</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => { setImportTipo('producao'); setShowImportModal(true); }}><Factory className="w-4 h-4 mr-2 text-blue-500" /> Importar Produção</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => { setImportTipo('rota'); setShowImportModal(true); }}><Truck className="w-4 h-4 mr-2 text-purple-500" /> Importar Entrega</DropdownMenuItem>
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => setShowRotaCobrancaModal(true)}><FileText className="w-4 h-4 mr-2" /> Rota de Cobrança</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => { setActiveTab('cancelados'); }}><XIcon className="w-4 h-4 mr-2" /> Ver Cancelados</DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={async () => {
+                                if (!window.confirm('Apagar TODOS os pedidos com status "Em Produção"? Esta ação não pode ser desfeita.')) return;
+                                const toastId = toast.loading('Limpando base de produção...');
+                                const res = await base44.functions.invoke('limparProducao', {});
+                                toast.dismiss(toastId);
+                                if (res.data?.success) {
+                                  queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+                                  queryClient.invalidateQueries({ queryKey: ['pedidos_emproducao'] });
+                                  toast.success(res.data.message);
+                                } else {
+                                  toast.error('Erro ao limpar produção.');
+                                }
+                              }}
+                              className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" /> Limpar Produção
+                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={handleRefresh} disabled={refreshingData}><RefreshCw className={cn("w-4 h-4 mr-2", refreshingData && "animate-spin")} /> Atualizar Dados</DropdownMenuItem>
                         </DropdownMenuContent>
@@ -1365,11 +1388,17 @@ export default function Pedidos() {
 
           </Tabs>
 
-          <ModalContainer open={showImportModal} onClose={() => setShowImportModal(false)} title="Importar Pedidos" size="lg">
+          <ModalContainer 
+            open={showImportModal} 
+            onClose={() => setShowImportModal(false)} 
+            title={importTipo === 'producao' ? 'Importar Produção (pedidoqt.xlsx)' : 'Importar Entrega (relpedsx.xls)'}
+            size="lg"
+          >
             <ImportarPedidos 
                 clientes={clientes} 
                 pedidosExistentes={pedidos} 
-                onImportComplete={() => { queryClient.invalidateQueries({queryKey:['pedidos']}); queryClient.invalidateQueries({queryKey:['rotas']}); setShowImportModal(false); toast.success('Importado!'); }} 
+                tipoForcado={importTipo}
+                onImportComplete={() => { queryClient.invalidateQueries({queryKey:['pedidos']}); queryClient.invalidateQueries({queryKey:['rotas']}); setShowImportModal(false); }} 
                 onCancel={() => setShowImportModal(false)} 
             />
           </ModalContainer>
@@ -1508,238 +1537,18 @@ export default function Pedidos() {
 
 // --- COMPONENTE DA ABA DE PRODUÇÃO ---
 function ProducaoTab({ canDo }) {
-    const [uploadState, setUploadState] = useState({ isUploading: false, msg: '' });
-    const [isSaving, setIsSaving] = useState(false);
-    const [previewData, setPreviewData] = useState(null);
-    const queryClient = useQueryClient();
-
     const { data: producaoAtual = [], isLoading } = useQuery({
-        queryKey: ['producao_items'],
-        queryFn: () => base44.entities.ProducaoItem.list() 
+        queryKey: ['pedidos_emproducao'],
+        queryFn: () => base44.entities.Pedido.filter({ status: 'emproducao' })
     });
-
-    const handleFileUpload = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        setUploadState({ isUploading: true, msg: 'Lendo arquivo (aguarde uns segundos)...' });
-        
-        await new Promise(r => setTimeout(r, 200));
-
-        try {
-            const buffer = await file.arrayBuffer();
-            
-            setUploadState({ isUploading: true, msg: 'Descompactando planilha .xlsx...' });
-            await new Promise(r => setTimeout(r, 100));
-
-            const workbook = XLSX.read(buffer, { type: 'array' });
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
-
-            let currentPedido = '';
-            let currentClienteCodigo = '';
-            let currentClienteNome = '';
-            const parsedItems = [];
-            const totalRows = rows.length;
-
-            for (let i = 0; i < totalRows; i++) {
-                if (i > 0 && i % 500 === 0) {
-                    setUploadState({ isUploading: true, msg: `Analisando linha ${i} de ${totalRows}...` });
-                    await new Promise(r => setTimeout(r, 5));
-                }
-
-                const row = rows[i];
-                if (!row || row.length === 0) continue;
-
-                const colA = String(row[0]).trim();
-                
-                if (colA.toLowerCase().includes('total geral')) break;
-
-                if (colA === 'Pedido:') {
-                    currentPedido = String(row[1]).replace('.0', '').trim();
-                    currentClienteCodigo = String(row[7]).trim(); 
-                    currentClienteNome = String(row[8]).trim();   
-                    
-                    const nextRow = rows[i + 1];
-                    if (nextRow && (String(nextRow[0]).trim() === 'F' || String(nextRow[0]).trim() === 'J') && nextRow[7]) {
-                        currentClienteNome = String(nextRow[7]).trim();
-                    }
-                    continue;
-                }
-
-                const isItemRow = colA !== '' && colA.length < 15 && /^(\d+(\.\d+)?)$/.test(colA);
-
-                if (currentPedido && isItemRow) {
-                    const codigoProd = String(row[1] || 'S/C').trim();
-                    
-                    let descricaoProd = String(row[3] || '').trim();
-                    if (!descricaoProd || descricaoProd.length < 3) {
-                        descricaoProd = row.find((c, idx) => idx > 1 && typeof c === 'string' && c.trim().length > 5) || 'Produto sem descrição';
-                    }
-
-                    let qtdeProd = parseFloat(row[10]);
-                    if (isNaN(qtdeProd) || qtdeProd <= 0) {
-                        for (let c = row.length - 1; c >= 2; c--) {
-                            if (!isNaN(parseFloat(row[c])) && parseFloat(row[c]) > 0) {
-                                qtdeProd = parseFloat(row[c]);
-                                break;
-                            }
-                        }
-                    }
-
-                    if (descricaoProd && qtdeProd > 0) {
-                        parsedItems.push({
-                            numero_pedido: currentPedido,
-                            cliente_codigo: currentClienteCodigo,
-                            cliente_nome: currentClienteNome,
-                            produto_codigo: codigoProd,
-                            descricao: descricaoProd,
-                            quantidade: qtdeProd,
-                            valor_unitario: 0, 
-                            valor_total: 0
-                        });
-                    }
-                }
-            }
-
-            if (parsedItems.length === 0) {
-                toast.warning("Arquivo lido, mas nenhuma peça válida foi encontrada. Verifique as colunas.");
-            } else {
-                setPreviewData(parsedItems);
-                toast.success(`Leitura concluída! ${parsedItems.length} peças encontradas.`);
-            }
-
-        } catch (error) {
-            console.error(error);
-            toast.error("Erro grave ao ler o arquivo Excel.");
-        } finally {
-            setUploadState({ isUploading: false, msg: '' });
-            e.target.value = ''; 
-        }
-    };
-
-    const handleSalvarProducao = async () => {
-        if (!previewData || previewData.length === 0) return;
-        setIsSaving(true);
-        setUploadState({ isUploading: true, msg: 'Preparando envio...' });
-        
-        const BATCH_SIZE = 400;
-
-        try {
-            if (producaoAtual.length > 0) {
-                for (let i = 0; i < producaoAtual.length; i += BATCH_SIZE) {
-                    setUploadState({ isUploading: true, msg: `Limpando base antiga: Lote ${Math.floor(i/BATCH_SIZE)+1}...` });
-                    const lote = producaoAtual.slice(i, i + BATCH_SIZE);
-                    await Promise.all(lote.map(item => base44.entities.ProducaoItem.delete(item.id)));
-                    await new Promise(r => setTimeout(r, 150)); 
-                }
-            }
-
-            const payload = previewData.map(item => ({
-                ...item,
-                data_atualizacao: new Date().toISOString()
-            }));
-            
-            for (let i = 0; i < payload.length; i += BATCH_SIZE) {
-                setUploadState({ isUploading: true, msg: `Salvando produção: ${i} de ${payload.length}...` });
-                const lotePayload = payload.slice(i, i + BATCH_SIZE);
-                await base44.entities.ProducaoItem.bulkCreate(lotePayload);
-                await new Promise(r => setTimeout(r, 150)); 
-            }
-            
-            await queryClient.invalidateQueries({ queryKey: ['producao_items'] });
-            setPreviewData(null);
-            toast.success("✅ Fábrica atualizada com sucesso!");
-        } catch (error) {
-            toast.error("Erro na comunicação com o servidor.");
-            console.error(error);
-        } finally {
-            setIsSaving(false);
-            setUploadState({ isUploading: false, msg: '' });
-        }
-    };
-
-    const handleLimparProducao = async () => {
-        if (!window.confirm("Isso vai apagar todos os itens em produção do sistema. Tem certeza?")) return;
-        setIsSaving(true);
-        setUploadState({ isUploading: true, msg: 'Esvaziando a fábrica...' });
-        const BATCH_SIZE = 400;
-
-        try {
-            for (let i = 0; i < producaoAtual.length; i += BATCH_SIZE) {
-                const lote = producaoAtual.slice(i, i + BATCH_SIZE);
-                await Promise.all(lote.map(item => base44.entities.ProducaoItem.delete(item.id)));
-                await new Promise(r => setTimeout(r, 150)); 
-            }
-            await queryClient.invalidateQueries({ queryKey: ['producao_items'] });
-            toast.success("Base de produção totalmente esvaziada!");
-        } catch (error) {
-            toast.error("Erro ao limpar base.");
-        } finally {
-            setIsSaving(false);
-            setUploadState({ isUploading: false, msg: '' });
-        }
-    };
-
-    const displayData = previewData || producaoAtual;
-    const isPreview = !!previewData;
-    const lastSyncDate = producaoAtual?.[0]?.data_atualizacao || producaoAtual?.[0]?.created_date;
 
     return (
         <div className="space-y-6">
-            <Card className="p-6 bg-gradient-to-r from-slate-800 to-slate-900 border-slate-700 text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl">
-                <div>
-                    <h2 className="text-2xl font-bold flex items-center gap-2">
-                        <Factory className="w-6 h-6 text-blue-400" />
-                        Chão de Fábrica (Sincronização Neo)
-                    </h2>
-                    <p className="text-slate-400 mt-1 text-sm max-w-xl">
-                        Suba o relatório <strong>pedidoqt.xlsx</strong>. Os dados anteriores serão apagados e substituídos instantaneamente.
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-3 shrink-0">
-                    {canDo('Pedidos', 'adicionar') && (
-                        <>
-                            {producaoAtual.length > 0 && !previewData && (
-                                <Button variant="outline" className="border-slate-600 text-slate-300 hover:bg-red-500 hover:text-white hover:border-red-500 transition-colors" onClick={handleLimparProducao} disabled={uploadState.isUploading || isSaving}>
-                                    <Trash2 className="w-4 h-4 mr-2" /> Esvaziar Base
-                                </Button>
-                            )}
-
-                            <input type="file" accept=".xls,.xlsx,.csv" id="neo-upload" className="hidden" onChange={handleFileUpload} />
-                            <Label htmlFor="neo-upload" className={cn("inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 cursor-pointer", (uploadState.isUploading || isSaving) && "opacity-50 cursor-not-allowed")}>
-                                {(uploadState.isUploading || isSaving) ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UploadCloud className="w-4 h-4 mr-2" />}
-                                {(uploadState.isUploading || isSaving) ? uploadState.msg : 'Subir Planilha do Neo'}
-                            </Label>
-                        </>
-                    )}
-                </div>
-            </Card>
-
-            {previewData && (
-                <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-center justify-between animate-in fade-in">
-                    <div>
-                        <h3 className="font-bold text-amber-800">⚠️ Modo de Visualização (Prévia)</h3>
-                        <p className="text-sm text-amber-700">Você carregou <strong>{previewData.length} peças</strong>. Elas ainda não estão salvas no sistema.</p>
-                    </div>
-                    <div className="flex gap-2">
-                        <Button variant="outline" className="bg-white border-amber-300 text-amber-700 hover:bg-amber-100" onClick={() => setPreviewData(null)} disabled={uploadState.isUploading || isSaving}>Cancelar</Button>
-                        <Button className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-200" onClick={handleSalvarProducao} disabled={uploadState.isUploading || isSaving}>
-                            {(uploadState.isUploading || isSaving) ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
-                            {(uploadState.isUploading || isSaving) ? 'Processando Lotes...' : 'Confirmar Substituição'}
-                        </Button>
-                    </div>
-                </div>
-            )}
-
             <Emproduçaotable 
-                data={displayData} 
-                isLoading={isLoading && !previewData} 
-                isPreview={isPreview}
-                lastSync={lastSyncDate}
+                data={producaoAtual}
+                isLoading={isLoading}
+                onView={() => {}}
             />
-            
         </div>
     );
 }

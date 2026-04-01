@@ -246,7 +246,7 @@ function detectarTipoArquivo(fileName, rows) {
   return temPedidoTag ? 'producao' : 'rota';
 }
 
-export default function ImportarPedidos({ clientes, pedidosExistentes = [], onImportComplete, onCancel }) {
+export default function ImportarPedidos({ clientes, pedidosExistentes = [], onImportComplete, onCancel, tipoForcado }) {
   const [arquivos, setArquivos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingFile, setLoadingFile] = useState(false);
@@ -296,7 +296,7 @@ export default function ImportarPedidos({ clientes, pedidosExistentes = [], onIm
         const wb = XLSX.read(buffer, { type: 'array' });
         const sheet = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-        const tipo = detectarTipoArquivo(file.name, rows);
+        const tipo = tipoForcado || detectarTipoArquivo(file.name, rows);
 
         let pedidos = [];
         let rotaCodigo = '';
@@ -560,9 +560,14 @@ export default function ImportarPedidos({ clientes, pedidosExistentes = [], onIm
         <label htmlFor="file-upload-multi" className="cursor-pointer flex flex-col items-center gap-2">
           <FileSpreadsheet className="w-10 h-10 text-slate-400" />
           <p className="font-medium text-slate-700">
-            Clique para selecionar <span className="text-blue-600">pedidoqt.xlsx</span> ou <span className="text-purple-600">relpedsx.xls</span>
+            {tipoForcado === 'producao'
+              ? <>Clique para selecionar <span className="text-blue-600">pedidoqt.xlsx</span></>
+              : tipoForcado === 'rota'
+              ? <>Clique para selecionar <span className="text-purple-600">relpedsx.xls</span></>
+              : <>Clique para selecionar <span className="text-blue-600">pedidoqt.xlsx</span> ou <span className="text-purple-600">relpedsx.xls</span></>
+            }
           </p>
-          <p className="text-xs text-slate-400">O tipo é detectado automaticamente. Você pode selecionar vários arquivos.</p>
+          <p className="text-xs text-slate-400">{tipoForcado ? 'Tipo fixado pelo menu.' : 'O tipo é detectado automaticamente. Você pode selecionar vários arquivos.'}</p>
         </label>
         {loadingFile && (
           <div className="flex justify-center items-center gap-2 mt-3 text-slate-500">
