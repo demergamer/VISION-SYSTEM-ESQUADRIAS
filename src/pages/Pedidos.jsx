@@ -12,7 +12,7 @@ import {
   FileText, ArrowLeft, Filter, Upload, Truck, Clock, CheckCircle, XCircle,
   MoreHorizontal, LayoutGrid, List, MapPin, Calendar, Edit, Eye, RotateCcw,
   SlidersHorizontal, X as XIcon, Loader2, Factory, Split, UserPlus, AlertCircle,
-  RepeatIcon, UserCheck, GitMerge, UploadCloud, Trash2
+  RepeatIcon, UserCheck, GitMerge, UploadCloud
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Link } from "react-router-dom";
@@ -973,25 +973,6 @@ export default function Pedidos() {
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => setShowRotaCobrancaModal(true)}><FileText className="w-4 h-4 mr-2" /> Rota de Cobrança</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => { setActiveTab('cancelados'); }}><XIcon className="w-4 h-4 mr-2" /> Ver Cancelados</DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem 
-                              onClick={async () => {
-                                if (!window.confirm('Apagar TODOS os pedidos com status "Em Produção"? Esta ação não pode ser desfeita.')) return;
-                                const toastId = toast.loading('Limpando base de produção...');
-                                const res = await base44.functions.invoke('limparProducao', {});
-                                toast.dismiss(toastId);
-                                if (res.data?.success) {
-                                  queryClient.invalidateQueries({ queryKey: ['pedidos'] });
-                                  queryClient.invalidateQueries({ queryKey: ['pedidos_emproducao'] });
-                                  toast.success(res.data.message);
-                                } else {
-                                  toast.error('Erro ao limpar produção.');
-                                }
-                              }}
-                              className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" /> Limpar Produção
-                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={handleRefresh} disabled={refreshingData}><RefreshCw className={cn("w-4 h-4 mr-2", refreshingData && "animate-spin")} /> Atualizar Dados</DropdownMenuItem>
                         </DropdownMenuContent>
