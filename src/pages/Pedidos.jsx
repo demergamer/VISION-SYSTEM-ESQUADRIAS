@@ -184,7 +184,7 @@ const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReve
         <div className="shrink-0">{getStatusBadge(pedido.status, pedido.data_entrega)}</div>
       </div>
       <div className="space-y-1 py-2 border-t border-slate-100 border-b">
-        <div className="flex items-center gap-2 text-sm text-slate-600"><Calendar className="w-3.5 h-3.5 text-slate-400" /><span>{pedido.data_entrega ? format(new Date(pedido.data_entrega), 'dd/MM/yyyy') : '-'}</span></div>
+        <div className="flex items-center gap-2 text-sm text-slate-600"><Calendar className="w-3.5 h-3.5 text-slate-400" /><span>{pedido.data_entrega ? (() => { const d = new Date(pedido.data_entrega); return isNaN(d.getTime()) ? '-' : format(d, 'dd/MM/yyyy'); })() : '-'}</span></div>
         <div className="flex items-center gap-2 text-sm text-slate-600"><MapPin className="w-3.5 h-3.5 text-slate-400" /><span className="truncate">{pedido.cliente_regiao || 'Sem região'}</span></div>
       </div>
       <div className="flex justify-between items-end mt-auto">
@@ -792,6 +792,12 @@ export default function Pedidos() {
   };
 
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
+  const formatDate = (value, fmt = 'dd/MM/yyyy') => {
+    if (!value) return '-';
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return '-';
+    return format(d, fmt);
+  };
 
   const handleAprovarSolicitacao = async (dadosAprovacao) => {
       setIsProcessing(true);
@@ -1105,7 +1111,7 @@ export default function Pedidos() {
                                 <div className="flex items-center gap-4 text-xs text-slate-500 py-2 border-t border-slate-100/50 border-b">
                                     <div className="flex items-center gap-1">
                                         <Calendar className="w-3.5 h-3.5" /> 
-                                        {p.data_entrega ? format(new Date(p.data_entrega), 'dd/MM/yyyy') : '-'}
+                                        {formatDate(p.data_entrega)}
                                     </div>
                                     <div className="flex items-center gap-1">
                                         <MapPin className="w-3.5 h-3.5" /> 
@@ -1171,7 +1177,7 @@ export default function Pedidos() {
                                 <Card key={aut.id} className="p-5 border-orange-200 bg-orange-50/30 cursor-pointer hover:shadow-md transition-all" onClick={() => { setSelectedAutorizacao(aut); setShowAutorizacaoModal(true); }}>
                                     <div className="flex justify-between items-start mb-2">
                                         <Badge className="bg-orange-100 text-orange-700">Solicitação #{aut.numero_solicitacao}</Badge>
-                                        <span className="text-xs text-slate-500">{format(new Date(aut.created_date), 'dd/MM HH:mm')}</span>
+                                        <span className="text-xs text-slate-500">{formatDate(aut.created_date, 'dd/MM HH:mm')}</span>
                                     </div>
                                     <p className="font-bold text-slate-800 mb-1">{aut.cliente_nome}</p>
                                     <p className="text-sm text-slate-600 mb-3">{aut.pedidos_ids?.length || 0} pedidos</p>
@@ -1218,7 +1224,7 @@ export default function Pedidos() {
                                         <Badge variant="outline" className="border-emerald-200 text-emerald-700 bg-emerald-50">Liquidado</Badge>
                                     </div>
                                     <p className="text-sm text-slate-600 mb-1">{bordero.cliente_nome || "Vários Clientes"}</p>
-                                    <p className="text-xs text-slate-400 mb-3">{format(new Date(bordero.created_date), 'dd/MM/yyyy HH:mm')}</p>
+                                    <p className="text-xs text-slate-400 mb-3">{formatDate(bordero.created_date, 'dd/MM/yyyy HH:mm')}</p>
                                     <div className="flex justify-between items-end border-t pt-3">
                                         <span className="text-xs text-slate-500">{bordero.pedidos_ids?.length || 0} pedidos</span>
                                         <span className="font-bold text-emerald-600 text-lg">{formatCurrency(bordero.valor_total)}</span>
