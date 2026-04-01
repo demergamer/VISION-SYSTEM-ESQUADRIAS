@@ -18,6 +18,15 @@ import PortForm from "@/components/entradas/PortForm";
 import PortCard from "@/components/entradas/PortCard";
 import PortDetalhes from "@/components/entradas/PortDetalhes";
 
+const statusConfig = {
+  aguardando_vinculo: { label: 'Aguardando Vínculo', color: 'bg-yellow-100 text-yellow-700' },
+  em_separacao: { label: 'Em Separação', color: 'bg-blue-100 text-blue-700' },
+  aguardando_liquidacao: { label: 'Aguard. Liquidação', color: 'bg-purple-100 text-purple-700' },
+  parcialmente_usado: { label: 'Parcialmente Usado', color: 'bg-orange-100 text-orange-700' },
+  finalizado: { label: 'Finalizado', color: 'bg-emerald-100 text-emerald-700' },
+  devolvido: { label: 'Devolvido', color: 'bg-slate-100 text-slate-700' },
+};
+
 export default function EntradaCaucao() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');

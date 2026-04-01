@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Search, DollarSign, Percent, Wallet, Loader2, Plus, X, Upload, FileText, Trash2, Info, AlertTriangle, Sparkles } from "lucide-react";
+import { Search, DollarSign, Percent, Wallet, Loader2, Plus, X, Upload, FileText, Trash2, Info, AlertTriangle, Sparkles, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ModalContainer from "@/components/modals/ModalContainer";
 import AdicionarChequeModal from "@/components/pedidos/AdicionarChequeModal";
@@ -105,6 +105,32 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
   const [excedentePendente, setExcedentePendente] = useState(0);
 
   const [usarPortsAutomatico, setUsarPortsAutomatico] = useState(false);
+  const [chequesDevolvidos, setChequesDevolvidos] = useState([]);
+
+  // Cheques devolvidos do cliente selecionado
+  const { data: chequesDevolvidos_db = [] } = useQuery({
+    queryKey: ['cheques_devolvidos_liq', selectedPedidos[0]?.cliente_codigo],
+    queryFn: async () => {
+      if (!selectedPedidos[0]?.cliente_codigo) return [];
+      const todos = await base44.entities.Cheque.list('-created_date', 200);
+      return todos.filter(c =>
+        c.cliente_codigo === selectedPedidos[0].cliente_codigo &&
+        c.status === 'devolvido' &&
+        c.status_pagamento_devolucao !== 'pago'
+      );
+    },
+    enabled: selectedPedidos.length > 0 && !!selectedPedidos[0]?.cliente_codigo
+  });
+
+  const toggleChequeDev = (cheque) => {
+    setChequesDevolvidos(prev =>
+      prev.find(c => c.id === cheque.id)
+        ? prev.filter(c => c.id !== cheque.id)
+        : [...prev, cheque]
+    );
+  };
+
+  const totalChequesDevolvidos = chequesDevolvidos.reduce((s, c) => s + (c.valor || 0), 0);
 
   const { data: creditos = [] } = useQuery({
     queryKey: ['creditos', selectedPedidos[0]?.cliente_codigo],
@@ -356,157 +382,33 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
     }
   };
 
-  // --- Executa a liquidação de fato ---
+  // --- PARTE 7: Executa liquidação via backend function (evita timeout em 300+ pedidos) ---
   const executarLiquidacao = async (sobraParaCredito = 0) => {
     setShowCreditoModal(false);
     setIsSaving(true);
     try {
-      const user = await base44.auth.me();
-      const totais = calcularTotais();
-      const formasManuaisAtivas = formasPagamento.filter(fp => !fp.isReadOnly && !fp.isSinal);
-      const dinheirNovoTotal = formasManuaisAtivas.reduce((sum, fp) => sum + (parseFloat(fp?.valor) || 0), 0);
-      const totalSinaisInjetados = sinaisInjetados.reduce((sum, s) => sum + s.valor, 0);
-
-      let devolucaoRestante = totais.devolucaoValor;
-      let descontoRestante = totais.desconto;
-      let creditoRestante = creditoAUsar;
-      let pagamentoRestante = dinheirNovoTotal;
-
-      const portsUsados = [];
-      const portsParaUsar = usarPortsAutomatico ? [...pedidosComPort] : [];
-      const pedidosProcessados = [];
-
-      for (const pedido of selectedPedidos) {
-        if (!pedido?.id) continue;
-        let saldoAtual = pedido?.saldo_restante ?? Math.max(0, (pedido?.valor_pedido || 0) - (pedido?.total_pago || 0));
-        let devolucaoAplicada = 0, descontoAplicado = 0, portAplicado = 0, creditoAplicado = 0, pagamentoAplicado = 0, portUsadoInfo = null;
-
-        if (devolucaoRestante > 0 && saldoAtual > 0) { const v = Math.min(saldoAtual, devolucaoRestante); devolucaoAplicada = v; saldoAtual -= v; devolucaoRestante -= v; }
-        if (descontoRestante > 0 && saldoAtual > 0) { const v = Math.min(saldoAtual, descontoRestante); descontoAplicado = v; saldoAtual -= v; descontoRestante -= v; }
-
-        if (usarPortsAutomatico && saldoAtual > 0) {
-          const portParaEstePedido = portsParaUsar.find(port => port?.pedidos_ids?.includes(pedido?.id) && (port?.saldo_disponivel || 0) > 0);
-          if (portParaEstePedido) {
-            const valorUsar = Math.min(saldoAtual, portParaEstePedido?.saldo_disponivel || 0);
-            portAplicado = valorUsar; saldoAtual -= valorUsar; portParaEstePedido.saldo_disponivel -= valorUsar;
-            portUsadoInfo = { id: portParaEstePedido?.id, numero: portParaEstePedido?.numero_port, valorUsado: valorUsar };
-            const portJaUsado = portsUsados.find(p => p?.id === portParaEstePedido?.id);
-            if (portJaUsado) portJaUsado.valorTotal += valorUsar;
-            else portsUsados.push({ id: portParaEstePedido?.id, numero: portParaEstePedido?.numero_port, valorTotal: valorUsar, saldoRestante: portParaEstePedido?.saldo_disponivel || 0, comprovantes_urls: portParaEstePedido?.comprovantes_urls || [] });
-          }
-        }
-
-        if (creditoRestante > 0 && saldoAtual > 0) { const v = Math.min(saldoAtual, creditoRestante); creditoAplicado = v; saldoAtual -= v; creditoRestante -= v; }
-        if (pagamentoRestante > 0 && saldoAtual > 0) { const v = Math.min(saldoAtual, pagamentoRestante); pagamentoAplicado = v; saldoAtual -= v; pagamentoRestante -= v; }
-
-        pedidosProcessados.push({ pedido, novoTotalPago: (pedido?.total_pago || 0) + pagamentoAplicado + creditoAplicado + devolucaoAplicada + portAplicado, novoDescontoTotal: (pedido?.desconto_dado || 0) + descontoAplicado, novoSaldo: Math.max(0, saldoAtual), devolucaoAplicada, descontoAplicado, portAplicado, portUsadoInfo, creditoAplicado, pagamentoAplicado });
-      }
-
-      // Borderô
-      const todosBorderos = await base44.entities.Bordero.list();
-      const proximoNumeroBordero = todosBorderos.length > 0 ? Math.max(...todosBorderos.map(b => b.numero_bordero || 0)) + 1 : 1;
-
-      let todosChequesUsados = [];
-      const formasManuaisStr = formasManuaisAtivas.filter(fp => parseFloat(fp.valor) > 0).map(fp => {
-        let str = `${fp.tipo.toUpperCase()}: ${formatCurrency(parseFloat(fp.valor))}`;
-        if (fp.tipo === 'credito' && fp.parcelas !== '1') str += ` (${fp.parcelas}x)`;
-        if (fp.chequesSalvos && fp.chequesSalvos.length > 0) { str += ` | ${fp.chequesSalvos.length} cheque(s)`; todosChequesUsados = [...todosChequesUsados, ...fp.chequesSalvos]; }
-        return str;
-      }).join(' | ');
-
-      const sinaisStr = sinaisInjetados.map(s => `SINAL (Histórico) · ${s.referencia}: ${formatCurrency(s.valor)}`).join(' | ');
-      const creditoEfetivamenteUsado = creditoAUsar - creditoRestante;
-      const totalPortUsado = portsUsados.reduce((sum, p) => sum + p.valorTotal, 0);
-
-      let formasFinal = [sinaisStr, formasManuaisStr].filter(Boolean).join(' | ');
-      if (totalPortUsado > 0) formasFinal += ` | SINAL PORT (${portsUsados.map(p => `#${p.numero}`).join(', ')}): ${formatCurrency(totalPortUsado)}`;
-      if (creditoEfetivamenteUsado > 0) formasFinal += ` | CRÉDITO: ${formatCurrency(creditoEfetivamenteUsado)}`;
-      if (totais.desconto > 0) formasFinal += ` | DESCONTO: ${formatCurrency(totais.desconto)}`;
-      if (totais.devolucaoValor > 0) formasFinal += ` | DEVOLUÇÃO: ${formatCurrency(totais.devolucaoValor)}`;
-
-      // Comprovantes = todos os comprovantes inline das formas + comprovante de devolução + ports
-      let comprovantesFinais = formasManuaisAtivas.map(fp => fp.comprovante).filter(Boolean);
-      if (devolucaoComprovante) comprovantesFinais.push(devolucaoComprovante);
-      portsUsados.forEach(port => { if (port.comprovantes_urls) comprovantesFinais = [...comprovantesFinais, ...port.comprovantes_urls]; });
-
-      const chequesAnexos = todosChequesUsados.map(ch => ({ numero: ch.numero_cheque, banco: ch.banco, agencia: ch.agencia, conta: ch.conta, emitente: ch.emitente, valor: ch.valor, data_vencimento: ch.data_vencimento, anexo_foto_url: ch.anexo_foto_url, anexo_video_url: ch.anexo_video_url }));
-      const valorTotalBordero = dinheirNovoTotal + creditoEfetivamenteUsado + totalPortUsado + totalSinaisInjetados;
-
-      let observacaoBordero = `Desconto: ${formatCurrency(totais.desconto)} | Devolução: ${formatCurrency(totais.devolucaoValor)} | ${selectedPedidos.length} pedidos`;
-      if (devolucaoMotivo) observacaoBordero += ` | Motivo devolução: ${devolucaoMotivo}`;
-      if (totalPortUsado > 0) observacaoBordero += ` | PORTs usados: ${portsUsados.map(p => `#${p?.numero || 'N/A'}`).join(', ')}`;
-
-      await base44.entities.Bordero.create({
-        numero_bordero: proximoNumeroBordero,
-        tipo_liquidacao: 'massa',
-        cliente_codigo: selectedPedidos[0]?.cliente_codigo || '',
-        cliente_nome: selectedPedidos[0]?.cliente_nome || '',
-        pedidos_ids: selectedPedidos.map(p => p?.id).filter(Boolean),
-        valor_total: valorTotalBordero,
-        forma_pagamento: formasFinal,
-        comprovantes_urls: comprovantesFinais,
-        cheques_anexos: chequesAnexos,
-        observacao: observacaoBordero,
-        liquidado_por: user?.email || ''
+      const res = await base44.functions.invoke('liquidarMassaTransaction', {
+        selectedPedidosIds: selectedPedidos.map(p => p.id).filter(Boolean),
+        formasPagamento: formasPagamento.filter(fp => !fp.isReadOnly && !fp.isSinal),
+        sinaisInjetados,
+        creditosSelecionadosIds: creditosSelecionados,
+        descontoValor,
+        descontoTipo,
+        devolucao,
+        devolucaoMotivo,
+        devolucaoComprovante,
+        usarPortsAutomatico,
+        sobraParaCredito,
+        chequesDevolvidos: chequesDevolvidos.map(c => ({ id: c.id, numero_cheque: c.numero_cheque, valor: c.valor, observacao: c.observacao }))
       });
 
-      for (const proc of pedidosProcessados) {
-        if (!proc?.pedido?.id) continue;
-        await base44.entities.Pedido.update(proc.pedido.id, {
-          total_pago: proc?.novoTotalPago || 0,
-          desconto_dado: proc?.novoDescontoTotal || 0,
-          saldo_restante: proc?.novoSaldo || 0,
-          status: (proc?.novoSaldo || 0) <= 0 ? 'pago' : 'parcial',
-          data_pagamento: (proc?.novoSaldo || 0) <= 0 ? new Date().toISOString().split('T')[0] : proc?.pedido?.data_pagamento,
-          mes_pagamento: (proc?.novoSaldo || 0) <= 0 ? new Date().toISOString().slice(0, 7) : proc?.pedido?.mes_pagamento,
-          bordero_numero: proximoNumeroBordero,
-          outras_informacoes: (proc?.pedido?.outras_informacoes || '') + `\n[${new Date().toLocaleDateString('pt-BR')}] Borderô #${proximoNumeroBordero}: Dev=${formatCurrency(proc?.devolucaoAplicada || 0)} | Desc=${formatCurrency(proc?.descontoAplicado || 0)} | Créd=${formatCurrency(proc?.creditoAplicado || 0)} | Pago=${formatCurrency(proc?.pagamentoAplicado || 0)}`
-        });
-      }
-
-      for (const sinalInj of sinaisInjetados) {
-        if (!sinalInj._sinalId || !sinalInj._pedidoId) continue;
-        const pedidoOriginal = selectedPedidos.find(p => p.id === sinalInj._pedidoId);
-        if (!pedidoOriginal || !pedidoOriginal.sinais_historico) continue;
-        await base44.entities.Pedido.update(sinalInj._pedidoId, { sinais_historico: pedidoOriginal.sinais_historico.map(s => s.id === sinalInj._sinalId ? { ...s, usado: true } : s) });
-      }
-
-      for (const portUsado of portsUsados) {
-        if (!portUsado?.id) continue;
-        const portOriginal = await base44.entities.Port.get(portUsado.id);
-        await base44.entities.Port.update(portUsado.id, {
-          saldo_disponivel: portUsado?.saldoRestante || 0,
-          status: (portUsado?.saldoRestante || 0) <= 0 ? 'finalizado' : 'parcialmente_usado',
-          observacao: `${portOriginal?.observacao || ''}\n[${new Date().toLocaleDateString('pt-BR')}] Usado ${formatCurrency(portUsado?.valorTotal || 0)} no Borderô #${proximoNumeroBordero}`.trim()
-        });
-      }
-
-      if (creditoEfetivamenteUsado > 0) {
-        let valorAMarcar = creditoEfetivamenteUsado;
-        for (const credito of creditosSelecionados.map(id => creditos.find(c => c.id === id)).filter(Boolean)) {
-          if (valorAMarcar <= 0) break;
-          await base44.entities.Credito.update(credito.id, { status: 'usado', pedido_uso_id: selectedPedidos[0]?.id || '', data_uso: new Date().toISOString().split('T')[0] });
-          valorAMarcar -= credito.valor || 0;
-        }
-      }
-
-      // Gerar crédito pelo excedente (confirmado pelo usuário)
-      if (sobraParaCredito > 0.01) {
-        const todosCreditos = await base44.entities.Credito.list();
-        const proximoNumero = todosCreditos.length > 0 ? Math.max(...todosCreditos.map(c => c?.numero_credito || 0)) + 1 : 1;
-        await base44.entities.Credito.create({
-          numero_credito: proximoNumero,
-          cliente_codigo: selectedPedidos[0]?.cliente_codigo || '',
-          cliente_nome: selectedPedidos[0]?.cliente_nome || '',
-          valor: sobraParaCredito,
-          origem: `Excedente Liquidação Massa - Borderô #${proximoNumeroBordero}`,
-          status: 'disponivel'
-        });
-        toast.success(`Crédito #${proximoNumero} de ${formatCurrency(sobraParaCredito)} gerado!`);
-      }
+      const resultado = res.data;
+      if (!resultado?.success) throw new Error(resultado?.error || 'Erro no servidor');
 
       await onSave();
-      toast.success(`Borderô #${proximoNumeroBordero} criado! ${pedidosProcessados.filter(p => p.novoSaldo <= 0).length} pedidos quitados.`);
+      toast.success(`Borderô #${resultado.numero_bordero} criado! ${resultado.pedidos_quitados} pedidos quitados.`);
+      if (resultado.credito_gerado > 0) toast.success(`Crédito de ${formatCurrency(resultado.credito_gerado)} gerado!`);
+      if (resultado.cheques_baixados > 0) toast.success(`${resultado.cheques_baixados} cheque(s) devolvido(s) baixado(s)!`);
     } catch (error) {
       toast.error('Erro ao processar liquidação: ' + error.message);
       console.error(error);
@@ -868,6 +770,40 @@ export default function LiquidacaoMassa({ pedidos, onSave, onCancel, isLoading }
                 </Card>
               ))}
             </div>
+
+            {/* PARTE 4: CHEQUES DEVOLVIDOS DO CLIENTE */}
+            {chequesDevolvidos_db.length > 0 && (
+              <Card className="p-4 bg-red-50 border-red-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <AlertCircle className="w-4 h-4 text-red-600" />
+                  <span className="font-bold text-red-700">Cheques Devolvidos do Cliente</span>
+                  <Badge className="bg-red-100 text-red-700 text-xs">{chequesDevolvidos_db.length} pendentes</Badge>
+                </div>
+                <p className="text-xs text-red-600 mb-3">Selecione cheques devolvidos para baixá-los junto com esta liquidação (no mesmo Borderô).</p>
+                <div className="space-y-2">
+                  {chequesDevolvidos_db.map(cheque => (
+                    <div key={cheque.id} className="flex items-center gap-3 p-2.5 bg-white rounded-lg border border-red-100">
+                      <Checkbox
+                        id={`chqdev-${cheque.id}`}
+                        checked={!!chequesDevolvidos.find(c => c.id === cheque.id)}
+                        onCheckedChange={() => toggleChequeDev(cheque)}
+                      />
+                      <Label htmlFor={`chqdev-${cheque.id}`} className="flex-1 cursor-pointer text-sm">
+                        <span className="font-medium text-slate-800">Cheque #{cheque.numero_cheque}</span>
+                        <span className="text-slate-500 ml-2 text-xs">{cheque.banco} · Motivo: {cheque.motivo_devolucao || '—'}</span>
+                      </Label>
+                      <span className="font-bold text-red-700 text-sm">{formatCurrency(cheque.valor)}</span>
+                    </div>
+                  ))}
+                </div>
+                {totalChequesDevolvidos > 0 && (
+                  <div className="mt-2 pt-2 border-t border-red-200 flex justify-between items-center text-sm">
+                    <span className="text-red-700 font-medium">Total cheques a baixar:</span>
+                    <span className="font-bold text-red-800">{formatCurrency(totalChequesDevolvidos)}</span>
+                  </div>
+                )}
+              </Card>
+            )}
 
             {/* CRÉDITOS VIA CHECKBOX */}
             {creditos.length > 0 && (

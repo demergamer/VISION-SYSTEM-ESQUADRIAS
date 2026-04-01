@@ -25,6 +25,7 @@ import {
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { WorkspaceProvider, OSTaskbar, useWorkspace } from '@/components/workspace/WindowManager';
+import OnboardingModal from '@/components/admin/OnboardingModal';
 import { usePreferences } from '@/components/hooks/usePreferences';
 import GlobalSearch from '@/components/search/GlobalSearch';
 import NotificationToastManager from '@/components/notificacoes/NotificationToastManager';

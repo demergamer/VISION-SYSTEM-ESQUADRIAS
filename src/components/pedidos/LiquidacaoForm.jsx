@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DollarSign, CheckCircle, X, Wallet, Percent, Loader2, Upload, FileText, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import ModalContainer from "@/components/modals/ModalContainer";
 import AdicionarChequeModal from "@/components/pedidos/AdicionarChequeModal";
 import { toast } from "sonner";

@@ -55,9 +55,29 @@ Deno.serve(async (req) => {
 
     await Promise.all(updatePromises);
 
+    // ─── PARTE 6: Garbage Collector de Rotas Vazias ───────────────────────────
+    const todasRotas = await base44.asServiceRole.entities.RotaImportada.filter({ id: { $exists: true } });
+    const todosPedidosAtivos = await base44.asServiceRole.entities.Pedido.filter({
+      status: { $nin: ['cancelado'] }
+    });
+
+    const pedidosPorRota = new Map();
+    for (const p of todosPedidosAtivos) {
+      if (!p.rota_importada_id) continue;
+      pedidosPorRota.set(p.rota_importada_id, (pedidosPorRota.get(p.rota_importada_id) || 0) + 1);
+    }
+
+    const rotasVazias = todasRotas.filter(r => (pedidosPorRota.get(r.id) || 0) === 0);
+    let rotasExcluidas = 0;
+    for (const rota of rotasVazias) {
+      await base44.asServiceRole.entities.RotaImportada.delete(rota.id);
+      rotasExcluidas++;
+    }
+
     return Response.json({ 
       success: true,
       pedidos_limpos: pedidosParaBaixar.length,
+      rotas_excluidas: rotasExcluidas,
       ids_processados: pedidosParaBaixar.map(p => p.id)
     });
 

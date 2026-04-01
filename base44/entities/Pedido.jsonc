@@ -1,0 +1,236 @@
+{
+  "name": "Pedido",
+  "type": "object",
+  "properties": {
+    "cliente_codigo": {
+      "type": "string",
+      "description": "C\u00f3digo do cliente"
+    },
+    "cliente_nome": {
+      "type": "string",
+      "description": "Nome do cliente"
+    },
+    "cliente_regiao": {
+      "type": "string",
+      "description": "Regi\u00e3o do cliente"
+    },
+    "representante_codigo": {
+      "type": "string",
+      "description": "C\u00f3digo do representante"
+    },
+    "representante_nome": {
+      "type": "string",
+      "description": "Nome do representante"
+    },
+    "data_importado": {
+      "type": "string",
+      "description": "Data de inclus\u00e3o em produ\u00e7\u00e3o / importa\u00e7\u00e3o"
+    },
+    "data_entrega": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de entrega programada"
+    },
+    "data_entregue": {
+      "type": "string",
+      "format": "date",
+      "description": "Data em que o motorista confirmou a entrega"
+    },
+    "numero_pedido": {
+      "type": "string",
+      "description": "N\u00famero \u00fanico do pedido"
+    },
+    "valor_pedido": {
+      "type": "number",
+      "description": "Valor total do pedido em R$"
+    },
+    "total_pago": {
+      "type": "number",
+      "default": 0,
+      "description": "Total j\u00e1 pago (financeiro)"
+    },
+    "desconto_dado": {
+      "type": "number",
+      "default": 0,
+      "description": "Desconto concedido"
+    },
+    "saldo_restante": {
+      "type": "number",
+      "description": "Saldo devedor atual"
+    },
+    "observacao": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es gerais / descri\u00e7\u00e3o principal do pedido"
+    },
+    "outras_informacoes": {
+      "type": "string",
+      "description": "Hist\u00f3rico e logs do sistema"
+    },
+    "itens_pedido": {
+      "type": "array",
+      "description": "Lista de itens/pe\u00e7as do pedido",
+      "items": {
+        "type": "object",
+        "properties": {
+          "codigo_peca": {
+            "type": "string"
+          },
+          "descricao_peca": {
+            "type": "string"
+          },
+          "quantidade": {
+            "type": "number"
+          },
+          "valor_unitario": {
+            "type": "number",
+            "default": 0
+          }
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "emproducao",
+        "aguardando",
+        "aberto",
+        "parcial",
+        "pago",
+        "cancelado"
+      ],
+      "default": "aberto",
+      "description": "Status financeiro/geral do pedido"
+    },
+    "porcentagem_comissao": {
+      "type": "number",
+      "default": 5,
+      "description": "% de comiss\u00e3o"
+    },
+    "data_pagamento": {
+      "type": "string",
+      "format": "date",
+      "description": "Data da quita\u00e7\u00e3o financeira"
+    },
+    "mes_pagamento": {
+      "type": "string",
+      "description": "M\u00eas/Ano de compet\u00eancia do pagamento"
+    },
+    "rota_importada_id": {
+      "type": "string",
+      "description": "ID da entidade RotaImportada vinculada"
+    },
+    "rota_codigo": {
+      "type": "string",
+      "description": "C\u00f3digo original da rota na importa\u00e7\u00e3o"
+    },
+    "rota_entrega": {
+      "type": "string",
+      "description": "Nome leg\u00edvel atualizado da rota"
+    },
+    "motorista_codigo": {
+      "type": "string",
+      "description": "C\u00f3digo ou ID do motorista respons\u00e1vel"
+    },
+    "motorista_atual": {
+      "type": "string",
+      "description": "Nome do motorista respons\u00e1vel atual"
+    },
+    "confirmado_entrega": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se o canhoto/entrega foi confirmado"
+    },
+    "data_confirmacao_entrega": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data e hora exata da baixa log\u00edstica"
+    },
+    "usuario_confirmou_entrega": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio que realizou a baixa log\u00edstica"
+    },
+    "cliente_pendente": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se o cliente precisa de cadastro"
+    },
+    "bordero_numero": {
+      "type": "number",
+      "description": "N\u00famero do border\u00f4 de liquida\u00e7\u00e3o vinculado"
+    },
+    "data_referencia_comissao": {
+      "type": "string",
+      "format": "date",
+      "description": "Data base para c\u00e1lculo de comiss\u00e3o"
+    },
+    "comissao_paga": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se a comiss\u00e3o j\u00e1 foi paga ao representante"
+    },
+    "comissao_fechamento_id": {
+      "type": "string",
+      "description": "ID do fechamento de comiss\u00e3o"
+    },
+    "comissao_mes_ano_pago": {
+      "type": "string",
+      "description": "M\u00eas/Ano do pagamento da comiss\u00e3o"
+    },
+    "valor_sinal_informado": {
+      "type": "number",
+      "default": 0,
+      "description": "Soma total dos sinais (cache calculado)"
+    },
+    "arquivos_sinal": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "URLs dos comprovantes (legado/cache)"
+    },
+    "sinal_liquidado": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se o sinal informado j\u00e1 foi processado"
+    },
+    "comissao_last_sync": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp da \u00faltima sincroniza\u00e7\u00e3o de comiss\u00e3o"
+    },
+    "sinais_historico": {
+      "type": "array",
+      "description": "Lista de sinais/adiantamentos recebidos para este pedido",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "tipo_pagamento": {
+            "type": "string"
+          },
+          "valor": {
+            "type": "number"
+          },
+          "comprovante_url": {
+            "type": "string"
+          },
+          "usado": {
+            "type": "boolean",
+            "default": false
+          },
+          "data_inclusao": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "cliente_nome",
+    "numero_pedido",
+    "valor_pedido"
+  ]
+}
