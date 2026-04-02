@@ -31,7 +31,6 @@ import ModalContainer from "@/components/modals/ModalContainer";
 import PedidoForm from "@/components/pedidos/PedidoForm";
 import PedidoDetails from "@/components/pedidos/PedidoDetails";
 import PedidoTable from "@/components/pedidos/PedidoTable";
-import Emproduçaotable from "@/components/pedidos/Emproduçaotable";
 import LiquidacaoForm from "@/components/pedidos/LiquidacaoForm";
 import ImportarPedidos from "@/components/pedidos/ImportarPedidos";
 import RotasList from "@/components/pedidos/RotasList";
@@ -357,6 +356,7 @@ export default function Pedidos() {
 
     // 1. Filtro Principal
     switch (activeTab) {
+      case 'producao': data = data.filter(p => !p.rota_importada_id && (p.status === 'aguardando' || !p.status || p.status === 'aberto' || p.status === 'emproducao')); break;
       case 'transito': data = data.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado'); break;
       case 'abertos': data = data.filter(p => p.status === 'aberto' || p.status === 'parcial' || p.status === 'representante_recebe'); break;
       case 'trocas': data = data.filter(p => p.status === 'troca'); break;
@@ -1014,7 +1014,7 @@ export default function Pedidos() {
                 </TabsList>
 
                 {/* Toolbar */}
-                {activeTab !== 'rotas' && activeTab !== 'producao' && (
+                {activeTab !== 'rotas' && (
                     <div className="flex gap-2 w-full md:w-auto">
                         <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)} className={cn("h-10 px-3 rounded-xl", showFilters ? "bg-blue-50 border-blue-300" : "")}>
                             <Filter className="w-4 h-4 mr-2"/> Filtros
@@ -1060,7 +1060,33 @@ export default function Pedidos() {
             {/* --- CONTEÚDO DAS ABAS --- */}
 
             <TabsContent value="producao">
-                <ProducaoTab canDo={canDo} />
+                {viewMode === 'table' ? (
+                    <PedidoTable
+                        pedidos={currentPedidos}
+                        onEdit={handleEdit}
+                        onView={handleView}
+                        onLiquidar={handleLiquidar}
+                        onCancelar={handleCancelar}
+                        onReverter={null}
+                        onMudarStatus={handleMudarStatusEspecial}
+                        isLoading={loadingPedidos}
+                        sortConfig={sortConfig}
+                        onSort={handleSort}
+                    />
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {loadingPedidos ? (
+                            [...Array(8)].map((_, i) => <PedidoGridSkeleton key={i} />)
+                        ) : (
+                            currentPedidos.map(pedido => (
+                                <PedidoGridCard key={pedido.id} pedido={pedido} onEdit={handleEdit} onView={handleView} onLiquidar={handleLiquidar} onCancelar={handleCancelar} canDo={canDo} />
+                            ))
+                        )}
+                    </div>
+                )}
+                {!loadingPedidos && currentPedidos.length > 0 && (
+                    <PaginacaoControles currentPage={currentPage} totalPages={totalPages} totalItems={processedPedidos.length} itemsPerPage={itemsPerPage} onPageChange={setCurrentPage} />
+                )}
             </TabsContent>
 
             <TabsContent value="rotas">
@@ -1520,22 +1546,4 @@ export default function Pedidos() {
       </div>
     </PermissionGuard>
   );
-}
-
-// --- COMPONENTE DA ABA DE PRODUÇÃO ---
-function ProducaoTab({ canDo }) {
-    const { data: producaoAtual = [], isLoading } = useQuery({
-        queryKey: ['pedidos_emproducao'],
-        queryFn: () => base44.entities.Pedido.filter({ status: 'emproducao' })
-    });
-
-    return (
-        <div className="space-y-6">
-            <Emproduçaotable 
-                data={producaoAtual}
-                isLoading={isLoading}
-                onView={() => {}}
-            />
-        </div>
-    );
 }

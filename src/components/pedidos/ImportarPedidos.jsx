@@ -84,10 +84,13 @@ function parsePlanilhaProducao(arrayBuffer, clientes, pedidosExistentes) {
           String(p.numero_pedido).replace(/\./g, '') === String(currentPedido).replace(/\./g, '')
         );
 
+        // Regra 4: fonte de verdade para o nome do cliente é o cadastro do sistema
+        const nomeClienteFinal = clienteCadastrado ? clienteCadastrado.nome : currentClienteNome;
+
         pedidosMap.set(currentPedido, {
           numero_pedido: currentPedido,
           cliente_codigo: clienteCadastrado?.codigo || currentClienteCodigo || '',
-          cliente_nome: currentClienteNome,
+          cliente_nome: nomeClienteFinal,
           cliente_regiao: clienteCadastrado?.regiao || '',
           representante_codigo: clienteCadastrado?.representante_codigo || '',
           representante_nome: clienteCadastrado?.representante_nome || '',
