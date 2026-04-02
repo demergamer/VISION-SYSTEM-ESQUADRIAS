@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Save, X, Plus, Eye, Truck, User, Search, Lock, AlertCircle } from "lucide-react";
+import { Save, X, Plus, Eye, Truck, User, Search, Lock, AlertCircle, Trash2, Package } from "lucide-react";
 import SinaisHistorico from "@/components/pedidos/SinaisHistorico";
 import { cn } from "@/lib/utils";
 import ModalContainer from "@/components/modals/ModalContainer";
@@ -86,7 +86,8 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     desconto_valor: 0,
     sinais_historico: [],
     valor_sinal_informado: 0,
-    arquivos_sinal: []
+    arquivos_sinal: [],
+    itens_pedido: []
   });
 
   const isRepresentanteLocked = !!pedido && !!pedido.representante_codigo;
@@ -125,7 +126,13 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
         desconto_valor: pedido.desconto_valor || 0,
         sinais_historico: pedido.sinais_historico || [],
         valor_sinal_informado: pedido.valor_sinal_informado || 0,
-        arquivos_sinal: pedido.arquivos_sinal || []
+        arquivos_sinal: pedido.arquivos_sinal || [],
+        itens_pedido: (pedido.itens_pedido || []).map(item => ({
+          codigo_peca: item.codigo_peca || '',
+          descricao_peca: item.descricao_peca || item.descricao || '',
+          quantidade: item.quantidade || 0,
+          valor_unitario: item.valor_unitario || 0
+        }))
       });
     }
   }, [pedido]);
@@ -504,6 +511,87 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
             onChange={handleSinaisChange}
             clienteInfo={{ cliente_nome: form.cliente_nome, cliente_codigo: form.cliente_codigo }}
           />
+        </div>
+
+        {/* SEÇÃO: ITENS / PEÇAS DO PEDIDO */}
+        <div className="md:col-span-2 mt-2 space-y-3">
+          <div className="flex items-center justify-between">
+            <Label className="flex items-center gap-2 text-slate-700 font-semibold">
+              <Package className="w-4 h-4" /> Peças / Itens do Pedido
+              {form.itens_pedido.length > 0 && <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{form.itens_pedido.length} item(s)</span>}
+            </Label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setForm(prev => ({
+                ...prev,
+                itens_pedido: [...prev.itens_pedido, { codigo_peca: '', descricao_peca: '', quantidade: 1, valor_unitario: 0 }]
+              }))}
+              className="h-8 text-xs gap-1 border-dashed"
+            >
+              <Plus className="w-3 h-3" /> Adicionar Peça
+            </Button>
+          </div>
+
+          {form.itens_pedido.length > 0 && (
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  <tr>
+                    <th className="text-left px-3 py-2 w-24">Código</th>
+                    <th className="text-left px-3 py-2">Descrição</th>
+                    <th className="text-right px-3 py-2 w-20">Qtd</th>
+                    <th className="text-right px-3 py-2 w-28">Vl. Unit. (R$)</th>
+                    <th className="text-right px-3 py-2 w-24">Total</th>
+                    <th className="w-10" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {form.itens_pedido.map((item, idx) => {
+                    const total = (item.quantidade || 0) * (item.valor_unitario || 0);
+                    const updateItem = (field, value) => {
+                      setForm(prev => {
+                        const novos = [...prev.itens_pedido];
+                        novos[idx] = { ...novos[idx], [field]: value };
+                        return { ...prev, itens_pedido: novos };
+                      });
+                    };
+                    return (
+                      <tr key={idx} className="border-t border-slate-100">
+                        <td className="px-2 py-1.5">
+                          <Input value={item.codigo_peca} onChange={e => updateItem('codigo_peca', e.target.value)} className="h-8 text-xs font-mono" placeholder="S/C" />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <Input value={item.descricao_peca} onChange={e => updateItem('descricao_peca', e.target.value)} className="h-8 text-xs" placeholder="Descrição da peça" />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <Input type="number" min="0" value={item.quantidade} onChange={e => updateItem('quantidade', parseFloat(e.target.value) || 0)} className="h-8 text-xs text-right" />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <Input type="number" min="0" step="0.01" value={item.valor_unitario} onChange={e => updateItem('valor_unitario', parseFloat(e.target.value) || 0)} className="h-8 text-xs text-right" />
+                        </td>
+                        <td className="px-3 py-1.5 text-right text-xs font-semibold text-slate-700 whitespace-nowrap">
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(total)}
+                        </td>
+                        <td className="px-2 py-1.5 text-center">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50"
+                            onClick={() => setForm(prev => ({ ...prev, itens_pedido: prev.itens_pedido.filter((_, i) => i !== idx) }))}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         <div className="space-y-2 md:col-span-2">

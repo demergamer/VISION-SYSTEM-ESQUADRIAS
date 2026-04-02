@@ -356,7 +356,7 @@ export default function Pedidos() {
 
     // 1. Filtro Principal
     switch (activeTab) {
-      case 'producao': data = data.filter(p => !p.rota_importada_id && (p.status === 'aguardando' || !p.status || p.status === 'aberto' || p.status === 'emproducao')); break;
+      case 'producao': data = data.filter(p => p.status?.toLowerCase() === 'emproducao'); break;
       case 'transito': data = data.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado'); break;
       case 'abertos': data = data.filter(p => p.status === 'aberto' || p.status === 'parcial' || p.status === 'representante_recebe'); break;
       case 'trocas': data = data.filter(p => p.status === 'troca'); break;

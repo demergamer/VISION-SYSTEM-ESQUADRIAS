@@ -408,21 +408,20 @@ export default function ImportarPedidos({ clientes, pedidosExistentes = [], onIm
               porcentagem_comissao: p.porcentagem_comissao,
               cliente_pendente: p.cliente_pendente,
               data_importado: hoje,
-              status: 'emproducao',
+              status: 'emproducao', // FORÇADO: planilha de produção sempre define este status
               itens_pedido: p.itens_pedido || [],
               observacao: p.observacao || '',
-              valor_pedido: 0,
-              total_pago: 0,
-              saldo_restante: 0,
+              // Regra: planilha de produção NÃO define valor financeiro
               confirmado_entrega: false
             }));
             await base44.entities.Pedido.bulkCreate(payload);
           }
 
-          // Atualizar existentes: mesclar itens
+          // Atualizar existentes: mesclar itens + forçar status emproducao
           for (const p of pedidosParaAtualizar) {
             await base44.entities.Pedido.update(p.pedidoExistenteId, {
               itens_pedido: p.itens_pedido,
+              status: 'emproducao',
               data_importado: hoje,
               ...(p.observacao ? { observacao: p.observacao } : {})
             });

@@ -197,6 +197,44 @@ export default function PedidoDetails({ pedido, onClose }) {
         </div>
       )}
 
+      {/* Tabela de Itens/Peças */}
+      {pedido.itens_pedido && pedido.itens_pedido.length > 0 && (
+        <div className="pt-2">
+          <h3 className="text-sm font-bold text-slate-700 mb-3 uppercase tracking-wide flex items-center gap-2">
+            <Package className="w-4 h-4" /> Itens do Pedido ({pedido.itens_pedido.length} peça{pedido.itens_pedido.length !== 1 ? 's' : ''})
+          </h3>
+          <div className="border border-slate-200 rounded-2xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <tr>
+                  <th className="text-left px-4 py-2.5">Código</th>
+                  <th className="text-left px-4 py-2.5">Descrição</th>
+                  <th className="text-right px-4 py-2.5">Qtd</th>
+                  <th className="text-right px-4 py-2.5">Vl. Unit.</th>
+                  <th className="text-right px-4 py-2.5">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pedido.itens_pedido.map((item, idx) => {
+                  const unit = item.valor_unitario || 0;
+                  const qtd = item.quantidade || 0;
+                  const total = unit * qtd;
+                  return (
+                    <tr key={idx} className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors">
+                      <td className="px-4 py-2.5 font-mono text-xs text-slate-600">{item.codigo_peca || '-'}</td>
+                      <td className="px-4 py-2.5 text-slate-800">{item.descricao_peca || item.descricao || '-'}</td>
+                      <td className="px-4 py-2.5 text-right font-medium">{qtd}</td>
+                      <td className="px-4 py-2.5 text-right text-slate-600">{formatCurrency(unit)}</td>
+                      <td className="px-4 py-2.5 text-right font-semibold text-slate-800">{formatCurrency(total)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Outras Informações (Full Width) */}
       {(pedido.observacao || pedido.outras_informacoes) && (
         <div className="space-y-4 pt-2">
