@@ -14,6 +14,7 @@ import { Save, X, Plus, Eye, Truck, User, Search, Lock, AlertCircle, Trash2, Pac
 import SinaisHistorico from "@/components/pedidos/SinaisHistorico";
 import { cn } from "@/lib/utils";
 import ModalContainer from "@/components/modals/ModalContainer";
+import AlertModal from "@/components/ui/AlertModal";
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { toast } from "sonner";
@@ -97,6 +98,10 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
   const [showNovoClienteModal, setShowNovoClienteModal] = useState(false);
   const [buscaCliente, setBuscaCliente] = useState(""); 
   const [savingCliente, setSavingCliente] = useState(false);
+  const [alertModal, setAlertModal] = useState({ open: false, type: 'error', title: '', message: '' });
+
+  const showAlert = (type, title, message) => setAlertModal({ open: true, type, title, message });
+  const closeAlert = () => setAlertModal(prev => ({ ...prev, open: false }));
 
   const todosClientes = useMemo(() => {
     return [...clientes];
@@ -199,23 +204,23 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
 
     // --- VALIDAÇÕES DE CAMPOS OBRIGATÓRIOS ---
     if (!raw) {
-      toast.error("Preencha o Número do Pedido antes de salvar.");
+      showAlert('error', 'Campo Obrigatório', 'Preencha o Número do Pedido antes de salvar.');
       return;
     }
     if (!form.cliente_codigo) {
-      toast.error("Selecione um Cliente antes de salvar.");
+      showAlert('error', 'Campo Obrigatório', 'Selecione um Cliente antes de salvar.');
       return;
     }
     if (!form.representante_codigo) {
-      toast.error("Selecione um Representante antes de salvar.");
+      showAlert('error', 'Campo Obrigatório', 'Selecione um Representante antes de salvar.');
       return;
     }
     if (!form.data_entrega) {
-      toast.error("Preencha a Data de Entrega antes de salvar.");
+      showAlert('error', 'Campo Obrigatório', 'Preencha a Data de Entrega antes de salvar.');
       return;
     }
     if (!form.valor_pedido || parseFloat(form.valor_pedido) <= 0) {
-      toast.error("O Valor do Pedido não pode ser zero ou vazio.");
+      showAlert('error', 'Valor Inválido', 'O Valor do Pedido não pode ser zero ou vazio.');
       return;
     }
 
@@ -233,10 +238,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     );
 
     if (duplicado) {
-      toast.error(`AÇÃO BLOQUEADA: O Pedido #${formatado} já existe para o cliente ${duplicado.cliente_nome}!`, { 
-        duration: 8000,
-        style: { background: '#FEF2F2', color: '#991B1B', border: '1px solid #F87171', fontWeight: 'bold' }
-      });
+      showAlert('error', 'Pedido Duplicado', `O Pedido #${formatado} já existe no sistema para o cliente "${duplicado.cliente_nome}" com status: ${duplicado.status}. O salvamento foi bloqueado.`);
       return;
     }
 
@@ -336,7 +338,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
               );
               
               if (duplicado) {
-                toast.warning(`⚠️ Atenção: O Pedido #${formatado} já está cadastrado no status: ${duplicado.status} (Cliente: ${duplicado.cliente_nome})`, { duration: 6000 });
+                showAlert('warning', 'Pedido Já Cadastrado', `O Pedido #${formatado} já está cadastrado no sistema.\n\nCliente: ${duplicado.cliente_nome}\nStatus: ${duplicado.status}`);
               }
 
               // 2. BUSCA DE PORT AUTOMÁTICA
@@ -626,6 +628,14 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
         <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading} className="h-11 px-6 rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900"><X className="w-4 h-4 mr-2" /> Cancelar</Button>
         <Button type="button" onClick={handleSave} disabled={isLoading} className="h-11 px-8 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200"><Save className="w-4 h-4 mr-2" /> {pedido ? 'Atualizar' : 'Cadastrar'}</Button>
       </div>
+
+      <AlertModal
+        open={alertModal.open}
+        onClose={closeAlert}
+        type={alertModal.type}
+        title={alertModal.title}
+        message={alertModal.message}
+      />
 
       <ModalContainer open={showClienteModal} onClose={() => setShowClienteModal(false)} title={`Ficha do Cliente: ${clienteSelecionadoDetalhes?.nome || ''}`} size="lg">
         {clienteSelecionadoDetalhes && <ClienteDetails cliente={clienteSelecionadoDetalhes} onClose={() => setShowClienteModal(false)} />}

@@ -25,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { base44 } from '@/api/base44Client';
+import AlertModal from "@/components/ui/AlertModal";
 import { InputCpfCnpj } from "@/components/ui/input-mask";
 
 function FormasPagamentoSelector({ formasSelecionadas, onChange }) {
@@ -98,6 +99,9 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
   const [isSaving, setIsSaving] = useState(false);
   const [isConsulting, setIsConsulting] = useState(false);
   const [duplicateWarnings, setDuplicateWarnings] = useState({});
+  const [alertModal, setAlertModal] = useState({ open: false, type: 'error', title: '', message: '' });
+  const showAlert = (type, title, message) => setAlertModal({ open: true, type, title, message });
+  const closeAlert = () => setAlertModal(prev => ({ ...prev, open: false }));
 
   useEffect(() => {
     if (cliente) {
@@ -301,7 +305,7 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
         });
 
         if (duplicado) {
-          toast.error(`Já existe um cliente cadastrado com este Nome, Código ou CNPJ. (${duplicado.nome} — Cód: ${duplicado.codigo})`, { duration: 7000 });
+          showAlert('error', 'Cliente Duplicado', `Já existe um cliente cadastrado com este Nome, Código ou CNPJ.\n\nCliente encontrado: ${duplicado.nome} — Cód: ${duplicado.codigo}\n\nO cadastro foi bloqueado para evitar duplicidade.`);
           return;
         }
       }
@@ -557,6 +561,14 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
           </div>
         )}
       </div>
+
+      <AlertModal
+        open={alertModal.open}
+        onClose={closeAlert}
+        type={alertModal.type}
+        title={alertModal.title}
+        message={alertModal.message}
+      />
 
       <div className="flex justify-end gap-3 pt-6 border-t mt-4 bg-white sticky bottom-0 z-10">
         {hasDuplicates && (
