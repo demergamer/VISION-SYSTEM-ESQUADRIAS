@@ -285,6 +285,27 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
 
   const handleSubmit = async () => {
     if (validate()) {
+      // --- BLOQUEIO DE CLIENTE DUPLICADO ---
+      if (!cliente?.id && !isClientMode) {
+        const listaVerificacao = allClientes.length > 0 ? allClientes : todosClientes;
+        const cnpjLimpo = form.cnpj?.replace(/\D/g, '') || '';
+        const nomeLimpo = form.nome?.trim().toLowerCase() || '';
+        const codigoLimpo = form.codigo?.trim().toLowerCase() || '';
+
+        const duplicado = listaVerificacao.find(c => {
+          if (!c) return false;
+          const mesmoCodigo = codigoLimpo && c.codigo?.trim().toLowerCase() === codigoLimpo;
+          const mesmoNome = nomeLimpo && c.nome?.trim().toLowerCase() === nomeLimpo;
+          const mesmoCnpj = cnpjLimpo.length >= 11 && c.cnpj?.replace(/\D/g, '') === cnpjLimpo;
+          return mesmoCodigo || mesmoNome || mesmoCnpj;
+        });
+
+        if (duplicado) {
+          toast.error(`Já existe um cliente cadastrado com este Nome, Código ou CNPJ. (${duplicado.nome} — Cód: ${duplicado.codigo})`, { duration: 7000 });
+          return;
+        }
+      }
+
       setIsSaving(true);
       try {
         // Em modo cliente, só salva campos permitidos

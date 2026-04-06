@@ -177,15 +177,22 @@ const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReve
     <div className="bg-white border border-slate-200 rounded-2xl p-4 hover:shadow-md transition-all flex flex-col gap-3 group relative h-full">
       <div className="flex justify-between items-start">
         <div className="flex-1 min-w-0 pr-2">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">#{pedido.numero_pedido}</span>
-          <h3 className="font-bold text-slate-800 truncate" title={pedido.cliente_nome}>{pedido.cliente_nome}</h3>
-          <p className="text-xs text-slate-500 font-mono truncate">{pedido.cliente_codigo}</p>
+          <span className="text-xl font-black text-blue-700 tracking-tight block leading-tight">#{pedido.numero_pedido}</span>
+          <p className="text-sm font-semibold text-slate-700 truncate mt-0.5" title={pedido.cliente_nome}>
+            {pedido.cliente_nome}
+            {pedido.cliente_codigo && (
+              <span className="text-sm font-mono text-slate-400 ml-1.5">· Cód: {pedido.cliente_codigo}</span>
+            )}
+          </p>
         </div>
         <div className="shrink-0">{getStatusBadge(pedido.status, pedido.data_entrega)}</div>
       </div>
       <div className="space-y-1 py-2 border-t border-slate-100 border-b">
         <div className="flex items-center gap-2 text-sm text-slate-600"><Calendar className="w-3.5 h-3.5 text-slate-400" /><span>{pedido.data_entrega ? (() => { const d = new Date(pedido.data_entrega); return isNaN(d.getTime()) ? '-' : format(d, 'dd/MM/yyyy'); })() : '-'}</span></div>
         <div className="flex items-center gap-2 text-sm text-slate-600"><MapPin className="w-3.5 h-3.5 text-slate-400" /><span className="truncate">{pedido.cliente_regiao || 'Sem região'}</span></div>
+        {pedido.rota_entrega && (
+          <div className="flex items-center gap-2 text-sm text-slate-600"><Truck className="w-3.5 h-3.5 text-purple-400" /><span className="truncate font-medium text-purple-700">{pedido.rota_entrega}</span></div>
+        )}
       </div>
       <div className="flex justify-between items-end mt-auto">
         <div><p className="text-xs text-slate-400">Saldo</p><p className={cn("text-lg font-bold", (pedido.saldo_restante || 0) > 0 ? "text-amber-600" : "text-emerald-600")}>{formatCurrency(pedido.saldo_restante !== undefined ? pedido.saldo_restante : (pedido.valor_pedido - (pedido.total_pago || 0)))}</p></div>
@@ -1460,8 +1467,8 @@ export default function Pedidos() {
              <LiquidacaoMassa pedidos={pedidos} onSave={handleLiquidacaoMassa} onCancel={() => setShowLiquidacaoMassaModal(false)} />
           </ModalContainer>
 
-          <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Novo Pedido" size="lg"><PedidoForm clientes={clientes} representantes={representantes} onAddRepresentante={() => setShowAddRepresentanteModal(true)} onSave={(data) => createMutation.mutate(data)} onCancel={() => setShowAddModal(false)} isLoading={createMutation.isPending} /></ModalContainer>
-          <ModalContainer open={showEditModal} onClose={() => setShowEditModal(false)} title="Editar Pedido" size="lg"><PedidoForm pedido={selectedPedido} clientes={clientes} representantes={representantes} onAddRepresentante={() => setShowAddRepresentanteModal(true)} onSave={(data) => updateMutation.mutate({ id: selectedPedido.id, data })} onCancel={() => setShowEditModal(false)} isLoading={updateMutation.isPending} /></ModalContainer>
+          <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Novo Pedido" size="lg"><PedidoForm clientes={clientes} representantes={representantes} refetchClientes={refetchClientes} onAddRepresentante={() => setShowAddRepresentanteModal(true)} onSave={(data) => createMutation.mutate(data)} onCancel={() => setShowAddModal(false)} isLoading={createMutation.isPending} /></ModalContainer>
+          <ModalContainer open={showEditModal} onClose={() => setShowEditModal(false)} title="Editar Pedido" size="lg"><PedidoForm pedido={selectedPedido} clientes={clientes} representantes={representantes} refetchClientes={refetchClientes} onAddRepresentante={() => setShowAddRepresentanteModal(true)} onSave={(data) => updateMutation.mutate({ id: selectedPedido.id, data })} onCancel={() => setShowEditModal(false)} isLoading={updateMutation.isPending} /></ModalContainer>
           <ModalContainer open={showLiquidarModal} onClose={() => setShowLiquidarModal(false)} title="Liquidar"><LiquidacaoForm pedido={selectedPedido} onSave={(data) => updateMutation.mutate({ id: selectedPedido.id, data })} onCancel={() => setShowLiquidarModal(false)} /></ModalContainer>
           <ModalContainer open={showDetailsModal} onClose={() => setShowDetailsModal(false)} title="Detalhes" size="xl">
              {selectedPedido?.isBordero ? <BorderoDetails bordero={selectedPedido} pedidos={pedidos} onClose={() => setShowDetailsModal(false)}/> : <PedidoDetails pedido={selectedPedido} onClose={() => setShowDetailsModal(false)} />}

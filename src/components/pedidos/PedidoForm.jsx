@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import ClienteDetails from "@/components/clientes/ClienteDetails";
 import ClienteForm from "@/components/clientes/ClienteForm";
 
-export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, onCadastrarCliente, isLoading }) {
+export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, onCadastrarCliente, isLoading, refetchClientes }) {
   
   const { data: representantes = [] } = useQuery({ 
     queryKey: ['representantes_pedido_form'], 
@@ -96,12 +96,11 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
   const [showClienteModal, setShowClienteModal] = useState(false);
   const [showNovoClienteModal, setShowNovoClienteModal] = useState(false);
   const [buscaCliente, setBuscaCliente] = useState(""); 
-  const [novosClientesLocais, setNovosClientesLocais] = useState([]);
   const [savingCliente, setSavingCliente] = useState(false);
 
   const todosClientes = useMemo(() => {
-    return [...clientes, ...novosClientesLocais];
-  }, [clientes, novosClientesLocais]);
+    return [...clientes];
+  }, [clientes]);
 
   useEffect(() => {
     if (pedido) {
@@ -194,11 +193,29 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     setForm(prev => recalcularSaldo({ ...prev, sinais_historico: novosSinais }));
   };
 
-  // 🚀 LÓGICA DE BLOQUEIO DE SALVAMENTO DE DUPLICADOS
+  // 🚀 LÓGICA DE BLOQUEIO DE SALVAMENTO DE DUPLICADOS + VALIDAÇÃO DE CAMPOS
   const handleSave = () => {
     const raw = String(form.numero_pedido).trim();
+
+    // --- VALIDAÇÕES DE CAMPOS OBRIGATÓRIOS ---
     if (!raw) {
-      toast.error("Preencha o número do pedido antes de salvar.");
+      toast.error("Preencha o Número do Pedido antes de salvar.");
+      return;
+    }
+    if (!form.cliente_codigo) {
+      toast.error("Selecione um Cliente antes de salvar.");
+      return;
+    }
+    if (!form.representante_codigo) {
+      toast.error("Selecione um Representante antes de salvar.");
+      return;
+    }
+    if (!form.data_entrega) {
+      toast.error("Preencha a Data de Entrega antes de salvar.");
+      return;
+    }
+    if (!form.valor_pedido || parseFloat(form.valor_pedido) <= 0) {
+      toast.error("O Valor do Pedido não pode ser zero ou vazio.");
       return;
     }
 
@@ -220,7 +237,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
         duration: 8000,
         style: { background: '#FEF2F2', color: '#991B1B', border: '1px solid #F87171', fontWeight: 'bold' }
       });
-      return; // IMPEDE A GRAVAÇÃO TOTALMENTE
+      return;
     }
 
     onSave(form);
@@ -319,7 +336,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
               );
               
               if (duplicado) {
-                toast.error(`Pedido #${formatado} já existe no sistema! (Status: ${duplicado.status})`, { duration: 5000 });
+                toast.warning(`⚠️ Atenção: O Pedido #${formatado} já está cadastrado no status: ${duplicado.status} (Cliente: ${duplicado.cliente_nome})`, { duration: 6000 });
               }
 
               // 2. BUSCA DE PORT AUTOMÁTICA
@@ -624,7 +641,9 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
                         status: 'ativo'
                     });
 
-                    setNovosClientesLocais(prev => [...prev, novoCliente]);
+                    // Usa o registro real do banco — sem mock local
+                    await refetchClientes();
+
                     setForm(prev => ({
                         ...prev,
                         cliente_codigo: novoCliente.codigo,
