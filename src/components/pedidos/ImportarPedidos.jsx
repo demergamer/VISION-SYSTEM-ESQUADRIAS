@@ -375,6 +375,39 @@ export default function ImportarPedidos({ clientes, pedidosExistentes = [], onIm
     setArquivos(prev => prev.map((a, i) => i === index ? { ...a, [field]: value } : a));
   };
 
+  // ─── Sanitizador de itens_pedido ─────────────────────────────────────────
+  const sanitizarItens = (itens) => {
+    if (!Array.isArray(itens)) return [];
+    return itens
+      .filter(item => item && typeof item === 'object')
+      .map(item => {
+        const qtd = parseFloat(item.quantidade);
+        const val = parseFloat(item.valor_unitario);
+        return {
+          codigo_peca: String(item.codigo_peca || 'S/C').trim().substring(0, 50),
+          descricao_peca: String(item.descricao_peca || 'Produto sem descrição').trim().substring(0, 200),
+          quantidade: (!isNaN(qtd) && qtd > 0) ? qtd : 1,
+          valor_unitario: (!isNaN(val) && val >= 0) ? val : 0,
+        };
+      });
+  };
+
+  // ─── Sanitizador geral de pedido ──────────────────────────────────────────
+  const sanitizarPedido = (p) => {
+    const numPedido = String(p.numero_pedido || '').trim();
+    if (!numPedido) throw new Error(`Pedido sem número encontrado. Verifique a planilha.`);
+    return {
+      numero_pedido: numPedido,
+      cliente_codigo: String(p.cliente_codigo || '').trim(),
+      cliente_nome: String(p.cliente_nome || 'Cliente Desconhecido').trim(),
+      cliente_regiao: String(p.cliente_regiao || '').trim(),
+      representante_codigo: String(p.representante_codigo || '').trim(),
+      representante_nome: String(p.representante_nome || '').trim(),
+      porcentagem_comissao: (typeof p.porcentagem_comissao === 'number' && !isNaN(p.porcentagem_comissao)) ? p.porcentagem_comissao : 5,
+      cliente_pendente: !!p.cliente_pendente,
+    };
+  };
+
   const handleImport = async () => {
     const arquivosValidos = arquivos.filter(a => {
       const novos = a.pedidos.filter(p => !p.jaExiste || a.tipo === 'rota');
@@ -396,34 +429,45 @@ export default function ImportarPedidos({ clientes, pedidosExistentes = [], onIm
           const pedidosNovos = arq.pedidos.filter(p => !p.jaExiste);
           const pedidosParaAtualizar = arq.pedidos.filter(p => p.jaExiste);
 
-          // Criar novos
+          // Criar novos — com sanitização completa do payload
           if (pedidosNovos.length > 0) {
-            const payload = pedidosNovos.map(p => ({
-              numero_pedido: p.numero_pedido,
-              cliente_codigo: p.cliente_codigo,
-              cliente_nome: p.cliente_nome,
-              cliente_regiao: p.cliente_regiao,
-              representante_codigo: p.representante_codigo,
-              representante_nome: p.representante_nome,
-              porcentagem_comissao: p.porcentagem_comissao,
-              cliente_pendente: p.cliente_pendente,
-              data_importado: hoje,
-              status: 'emproducao', // FORÇADO: planilha de produção sempre define este status
-              itens_pedido: p.itens_pedido || [],
-              observacao: p.observacao || '',
-              // Regra: planilha de produção NÃO define valor financeiro
-              confirmado_entrega: false
-            }));
+            const payload = pedidosNovos.map((p, idx) => {
+              try {
+                const base = sanitizarPedido(p);
+                const itens = sanitizarItens(p.itens_pedido);
+                return {
+                  ...base,
+                  data_importado: hoje,
+                  status: 'emproducao',
+                  itens_pedido: itens,
+                  observacao: String(p.observacao || '').trim(),
+                  valor_pedido: 0,
+                  total_pago: 0,
+                  saldo_restante: 0,
+                  confirmado_entrega: false,
+                };
+              } catch (itemErr) {
+                console.error(`[Produção] Erro ao sanitizar pedido índice ${idx}:`, p, itemErr);
+                throw new Error(`Erro no pedido "${p.numero_pedido || idx}": ${itemErr.message}`);
+              }
+            });
+
+            console.log('[ImportarPedidos] Payload produção novos (primeiros 3):', payload.slice(0, 3));
             await base44.entities.Pedido.bulkCreate(payload);
           }
 
           // Atualizar existentes: mesclar itens + forçar status emproducao
           for (const p of pedidosParaAtualizar) {
+            if (!p.pedidoExistenteId) {
+              console.warn('[ImportarPedidos] pedidoExistenteId ausente para:', p.numero_pedido);
+              continue;
+            }
+            const itens = sanitizarItens(p.itens_pedido);
             await base44.entities.Pedido.update(p.pedidoExistenteId, {
-              itens_pedido: p.itens_pedido,
+              itens_pedido: itens,
               status: 'emproducao',
               data_importado: hoje,
-              ...(p.observacao ? { observacao: p.observacao } : {})
+              ...(p.observacao ? { observacao: String(p.observacao).trim() } : {})
             });
           }
 
@@ -498,28 +542,31 @@ export default function ImportarPedidos({ clientes, pedidosExistentes = [], onIm
 
         // Criar pedidos que não passaram pela produção
         if (pedidosNovos.length > 0) {
-          const payload = pedidosNovos.map(p => ({
-            rota_importada_id: rotaId,
-            rota_codigo: arq.codigo_rota || arq.rotaCodigo,
-            rota_entrega: rotaNome,
-            motorista_atual: motoristaAtual,
-            motorista_codigo: motoristaCodigo,
-            cliente_nome: p.cliente_nome,
-            cliente_codigo: p.cliente_codigo,
-            cliente_regiao: p.cliente_regiao,
-            representante_codigo: p.representante_codigo,
-            representante_nome: p.representante_nome,
-            numero_pedido: p.numero_pedido,
-            valor_pedido: p.valor_pedido,
-            saldo_restante: p.valor_pedido,
-            cliente_pendente: p.cliente_pendente,
-            porcentagem_comissao: p.porcentagem_comissao,
-            data_entrega: p.data_entrega,
-            data_importado: hoje,
-            total_pago: 0,
-            status: 'aguardando',
-            confirmado_entrega: false
-          }));
+          const payload = pedidosNovos.map((p, idx) => {
+            try {
+              const base = sanitizarPedido(p);
+              const valor = (typeof p.valor_pedido === 'number' && !isNaN(p.valor_pedido)) ? p.valor_pedido : 0;
+              return {
+                ...base,
+                rota_importada_id: rotaId,
+                rota_codigo: String(arq.codigo_rota || arq.rotaCodigo || '').trim(),
+                rota_entrega: String(rotaNome || '').trim(),
+                motorista_atual: String(motoristaAtual || '').trim(),
+                motorista_codigo: String(motoristaCodigo || '').trim(),
+                valor_pedido: valor,
+                saldo_restante: valor,
+                data_entrega: p.data_entrega || hoje,
+                data_importado: hoje,
+                total_pago: 0,
+                status: 'aguardando',
+                confirmado_entrega: false,
+              };
+            } catch (itemErr) {
+              console.error(`[Rota] Erro ao sanitizar pedido índice ${idx}:`, p, itemErr);
+              throw new Error(`Erro no pedido "${p.numero_pedido || idx}": ${itemErr.message}`);
+            }
+          });
+          console.log('[ImportarPedidos] Payload rota novos (primeiros 3):', payload.slice(0, 3));
           await base44.entities.Pedido.bulkCreate(payload);
         }
 
@@ -543,8 +590,13 @@ export default function ImportarPedidos({ clientes, pedidosExistentes = [], onIm
 
       onImportComplete();
     } catch (error) {
-      console.error(error);
-      toast.error('Erro ao importar: ' + error.message);
+      console.error('[ImportarPedidos] ERRO CRÍTICO na importação:', error);
+      // Extrai a mensagem mais útil possível
+      const msg = error?.response?.data?.message
+        || error?.response?.data?.error
+        || error?.message
+        || 'Erro desconhecido';
+      toast.error(`Falha na importação: ${msg}`, { duration: 10000 });
     } finally {
       setLoading(false);
     }
