@@ -45,6 +45,7 @@ import AprovarLiquidacaoModal from "@/components/pedidos/AprovarLiquidacaoModal"
 import DividirRotaModal from "@/components/pedidos/DividirRotaModal";
 import AdicionarRepresentanteModal from "@/components/pedidos/AdicionarRepresentanteModal";
 import MesclarNFModal from "@/components/pedidos/MesclarNFModal";
+import EntregarManualModal from "@/components/pedidos/EntregarManualModal";
 import PermissionGuard from "@/components/PermissionGuard";
 import { usePermissions } from "@/components/hooks/usePermissions";
 import PaginacaoControles, { SeletorItensPorPagina } from "@/components/pedidos/PaginacaoControles";
@@ -151,7 +152,7 @@ const StatWidget = ({ title, value, icon: Icon, color, subtext }) => {
 };
 
 // Componente: Card de Pedido em Grade (Explorer)
-const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReverter, canDo }) => {
+const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReverter, onEntregarManual, canDo }) => {
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
   
   // CORREÇÃO CRÍTICA: BADGES VISUAIS (SÓ FICA VERMELHO SE > 15 DIAS)
@@ -192,6 +193,7 @@ const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReve
       </div>
       <div className="flex gap-1 justify-end pt-2 border-t border-slate-50">
          {canDo('Pedidos', 'visualizar') && (<Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-100" onClick={() => onView(pedido)} title="Ver Detalhes"><Eye className="w-4 h-4 text-slate-500" /></Button>)}
+         {onEntregarManual && canDo('Pedidos', 'editar') && (<Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-emerald-50" onClick={() => onEntregarManual(pedido)} title="Entregar Manualmente"><Truck className="w-4 h-4 text-emerald-600" /></Button>)}
          {pedido.status === 'pago' && onReverter && canDo('Pedidos', 'liquidar') && (<Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-amber-50" onClick={() => onReverter(pedido)} title="Reverter"><RotateCcw className="w-4 h-4 text-amber-600" /></Button>)}
          {pedido.status !== 'pago' && pedido.status !== 'cancelado' && (<>{canDo('Pedidos', 'editar') && (<Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-blue-50" onClick={() => onEdit(pedido)} title="Editar"><Edit className="w-4 h-4 text-blue-600" /></Button>)}{canDo('Pedidos', 'liquidar') && (<Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-emerald-50" onClick={() => onLiquidar(pedido)} title="Liquidar"><DollarSign className="w-4 h-4 text-emerald-600" /></Button>)}{canDo('Pedidos', 'editar') && (<Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-red-50" onClick={() => onCancelar(pedido)} title="Cancelar"><XCircle className="w-4 h-4 text-red-600" /></Button>)}</>)}
       </div>
@@ -748,6 +750,28 @@ export default function Pedidos() {
   };
 
   const [pedidoJaPagoAlerta, setPedidoJaPagoAlerta] = useState(null);
+  const [showEntregarManualModal, setShowEntregarManualModal] = useState(false);
+  const [pedidoParaEntregarManual, setPedidoParaEntregarManual] = useState(null);
+
+  const handleEntregarManual = (pedido) => {
+    setPedidoParaEntregarManual(pedido);
+    setShowEntregarManualModal(true);
+  };
+
+  const handleSaveEntregarManual = async (payload) => {
+    setIsProcessing(true);
+    try {
+      await base44.entities.Pedido.update(pedidoParaEntregarManual.id, payload);
+      await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+      setShowEntregarManualModal(false);
+      setPedidoParaEntregarManual(null);
+      toast.success('Entrega manual registrada com sucesso!');
+    } catch (e) {
+      toast.error('Erro ao registrar entrega: ' + e.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const handleConfirmarEntrega = async (pedido) => {
       if (pedido.status === 'pago' && pedido.bordero_numero) {
@@ -763,7 +787,8 @@ export default function Pedidos() {
           const novoStatus = pedido.status === 'pago' ? 'pago' : 'aberto';
           await base44.entities.Pedido.update(pedido.id, {
               confirmado_entrega: true,
-              status: novoStatus
+              status: novoStatus,
+              data_entregue: new Date().toISOString().split('T')[0]
           });
 
           try {
@@ -1069,6 +1094,7 @@ export default function Pedidos() {
                         onCancelar={handleCancelar}
                         onReverter={null}
                         onMudarStatus={handleMudarStatusEspecial}
+                        onEntregarManual={handleEntregarManual}
                         isLoading={loadingPedidos}
                         sortConfig={sortConfig}
                         onSort={handleSort}
@@ -1079,7 +1105,7 @@ export default function Pedidos() {
                             [...Array(8)].map((_, i) => <PedidoGridSkeleton key={i} />)
                         ) : (
                             currentPedidos.map(pedido => (
-                                <PedidoGridCard key={pedido.id} pedido={pedido} onEdit={handleEdit} onView={handleView} onLiquidar={handleLiquidar} onCancelar={handleCancelar} canDo={canDo} />
+                                <PedidoGridCard key={pedido.id} pedido={pedido} onEdit={handleEdit} onView={handleView} onLiquidar={handleLiquidar} onCancelar={handleCancelar} onEntregarManual={handleEntregarManual} canDo={canDo} />
                             ))
                         )}
                     </div>
@@ -1104,10 +1130,14 @@ export default function Pedidos() {
                     {loadingPedidos ? (
                         [...Array(6)].map((_, i) => <PedidoGridSkeleton key={i} />)
                     ) : currentPedidos.length > 0 ? (
-                        currentPedidos.map(p => (
+                        currentPedidos.map(p => {
+                            const isPago = p.status === 'pago' || (p.saldo_restante !== undefined ? p.saldo_restante <= 0 : (p.total_pago || 0) >= (p.valor_pedido || 0));
+                            return (
                             <div key={p.id} className={cn(
                                 "border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col gap-3",
-                                p.cliente_pendente ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200"
+                                p.cliente_pendente ? "bg-amber-50 border-amber-200" :
+                                isPago ? "bg-blue-50 border-blue-300" :
+                                "bg-white border-slate-200"
                             )}>
                                 <div className="flex justify-between items-start">
                                     <div>
@@ -1123,6 +1153,10 @@ export default function Pedidos() {
                                         {p.cliente_pendente ? (
                                             <Badge variant="outline" className="mt-1 bg-amber-100 text-amber-700 border-amber-300 text-[10px]">
                                                 <AlertTriangle className="w-3 h-3 mr-1" /> Cliente Não Cadastrado
+                                            </Badge>
+                                        ) : isPago ? (
+                                            <Badge variant="outline" className="mt-1 bg-blue-100 text-blue-700 border-blue-300 text-[10px]">
+                                                <CheckCircle className="w-3 h-3 mr-1" /> JÁ PAGO
                                             </Badge>
                                         ) : (
                                             <p className="text-xs text-slate-500 font-mono mt-0.5">{p.cliente_codigo}</p>
@@ -1146,39 +1180,40 @@ export default function Pedidos() {
                                 </div>
 
                                 <div className="mt-auto pt-2">
-                                    {p.cliente_pendente ? (
-                                        <Button 
-                                            className="w-full bg-amber-500 hover:bg-amber-600 text-white shadow-sm shadow-amber-200" 
-                                            onClick={() => { 
-                                                setPedidoParaCadastro(p); 
-                                                setShowCadastrarClienteModal(true); 
-                                            }}
-                                        >
-                                            <UserPlus className="w-4 h-4 mr-2" /> Cadastrar Cliente
-                                        </Button>
-                                    ) : (
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <Button 
-                                                size="sm" 
-                                                className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm" 
-                                                onClick={() => handleConfirmarEntrega(p)}
-                                            >
-                                                <CheckCircle className="w-4 h-4 mr-2" /> Confirmar
-                                            </Button>
-                                            <Button 
-                                                size="sm" 
-                                                variant="outline" 
-                                                className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300" 
-                                                onClick={() => handleCancelar(p)}
-                                            >
-                                                Cancelar
-                                            </Button>
-                                        </div>
-                                    )}
+                                {p.cliente_pendente ? (
+                                <Button 
+                                    className="w-full bg-amber-500 hover:bg-amber-600 text-white shadow-sm shadow-amber-200" 
+                                    onClick={() => { 
+                                        setPedidoParaCadastro(p); 
+                                        setShowCadastrarClienteModal(true); 
+                                    }}
+                                >
+                                    <UserPlus className="w-4 h-4 mr-2" /> Cadastrar Cliente
+                                </Button>
+                                ) : (
+                                <div className="grid grid-cols-2 gap-2">
+                                    <Button 
+                                        size="sm" 
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm" 
+                                        onClick={() => handleConfirmarEntrega(p)}
+                                    >
+                                        <CheckCircle className="w-4 h-4 mr-2" /> Confirmar
+                                    </Button>
+                                    <Button 
+                                        size="sm" 
+                                        variant="outline" 
+                                        className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300" 
+                                        onClick={() => handleCancelar(p)}
+                                    >
+                                        Cancelar
+                                    </Button>
                                 </div>
-                            </div>
-                        ))
-                    ) : (
+                                )}
+                                </div>
+                                </div>
+                                );
+                                })
+                                ) : (
                         <div className="col-span-full flex flex-col items-center justify-center py-16 text-center border-dashed border-2 border-slate-200 rounded-xl bg-slate-50/50">
                             <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm border border-slate-100">
                                 <Truck className="w-8 h-8 text-slate-300" />
@@ -1541,6 +1576,18 @@ export default function Pedidos() {
               onClose={() => setShowRotaCobrancaModal(false)} 
             />
           )}
+
+          <ModalContainer open={showEntregarManualModal} onClose={() => setShowEntregarManualModal(false)} title="Entregar Manualmente" description="Registre uma entrega sem rota importada (retira ou envio direto)">
+            {pedidoParaEntregarManual && (
+              <EntregarManualModal
+                pedido={pedidoParaEntregarManual}
+                rotas={rotas}
+                onSave={handleSaveEntregarManual}
+                onCancel={() => setShowEntregarManualModal(false)}
+                isLoading={isProcessing}
+              />
+            )}
+          </ModalContainer>
 
         </div>
       </div>

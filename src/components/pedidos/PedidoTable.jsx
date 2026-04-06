@@ -5,7 +5,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Edit, Eye, DollarSign, RotateCcw, 
+  Edit, Eye, DollarSign, RotateCcw, Truck,
   ArrowUpDown, ArrowUp, ArrowDown, X, MoreHorizontal, RepeatIcon, UserCheck
 } from "lucide-react";
 
@@ -47,6 +47,7 @@ export default function PedidoTable({
   onCancelar, 
   onReverter,
   onMudarStatus,
+  onEntregarManual,
   isLoading,
   showBorderoRef = false,
   sortConfig = { key: null, direction: null }, 
@@ -158,6 +159,12 @@ export default function PedidoTable({
                       {pedido.status !== 'pago' && pedido.status !== 'cancelado' && onCancelar && (
                         <DropdownMenuItem onClick={() => onCancelar(pedido)} className="gap-2 text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer">
                           <X className="w-4 h-4" /> Cancelar
+                        </DropdownMenuItem>
+                      )}
+
+                      {onEntregarManual && (
+                        <DropdownMenuItem onClick={() => onEntregarManual(pedido)} className="gap-2 cursor-pointer">
+                          <Truck className="w-4 h-4 text-emerald-500" /> Entregar Manualmente
                         </DropdownMenuItem>
                       )}
 
