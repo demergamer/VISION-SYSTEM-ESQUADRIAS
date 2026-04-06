@@ -206,7 +206,8 @@ export default function Pedidos() {
   const { canDo } = usePermissions();
   
   // --- STATES ---
-  const [searchTerm, setSearchTerm] = useState('');
+  const [inputValue, setInputValue] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeTab, setActiveTab] = useState('abertos');
   const [abertosSubTab, setAbertosSubTab] = useState('todos'); 
   const [viewMode, setViewMode] = useState('table'); 
@@ -255,7 +256,6 @@ export default function Pedidos() {
   const [pedidoParaCancelar, setPedidoParaCancelar] = useState(null);
   const [pedidoParaReverter, setPedidoParaReverter] = useState(null);
   const [showMesclarNFModal, setShowMesclarNFModal] = useState(false);
-  const [debouncedSearch, setDebouncedSearch] = useState('');
   const debounceRef = useRef(null);
 
   // --- QUERIES ---
@@ -284,12 +284,12 @@ export default function Pedidos() {
     } 
   });
 
-  // --- DEBOUNCE DA BUSCA ---
+  // --- DEBOUNCE DA BUSCA (true debounce) ---
   const handleSearchChange = (e) => {
     const val = e.target.value;
-    setSearchTerm(val);
+    setInputValue(val);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setDebouncedSearch(val), 800);
+    debounceRef.current = setTimeout(() => setDebouncedSearch(val), 500);
   };
 
   // --- MESCLAR NF ---
@@ -397,8 +397,8 @@ export default function Pedidos() {
     }
 
     // 3. Busca Multi-Nível com suporte a vírgula
-    if (searchTerm) {
-      const termos = searchTerm.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+    if (debouncedSearch) {
+      const termos = debouncedSearch.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
       if (termos.length > 1) {
         data = data.filter(p =>
           termos.some(termo => {
@@ -453,28 +453,29 @@ export default function Pedidos() {
         });
     }
     return data;
-  }, [pedidos, activeTab, abertosSubTab, searchTerm, showFilters, filters, sortConfig]);
+  }, [pedidos, activeTab, abertosSubTab, debouncedSearch, showFilters, filters, sortConfig]);
 
   // Reset page on filter/tab/search change
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, activeTab, abertosSubTab, filters, showFilters]);
-  useEffect(() => { setCurrentPageBorderos(1); }, [searchTerm]);
+  useEffect(() => { setCurrentPage(1); }, [debouncedSearch, activeTab, abertosSubTab, filters, showFilters]);
+  useEffect(() => { setCurrentPageBorderos(1); }, [debouncedSearch]);
 
   // --- STATS DINÂMICOS ---
   const pedidosFiltradosBusca = useMemo(() => {
-    if (!searchTerm) return pedidos;
-    const lower = searchTerm.toLowerCase().replace(/\./g, '');
+    if (!debouncedSearch) return pedidos;
+    const lower = debouncedSearch.toLowerCase().replace(/\./g, '');
     return pedidos.filter(p =>
       p.cliente_nome?.toLowerCase().includes(lower) ||
       p.cliente_codigo?.toLowerCase().includes(lower) ||
       (p.numero_pedido?.replace(/\./g, '')?.toLowerCase().includes(lower)) ||
       p.bordero_numero?.toString().includes(lower)
     );
-  }, [pedidos, searchTerm]);
+  }, [pedidos, debouncedSearch]);
 
   const stats = useMemo(() => {
     const hoje = new Date();
     hoje.setHours(0,0,0,0);
 
+    const producaoCount = pedidosFiltradosBusca.filter(p => p.status?.toLowerCase() === 'emproducao').length;
     const transitoCount = pedidosFiltradosBusca.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado').length;
     const abertosCount = pedidosFiltradosBusca.filter(p => p.status === 'aberto' || p.status === 'parcial').length;
     const trocasCount = pedidosFiltradosBusca.filter(p => p.status === 'troca').length;
@@ -504,8 +505,8 @@ export default function Pedidos() {
       .filter(p => p.status === 'representante_recebe')
       .reduce((sum, p) => sum + (p.saldo_restante !== undefined ? p.saldo_restante : (p.valor_pedido - (p.total_pago || 0))), 0);
 
-    return { transitoCount, abertosCount, autorizacoesCount, rotasAtivasCount, totalAReceber, totalVencido, valorEmTransito, trocasCount, repRecebeCount, repRecebeValor, emDiaCount, atrasadoCount };
-  }, [pedidos, pedidosFiltradosBusca, liquidacoesPendentes, rotas, searchTerm]);
+    return { producaoCount, transitoCount, abertosCount, autorizacoesCount, rotasAtivasCount, totalAReceber, totalVencido, valorEmTransito, trocasCount, repRecebeCount, repRecebeValor, emDiaCount, atrasadoCount };
+  }, [pedidos, pedidosFiltradosBusca, liquidacoesPendentes, rotas, debouncedSearch]);
 
   // --- PEDIDOS PAGINADOS ---
   const totalPages = Math.ceil(processedPedidos.length / itemsPerPage);
@@ -513,10 +514,10 @@ export default function Pedidos() {
   const currentPedidos = processedPedidos.slice(indexOfFirst, indexOfFirst + itemsPerPage);
 
   const filteredBorderos = useMemo(() => {
-    if (!searchTerm) return borderos;
-    const lower = searchTerm.toLowerCase();
+    if (!debouncedSearch) return borderos;
+    const lower = debouncedSearch.toLowerCase();
     return borderos.filter(b => {
-      if (b.numero_bordero?.toString().includes(searchTerm)) return true;
+      if (b.numero_bordero?.toString().includes(debouncedSearch)) return true;
       if (b.cliente_nome?.toLowerCase().includes(lower)) return true;
       if (b.liquidado_por?.toLowerCase().includes(lower)) return true;
       if (b.pedidos_ids && Array.isArray(b.pedidos_ids)) {
@@ -528,7 +529,7 @@ export default function Pedidos() {
       }
       return false;
     });
-  }, [borderos, searchTerm, pedidos]);
+  }, [borderos, debouncedSearch, pedidos]);
 
   const totalPagesBorderos = Math.ceil(filteredBorderos.length / borderosPerPage);
   const currentBorderos = filteredBorderos.slice(
@@ -983,11 +984,6 @@ export default function Pedidos() {
                         <DollarSign className="w-4 h-4 mr-2 text-emerald-600" /> Liq. em Massa
                     </Button>
                 )}
-                {canDo('Pedidos', 'adicionar') && (
-                    <Button variant="outline" onClick={() => setShowMesclarNFModal(true)} className="bg-white border-slate-200 text-blue-700 border-blue-200 hover:bg-blue-50">
-                        <GitMerge className="w-4 h-4 mr-2 text-blue-600" /> Mesclar NF
-                    </Button>
-                )}
                 <Button variant="outline" onClick={() => setActiveTab('rotas')} className={cn("bg-white border-slate-200", activeTab === 'rotas' && "bg-purple-50 border-purple-300 text-purple-700")}>
                     <Truck className="w-4 h-4 mr-2 text-purple-500" /> Rotas
                     {stats.rotasAtivasCount > 0 && <span className="ml-1.5 bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full text-[10px] font-bold">{stats.rotasAtivasCount}</span>}
@@ -1003,6 +999,7 @@ export default function Pedidos() {
                             <DropdownMenuItem onClick={() => { setImportTipo('rota'); setShowImportModal(true); }}><Truck className="w-4 h-4 mr-2 text-purple-500" /> Importar Entrega</DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => setShowRotaCobrancaModal(true)}><FileText className="w-4 h-4 mr-2" /> Rota de Cobrança</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setShowMesclarNFModal(true)}><GitMerge className="w-4 h-4 mr-2 text-blue-500" /> Mesclar NF</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => { setActiveTab('cancelados'); }}><XIcon className="w-4 h-4 mr-2" /> Ver Cancelados</DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={handleRefresh} disabled={refreshingData}><RefreshCw className={cn("w-4 h-4 mr-2", refreshingData && "animate-spin")} /> Atualizar Dados</DropdownMenuItem>
@@ -1028,7 +1025,7 @@ export default function Pedidos() {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <TabsList className="bg-slate-100 p-1 rounded-full border border-slate-200 h-auto flex-wrap justify-start">
-                    <TabsTrigger value="producao" className="rounded-full gap-2 px-4"><Factory className="w-4 h-4 text-slate-500"/> Em Produção</TabsTrigger>
+                    <TabsTrigger value="producao" className="rounded-full gap-2 px-4"><Factory className="w-4 h-4 text-slate-500"/> Em Produção {stats.producaoCount > 0 && <span className="bg-slate-200 text-slate-700 px-2 rounded-full text-[10px]">{stats.producaoCount}</span>}</TabsTrigger>
                     <TabsTrigger value="transito" className="rounded-full gap-2 px-4"><Truck className="w-4 h-4 text-amber-500"/> Em Trânsito <span className="bg-amber-100 text-amber-700 px-2 rounded-full text-[10px]">{stats.transitoCount}</span></TabsTrigger>
                     <TabsTrigger value="abertos" className="rounded-full gap-2 px-4"><FileText className="w-4 h-4 text-blue-500"/> Abertos <span className="bg-blue-100 text-blue-700 px-2 rounded-full text-[10px]">{stats.abertosCount}</span></TabsTrigger>
                     <TabsTrigger value="trocas" className="rounded-full gap-2 px-4"><RepeatIcon className="w-4 h-4 text-amber-500"/> Trocas {stats.trocasCount > 0 && <span className="bg-amber-100 text-amber-700 px-2 rounded-full text-[10px]">{stats.trocasCount}</span>}</TabsTrigger>
@@ -1052,7 +1049,7 @@ export default function Pedidos() {
 
                         <div className="relative flex-1 md:w-64">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                            <Input placeholder="Buscar pedido... (vírgula p/ múltiplos)" value={searchTerm} onChange={handleSearchChange} className="pl-10 bg-white" />
+                            <Input placeholder="Buscar pedido... (vírgula p/ múltiplos)" value={inputValue} onChange={handleSearchChange} className="pl-10 bg-white" />
                         </div>
                         <SeletorItensPorPagina itemsPerPage={itemsPerPage} onChangeItemsPerPage={(v) => { setItemsPerPage(v); setCurrentPage(1); }} />
                     </div>
