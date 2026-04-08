@@ -29,6 +29,7 @@ import OnboardingModal from '@/components/admin/OnboardingModal';
 import { usePreferences } from '@/components/hooks/usePreferences';
 import GlobalSearch from '@/components/search/GlobalSearch';
 import NotificationToastManager from '@/components/notificacoes/NotificationToastManager';
+import AppUpdater from '@/components/utils/AppUpdater';
 import { MessageSquare, MessageSquareDot } from 'lucide-react';
 import { usePresenca } from '@/components/hooks/usePresenca';
 
@@ -434,6 +435,7 @@ function LayoutInner({ children, currentPageName }) {
       )}
 
       <NotificationToastManager />
+      <AppUpdater />
       {precisaConfigurarPerfil && (
          <div className="fixed inset-0 z-[99999] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center">
             <OnboardingModal onComplete={() => window.location.reload()} />
