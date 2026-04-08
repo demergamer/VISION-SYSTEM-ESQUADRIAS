@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { RefreshCw } from 'lucide-react';
 
-const CURRENT_VERSION = "1.0.1.585";
+const CURRENT_VERSION = "1.0.1.685";
 
 export default function AppUpdater() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
