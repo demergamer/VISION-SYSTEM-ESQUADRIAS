@@ -188,6 +188,7 @@ function ClassicSidebar({ open, onClose, currentPageName, canDo, user, signOut, 
           <div>
             <h1 className="font-extrabold text-slate-800 text-lg leading-tight">J&C <span className="text-blue-600">Vision</span></h1>
             <p className="text-[10px] text-slate-400 uppercase tracking-widest">Sistema de Gestão</p>
+            <p className="text-[9px] text-slate-400/60 font-mono tracking-widest mt-0.5">v1.0.1.986</p>
           </div>
           <button onClick={onClose} className="ml-auto p-1 rounded-lg hover:bg-slate-100"><X className="w-4 h-4 text-slate-400" /></button>
         </div>
