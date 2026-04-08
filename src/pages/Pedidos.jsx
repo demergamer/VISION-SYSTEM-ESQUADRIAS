@@ -199,7 +199,7 @@ const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReve
         <div className="text-right"><p className="text-xs text-slate-400">Total</p><p className="text-sm font-medium text-slate-600">{formatCurrency(pedido.valor_pedido)}</p></div>
       </div>
       {/* Botão gigante de ticagem para pedidos Em Trânsito (mobile-first) */}
-      {onConfirmarEntrega && pedido.status === 'aguardando' && !pedido.confirmado_entrega ? (
+      {onConfirmarEntrega && pedido.rota_importada_id && !pedido.confirmado_entrega ? (
         <div className="pt-2 border-t border-slate-100">
           <Button
             className="w-full h-12 text-base font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl shadow-md shadow-emerald-200 gap-2"
