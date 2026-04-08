@@ -1031,6 +1031,29 @@ export default function Pedidos() {
             </div>
           </div>
 
+          {/* Widget Cielo */}
+          <div className="bg-white border border-blue-100 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center gap-4">
+            <div className="flex items-center gap-4 flex-1">
+              {/* Logo Cielo */}
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-md flex-shrink-0">
+                <span className="text-white font-black text-2xl" style={{ fontFamily: 'Georgia, serif' }}>C</span>
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-800 text-base leading-tight">Portal Cielo</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Acesse o resumo de vendas em nova aba.</p>
+              </div>
+            </div>
+            <a
+              href="https://minhaconta2.cielo.com.br/site/vendas/resumo/cielo"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm px-5 py-2.5 rounded-xl shadow transition-colors whitespace-nowrap flex-shrink-0"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+              Abrir Resumo Vendas
+            </a>
+          </div>
+
           {/* Widgets Grid - 2 linhas */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <StatWidget title="Total a Receber" value={formatCurrency(stats.totalAReceber)} icon={DollarSign} color="blue" subtext="Excl. trocas/rep." />
