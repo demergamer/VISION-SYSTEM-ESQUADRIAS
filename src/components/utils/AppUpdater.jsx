@@ -21,7 +21,7 @@ export default function AppUpdater() {
     };
 
     checkForUpdates();
-    const intervalId = setInterval(checkForUpdates, 600000);
+    const intervalId = setInterval(checkForUpdates, 60);
     return () => clearInterval(intervalId);
   }, []);
 
