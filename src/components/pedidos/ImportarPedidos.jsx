@@ -424,52 +424,14 @@ export default function ImportarPedidos({ clientes, pedidosExistentes = [], onIm
       for (const arq of arquivosValidos) {
         const hoje = new Date().toISOString().split('T')[0];
 
-        // ─── PRODUÇÃO: Cria pedidos definitivos ───────────────────────────────
+        // ─── PRODUÇÃO: Delega ao servidor (importarProducaoTransaction) ──────
         if (arq.tipo === 'producao') {
-          const pedidosNovos = arq.pedidos.filter(p => !p.jaExiste);
-          const pedidosParaAtualizar = arq.pedidos.filter(p => p.jaExiste);
-
-          // Criar novos — com sanitização completa do payload
-          if (pedidosNovos.length > 0) {
-            const payload = pedidosNovos.map((p, idx) => {
-              try {
-                const base = sanitizarPedido(p);
-                const itens = sanitizarItens(p.itens_pedido);
-                return {
-                  ...base,
-                  data_importado: hoje,
-                  status: 'emproducao',
-                  itens_pedido: itens,
-                  observacao: String(p.observacao || '').trim(),
-                  valor_pedido: 0,
-                  total_pago: 0,
-                  saldo_restante: 0,
-                  confirmado_entrega: false,
-                };
-              } catch (itemErr) {
-                console.error(`[Produção] Erro ao sanitizar pedido índice ${idx}:`, p, itemErr);
-                throw new Error(`Erro no pedido "${p.numero_pedido || idx}": ${itemErr.message}`);
-              }
-            });
-
-            console.log('[ImportarPedidos] Payload produção novos (primeiros 3):', payload.slice(0, 3));
-            await base44.entities.Pedido.bulkCreate(payload);
-          }
-
-          // Atualizar existentes: APENAS itens_pedido — NUNCA alterar status, cliente_nome ou cliente_codigo
-          for (const p of pedidosParaAtualizar) {
-            if (!p.pedidoExistenteId) {
-              console.warn('[ImportarPedidos] pedidoExistenteId ausente para:', p.numero_pedido);
-              continue;
-            }
-            const itens = sanitizarItens(p.itens_pedido);
-            // Regra 1 estrita: só atualiza itens — status/cliente são imutáveis via esta planilha
-            await base44.entities.Pedido.update(p.pedidoExistenteId, {
-              itens_pedido: itens,
-            });
-          }
-
-          toast.success(`Produção: ${pedidosNovos.length} pedidos criados, ${pedidosParaAtualizar.length} atualizados.`);
+          // Envia o array completo (novos + existentes) para o backend processar em lote
+          const resp = await base44.functions.invoke('importarProducaoTransaction', {
+            pedidos: arq.pedidos,
+          });
+          const { criados = 0, atualizados = 0 } = resp?.data || {};
+          toast.success(`Produção: ${criados} pedidos criados, ${atualizados} atualizados.`);
           continue;
         }
 

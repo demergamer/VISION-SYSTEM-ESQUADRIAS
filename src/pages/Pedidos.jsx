@@ -152,7 +152,7 @@ const StatWidget = ({ title, value, icon: Icon, color, subtext }) => {
 };
 
 // Componente: Card de Pedido em Grade (Explorer)
-const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReverter, onEntregarManual, canDo }) => {
+const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReverter, onEntregarManual, onConfirmarEntrega, canDo }) => {
   const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
   
   // CORREÇÃO CRÍTICA: BADGES VISUAIS (SÓ FICA VERMELHO SE > 15 DIAS)
@@ -198,12 +198,24 @@ const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReve
         <div><p className="text-xs text-slate-400">Saldo</p><p className={cn("text-lg font-bold", (pedido.saldo_restante || 0) > 0 ? "text-amber-600" : "text-emerald-600")}>{formatCurrency(pedido.saldo_restante !== undefined ? pedido.saldo_restante : (pedido.valor_pedido - (pedido.total_pago || 0)))}</p></div>
         <div className="text-right"><p className="text-xs text-slate-400">Total</p><p className="text-sm font-medium text-slate-600">{formatCurrency(pedido.valor_pedido)}</p></div>
       </div>
+      {/* Botão gigante de ticagem para pedidos Em Trânsito (mobile-first) */}
+      {onConfirmarEntrega && pedido.status === 'aguardando' && !pedido.confirmado_entrega ? (
+        <div className="pt-2 border-t border-slate-100">
+          <Button
+            className="w-full h-12 text-base font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl shadow-md shadow-emerald-200 gap-2"
+            onClick={() => onConfirmarEntrega(pedido)}
+          >
+            ✔ CONFIRMAR ENTREGA
+          </Button>
+        </div>
+      ) : (
       <div className="flex gap-1 justify-end pt-2 border-t border-slate-50">
          {canDo('Pedidos', 'visualizar') && (<Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-100" onClick={() => onView(pedido)} title="Ver Detalhes"><Eye className="w-4 h-4 text-slate-500" /></Button>)}
          {onEntregarManual && canDo('Pedidos', 'editar') && (<Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-emerald-50" onClick={() => onEntregarManual(pedido)} title="Entregar Manualmente"><Truck className="w-4 h-4 text-emerald-600" /></Button>)}
          {pedido.status === 'pago' && onReverter && canDo('Pedidos', 'liquidar') && (<Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-amber-50" onClick={() => onReverter(pedido)} title="Reverter"><RotateCcw className="w-4 h-4 text-amber-600" /></Button>)}
          {pedido.status !== 'pago' && pedido.status !== 'cancelado' && (<>{canDo('Pedidos', 'editar') && (<Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-blue-50" onClick={() => onEdit(pedido)} title="Editar"><Edit className="w-4 h-4 text-blue-600" /></Button>)}{canDo('Pedidos', 'liquidar') && (<Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-emerald-50" onClick={() => onLiquidar(pedido)} title="Liquidar"><DollarSign className="w-4 h-4 text-emerald-600" /></Button>)}{canDo('Pedidos', 'editar') && (<Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-red-50" onClick={() => onCancelar(pedido)} title="Cancelar"><XCircle className="w-4 h-4 text-red-600" /></Button>)}</>)}
       </div>
+      )}
     </div>
   );
 };
@@ -1144,7 +1156,9 @@ export default function Pedidos() {
                         onReverter={null}
                         onMudarStatus={handleMudarStatusEspecial}
                         onCadastrarCliente={(p) => { setPedidoParaCadastro(p); setShowCadastrarClienteModal(true); }}
+                        onConfirmarEntrega={handleConfirmarEntrega}
                         dateMode="data_entrega"
+                        isTransito={true}
                         isLoading={loadingPedidos}
                         sortConfig={sortConfig}
                         onSort={handleSort}
@@ -1155,7 +1169,7 @@ export default function Pedidos() {
                             [...Array(8)].map((_, i) => <PedidoGridSkeleton key={i} />)
                         ) : (
                             currentPedidos.map(pedido => (
-                                <PedidoGridCard key={pedido.id} pedido={pedido} onEdit={handleEdit} onView={handleView} onLiquidar={handleLiquidar} onCancelar={handleCancelar} canDo={canDo} />
+                                <PedidoGridCard key={pedido.id} pedido={pedido} onEdit={handleEdit} onView={handleView} onLiquidar={handleLiquidar} onCancelar={handleCancelar} onConfirmarEntrega={handleConfirmarEntrega} canDo={canDo} />
                             ))
                         )}
                     </div>

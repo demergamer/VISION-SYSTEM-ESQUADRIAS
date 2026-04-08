@@ -40,7 +40,7 @@ const SortableHead = ({ label, sortKey, currentSort, onSort, className }) => {
   );
 };
 
-// dateMode: 'entrega' (padrão) | 'importado' | 'entregue' | 'pagamento'
+// dateMode: 'entrega' (padrão) | 'importado' | 'entregue' | 'pagamento' | 'data_entrega'
 export default function PedidoTable({ 
   pedidos = [], 
   onEdit, 
@@ -51,9 +51,11 @@ export default function PedidoTable({
   onMudarStatus,
   onEntregarManual,
   onCadastrarCliente,
+  onConfirmarEntrega,
   isLoading,
   showBorderoRef = false,
   dateMode = 'entrega',
+  isTransito = false,
   sortConfig = { key: null, direction: null }, 
   onSort 
 }) {
@@ -166,6 +168,39 @@ export default function PedidoTable({
                 {getStatusBadge(pedido)}
               </TableCell>
               <TableCell className="text-right">
+                {/* ── MODO TRÂNSITO: botão de ticagem em destaque ── */}
+                {isTransito && !pedido.cliente_pendente ? (
+                  <div className="flex items-center justify-end gap-1">
+                    {onConfirmarEntrega && (
+                      <Button
+                        size="sm"
+                        className="h-9 px-3 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                        onClick={() => onConfirmarEntrega(pedido)}
+                      >
+                        ✔ TICAR
+                      </Button>
+                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-700">
+                          <MoreHorizontal className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="z-[99999]">
+                        <DropdownMenuLabel>Mais ações</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => onView(pedido)} className="gap-2 cursor-pointer">
+                          <Eye className="w-4 h-4 text-blue-500" /> Ver Detalhes
+                        </DropdownMenuItem>
+                        {onCancelar && (
+                          <DropdownMenuItem onClick={() => onCancelar(pedido)} className="gap-2 text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer">
+                            <X className="w-4 h-4" /> Cancelar
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                ) : (
                 <div className="flex items-center justify-end gap-1">
                   
                   {pedido.cliente_pendente && onCadastrarCliente ? (
@@ -236,6 +271,7 @@ export default function PedidoTable({
                     </DropdownMenuContent>
                   </DropdownMenu>}
                 </div>
+                )}
               </TableCell>
             </TableRow>
           ))}
