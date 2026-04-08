@@ -1134,103 +1134,32 @@ export default function Pedidos() {
             </TabsContent>
 
             <TabsContent value="transito">
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {loadingPedidos ? (
-                        [...Array(6)].map((_, i) => <PedidoGridSkeleton key={i} />)
-                    ) : currentPedidos.length > 0 ? (
-                        currentPedidos.map(p => {
-                            const isPago = p.status === 'pago' || (p.saldo_restante !== undefined ? p.saldo_restante <= 0 : (p.total_pago || 0) >= (p.valor_pedido || 0));
-                            return (
-                            <div key={p.id} className={cn(
-                                "border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col gap-3",
-                                p.cliente_pendente ? "bg-amber-50 border-amber-200" :
-                                isPago ? "bg-blue-50 border-blue-300" :
-                                "bg-white border-slate-200"
-                            )}>
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <span className={cn(
-                                            "font-bold text-xs uppercase tracking-wider mb-1 block",
-                                            p.cliente_pendente ? "text-amber-700" : "text-slate-400"
-                                        )}>
-                                            #{p.numero_pedido}
-                                        </span>
-                                        <h3 className="font-bold text-slate-800 line-clamp-1" title={p.cliente_nome}>
-                                            {p.cliente_nome}
-                                        </h3>
-                                        {p.cliente_pendente ? (
-                                            <Badge variant="outline" className="mt-1 bg-amber-100 text-amber-700 border-amber-300 text-[10px]">
-                                                <AlertTriangle className="w-3 h-3 mr-1" /> Cliente Não Cadastrado
-                                            </Badge>
-                                        ) : isPago ? (
-                                            <Badge variant="outline" className="mt-1 bg-blue-100 text-blue-700 border-blue-300 text-[10px]">
-                                                <CheckCircle className="w-3 h-3 mr-1" /> JÁ PAGO
-                                            </Badge>
-                                        ) : (
-                                            <p className="text-xs text-slate-500 font-mono mt-0.5">{p.cliente_codigo}</p>
-                                        )}
-                                    </div>
-                                    <div className="text-right">
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Valor</span>
-                                        <span className="text-lg font-bold text-emerald-600">{formatCurrency(p.valor_pedido)}</span>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center gap-4 text-xs text-slate-500 py-2 border-t border-slate-100/50 border-b">
-                                    <div className="flex items-center gap-1">
-                                        <Calendar className="w-3.5 h-3.5" /> 
-                                        {formatDate(p.data_entrega)}
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                        <MapPin className="w-3.5 h-3.5" /> 
-                                        {p.cliente_regiao || 'Sem região'}
-                                    </div>
-                                </div>
-
-                                <div className="mt-auto pt-2">
-                                {p.cliente_pendente ? (
-                                <Button 
-                                    className="w-full bg-amber-500 hover:bg-amber-600 text-white shadow-sm shadow-amber-200" 
-                                    onClick={() => { 
-                                        setPedidoParaCadastro(p); 
-                                        setShowCadastrarClienteModal(true); 
-                                    }}
-                                >
-                                    <UserPlus className="w-4 h-4 mr-2" /> Cadastrar Cliente
-                                </Button>
-                                ) : (
-                                <div className="grid grid-cols-2 gap-2">
-                                    <Button 
-                                        size="sm" 
-                                        className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm" 
-                                        onClick={() => handleConfirmarEntrega(p)}
-                                    >
-                                        <CheckCircle className="w-4 h-4 mr-2" /> Confirmar
-                                    </Button>
-                                    <Button 
-                                        size="sm" 
-                                        variant="outline" 
-                                        className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300" 
-                                        onClick={() => handleCancelar(p)}
-                                    >
-                                        Cancelar
-                                    </Button>
-                                </div>
-                                )}
-                                </div>
-                                </div>
-                                );
-                                })
-                                ) : (
-                        <div className="col-span-full flex flex-col items-center justify-center py-16 text-center border-dashed border-2 border-slate-200 rounded-xl bg-slate-50/50">
-                            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm border border-slate-100">
-                                <Truck className="w-8 h-8 text-slate-300" />
-                            </div>
-                            <h3 className="text-lg font-medium text-slate-900">Nenhum pedido em trânsito</h3>
-                            <p className="text-slate-500 max-w-sm mt-1">Importe uma rota ou lance novos pedidos.</p>
-                        </div>
-                    )}
-                </div>
+                {viewMode === 'table' ? (
+                    <PedidoTable
+                        pedidos={currentPedidos}
+                        onEdit={handleEdit}
+                        onView={handleView}
+                        onLiquidar={handleLiquidar}
+                        onCancelar={handleCancelar}
+                        onReverter={null}
+                        onMudarStatus={handleMudarStatusEspecial}
+                        onCadastrarCliente={(p) => { setPedidoParaCadastro(p); setShowCadastrarClienteModal(true); }}
+                        dateMode="data_entrega"
+                        isLoading={loadingPedidos}
+                        sortConfig={sortConfig}
+                        onSort={handleSort}
+                    />
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {loadingPedidos ? (
+                            [...Array(8)].map((_, i) => <PedidoGridSkeleton key={i} />)
+                        ) : (
+                            currentPedidos.map(pedido => (
+                                <PedidoGridCard key={pedido.id} pedido={pedido} onEdit={handleEdit} onView={handleView} onLiquidar={handleLiquidar} onCancelar={handleCancelar} canDo={canDo} />
+                            ))
+                        )}
+                    </div>
+                )}
                 {!loadingPedidos && currentPedidos.length > 0 && (
                     <PaginacaoControles currentPage={currentPage} totalPages={totalPages} totalItems={processedPedidos.length} itemsPerPage={itemsPerPage} onPageChange={setCurrentPage} />
                 )}
