@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
   Edit, Eye, DollarSign, RotateCcw, Truck,
-  ArrowUpDown, ArrowUp, ArrowDown, X, MoreHorizontal, RepeatIcon, UserCheck
+  ArrowUpDown, ArrowUp, ArrowDown, X, MoreHorizontal, RepeatIcon, UserCheck,
+  AlertTriangle, Package
 } from "lucide-react";
 
 import {
@@ -39,6 +40,7 @@ const SortableHead = ({ label, sortKey, currentSort, onSort, className }) => {
   );
 };
 
+// dateMode: 'entrega' (padrão) | 'importado' | 'entregue' | 'pagamento'
 export default function PedidoTable({ 
   pedidos = [], 
   onEdit, 
@@ -48,12 +50,38 @@ export default function PedidoTable({
   onReverter,
   onMudarStatus,
   onEntregarManual,
+  onCadastrarCliente,
   isLoading,
   showBorderoRef = false,
+  dateMode = 'entrega',
   sortConfig = { key: null, direction: null }, 
   onSort 
 }) {
   const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
+
+  const getDateLabel = () => {
+    if (dateMode === 'importado') return 'Importado';
+    if (dateMode === 'entregue') return 'Data Entregue';
+    if (dateMode === 'pagamento') return 'Data Pagamento';
+    return 'Entrega';
+  };
+
+  const getDateValue = (pedido) => {
+    let val;
+    if (dateMode === 'importado') val = pedido.data_importado;
+    else if (dateMode === 'entregue') val = pedido.data_entregue || pedido.data_entrega;
+    else if (dateMode === 'pagamento') val = pedido.data_pagamento;
+    else val = pedido.data_entrega;
+    if (!val) return '-';
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? '-' : format(d, 'dd/MM/yyyy');
+  };
+
+  const getTotalItens = (pedido) => {
+    if (!Array.isArray(pedido.itens_pedido) || pedido.itens_pedido.length === 0) return null;
+    const total = pedido.itens_pedido.reduce((s, item) => s + (parseFloat(item.quantidade) || 0), 0);
+    return total > 0 ? total : null;
+  };
 
   const getStatusBadge = (pedido) => {
     if (pedido.status === 'pago') return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-emerald-200">Liquidado</Badge>;
@@ -89,7 +117,8 @@ export default function PedidoTable({
           <TableRow>
             <SortableHead label="Nº Pedido" sortKey="numero_pedido" currentSort={sortConfig} onSort={onSort} className="w-[100px]" />
             <SortableHead label="Cliente / Região" sortKey="cliente_nome" currentSort={sortConfig} onSort={onSort} />
-            <SortableHead label="Entrega" sortKey="data_entrega" currentSort={sortConfig} onSort={onSort} />
+            <SortableHead label={getDateLabel()} sortKey="data_entrega" currentSort={sortConfig} onSort={onSort} />
+            {dateMode === 'importado' && <TableHead className="text-center w-[80px]">Peças</TableHead>}
             <SortableHead label="Valor Total" sortKey="valor_pedido" currentSort={sortConfig} onSort={onSort} className="text-right" />
             <SortableHead label="Pago" sortKey="total_pago" currentSort={sortConfig} onSort={onSort} className="text-right hidden md:table-cell" />
             <SortableHead label="Saldo" sortKey="saldo_restante" currentSort={sortConfig} onSort={onSort} className="text-right" />
@@ -110,9 +139,16 @@ export default function PedidoTable({
                   </span>
                 </div>
               </TableCell>
-              <TableCell className="text-sm text-slate-600">
-                {pedido.data_entrega ? (() => { const d = new Date(pedido.data_entrega); return isNaN(d.getTime()) ? '-' : format(d, 'dd/MM/yyyy'); })() : '-'}
-              </TableCell>
+              <TableCell className="text-sm text-slate-600">{getDateValue(pedido)}</TableCell>
+              {dateMode === 'importado' && (
+                <TableCell className="text-center">
+                  {getTotalItens(pedido) !== null ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
+                      <Package className="w-3 h-3" />{getTotalItens(pedido)}
+                    </span>
+                  ) : <span className="text-slate-300">—</span>}
+                </TableCell>
+              )}
               <TableCell className="text-right font-medium text-slate-700">
                 {formatCurrency(pedido.valor_pedido)}
               </TableCell>
@@ -132,11 +168,17 @@ export default function PedidoTable({
               <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-1">
                   
+                  {pedido.cliente_pendente && onCadastrarCliente ? (
+                    <Button size="sm" className="h-7 text-xs bg-amber-500 hover:bg-amber-600 text-white px-2 gap-1" onClick={() => onCadastrarCliente(pedido)} title="Cadastrar Cliente">
+                      <AlertTriangle className="w-3 h-3" /> Cadastrar
+                    </Button>
+                  ) : (
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-blue-600" onClick={() => onView(pedido)} title="Ver Detalhes">
                     <Eye className="w-4 h-4" />
                   </Button>
+                  )}
 
-                  <DropdownMenu>
+                  {!pedido.cliente_pendente && <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-700" title="Mais ações">
                         <MoreHorizontal className="w-4 h-4" />
@@ -192,7 +234,7 @@ export default function PedidoTable({
                         </>
                       )}
                     </DropdownMenuContent>
-                  </DropdownMenu>
+                  </DropdownMenu>}
                 </div>
               </TableCell>
             </TableRow>

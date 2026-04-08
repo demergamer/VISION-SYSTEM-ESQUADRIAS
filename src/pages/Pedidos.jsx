@@ -793,10 +793,12 @@ export default function Pedidos() {
       setIsProcessing(true);
       try {
           const novoStatus = pedido.status === 'pago' ? 'pago' : 'aberto';
+          // Regra 7: data_entregue deve ser o datetime exato (ISO completo)
           await base44.entities.Pedido.update(pedido.id, {
               confirmado_entrega: true,
               status: novoStatus,
-              data_entregue: new Date().toISOString().split('T')[0]
+              data_entregue: new Date().toISOString(),
+              usuario_confirmou_entrega: (await base44.auth.me())?.email || ''
           });
 
           try {
@@ -1099,6 +1101,8 @@ export default function Pedidos() {
                         onReverter={null}
                         onMudarStatus={handleMudarStatusEspecial}
                         onEntregarManual={handleEntregarManual}
+                        onCadastrarCliente={(p) => { setPedidoParaCadastro(p); setShowCadastrarClienteModal(true); }}
+                        dateMode="importado"
                         isLoading={loadingPedidos}
                         sortConfig={sortConfig}
                         onSort={handleSort}
@@ -1312,6 +1316,7 @@ export default function Pedidos() {
                             onLiquidar={handleLiquidar} 
                             onCancelar={handleCancelar} 
                             onReverter={(p) => { setPedidoParaReverter(p); setShowReverterDialog(true); }}
+                            dateMode="pagamento"
                             isLoading={loadingPedidos}
                             showBorderoRef={true}
                         />
@@ -1375,6 +1380,7 @@ export default function Pedidos() {
                         onCancelar={handleCancelar} 
                         onReverter={null}
                         onMudarStatus={handleMudarStatusEspecial}
+                        dateMode="entregue"
                         isLoading={loadingPedidos}
                         sortConfig={sortConfig} 
                         onSort={handleSort}     

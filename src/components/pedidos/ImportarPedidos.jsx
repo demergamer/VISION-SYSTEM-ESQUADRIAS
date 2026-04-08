@@ -456,18 +456,16 @@ export default function ImportarPedidos({ clientes, pedidosExistentes = [], onIm
             await base44.entities.Pedido.bulkCreate(payload);
           }
 
-          // Atualizar existentes: mesclar itens + forçar status emproducao
+          // Atualizar existentes: APENAS itens_pedido — NUNCA alterar status, cliente_nome ou cliente_codigo
           for (const p of pedidosParaAtualizar) {
             if (!p.pedidoExistenteId) {
               console.warn('[ImportarPedidos] pedidoExistenteId ausente para:', p.numero_pedido);
               continue;
             }
             const itens = sanitizarItens(p.itens_pedido);
+            // Regra 1 estrita: só atualiza itens — status/cliente são imutáveis via esta planilha
             await base44.entities.Pedido.update(p.pedidoExistenteId, {
               itens_pedido: itens,
-              status: 'emproducao',
-              data_importado: hoje,
-              ...(p.observacao ? { observacao: String(p.observacao).trim() } : {})
             });
           }
 
@@ -520,23 +518,55 @@ export default function ImportarPedidos({ clientes, pedidosExistentes = [], onIm
         const motoristaAtual = rotaInfo ? rotaInfo.motorista_nome : arq.motorista;
         const motoristaCodigo = rotaInfo ? rotaInfo.motorista_codigo : (arq.motorista_codigo || '');
 
-        // Conciliar: atualiza pedidos que já existem (de produção)
+        // Conciliar: atualiza pedidos que estão em 'emproducao' — ignora os demais (Regra 2)
         for (const p of pedidosParaConciliar) {
+          if (!p.pedidoExistenteId) continue;
+
+          // Buscar status atual do pedido no banco para garantir regra de proteção
+          const pedidoAtual = pedidosExistentes.find(pe => pe.id === p.pedidoExistenteId);
+          if (pedidoAtual && pedidoAtual.status !== 'emproducao') {
+            console.warn(`[Rota] Pedido ${p.numero_pedido} ignorado (status: ${pedidoAtual.status}) — só concilia emproducao`);
+            continue;
+          }
+
+          const valor = (typeof p.valor_pedido === 'number' && !isNaN(p.valor_pedido)) ? p.valor_pedido : 0;
+
+          // Verificar PORT associado (Regra 2 — injetar sinal/adiantamento)
+          let totalPagoPort = 0;
+          let sinaisPort = [];
+          try {
+            const todosPortsAtivos = await base44.entities.Port.list();
+            const numLimpo = String(p.numero_pedido).replace(/\./g, '');
+            const portVinculado = todosPortsAtivos.find(port =>
+              port.itens_port?.some(item =>
+                String(item.numero_pedido_manual || '').replace(/\./g, '') === numLimpo
+              )
+            );
+            if (portVinculado && portVinculado.valor_total > 0) {
+              totalPagoPort = portVinculado.valor_total;
+              sinaisPort = [{ id: portVinculado.id, tipo_pagamento: 'PORT', valor: portVinculado.valor_total, usado: false, data_inclusao: hoje }];
+            }
+          } catch (_) { /* não crítico */ }
+
+          const saldoFinal = Math.max(0, valor - totalPagoPort);
+
           await base44.entities.Pedido.update(p.pedidoExistenteId, {
-            valor_pedido: p.valor_pedido,
-            saldo_restante: p.valor_pedido,
+            valor_pedido: valor,
+            saldo_restante: saldoFinal,
+            total_pago: totalPagoPort,
+            ...(sinaisPort.length > 0 ? { sinais_historico: sinaisPort } : {}),
             status: 'aguardando',
             rota_importada_id: rotaId,
-            rota_codigo: arq.codigo_rota || arq.rotaCodigo,
-            rota_entrega: rotaNome,
-            motorista_atual: motoristaAtual,
-            motorista_codigo: motoristaCodigo,
+            rota_codigo: String(arq.codigo_rota || arq.rotaCodigo || '').trim(),
+            rota_entrega: String(rotaNome || '').trim(),
+            motorista_atual: String(motoristaAtual || '').trim(),
+            motorista_codigo: String(motoristaCodigo || '').trim(),
             data_entrega: p.data_entrega,
             data_importado: p.data_importado || hoje,
-            cliente_codigo: p.cliente_codigo || undefined,
-            cliente_regiao: p.cliente_regiao || undefined,
-            representante_codigo: p.representante_codigo || undefined,
-            representante_nome: p.representante_nome || undefined
+            ...(p.cliente_codigo ? { cliente_codigo: p.cliente_codigo } : {}),
+            ...(p.cliente_regiao ? { cliente_regiao: p.cliente_regiao } : {}),
+            ...(p.representante_codigo ? { representante_codigo: p.representante_codigo } : {}),
+            ...(p.representante_nome ? { representante_nome: p.representante_nome } : {}),
           });
         }
 
