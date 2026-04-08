@@ -1026,7 +1026,7 @@ export default function Pedidos() {
                             <DropdownMenuLabel className="text-xs text-slate-400 font-normal">Plataformas</DropdownMenuLabel>
                             <DropdownMenuItem asChild>
                               <a href="https://minhaconta2.cielo.com.br/site/vendas/resumo/cielo" target="_blank" rel="noopener noreferrer" className="flex items-center cursor-pointer">
-                                <img src="https://media.base44.com/images/public/69679dca54bbc0458984498a/a5a622db9_idohkHZPWS_1775668525700.png" alt="Cielo" className="w-4 h-4 mr-2 object-contain" />
+                                <img src="https://media.base44.com/images/public/69679dca54bbc0458984498a/f9d8dc2e4_unnamed-removebg-preview.png" alt="Cielo" className="w-4 h-4 mr-2 object-contain" />
                                 Portal Cielo
                               </a>
                             </DropdownMenuItem>
