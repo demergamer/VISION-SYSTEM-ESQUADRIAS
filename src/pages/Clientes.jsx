@@ -18,8 +18,10 @@ import {
   Users,
   Loader2,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  ShieldCheck
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { toast } from "sonner";
@@ -84,6 +86,9 @@ export default function ClientesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(30);
   
+  // Modal Serasa
+  const [serasaModalOpen, setSerasaModalOpen] = useState(false);
+
   // Modais Normais
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -360,16 +365,14 @@ export default function ClientesPage() {
                 <h1 className="text-3xl font-bold tracking-tight text-slate-900">Clientes</h1>
                 <p className="text-slate-500 mt-1">Cadastro e gestão de clientes</p>
               </div>
-              <a
-                href="https://cs-reports-web-prod.serasaexperian.com.br/relatoriobasico/home"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 hover:shadow-sm transition-all text-xs font-medium text-slate-600 ml-2"
-                title="Consulta Serasa PF/PJ"
+              <Button
+                variant="outline"
+                onClick={() => setSerasaModalOpen(true)}
+                className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 hover:shadow-sm transition-all text-xs font-medium text-slate-600 ml-2 h-auto"
               >
                 <img src="https://media.base44.com/images/public/69679dca54bbc0458984498a/1d2a5a09a_idIMmXoq40_1775668485409.jpeg" alt="Serasa" className="w-7 h-7 object-contain rounded" />
                 Consulta Serasa
-              </a>
+              </Button>
             </div>
             <div className="flex items-center gap-3">
               <Button 
@@ -389,30 +392,6 @@ export default function ClientesPage() {
                 </Button>
               )}
             </div>
-          </div>
-
-          {/* Iframe Serasa */}
-          <div className="w-full bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-            <div className="bg-slate-50 border-b px-4 py-3 flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <img src="https://media.base44.com/images/public/69679dca54bbc0458984498a/1d2a5a09a_idIMmXoq40_1775668485409.jpeg" alt="Serasa" className="w-6 h-6 object-contain rounded" />
-                <span className="font-semibold text-slate-700 text-sm">Consulta Serasa Experian</span>
-              </div>
-              <a
-                href="https://cs-reports-web-prod.serasaexperian.com.br/relatoriobasico/home"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1 font-medium"
-              >
-                Abrir em Nova Aba ↗
-              </a>
-            </div>
-            <iframe
-              src="https://cs-reports-web-prod.serasaexperian.com.br/relatoriobasico/home"
-              className="w-full border-0"
-              style={{ height: '600px' }}
-              title="Painel Serasa Experian"
-            />
           </div>
 
           {/* Stats */}
@@ -496,6 +475,34 @@ export default function ClientesPage() {
           </ModalContainer>
         </div>
       </div>
+
+      {/* Modal Serasa */}
+      <Dialog open={serasaModalOpen} onOpenChange={setSerasaModalOpen}>
+        <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="px-4 py-3 border-b bg-slate-50 flex flex-row items-center justify-between m-0 shrink-0">
+            <div className="flex items-center gap-2">
+              <img src="https://media.base44.com/images/public/69679dca54bbc0458984498a/1d2a5a09a_idIMmXoq40_1775668485409.jpeg" alt="Serasa" className="w-7 h-7 object-contain rounded" />
+              <DialogTitle className="text-base font-bold text-slate-700">Consulta Serasa Experian</DialogTitle>
+            </div>
+            <a
+              href="https://cs-reports-web-prod.serasaexperian.com.br/relatoriobasico/home"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium mr-8"
+            >
+              Abrir em Nova Aba ↗
+            </a>
+          </DialogHeader>
+          <div className="flex-1 w-full bg-slate-100 overflow-hidden">
+            <iframe
+              src="https://cs-reports-web-prod.serasaexperian.com.br/relatoriobasico/home"
+              className="w-full h-full border-0"
+              title="Painel Serasa Experian"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </PermissionGuard>
   );
 }
