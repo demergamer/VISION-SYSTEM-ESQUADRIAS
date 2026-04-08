@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { RefreshCw } from 'lucide-react';
 
-const CURRENT_VERSION = "1.0.1.985";
+const CURRENT_VERSION = "1.0.1.585";
 
 export default function AppUpdater() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
@@ -21,7 +21,7 @@ export default function AppUpdater() {
     };
 
     checkForUpdates();
-    const intervalId = setInterval(checkForUpdates, 60);
+    const intervalId = setInterval(checkForUpdates, 600000);
     return () => clearInterval(intervalId);
   }, []);
 
