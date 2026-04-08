@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Briefcase, ChevronRight, ChevronLeft } from 'lucide-react';
 
@@ -250,7 +250,7 @@ export default function Welcome() {
           <p className="text-slate-400 text-[10px] font-bold tracking-[0.2em] uppercase opacity-60">
             Vision System &copy; {new Date().getFullYear()}
           </p>
-          <p className="text-slate-500/50 text-[9px] mt-0.5 font-mono tracking-widest">v1.0.1.986</p>
+          <Link to="/atualizacoes" className="text-slate-500/50 text-[9px] mt-0.5 font-mono tracking-widest cursor-pointer hover:underline hover:text-slate-300/70 transition-colors block">v1.0.0001</Link>
           <div
             className="text-slate-500/40 text-[9px] mt-1 cursor-pointer hover:text-slate-400/60 transition-colors"
             onClick={handleMotorista}

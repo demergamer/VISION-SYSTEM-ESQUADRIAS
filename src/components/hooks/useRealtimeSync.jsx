@@ -30,6 +30,7 @@ const ENTITY_QUERY_KEYS = {
   LinhaProduto:         [['linhas_produto']],
   Mensagem:             [['chat_mensagens']],
   Presenca:             [['presencas_status']],
+  Atualizacao:          [['atualizacoes']],
 };
 
 /**
