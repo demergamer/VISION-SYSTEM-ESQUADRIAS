@@ -9,7 +9,9 @@ export function useVersaoAtual() {
   const { data } = useQuery({
     queryKey: ['atualizacoes_versao_atual'],
     queryFn: async () => {
-      const lista = await base44.entities.Atualizacao.list('-data_publicacao', 1);
+      const lista = await base44.entities.Atualizacao.list('-data_publicacao', 50);
+      // Ordena pelo número de versão para garantir que pega a mais recente corretamente
+      lista.sort((a, b) => (b.versao || '').localeCompare(a.versao || '', undefined, { numeric: true }));
       return lista[0]?.versao ?? null;
     },
     staleTime: 1000 * 60 * 5, // 5 min
