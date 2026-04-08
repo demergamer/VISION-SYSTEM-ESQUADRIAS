@@ -6,6 +6,7 @@ import {
   BarChart3, Home, Briefcase, Banknote, ScrollText, CreditCard,
   Menu, Building2, Truck, CalendarDays, Bell, Lock, X, Rocket
 } from 'lucide-react';
+import { useVersaoAtual } from '@/components/hooks/useVersaoAtual';
 // 🚀 NOVIDADE: Importando os detectores globais de carregamento
 import { useQuery, useIsFetching, useIsMutating } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
@@ -176,6 +177,7 @@ function NotificationBell({ userEmail }) {
 // ─── Classic Sidebar ──────────────────────────────────────────────────────────
 function ClassicSidebar({ open, onClose, currentPageName, canDo, user, signOut, lockScreen }) {
   const navigate = useNavigate();
+  const versao = useVersaoAtual();
   const handleVersionClick = () => { navigate('/atualizacoes'); onClose(); };
   return (
     <>
@@ -194,7 +196,7 @@ function ClassicSidebar({ open, onClose, currentPageName, canDo, user, signOut, 
               className="flex items-center gap-1 text-[9px] text-blue-400/70 font-mono tracking-widest mt-0.5 hover:text-blue-500 transition-colors"
             >
               <Rocket className="w-2.5 h-2.5" />
-              v1.0.0001
+              {versao}
             </button>
           </div>
           <button onClick={onClose} className="ml-auto p-1 rounded-lg hover:bg-slate-100"><X className="w-4 h-4 text-slate-400" /></button>
@@ -264,6 +266,7 @@ function ClassicHeader({ onOpenMenu, user, userEmail }) {
 function StartMenu({ open, onClose, currentPageName, canDo, user, signOut, lockScreen }) {
   const workspace = useWorkspace();
   const navigate = useNavigate();
+  const versao = useVersaoAtual();
 
   const handleNav = (name) => {
     onClose();
@@ -290,7 +293,7 @@ function StartMenu({ open, onClose, currentPageName, canDo, user, signOut, lockS
             className="flex items-center gap-1 text-[9px] text-blue-400/70 font-mono tracking-widest mt-0.5 hover:text-blue-500 transition-colors"
           >
             <Rocket className="w-2.5 h-2.5" />
-            v1.0.0001
+            {versao}
           </button>
           </div>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-200 transition-colors">
