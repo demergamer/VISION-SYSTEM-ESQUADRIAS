@@ -1,0 +1,28 @@
+{
+  "name": "Atualizacao",
+  "type": "object",
+  "properties": {
+    "versao": {
+      "type": "string",
+      "description": "N\u00famero da vers\u00e3o (Ex: 1.0.0001)"
+    },
+    "descricao_simples": {
+      "type": "string",
+      "description": "Resumo amig\u00e1vel para leigos"
+    },
+    "descricao_tecnica": {
+      "type": "string",
+      "description": "Detalhes t\u00e9cnicos, commits, rotas afetadas"
+    },
+    "data_publicacao": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data e hora do deploy/publica\u00e7\u00e3o"
+    }
+  },
+  "required": [
+    "versao",
+    "descricao_simples",
+    "data_publicacao"
+  ]
+}

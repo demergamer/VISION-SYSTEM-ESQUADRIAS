@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import PermissionGuard from "@/components/PermissionGuard";
 import VisionMessage from '@/pages/VisionMessage';
+import Atualizacoes from '@/pages/Atualizacoes';
 import { AuthProvider as SecurityAuthProvider } from '@/components/providers/AuthContext';
 import { SecurityProvider } from '@/components/providers/SecurityProvider';
 
@@ -120,6 +121,13 @@ const AuthenticatedApp = () => {
             <MainPage />
           </LayoutWrapper>
         )
+      } />
+
+      {/* ROTA DE ATUALIZAÇÕES */}
+      <Route path="/atualizacoes" element={
+        <LayoutWrapper currentPageName="Atualizacoes">
+          <Atualizacoes />
+        </LayoutWrapper>
       } />
 
       {/* 🚀 ROTA DO VISION MESSAGE DA FÁBRICA */}
