@@ -478,7 +478,7 @@ export default function ClientesPage() {
 
       {/* Modal Serasa */}
       <Dialog open={serasaModalOpen} onOpenChange={setSerasaModalOpen}>
-        <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0 overflow-hidden">
+        <DialogContent className="max-w-[100vw] w-screen h-screen flex flex-col p-0 overflow-hidden rounded-none border-0">
           <DialogHeader className="px-4 py-3 border-b bg-slate-50 flex flex-row items-center justify-between m-0 shrink-0">
             <div className="flex items-center gap-2">
               <img src="https://media.base44.com/images/public/69679dca54bbc0458984498a/1d2a5a09a_idIMmXoq40_1775668485409.jpeg" alt="Serasa" className="w-7 h-7 object-contain rounded" />
