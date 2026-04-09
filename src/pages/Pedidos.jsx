@@ -278,7 +278,19 @@ export default function Pedidos() {
   const debounceRef = useRef(null);
 
   // --- QUERIES ---
-  const { data: pedidos = [], isLoading: loadingPedidos, refetch: refetchPedidos } = useQuery({ queryKey: ['pedidos'], queryFn: () => base44.entities.Pedido.list('-created_date', 10000) });
+  const { data: pedidos = [], isLoading: loadingPedidos, refetch: refetchPedidos } = useQuery({
+    queryKey: ['pedidos'],
+    queryFn: async () => {
+      const [batch1, batch2] = await Promise.all([
+        base44.entities.Pedido.list('-created_date', 5000),
+        base44.entities.Pedido.list('-updated_date', 5000),
+      ]);
+      // Merge deduplicated by id
+      const map = new Map();
+      [...batch1, ...batch2].forEach(p => map.set(p.id, p));
+      return Array.from(map.values());
+    }
+  });
   const { data: clientes = [], refetch: refetchClientes } = useQuery({ queryKey: ['clientes'], queryFn: () => base44.entities.Cliente.list() });
   const { data: rotas = [], isLoading: loadingRotas, refetch: refetchRotas } = useQuery({ queryKey: ['rotas'], queryFn: () => base44.entities.RotaImportada.list('-created_date') });
   const { data: representantes = [], refetch: refetchRepresentantes } = useQuery({ queryKey: ['representantes'], queryFn: () => base44.entities.Representante.list() });
