@@ -274,6 +274,9 @@ export default function BorderoDetails({ bordero, pedidos, onClose }) {
         </div>
       </Card>
 
+      {/* CHEQUES (se houver) */}
+      {renderCheques()}
+
       {/* COMPROVANTES DE PAGAMENTO */}
       <div>
         <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
@@ -281,9 +284,6 @@ export default function BorderoDetails({ bordero, pedidos, onClose }) {
         </h3>
         {renderAnexos()}
       </div>
-
-      {/* CHEQUES (se houver) */}
-      {renderCheques()}
 
       {/* PEDIDOS LIQUIDADOS */}
       <div>
