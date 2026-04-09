@@ -175,6 +175,25 @@ Deno.serve(async (req) => {
     if (devolucaoMotivo) observacaoBordero += ` | Motivo: ${devolucaoMotivo}`;
     if (chequesDevolvidos.length > 0) observacaoBordero += ` | ${chequesDevolvidos.length} cheque(s) devolvido(s) baixado(s)`;
 
+    // 9. Buscar dados completos dos cheques para cheques_anexos
+    let chequesAnexos = [];
+    if (todosChequesIds.length > 0) {
+      const chequesData = await base44.asServiceRole.entities.Cheque.filter({
+        id: { $in: todosChequesIds }
+      });
+      chequesAnexos = chequesData.map(ch => ({
+        numero: ch.numero_cheque,
+        banco: ch.banco || '',
+        agencia: ch.agencia || '',
+        conta: ch.conta || '',
+        emitente: ch.emitente || '',
+        data_vencimento: ch.data_vencimento || '',
+        valor: ch.valor || 0,
+        anexo_foto_url: ch.anexo_fotos_cheque?.[0] || '',
+        anexo_video_url: ch.anexo_video_url || ''
+      }));
+    }
+
     // 9. Criar ÚNICO borderô
     await base44.asServiceRole.entities.Bordero.create({
       numero_bordero: proximoNumeroBordero,
@@ -185,6 +204,7 @@ Deno.serve(async (req) => {
       valor_total: valorTotalBordero,
       forma_pagamento: formasFinal,
       comprovantes_urls: comprovantesFinais,
+      cheques_anexos: chequesAnexos,
       observacao: observacaoBordero,
       liquidado_por: user.email
     });
