@@ -281,13 +281,20 @@ export default function Pedidos() {
   const { data: pedidos = [], isLoading: loadingPedidos, refetch: refetchPedidos } = useQuery({
     queryKey: ['pedidos'],
     queryFn: async () => {
-      const [batch1, batch2] = await Promise.all([
-        base44.entities.Pedido.list('-created_date', 5000),
-        base44.entities.Pedido.list('-updated_date', 5000),
+      // Busca pedidos ativos por status (garante que TODOS os abertos apareçam)
+      // + pedidos recentes para histórico (pagos/cancelados)
+      const [recentes, abertos, repRecebe, parcial, emproducao, troca, aguardando] = await Promise.all([
+        base44.entities.Pedido.list('-created_date', 4000),
+        base44.entities.Pedido.filter({status: 'aberto'}, '-created_date', 3000),
+        base44.entities.Pedido.filter({status: 'representante_recebe'}, '-created_date', 1000),
+        base44.entities.Pedido.filter({status: 'parcial'}, '-created_date', 500),
+        base44.entities.Pedido.filter({status: 'emproducao'}, '-created_date', 500),
+        base44.entities.Pedido.filter({status: 'troca'}, '-created_date', 200),
+        base44.entities.Pedido.filter({status: 'aguardando'}, '-created_date', 500),
       ]);
-      // Merge deduplicated by id
       const map = new Map();
-      [...batch1, ...batch2].forEach(p => map.set(p.id, p));
+      [...recentes, ...abertos, ...repRecebe, ...parcial, ...emproducao, ...troca, ...aguardando]
+        .forEach(p => map.set(p.id, p));
       return Array.from(map.values());
     }
   });
