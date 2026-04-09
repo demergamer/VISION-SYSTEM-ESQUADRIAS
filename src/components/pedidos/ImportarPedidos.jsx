@@ -205,15 +205,14 @@ function parsePlanilhaRota(arrayBuffer, clientes, pedidosExistentes) {
       sanitize(p.numero_pedido) === sanitize(numeroPedido)
     );
 
+    // ─── REGRA CRÍTICA: ignora completamente pedidos que já existem e NÃO estão em 'emproducao' ───
+    if (pedidoJaExiste && pedidoJaExiste.status !== 'emproducao') {
+      continue; // pedido já processado — não entra na prévia nem na importação
+    }
+
     let statusExistencia = null;
     if (pedidoJaExiste) {
-      switch (pedidoJaExiste.status) {
-        case 'pago': statusExistencia = 'Liquidado'; break;
-        case 'cancelado': statusExistencia = 'Cancelado'; break;
-        case 'aguardando': statusExistencia = 'Em Trânsito'; break;
-        case 'emproducao': statusExistencia = 'Em Produção'; break;
-        default: statusExistencia = 'Aberto';
-      }
+      statusExistencia = 'Em Produção'; // só chega aqui se status === 'emproducao'
     }
 
     pedidos.push({

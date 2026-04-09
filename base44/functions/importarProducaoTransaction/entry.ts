@@ -46,6 +46,10 @@ Deno.serve(async (req) => {
       const itens = sanitizarItens(p.itens_pedido);
 
       if (existente) {
+        // ─── REGRA CRÍTICA: só atualiza pedidos em 'emproducao' ───────────────
+        if (existente.status !== 'emproducao') {
+          continue; // status diferente — ignora silenciosamente
+        }
         // Atualiza APENAS itens_pedido e observacao — nunca toca status/cliente
         atualizacoes.push({
           id: existente.id,
