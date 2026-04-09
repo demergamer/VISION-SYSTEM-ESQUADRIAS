@@ -394,8 +394,10 @@ export default function Pedidos() {
         if (abertosSubTab === 'representante_recebe') {
             data = data.filter(p => p.status === 'representante_recebe');
         } else {
-            // Todos os sub-filtros normais excluem representante_recebe
-            data = data.filter(p => p.status !== 'representante_recebe');
+            // Sub-filtros de data excluem representante_recebe, mas 'todos' inclui
+            if (abertosSubTab !== 'todos') {
+                data = data.filter(p => p.status !== 'representante_recebe');
+            }
 
             if (abertosSubTab === 'em_dia') {
                 data = data.filter(p => {
