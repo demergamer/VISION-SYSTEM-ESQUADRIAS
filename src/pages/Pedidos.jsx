@@ -322,12 +322,37 @@ export default function Pedidos() {
     } 
   });
 
+  // Pedidos buscados diretamente no servidor (fallback para ordens não carregadas)
+  const [serverSearchResults, setServerSearchResults] = useState([]);
+
   // --- DEBOUNCE DA BUSCA (true debounce) ---
   const handleSearchChange = (e) => {
     const val = e.target.value;
     setInputValue(val);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setDebouncedSearch(val), 500);
+    debounceRef.current = setTimeout(async () => {
+      setDebouncedSearch(val);
+      // Busca direta no servidor para garantir que qualquer pedido seja encontrado
+      const term = val.trim();
+      if (term.length >= 3) {
+        try {
+          const [byNum, byName] = await Promise.all([
+            /^\d+$/.test(term.replace(/\./g,''))
+              ? base44.entities.Pedido.filter({ numero_pedido: term.replace(/\./g,'') }, '-created_date', 10)
+              : Promise.resolve([]),
+            base44.entities.Pedido.filter({ cliente_nome: { $regex: term.toUpperCase() } }, '-created_date', 20).catch(() => []),
+          ]);
+          const extras = [...byNum, ...byName].filter(
+            found => !pedidos.some(p => p.id === found.id)
+          );
+          setServerSearchResults(extras);
+        } catch(e) {
+          setServerSearchResults([]);
+        }
+      } else {
+        setServerSearchResults([]);
+      }
+    }, 500);
   };
 
   // --- MESCLAR NF ---
@@ -392,7 +417,11 @@ export default function Pedidos() {
 
   // --- FILTROS DE DADOS & ORDENAÇÃO ---
   const processedPedidos = useMemo(() => {
-    let data = [...pedidos]; // Copia
+    // Mescla resultados do servidor (busca direta) com a lista local
+    const allPedidos = debouncedSearch && serverSearchResults.length > 0
+      ? [...pedidos, ...serverSearchResults.filter(r => !pedidos.some(p => p.id === r.id))]
+      : pedidos;
+    let data = [...allPedidos]; // Copia
 
     // 1. Filtro Principal
     switch (activeTab) {
