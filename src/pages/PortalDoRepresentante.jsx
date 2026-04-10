@@ -113,7 +113,7 @@ const DetailsModal = ({ item, type, open, onOpenChange }) => {
                   <span className="col-span-2 text-sm text-slate-800 font-semibold break-words">
                     {key.includes('valor') || key.includes('saldo') || key.includes('total') 
                       ? formatCurrency(value) 
-                      : (key.includes('data') ? (value ? format(new Date(value), 'dd/MM/yyyy') : '-') : String(value))}
+                      : (key.includes('data') ? safeFormat(value, 'dd/MM/yyyy') : String(value ?? '-'))}
                   </span>
                 </div>
               )
