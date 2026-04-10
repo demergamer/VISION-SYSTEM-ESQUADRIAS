@@ -50,6 +50,23 @@ import Emproduçaotable from "@/components/pedidos/Emproduçaotable";
 
 const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
+const safeFormat = (dateVal, fmt = 'dd/MM/yy') => {
+  if (!dateVal) return '-';
+  try {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '-';
+    return format(d, fmt);
+  } catch { return '-'; }
+};
+
+const safeDiffDays = (date1, dateStr) => {
+  try {
+    const d = parseISO(dateStr);
+    if (isNaN(d.getTime())) return 0;
+    return differenceInDays(date1, d);
+  } catch { return 0; }
+};
+
 // --- COMPONENTE: WIDGET DE ESTATÍSTICA ---
 const StatWidget = ({ title, value, subtitle, icon: Icon, colorClass }) => (
   <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all duration-300">
@@ -206,12 +223,12 @@ const PedidosView = ({ pedidos, itensProducao, onViewDetails }) => {
                 {pedidosExibidos.map(p => {
                   const hoje = new Date();
                   hoje.setHours(0,0,0,0);
-                  const diasAtraso = p.data_entrega ? differenceInDays(hoje, parseISO(p.data_entrega)) : 0;
+                  const diasAtraso = p.data_entrega ? safeDiffDays(hoje, p.data_entrega) : 0;
                   const isAtrasado = (p.status === 'aberto' || p.status === 'parcial') && diasAtraso > 15;
                   return (
                     <TableRow key={p.id} className="hover:bg-slate-50">
                       <TableCell className="text-sm text-slate-600">
-                        {p.data_entrega ? format(new Date(p.data_entrega), 'dd/MM/yyyy') : '-'}
+                        {safeFormat(p.data_entrega, 'dd/MM/yyyy')}
                       </TableCell>
                       <TableCell className="font-mono font-medium">#{p.numero_pedido}</TableCell>
                       <TableCell>{p.cliente_nome}</TableCell>
@@ -283,7 +300,7 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
   
   const pedidosAtrasados = safePedidos.filter(p => {
     if ((p.status !== 'aberto' && p.status !== 'parcial') || !p.data_entrega) return false;
-    return differenceInDays(hoje, parseISO(p.data_entrega)) > 15; 
+    return safeDiffDays(hoje, p.data_entrega) > 15; 
   });
 
   const pedidosAbertos = safePedidos.filter(p => 
@@ -383,9 +400,9 @@ const ClientRow = ({ cliente, pedidos, cheques, creditos, itensProducao, onViewD
                                 {type === 'pedido' ? `#${item.numero_pedido}` : type === 'cheque' ? item.numero_cheque : item.referencia}
                             </TableCell>
                             <TableCell className="text-slate-600 text-sm">
-                                 {type === 'pedido' ? (item.data_entrega ? format(new Date(item.data_entrega), 'dd/MM/yy') : '-') : 
-                                 type === 'cheque' ? (item.data_vencimento ? format(new Date(item.data_vencimento), 'dd/MM/yy') : '-') :
-                                 (item.data_emissao ? format(new Date(item.data_emissao), 'dd/MM/yy') : '-')}
+                                 {type === 'pedido' ? safeFormat(item.data_entrega) : 
+                                 type === 'cheque' ? safeFormat(item.data_vencimento) :
+                                 safeFormat(item.data_emissao)}
                             </TableCell>
                             <TableCell className="text-right font-medium text-slate-700">
                                 {formatCurrency(type === 'pedido' ? item.valor_pedido : item.valor || item.valor_original)}
