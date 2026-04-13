@@ -30,9 +30,22 @@ import { cn } from "@/lib/utils";
 
 const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 const formatNumero = (num) => num ? num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") : '';
+const safeFormat = (dateVal, fmt = 'dd/MM/yyyy') => {
+  if (!dateVal) return '-';
+  try {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '-';
+    return format(d, fmt);
+  } catch { return '-'; }
+};
 const calcularDiasAtraso = (data) => {
-    const diff = Math.floor((new Date() - new Date(data)) / (1000 * 60 * 60 * 24));
+  if (!data) return 0;
+  try {
+    const d = new Date(data);
+    if (isNaN(d.getTime())) return 0;
+    const diff = Math.floor((new Date() - d) / (1000 * 60 * 60 * 24));
     return diff > 0 ? diff : 0;
+  } catch { return 0; }
 };
 
 // Componente de Botão de Aba
@@ -152,9 +165,14 @@ export default function PortalCliente() {
     const inicioSemana = startOfWeek(hoje);
     const fimSemana = endOfWeek(hoje);
     
-    const chequesSemana = meusCheques.aVencer.filter(c => 
-        isWithinInterval(parseISO(c.data_vencimento), { start: inicioSemana, end: fimSemana })
-    ).reduce((sum, c) => sum + c.valor, 0);
+    const chequesSemana = meusCheques.aVencer.filter(c => {
+      try {
+        if (!c.data_vencimento) return false;
+        const d = parseISO(c.data_vencimento);
+        if (isNaN(d.getTime())) return false;
+        return isWithinInterval(d, { start: inicioSemana, end: fimSemana });
+      } catch { return false; }
+    }).reduce((sum, c) => sum + c.valor, 0);
     
     const chequesDevolvidos = meusCheques.devolvidos.reduce((sum, c) => sum + c.valor, 0);
     
@@ -336,7 +354,7 @@ export default function PortalCliente() {
                                             <div key={b.id} onClick={() => handleViewBordero(b)} className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-all bg-slate-50/50 cursor-pointer group">
                                                 <div className="flex justify-between items-start mb-2">
                                                     <Badge variant="outline" className="font-mono bg-white">#{b.numero_bordero}</Badge>
-                                                    <span className="text-xs text-slate-500">{format(new Date(b.created_date), 'dd/MM/yyyy')}</span>
+                                                    <span className="text-xs text-slate-500">{safeFormat(b.created_date)}</span>
                                                 </div>
                                                 <p className="text-sm text-slate-600 mb-2">{b.pedidos_ids?.length || 0} pedidos vinculados</p>
                                                 <p className="text-lg font-bold text-emerald-600">{formatCurrency(b.valor_total)}</p>
@@ -359,7 +377,7 @@ export default function PortalCliente() {
                                         {meusPedidos.pagos.map(p => (
                                             <TableRow key={p.id}>
                                                 <TableCell className="font-mono font-medium">#{p.numero_pedido}</TableCell>
-                                                <TableCell>{p.data_pagamento ? format(new Date(p.data_pagamento), 'dd/MM/yyyy') : '-'}</TableCell>
+                                                <TableCell>{safeFormat(p.data_pagamento)}</TableCell>
                                                 <TableCell className="text-right font-bold text-emerald-600">{formatCurrency(p.valor_pedido)}</TableCell>
                                                 <TableCell className="text-center"><Badge className="bg-emerald-100 text-emerald-700">Pago</Badge></TableCell>
                                             </TableRow>
@@ -389,7 +407,7 @@ export default function PortalCliente() {
                             return (
                             <TableRow key={p.id} className="hover:bg-slate-50/50">
                                 <TableCell className="text-sm text-slate-600">
-                                    {p.data_entrega ? format(new Date(p.data_entrega), 'dd/MM/yyyy') : '-'}
+                                    {safeFormat(p.data_entrega)}
                                 </TableCell>
                                 <TableCell className="font-mono font-medium">#{p.numero_pedido}</TableCell>
                                 <TableCell><Badge variant="outline" className="font-normal text-slate-600">{p.rota_codigo || 'N/A'}</Badge></TableCell>
@@ -490,7 +508,7 @@ export default function PortalCliente() {
                         {meusCheques[abaCheques].map(c => (
                             <TableRow key={c.id}>
                                 <TableCell className="font-mono">{c.numero_cheque}</TableCell>
-                                <TableCell>{format(new Date(c.data_vencimento), 'dd/MM/yyyy')}</TableCell>
+                                <TableCell>{safeFormat(c.data_vencimento)}</TableCell>
                                 <TableCell>{c.banco}</TableCell>
                                 <TableCell className="text-right font-bold text-slate-700">{formatCurrency(c.valor)}</TableCell>
                                 <TableCell className="text-center"><Badge variant="outline">{c.status}</Badge></TableCell>
