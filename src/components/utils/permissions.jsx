@@ -172,6 +172,26 @@ export const MODULOS_CONFIG = [
     permissoes: ['visualizar', 'ver_total', 'exportar'] 
   },
 
+  // --- GRUPO: PORTARIA ---
+  { 
+    nome: 'Portaria', 
+    label: '🏢 Hub Portaria', 
+    grupo: 'Portaria', 
+    permissoes: ['visualizar'] 
+  },
+  { 
+    nome: 'EstacionamentoVirtual', 
+    label: '🅿️ Estacionamento Virtual', 
+    grupo: 'Portaria', 
+    permissoes: ['visualizar'] 
+  },
+  { 
+    nome: 'ControleCirculacao', 
+    label: '📋 Controle de Circulação', 
+    grupo: 'Portaria', 
+    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir'] 
+  },
+
   // --- GRUPO: ADMINISTRAÇÃO ---
   { 
     nome: 'Usuarios', 

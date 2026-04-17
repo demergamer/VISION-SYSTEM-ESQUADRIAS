@@ -43,6 +43,11 @@ const PAGE_PERMISSIONS = {
   // Cadastros Auxiliares
   'FormasPagamento': 'FormasPagamento',
 
+  // Portaria & Frota
+  'Portaria': 'Portaria',
+  'EstacionamentoVirtual': 'EstacionamentoVirtual',
+  'ControleCirculacao': 'ControleCirculacao',
+
   // Admin / Sistema
   'Usuarios': 'Usuarios',
   'Relatorios': 'Relatorios',
@@ -143,17 +148,23 @@ const AuthenticatedApp = () => {
       {/* 🏢 MÓDULO PORTARIA & CONTROLE DE FROTA */}
       <Route path="/portaria" element={
         <LayoutWrapper currentPageName="Portaria">
-          <Portaria />
+          <PermissionGuard setor="Portaria">
+            <Portaria />
+          </PermissionGuard>
         </LayoutWrapper>
       } />
       <Route path="/estacionamentovirtual" element={
         <LayoutWrapper currentPageName="EstacionamentoVirtual">
-          <EstacionamentoVirtual />
+          <PermissionGuard setor="EstacionamentoVirtual">
+            <EstacionamentoVirtual />
+          </PermissionGuard>
         </LayoutWrapper>
       } />
       <Route path="/controlecirculacao" element={
         <LayoutWrapper currentPageName="ControleCirculacao">
-          <ControleCirculacao />
+          <PermissionGuard setor="ControleCirculacao">
+            <ControleCirculacao />
+          </PermissionGuard>
         </LayoutWrapper>
       } />
 

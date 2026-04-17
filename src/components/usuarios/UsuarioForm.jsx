@@ -244,7 +244,7 @@ export default function UsuarioForm({ user, currentUser, onSave, onCancel, isLoa
           <div className="max-h-[60vh] overflow-y-auto">
             <div className="space-y-8 p-4">
               {/* Gera os grupos dinamicamente baseados na config importada */}
-              {['Principal', 'Vendas', 'Cadastros', 'Financeiro', 'Fluxo', 'Analytics', 'Admin'].map(grupo => {
+              {['Principal', 'Vendas', 'Cadastros', 'Financeiro', 'Fluxo', 'Analytics', 'Portaria', 'Admin'].map(grupo => {
                 const modulosDoGrupo = MODULOS_CONFIG.filter(m => m.grupo === grupo);
                 if (modulosDoGrupo.length === 0) return null;
 
