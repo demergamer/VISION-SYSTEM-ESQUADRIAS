@@ -1,0 +1,94 @@
+{
+  "name": "MovimentacaoPortaria",
+  "type": "object",
+  "properties": {
+    "veiculo_id": {
+      "type": "string",
+      "description": "ID do ve\u00edculo relacionado"
+    },
+    "veiculo_placa": {
+      "type": "string",
+      "description": "Placa do ve\u00edculo (cache)"
+    },
+    "veiculo_modelo": {
+      "type": "string",
+      "description": "Modelo do ve\u00edculo (cache)"
+    },
+    "motorista_nome": {
+      "type": "string",
+      "description": "Nome do motorista"
+    },
+    "porteiro_saida": {
+      "type": "string",
+      "description": "Nome do porteiro que registrou a sa\u00edda"
+    },
+    "porteiro_entrada": {
+      "type": "string",
+      "description": "Nome do porteiro que registrou a entrada"
+    },
+    "km_saida": {
+      "type": "number",
+      "description": "Quilometragem no momento da sa\u00edda"
+    },
+    "km_entrada": {
+      "type": "number",
+      "description": "Quilometragem no momento da entrada"
+    },
+    "combustivel_saida": {
+      "type": "string",
+      "enum": [
+        "Reserva",
+        "1/4",
+        "1/2",
+        "3/4",
+        "Cheio"
+      ],
+      "description": "N\u00edvel de combust\u00edvel na sa\u00edda"
+    },
+    "combustivel_entrada": {
+      "type": "string",
+      "enum": [
+        "Reserva",
+        "1/4",
+        "1/2",
+        "3/4",
+        "Cheio"
+      ],
+      "description": "N\u00edvel de combust\u00edvel na entrada"
+    },
+    "data_saida": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data e hora da sa\u00edda"
+    },
+    "data_entrada": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data e hora da entrada"
+    },
+    "destino": {
+      "type": "string",
+      "description": "Destino da viagem"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Aberto",
+        "Fechado"
+      ],
+      "default": "Aberto",
+      "description": "Status da movimenta\u00e7\u00e3o"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es gerais"
+    }
+  },
+  "required": [
+    "veiculo_id",
+    "motorista_nome",
+    "km_saida",
+    "combustivel_saida",
+    "destino"
+  ]
+}

@@ -10,6 +10,9 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import PermissionGuard from "@/components/PermissionGuard";
 import VisionMessage from '@/pages/VisionMessage';
 import Atualizacoes from '@/pages/Atualizacoes';
+import Portaria from '@/pages/Portaria';
+import EstacionamentoVirtual from '@/pages/EstacionamentoVirtual';
+import ControleCirculacao from '@/pages/ControleCirculacao';
 import { AuthProvider as SecurityAuthProvider } from '@/components/providers/AuthContext';
 import { SecurityProvider } from '@/components/providers/SecurityProvider';
 
@@ -134,6 +137,23 @@ const AuthenticatedApp = () => {
       <Route path="/vision-message" element={
         <LayoutWrapper currentPageName="VisionMessage">
           <VisionMessage />
+        </LayoutWrapper>
+      } />
+
+      {/* 🏢 MÓDULO PORTARIA & CONTROLE DE FROTA */}
+      <Route path="/portaria" element={
+        <LayoutWrapper currentPageName="Portaria">
+          <Portaria />
+        </LayoutWrapper>
+      } />
+      <Route path="/estacionamentovirtual" element={
+        <LayoutWrapper currentPageName="EstacionamentoVirtual">
+          <EstacionamentoVirtual />
+        </LayoutWrapper>
+      } />
+      <Route path="/controlecirculacao" element={
+        <LayoutWrapper currentPageName="ControleCirculacao">
+          <ControleCirculacao />
         </LayoutWrapper>
       } />
 

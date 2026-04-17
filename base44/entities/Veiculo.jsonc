@@ -1,0 +1,60 @@
+{
+  "name": "Veiculo",
+  "type": "object",
+  "properties": {
+    "placa": {
+      "type": "string",
+      "description": "Placa do ve\u00edculo (\u00fanica)"
+    },
+    "modelo": {
+      "type": "string",
+      "description": "Modelo do ve\u00edculo"
+    },
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "Carro",
+        "Caminhao"
+      ],
+      "description": "Tipo do ve\u00edculo"
+    },
+    "km_atual": {
+      "type": "number",
+      "default": 0,
+      "description": "Quilometragem atual do ve\u00edculo"
+    },
+    "nivel_combustivel": {
+      "type": "string",
+      "enum": [
+        "Reserva",
+        "1/4",
+        "1/2",
+        "3/4",
+        "Cheio"
+      ],
+      "description": "N\u00edvel de combust\u00edvel atual"
+    },
+    "foto_url": {
+      "type": "string",
+      "description": "URL da foto do ve\u00edculo"
+    },
+    "crlv_documento": {
+      "type": "string",
+      "description": "Dados ou URL do CRLV do ve\u00edculo"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Na Empresa",
+        "Na Rua"
+      ],
+      "default": "Na Empresa",
+      "description": "Status atual do ve\u00edculo"
+    }
+  },
+  "required": [
+    "placa",
+    "modelo",
+    "tipo"
+  ]
+}
