@@ -7,7 +7,7 @@ import {
   Users, Package, ShoppingCart, Wallet, FileText, BarChart3, 
   Briefcase, Banknote, ScrollText, CreditCard, ShieldCheck, 
   Calendar as CalendarIcon, Settings2, ShieldAlert, LogOut, User as UserIcon,
-  Building2, ChevronDown, Truck, Settings
+  Building2, ChevronDown, Truck, Settings, Shield
 } from "lucide-react";
 import { useAuth } from '@/components/providers/AuthContext';
 import { usePermissions } from "@/components/hooks/usePermissions";
@@ -215,6 +215,12 @@ export default function Dashboard() {
   const workspace = useWorkspace(); 
 
   const handleNavigate = (pageName) => {
+    // Rotas com path customizado (lowercase) navegam diretamente
+    const directRoutes = ['portaria', 'estacionamentovirtual', 'controlecirculacao', 'vision-message'];
+    if (directRoutes.includes(pageName)) {
+      navigate(`/${pageName}`);
+      return;
+    }
     const uiMode = preferences?.ui_mode || 'os';
     if (uiMode === 'os' && workspace && workspace.openWindow) {
       workspace.openWindow(pageName);
@@ -289,6 +295,13 @@ export default function Dashboard() {
         { name: "Creditos", label: "Créditos", icon: CreditCard, desc: "Haveres de clientes" },
         { name: "EntradaCaucao", label: "Caução", icon: Wallet, desc: "Adiantamentos" },
         { name: "Balanco", label: "Balanço", icon: BarChart3, desc: "Resumo financeiro" },
+      ]
+    },
+    {
+      title: "Portaria & Frota",
+      color: "purple",
+      items: [
+        { name: "portaria", label: "Hub Portaria", icon: Shield, desc: "Central de controle de frota" },
       ]
     },
     {
@@ -387,7 +400,8 @@ export default function Dashboard() {
                         <div className={cn("w-1.5 h-6 rounded-full shadow-sm", 
                           group.color === 'blue' ? 'bg-blue-600' : 
                           group.color === 'amber' ? 'bg-amber-500' : 
-                          group.color === 'green' ? 'bg-emerald-600' : 'bg-slate-600'
+                          group.color === 'green' ? 'bg-emerald-600' : 
+                          group.color === 'purple' ? 'bg-purple-600' : 'bg-slate-600'
                         )} />
                         <h2 className="text-lg font-bold text-slate-700">{group.title}</h2>
                         <span className="text-xs text-slate-400 font-medium">{allowedItems.length} módulos</span>
