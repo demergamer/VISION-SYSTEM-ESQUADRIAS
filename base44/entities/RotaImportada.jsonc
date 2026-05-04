@@ -1,0 +1,84 @@
+{
+  "name": "RotaImportada",
+  "type": "object",
+  "properties": {
+    "codigo_rota": {
+      "type": "string",
+      "description": "C\u00f3digo da rota (ex: 0109 BIRITIBA)"
+    },
+    "data_importacao": {
+      "type": "string",
+      "format": "date",
+      "description": "Data da importa\u00e7\u00e3o"
+    },
+    "motorista_codigo": {
+      "type": "string",
+      "description": "C\u00f3digo do motorista"
+    },
+    "motorista_nome": {
+      "type": "string",
+      "description": "Nome do motorista"
+    },
+    "total_pedidos": {
+      "type": "number",
+      "default": 0,
+      "description": "Total de pedidos na rota"
+    },
+    "pedidos_confirmados": {
+      "type": "number",
+      "default": 0,
+      "description": "Pedidos confirmados/ticados"
+    },
+    "valor_total": {
+      "type": "number",
+      "default": 0,
+      "description": "Valor total da rota"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pendente",
+        "parcial",
+        "concluida"
+      ],
+      "default": "pendente",
+      "description": "Status da rota: pendente (vermelho), parcial (amarelo), concluida (verde)"
+    }
+  },
+  "required": [
+    "codigo_rota",
+    "data_importacao"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "$or": [
+        {
+          "data.motorista_codigo": "{{user.data.motorista_codigo}}"
+        },
+        {
+          "data.motorista_nome": "{{user.data.motorista_nome}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
