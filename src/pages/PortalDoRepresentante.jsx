@@ -530,8 +530,8 @@ export default function PainelRepresentante() {
     return todosRepresentantes.find(r => r.email === user.email);
   }, [user, todosRepresentantes]);
 
-  const { data: todosClientes = [], refetch: refetchClientes } = useQuery({ queryKey: ['clientes', representanteLogado?.id], queryFn: () => base44.entities.Cliente.list(), enabled: !!representanteLogado });
-  const { data: todosPedidos = [], refetch: refetchPedidos } = useQuery({ queryKey: ['pedidos', representanteLogado?.id], queryFn: () => base44.entities.Pedido.list(), enabled: !!representanteLogado });
+  const { data: todosClientes = [], refetch: refetchClientes } = useQuery({ queryKey: ['clientes', representanteLogado?.id], queryFn: () => base44.entities.Cliente.filter({ representante_codigo: representanteLogado.codigo }, '-created_date', 500), enabled: !!representanteLogado });
+  const { data: todosPedidos = [], refetch: refetchPedidos } = useQuery({ queryKey: ['pedidos', representanteLogado?.id], queryFn: () => base44.entities.Pedido.filter({ representante_codigo: representanteLogado.codigo }, '-created_date', 500), enabled: !!representanteLogado });
   const { data: todosCheques = [] } = useQuery({ queryKey: ['cheques', representanteLogado?.id], queryFn: () => base44.entities.Cheque.list(), enabled: !!representanteLogado });
   const { data: todosCreditos = [] } = useQuery({ queryKey: ['creditos', representanteLogado?.id], queryFn: () => base44.entities.Credito.list(), enabled: !!representanteLogado });
   const { data: todosBorderos = [] } = useQuery({ 
