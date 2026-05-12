@@ -91,7 +91,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     itens_pedido: []
   });
 
-  const isRepresentanteLocked = !!pedido && !!pedido.representante_codigo;
+  const isRepresentanteLocked = false;
 
   const [clienteSelecionadoDetalhes, setClienteSelecionadoDetalhes] = useState(null);
   const [showClienteModal, setShowClienteModal] = useState(false);
@@ -264,7 +264,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
           <Label htmlFor="cliente">Cliente *</Label>
           <div className="flex items-center gap-2">
               <div className="flex-1">
-                <Select value={form.cliente_codigo} onValueChange={handleClienteChange} disabled={!!pedido}>
+                <Select value={form.cliente_codigo} onValueChange={handleClienteChange}>
                     <SelectTrigger className={cn(inputClass, "w-full text-left font-medium")}><SelectValue placeholder="Selecione o cliente" /></SelectTrigger>
                     <SelectContent className="max-h-[300px] z-[99999]">
                         <div className="p-2 sticky top-0 bg-white z-10 border-b pb-2 mb-1">
@@ -287,7 +287,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
                 </Select>
               </div>
               <Button type="button" variant="ghost" size="icon" onClick={openClienteModal} disabled={!form.cliente_codigo} className="h-11 w-11 rounded-xl border border-slate-200 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"><Eye className="h-5 w-5" /></Button>
-              {!pedido && <Button type="button" variant="ghost" size="icon" onClick={() => setShowNovoClienteModal(true)} className="h-11 w-11 rounded-xl border border-slate-200 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200 transition-all"><Plus className="h-5 w-5" /></Button>}
+              <Button type="button" variant="ghost" size="icon" onClick={() => setShowNovoClienteModal(true)} className="h-11 w-11 rounded-xl border border-slate-200 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200 transition-all"><Plus className="h-5 w-5" /></Button>
           </div>
         </div>
 
