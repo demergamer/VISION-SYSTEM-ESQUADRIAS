@@ -360,6 +360,11 @@ export default function Cheques() {
               </div>
               <div className="h-8 w-px bg-slate-200 mx-2 hidden sm:block" />
               <div className="flex flex-wrap gap-2">
+                  {selectedIds.length > 0 && mainTab === 'devolvido' && canDo('Cheques', 'editar') && (
+                    <Button onClick={handleLiquidarDevolvidos} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-200">
+                      <DollarSign className="w-4 h-4" /> Liquidar Selecionados ({selectedIds.length})
+                    </Button>
+                  )}
                   {canDo('Cheques', 'editar') && (
                       <Button onClick={() => setShowDevolucaoModal(true)} className="gap-2 border-red-200 text-red-700 bg-white hover:bg-red-50 shadow-sm border transition-all hover:shadow-md">
                           <AlertTriangle className="w-4 h-4" /> Registrar Devolução
@@ -438,11 +443,6 @@ export default function Cheques() {
                       <Button variant={subTab === 'aqui' ? 'default' : 'outline'} onClick={() => setSubTab('aqui')} className={cn("rounded-full h-8 text-xs", subTab === 'aqui' && "bg-red-600 hover:bg-red-700")}>🏦 Na Empresa ({formatCurrency(dadosProcessados.totais.devAqui)})</Button>
                       <Button variant={subTab === 'nao_aqui' ? 'default' : 'outline'} onClick={() => setSubTab('nao_aqui')} className={cn("rounded-full h-8 text-xs", subTab === 'nao_aqui' && "bg-orange-500 hover:bg-orange-600 text-white")}>🤝 Com Terceiros ({formatCurrency(dadosProcessados.totais.devNaoAqui)})</Button>
                       <Button variant={subTab === 'resolvidos' ? 'default' : 'outline'} onClick={() => setSubTab('resolvidos')} className={cn("rounded-full h-8 text-xs", subTab === 'resolvidos' && "bg-emerald-600 hover:bg-emerald-700")}>✅ Resolvidos ({formatCurrency(dadosProcessados.totais.devResolvidos)})</Button>
-                      {selectedIds.length > 0 && canDo('Cheques', 'editar') && (
-                        <Button onClick={handleLiquidarDevolvidos} className="rounded-full h-8 text-xs bg-emerald-600 hover:bg-emerald-700 gap-1.5 ml-auto">
-                          <DollarSign className="w-3.5 h-3.5" /> Liquidar Selecionados ({selectedIds.length})
-                        </Button>
-                      )}
                   </>
               )}
               {mainTab === 'compensado' && (
