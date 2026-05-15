@@ -360,9 +360,9 @@ export default function Cheques() {
               </div>
               <div className="h-8 w-px bg-slate-200 mx-2 hidden sm:block" />
               <div className="flex flex-wrap gap-2">
-                  {selectedIds.length > 0 && mainTab === 'devolvido' && canDo('Cheques', 'editar') && (
+                  {canDo('Cheques', 'editar') && selectedIds.length > 0 && mainTab === 'devolvido' && (
                     <Button onClick={handleLiquidarDevolvidos} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-200">
-                      <DollarSign className="w-4 h-4" /> Liquidar Selecionados ({selectedIds.length})
+                      <DollarSign className="w-4 h-4" /> Liquidar ({selectedIds.length})
                     </Button>
                   )}
                   {canDo('Cheques', 'editar') && (
@@ -505,9 +505,6 @@ export default function Cheques() {
                                       </TableCell>
                                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                                           <div className="flex justify-end gap-1">
-                                              {cheque.status_exibicao === 'devolvido' && cheque.status_pagamento_devolucao !== 'pago' && canDo('Cheques', 'editar') && (
-                                                  <Button variant="ghost" size="icon" onClick={(e) => handleOpenPagamento(e, cheque)} title="Liquidar Devolução Pendente" className="hover:bg-emerald-50 text-emerald-600"><DollarSign className="w-4 h-4" /></Button>
-                                              )}
                                               {mainTab === 'excluido' ? (
                                                   <Button variant="ghost" size="icon" onClick={() => handleRestore(cheque.id)} title="Restaurar Cheque"><RefreshCw className="w-4 h-4 text-emerald-600"/></Button>
                                               ) : (
