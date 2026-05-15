@@ -38,33 +38,48 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     }
   });
 
-  // Busca pedidos para extrair rotas únicas existentes e VALIDAR DUPLICIDADE
-  const { data: todosPedidos = [] } = useQuery({
-    queryKey: ['pedidos_rotas_form'],
-    queryFn: () => base44.entities.Pedido.list('-created_date', 5000)
+  // Busca rotas importadas para o select de rota (leve)
+  const { data: rotasImportadas = [] } = useQuery({
+    queryKey: ['rotas_importadas_form'],
+    queryFn: () => base44.entities.RotaImportada.list('-created_date', 500)
   });
 
   const { data: portsDisponiveis = [] } = useQuery({
     queryKey: ['ports_pedido_form'],
     queryFn: async () => {
-      const allPorts = await base44.entities.Port.list();
+      const allPorts = await base44.entities.Port.list('-created_date', 500);
       return allPorts.filter(p => (p.saldo_disponivel || 0) > 0 && !['devolvido', 'finalizado'].includes(p.status));
     }
   });
 
+  // Rotas únicas derivadas das rotas importadas (sem carregar todos os pedidos)
   const rotasUnicas = useMemo(() => {
     const map = new Map();
-    todosPedidos.forEach(p => {
-      if (p.rota_entrega && !map.has(p.rota_entrega)) {
-        map.set(p.rota_entrega, {
-          rota_entrega: p.rota_entrega,
-          motorista_atual: p.motorista_atual || '',
-          motorista_codigo: p.motorista_codigo || ''
+    rotasImportadas.forEach(r => {
+      const key = r.codigo_rota;
+      if (key && !map.has(key)) {
+        map.set(key, {
+          rota_entrega: key,
+          motorista_atual: r.motorista_nome || '',
+          motorista_codigo: r.motorista_codigo || ''
         });
       }
     });
     return Array.from(map.values());
-  }, [todosPedidos]);
+  }, [rotasImportadas]);
+
+  // Verificação de duplicidade: busca pontual no banco pelo número exato
+  const verificarDuplicidade = async (numeroPedido) => {
+    const semPontos = String(numeroPedido).replace(/\./g, '');
+    const n = parseInt(semPontos, 10);
+    const formatado = !isNaN(n) ? n.toLocaleString('pt-BR').replace(/,/g, '.') : numeroPedido;
+    try {
+      const encontrados = await base44.entities.Pedido.filter({ numero_pedido: formatado }, '-created_date', 5);
+      return encontrados.find(p => p.id !== pedido?.id) || null;
+    } catch {
+      return null;
+    }
+  };
 
   const [form, setForm] = useState({
     cliente_codigo: '',
@@ -198,8 +213,8 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     setForm(prev => recalcularSaldo({ ...prev, sinais_historico: novosSinais }));
   };
 
-  // 🚀 LÓGICA DE BLOQUEIO DE SALVAMENTO DE DUPLICADOS + VALIDAÇÃO DE CAMPOS
-  const handleSave = () => {
+  // LÓGICA DE BLOQUEIO DE SALVAMENTO DE DUPLICADOS + VALIDAÇÃO DE CAMPOS
+  const handleSave = async () => {
     const raw = String(form.numero_pedido).trim();
 
     // --- VALIDAÇÕES DE CAMPOS OBRIGATÓRIOS ---
@@ -228,15 +243,8 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
     const n = parseInt(semPontos, 10);
     const formatado = !isNaN(n) ? n.toLocaleString('pt-BR').replace(/,/g, '.') : raw;
 
-    // Procura se já existe outro pedido com esse número exato
-    const duplicado = todosPedidos.find(p => 
-      p.id !== pedido?.id && (
-        String(p.numero_pedido) === formatado || 
-        String(p.numero_pedido) === raw ||
-        String(p.numero_pedido).replace(/\./g, '') === semPontos
-      )
-    );
-
+    // Verificação de duplicidade direto no banco (sem depender de cache local)
+    const duplicado = await verificarDuplicidade(formatado);
     if (duplicado) {
       showAlert('error', 'Pedido Duplicado', `O Pedido #${formatado} já existe no sistema para o cliente "${duplicado.cliente_nome}" com status: ${duplicado.status}. O salvamento foi bloqueado.`);
       return;
@@ -320,7 +328,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
             id="numero_pedido" 
             value={form.numero_pedido} 
             onChange={(e) => setForm({ ...form, numero_pedido: e.target.value })} 
-            onBlur={(e) => {
+            onBlur={async (e) => {
               const raw = e.target.value.trim();
               if (!raw) return;
               
@@ -328,15 +336,8 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
               const n = parseInt(semPontos, 10);
               const formatado = !isNaN(n) ? n.toLocaleString('pt-BR').replace(/,/g, '.') : raw;
               
-              // 1. Verifica duplicidade (Para aviso ao sair do campo)
-              const duplicado = todosPedidos.find(p => 
-                p.id !== pedido?.id && (
-                  String(p.numero_pedido) === formatado || 
-                  String(p.numero_pedido) === raw ||
-                  String(p.numero_pedido).replace(/\./g, '') === semPontos
-                )
-              );
-              
+              // 1. Verifica duplicidade direto no banco ao sair do campo
+              const duplicado = await verificarDuplicidade(formatado);
               if (duplicado) {
                 showAlert('warning', 'Pedido Já Cadastrado', `O Pedido #${formatado} já está cadastrado no sistema.\n\nCliente: ${duplicado.cliente_nome}\nStatus: ${duplicado.status}`);
               }
