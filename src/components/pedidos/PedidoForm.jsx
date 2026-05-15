@@ -41,7 +41,7 @@ export default function PedidoForm({ pedido, clientes = [], onSave, onCancel, on
   // Busca pedidos para extrair rotas únicas existentes e VALIDAR DUPLICIDADE
   const { data: todosPedidos = [] } = useQuery({
     queryKey: ['pedidos_rotas_form'],
-    queryFn: () => base44.entities.Pedido.list()
+    queryFn: () => base44.entities.Pedido.list('-created_date', 5000)
   });
 
   const { data: portsDisponiveis = [] } = useQuery({
