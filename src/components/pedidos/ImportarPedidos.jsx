@@ -195,10 +195,11 @@ function parsePlanilhaRota(arrayBuffer, clientes, pedidosExistentes) {
 
     if (!clienteNome || !numeroPedido || valorPedido <= 0) continue;
 
-    const clienteCadastrado = clientes.find(c =>
-      c.nome?.toLowerCase().includes(clienteNome.toLowerCase()) ||
-      clienteNome.toLowerCase().includes(c.nome?.toLowerCase())
-    );
+    const normalizar = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const nomeNorm = normalizar(clienteNome);
+    // Match somente por nome exato normalizado
+    // NÃO usar includes/substring — causa falsos positivos (ex: "I.E. SCHUSTER" sendo encontrado em "I.E. SCHUSTER MATS D")
+    const clienteCadastrado = clientes.find(c => normalizar(c.nome) === nomeNorm) || null;
 
     const sanitize = (str) => String(str || '').replace(/\./g, '').trim();
     const pedidoJaExiste = pedidosExistentes.find(p =>
