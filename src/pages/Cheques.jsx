@@ -32,6 +32,7 @@ import { usePermissions } from "@/components/hooks/usePermissions";
 import RegistrarDevolucaoModal from "@/components/cheques/Chequesdevolvidos";
 import ResolveDuplicatesModal from "@/components/cheques/Chequeduplicados";
 import ChequePagamentoModal from "@/components/cheques/Chequepagamentos";
+import LiquidacaoChequeDevolvido from "@/components/cheques/LiquidacaoChequeDevolvido";
 
 const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
@@ -57,6 +58,8 @@ export default function Cheques() {
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [showDevolucaoModal, setShowDevolucaoModal] = useState(false);
   const [showPagamentoModal, setShowPagamentoModal] = useState(false);
+  const [showLiquidacaoDevModal, setShowLiquidacaoDevModal] = useState(false);
+  const [chequesParaLiquidar, setChequesParaLiquidar] = useState([]);
 
   const [selectedCheque, setSelectedCheque] = useState(null);
   const [chequeParaPagamento, setChequeParaPagamento] = useState(null);
@@ -273,6 +276,16 @@ export default function Cheques() {
   };
 
   const handleOpenPagamento = (e, cheque) => { e.stopPropagation(); setChequeParaPagamento(cheque); setShowPagamentoModal(true); };
+
+  const handleLiquidarDevolvidos = () => {
+    const selecionados = paginatedCheques.filter(c => selectedIds.includes(c.id) && c.status_exibicao === 'devolvido' && c.status_pagamento_devolucao !== 'pago');
+    if (selecionados.length === 0) {
+      toast.error('Selecione ao menos um cheque devolvido pendente.');
+      return;
+    }
+    setChequesParaLiquidar(selecionados);
+    setShowLiquidacaoDevModal(true);
+  };
   
   const handleSavePagamentoDevolvido = async (pagamento) => {
       setIsProcessing(true);
@@ -425,6 +438,11 @@ export default function Cheques() {
                       <Button variant={subTab === 'aqui' ? 'default' : 'outline'} onClick={() => setSubTab('aqui')} className={cn("rounded-full h-8 text-xs", subTab === 'aqui' && "bg-red-600 hover:bg-red-700")}>🏦 Na Empresa ({formatCurrency(dadosProcessados.totais.devAqui)})</Button>
                       <Button variant={subTab === 'nao_aqui' ? 'default' : 'outline'} onClick={() => setSubTab('nao_aqui')} className={cn("rounded-full h-8 text-xs", subTab === 'nao_aqui' && "bg-orange-500 hover:bg-orange-600 text-white")}>🤝 Com Terceiros ({formatCurrency(dadosProcessados.totais.devNaoAqui)})</Button>
                       <Button variant={subTab === 'resolvidos' ? 'default' : 'outline'} onClick={() => setSubTab('resolvidos')} className={cn("rounded-full h-8 text-xs", subTab === 'resolvidos' && "bg-emerald-600 hover:bg-emerald-700")}>✅ Resolvidos ({formatCurrency(dadosProcessados.totais.devResolvidos)})</Button>
+                      {selectedIds.length > 0 && canDo('Cheques', 'editar') && (
+                        <Button onClick={handleLiquidarDevolvidos} className="rounded-full h-8 text-xs bg-emerald-600 hover:bg-emerald-700 gap-1.5 ml-auto">
+                          <DollarSign className="w-3.5 h-3.5" /> Liquidar Selecionados ({selectedIds.length})
+                        </Button>
+                      )}
                   </>
               )}
               {mainTab === 'compensado' && (
@@ -537,6 +555,15 @@ export default function Cheques() {
         <RegistrarDevolucaoModal isOpen={showDevolucaoModal} onClose={() => setShowDevolucaoModal(false)} todosCheques={cheques} preSelectedIds={selectedIds} onSave={handleSaveDevolucao} />
 
         <ChequePagamentoModal isOpen={showPagamentoModal} onClose={() => setShowPagamentoModal(false)} cheque={chequeParaPagamento} onSave={handleSavePagamentoDevolvido} isProcessing={isProcessing} representantes={representantes} />
+
+        <LiquidacaoChequeDevolvido
+          isOpen={showLiquidacaoDevModal}
+          onClose={() => setShowLiquidacaoDevModal(false)}
+          cheques={chequesParaLiquidar}
+          clienteCodigo={chequesParaLiquidar[0]?.cliente_codigo || ''}
+          clienteNome={chequesParaLiquidar[0]?.cliente_nome || ''}
+          onSave={async () => { await refetch(); setShowLiquidacaoDevModal(false); setSelectedIds([]); }}
+        />
 
         <ModalContainer open={showDuplicateModal} onClose={() => setShowDuplicateModal(false)} title="Resolver Duplicatas" description="Selecione o cheque original/correto para manter. Os outros serão excluídos." size="2xl">
             <ResolveDuplicatesModal duplicateGroups={duplicateGroups} onResolve={handleResolveDuplicates} onCancel={() => setShowDuplicateModal(false)} isProcessing={isProcessing} />
