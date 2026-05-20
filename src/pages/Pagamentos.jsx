@@ -1,572 +1,212 @@
 import React, { useState, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import LiquidarContaModal from '@/components/pagamentos/LiquidarContaModal';
-import BorderoPagamentoModal from "@/components/pagamentos/BorderoPagamentoModal";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
-import { 
-  CreditCard, Search, Plus, Edit, Trash2, ArrowLeft, Save, X, Loader2, Upload, 
-  CheckCircle, Calendar, DollarSign, Clock, TrendingUp, Archive, Ticket, AlertCircle, FileText 
+import {
+  Search, Plus, Edit, Trash2, Building2, DollarSign, Clock, CheckCircle,
+  Calendar, TrendingUp, Archive, AlertCircle, FileText, Settings, RefreshCw,
+  Loader2, X
 } from "lucide-react";
-import { Link } from "react-router-dom";
-import { createPageUrl } from "@/utils";
 import { toast } from "sonner";
 import ModalContainer from "@/components/modals/ModalContainer";
 import PermissionGuard from "@/components/PermissionGuard";
 import { cn } from "@/lib/utils";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { format, addMonths, parseISO, isAfter, isBefore, startOfWeek, endOfWeek, isWithinInterval, isPast, isToday } from "date-fns";
+import { format, parseISO, isPast, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-function ContaPagarForm({ conta, fornecedores, onSave, onCancel, isLoading }) {
-  const [isRecorrente, setIsRecorrente] = useState(conta?.tipo_lancamento === 'recorrente' || false);
-  const [isValorVariavel, setIsValorVariavel] = useState(false);
-  const [showAddFornecedor, setShowAddFornecedor] = useState(false);
-  const [novoFornecedor, setNovoFornecedor] = useState({ nome: '', codigo: '' });
-  const [savingFornecedor, setSavingFornecedor] = useState(false);
-  const [form, setForm] = useState({
-    fornecedor_codigo: conta?.fornecedor_codigo || '',
-    fornecedor_nome: conta?.fornecedor_nome || '',
-    descricao: conta?.descricao || '',
-    valor: conta?.valor || '',
-    data_vencimento: conta?.data_vencimento || '',
-    status: conta?.status || 'pendente',
-    observacao: conta?.observacao || '',
-    categoria_financeira: conta?.categoria_financeira || 'aluminio',
-    tipo_lancamento: conta?.tipo_lancamento || 'unica',
-    total_parcelas: conta?.total_parcelas || 1
-  });
+import ContaPagarForm from '@/components/pagamentos/ContaPagarForm';
+import EmpresasModal from '@/components/pagamentos/EmpresasModal';
+import LiquidarContasMassaModal from '@/components/pagamentos/LiquidarContasMassaModal';
+import BorderoPagamentoModal from "@/components/pagamentos/BorderoPagamentoModal";
 
-  const [comprovante, setComprovante] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [anexo, setAnexo] = useState(conta?.comprovante_url || null);
-  const [uploadingAnexo, setUploadingAnexo] = useState(false);
+const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
-  const handleFornecedorChange = (codigo) => {
-    const forn = fornecedores.find(f => f.codigo === codigo);
-    setForm({ ...form, fornecedor_codigo: codigo, fornecedor_nome: forn?.nome || '' });
-  };
-
-  const handleUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    setUploading(true);
-    try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      setComprovante(file_url);
-      toast.success('Comprovante anexado!');
-    } catch (error) {
-      toast.error('Erro ao enviar arquivo');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleUploadAnexo = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    setUploadingAnexo(true);
-    try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      setAnexo(file_url);
-      toast.success('Documento anexado!');
-    } catch (error) {
-      toast.error('Erro ao enviar arquivo');
-    } finally {
-      setUploadingAnexo(false);
-    }
-  };
-
-  const handleAddFornecedor = async () => {
-    if (!novoFornecedor.nome || !novoFornecedor.codigo) {
-      toast.error('Preencha nome e código do fornecedor');
-      return;
-    }
-
-    setSavingFornecedor(true);
-    try {
-      await base44.entities.Fornecedor.create({
-        nome: novoFornecedor.nome,
-        codigo: novoFornecedor.codigo
-      });
-      
-      setForm({ ...form, fornecedor_codigo: novoFornecedor.codigo, fornecedor_nome: novoFornecedor.nome });
-      setShowAddFornecedor(false);
-      setNovoFornecedor({ nome: '', codigo: '' });
-      toast.success('Fornecedor cadastrado!');
-      
-      // Recarregar lista de fornecedores (idealmente via query invalidation, mas reload funciona aqui no contexto modal)
-      window.location.reload();
-    } catch (error) {
-      toast.error('Erro ao cadastrar fornecedor');
-    } finally {
-      setSavingFornecedor(false);
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (form.status !== 'pendente' && !comprovante && !conta?.comprovante_url) {
-      toast.error('Anexe o comprovante de pagamento');
-      return;
-    }
-
-    // Se for conta única
-    if (!isRecorrente) {
-      onSave({ 
-        ...form, 
-        comprovante_url: anexo || comprovante || conta?.comprovante_url,
-        tipo_lancamento: 'unica'
-      });
-      return;
-    }
-
-    // Se for recorrente, criar múltiplas parcelas
-    const grupoId = `REC-${Date.now()}`;
-    const valorParcela = parseFloat(form.valor) || 0;
-    const totalParcelas = parseInt(form.total_parcelas) || 1;
-    const dataBase = parseISO(form.data_vencimento);
-
-    const parcelas = [];
-    for (let i = 1; i <= totalParcelas; i++) {
-      const dataVencimento = format(addMonths(dataBase, i - 1), 'yyyy-MM-dd');
-      
-      parcelas.push({
-        ...form,
-        tipo_lancamento: 'recorrente',
-        recorrencia_grupo_id: grupoId,
-        parcela_numero: i,
-        total_parcelas: totalParcelas,
-        valor: (i === 1 || !isValorVariavel) ? valorParcela : 0,
-        status: (i === 1 || !isValorVariavel) ? 'pendente' : 'pendente_preenchimento',
-        data_vencimento: dataVencimento,
-        comprovante_url: anexo || comprovante || conta?.comprovante_url
-      });
-    }
-
-    try {
-      await base44.entities.ContaPagar.bulkCreate(parcelas);
-      toast.success(`${totalParcelas} parcelas criadas!`);
-      onCancel();
-    } catch (error) {
-      toast.error('Erro ao criar recorrência');
-    }
-  };
-
-  return (
-    <>
-      {showAddFornecedor && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-lg">Cadastro Rápido de Fornecedor</h3>
-              <Button 
-                type="button" 
-                size="icon" 
-                variant="ghost" 
-                onClick={() => setShowAddFornecedor(false)}
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-            
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label>Nome Fantasia / Razão Social *</Label>
-                <Input
-                  value={novoFornecedor.nome}
-                  onChange={(e) => setNovoFornecedor({ ...novoFornecedor, nome: e.target.value })}
-                  placeholder="Ex: Fornecedor de Alumínio LTDA"
-                  autoFocus
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Código / CNPJ *</Label>
-                <Input
-                  value={novoFornecedor.codigo}
-                  onChange={(e) => setNovoFornecedor({ ...novoFornecedor, codigo: e.target.value })}
-                  placeholder="Ex: FORN001 ou CNPJ"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => setShowAddFornecedor(false)}
-                disabled={savingFornecedor}
-              >
-                Cancelar
-              </Button>
-              <Button 
-                type="button" 
-                onClick={handleAddFornecedor}
-                disabled={savingFornecedor}
-                className={savingFornecedor ? 'cursor-not-allowed opacity-70' : ''}
-              >
-                {savingFornecedor ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Salvando...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 mr-2" />
-                    Salvar
-                  </>
-                )}
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
-        <div className="flex items-center gap-3">
-          <Switch
-            checked={isRecorrente}
-            onCheckedChange={setIsRecorrente}
-            id="recorrente-toggle"
-          />
-          <Label htmlFor="recorrente-toggle" className="cursor-pointer font-semibold">
-            Lançamento Recorrente
-          </Label>
-        </div>
-        {isRecorrente && (
-          <Badge className="bg-blue-100 text-blue-700">
-            {form.total_parcelas || 1}x
-          </Badge>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Fornecedor *</Label>
-          <div className="flex gap-2">
-            <Select value={form.fornecedor_codigo} onValueChange={handleFornecedorChange}>
-              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-              <SelectContent>
-                {fornecedores.map(f => (
-                  <SelectItem key={f.codigo} value={f.codigo}>{f.codigo} - {f.nome}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button 
-              type="button" 
-              size="icon" 
-              variant="outline" 
-              onClick={() => setShowAddFornecedor(true)}
-              className="shrink-0"
-            >
-              <Plus className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Categoria *</Label>
-          <Select value={form.categoria_financeira} onValueChange={(v) => setForm({ ...form, categoria_financeira: v })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="aluminio">🏗️ Matéria-Prima: Alumínio</SelectItem>
-              <SelectItem value="vidros">💎 Matéria-Prima: Vidros</SelectItem>
-              <SelectItem value="acessorios">🔩 Acessórios & Ferragens</SelectItem>
-              <SelectItem value="servicos_terceiros">🎨 Serviços de Terceiros</SelectItem>
-              <SelectItem value="manutencao">🛠️ Manutenção de Maquinário</SelectItem>
-              <SelectItem value="logistica">🚛 Logística e Frete</SelectItem>
-              <SelectItem value="administrativas">🏢 Despesas Administrativas</SelectItem>
-              <SelectItem value="impostos">⚖️ Impostos e Taxas</SelectItem>
-              <SelectItem value="folha">👷 Folha de Pagamento</SelectItem>
-              <SelectItem value="vale">🎟️ Vale</SelectItem>
-              <SelectItem value="comissoes">💰 Comissões</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Valor (R$) {isRecorrente && isValorVariavel ? '(1ª Parcela)' : '*'}</Label>
-          <Input
-            type="number"
-            step="0.01"
-            value={form.valor}
-            onChange={(e) => setForm({ ...form, valor: e.target.value })}
-            required
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label>Data de Vencimento {isRecorrente ? '(1ª Parcela)' : '*'}</Label>
-          <Input
-            type="date"
-            value={form.data_vencimento}
-            onChange={(e) => setForm({ ...form, data_vencimento: e.target.value })}
-            required
-          />
-        </div>
-
-        {isRecorrente && (
-          <>
-            <div className="space-y-2">
-              <Label>Quantidade de Parcelas *</Label>
-              <Input
-                type="number"
-                min="2"
-                max="60"
-                value={form.total_parcelas}
-                onChange={(e) => setForm({ ...form, total_parcelas: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="space-y-3 md:col-span-2 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-              <div className="flex items-start gap-3">
-                <Checkbox
-                  checked={isValorVariavel}
-                  onCheckedChange={setIsValorVariavel}
-                  id="valor-variavel"
-                  className="mt-1"
-                />
-                <div className="flex-1">
-                  <Label htmlFor="valor-variavel" className="cursor-pointer font-semibold text-amber-900">
-                    Valor Variável (A definir mês a mês)
-                  </Label>
-                  <p className="text-xs text-amber-700 mt-1">
-                    Ideal para contas como Luz e Água. As parcelas 2 a {form.total_parcelas || 2} serão criadas com valor R$ 0,00.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-
-        <div className="space-y-2 md:col-span-2">
-          <Label>Descrição *</Label>
-          <Textarea
-            value={form.descricao}
-            onChange={(e) => setForm({ ...form, descricao: e.target.value })}
-            placeholder="Descreva o item/serviço"
-            rows={2}
-            required
-          />
-        </div>
-
-        <div className="space-y-2 md:col-span-2">
-          <Label>Observações</Label>
-          <Textarea
-            value={form.observacao}
-            onChange={(e) => setForm({ ...form, observacao: e.target.value })}
-            rows={2}
-          />
-        </div>
-
-        <div className="space-y-2 md:col-span-2">
-          <Label>📎 Anexar Boleto/Fatura {isRecorrente ? '(Opcional)' : ''}</Label>
-          <label className={cn(
-            "flex items-center justify-center gap-2 h-12 px-4 rounded-xl border-2 border-dashed cursor-pointer transition-all",
-            anexo ? "border-green-300 bg-green-50 text-green-700" : "border-slate-300 bg-white hover:border-blue-400"
-          )}>
-            {uploadingAnexo ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="font-medium">Enviando...</span>
-              </>
-            ) : anexo ? (
-              <>
-                <CheckCircle className="w-4 h-4" />
-                <span className="font-medium">Documento Anexado</span>
-                <a 
-                  href={anexo} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="ml-2 text-blue-600 underline text-sm"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  Ver
-                </a>
-              </>
-            ) : (
-              <>
-                <Upload className="w-4 h-4" />
-                <span className="font-medium">Clique para Anexar PDF/Imagem</span>
-              </>
-            )}
-            <input 
-              type="file" 
-              accept="image/*,.pdf" 
-              onChange={handleUploadAnexo} 
-              className="hidden" 
-              disabled={uploadingAnexo} 
-            />
-          </label>
-          {anexo && (
-            <Button 
-              type="button" 
-              size="sm" 
-              variant="ghost" 
-              onClick={() => setAnexo(null)}
-              className="text-red-600 hover:text-red-700"
-            >
-              <Trash2 className="w-3 h-3 mr-2" />
-              Remover Anexo
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {!isRecorrente && form.status !== 'pendente' && (
-        <div className="space-y-2">
-          <Label>Comprovante de Pagamento *</Label>
-          <label className={cn(
-            "flex items-center justify-center gap-2 h-12 px-4 rounded-xl border-2 border-dashed cursor-pointer transition-all",
-            comprovante || conta?.comprovante_url ? "border-green-300 bg-green-50 text-green-700" : "border-slate-300 bg-white hover:border-blue-400"
-          )}>
-            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : comprovante || conta?.comprovante_url ? <CheckCircle className="w-4 h-4" /> : <Upload className="w-4 h-4" />}
-            <span className="font-medium">{uploading ? 'Enviando...' : comprovante || conta?.comprovante_url ? 'Comprovante Anexado' : 'Clique para Anexar'}</span>
-            <input type="file" accept="image/*,.pdf" onChange={handleUpload} className="hidden" disabled={uploading} />
-          </label>
-        </div>
-      )}
-
-      <div className="flex justify-end gap-3 pt-4 border-t">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
-          <X className="w-4 h-4 mr-2" />
-          Cancelar
-        </Button>
-        <Button type="submit" disabled={isLoading} className={isLoading ? 'cursor-not-allowed opacity-70' : ''}>
-          {isLoading ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Salvando...
-            </>
-          ) : (
-            <>
-              <Save className="w-4 h-4 mr-2" />
-              {isRecorrente ? 'Criar Recorrência' : 'Salvar'}
-            </>
-          )}
-        </Button>
-      </div>
-      </form>
-    </>
-  );
+function getStatusInfo(conta) {
+  const isPendente = conta.status === 'pendente';
+  const isAtrasada = isPendente && conta.data_vencimento && isPast(parseISO(conta.data_vencimento)) && !isToday(parseISO(conta.data_vencimento));
+  const isHoje = conta.data_vencimento && isToday(parseISO(conta.data_vencimento));
+  return { isAtrasada, isHoje };
 }
 
-function ContaCard({ conta, onEdit, onDelete, onQuickPay, showAnexo = true }) {
-  const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
-  
-  const getStatusBadge = (status) => {
-    const config = {
-      pendente: { label: 'Pendente', class: 'bg-yellow-100 text-yellow-700', icon: Clock },
-      pago: { label: 'Pago', class: 'bg-green-100 text-green-700', icon: CheckCircle },
-      futuro: { label: 'Futuro', class: 'bg-blue-100 text-blue-700', icon: Calendar },
-      pendente_preenchimento: { label: 'A Definir', class: 'bg-orange-100 text-orange-700', icon: AlertCircle }
-    };
-    return config[status] || config.pendente;
-  };
-
-  const statusConfig = getStatusBadge(conta?.status);
-  const StatusIcon = statusConfig.icon;
-  
-  const isAtrasada = conta?.status === 'pendente' && conta?.data_vencimento && isPast(parseISO(conta.data_vencimento)) && !isToday(parseISO(conta.data_vencimento));
-  const isHoje = conta?.data_vencimento && isToday(parseISO(conta.data_vencimento));
+function ContaRow({ conta, onEdit, onDelete }) {
+  const { isAtrasada, isHoje } = getStatusInfo(conta);
 
   return (
-    <Card className={cn(
-      "p-4 hover:shadow-lg transition-all",
-      isAtrasada && "border-red-300 bg-red-50",
-      isHoje && "border-amber-300 bg-amber-50"
+    <div className={cn(
+      "flex items-center gap-3 p-3 rounded-xl border transition-all hover:shadow-sm",
+      isAtrasada ? "border-red-200 bg-red-50" : isHoje ? "border-amber-200 bg-amber-50" : conta.status === 'pendente_preenchimento' ? "border-yellow-300 bg-yellow-50" : "border-slate-200 bg-white"
     )}>
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-semibold text-slate-800">{conta?.fornecedor_nome}</h3>
-            {conta?.tipo_lancamento === 'recorrente' && (
-              <Badge className="bg-purple-100 text-purple-700 text-xs">
-                {conta.parcela_numero}/{conta.total_parcelas}
-              </Badge>
-            )}
-          </div>
-          <p className="text-sm text-slate-600 truncate">{conta?.descricao}</p>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-semibold text-sm text-slate-800">{conta.fornecedor_nome}</span>
+          {conta.numero_lancamento && <span className="text-xs font-mono text-slate-400">{conta.numero_lancamento}</span>}
+          {conta.tipo_lancamento === 'recorrente' && <Badge className="bg-purple-100 text-purple-700 text-xs py-0">Recorrente</Badge>}
+          {isAtrasada && <Badge className="bg-red-100 text-red-700 text-xs py-0">⚠️ Atrasada</Badge>}
+          {isHoje && <Badge className="bg-amber-100 text-amber-700 text-xs py-0">🔔 Hoje</Badge>}
+          {conta.status === 'pendente_preenchimento' && <Badge className="bg-yellow-100 text-yellow-800 text-xs py-0">A Definir</Badge>}
         </div>
-        <Badge className={statusConfig.class}>
-          <StatusIcon className="w-3 h-3 mr-1" />
-          {statusConfig.label}
-        </Badge>
+        <p className="text-xs text-slate-500 mt-0.5 truncate">{conta.descricao}</p>
       </div>
-
-      <div className="grid grid-cols-2 gap-3 mb-3">
-        <div>
-          <p className="text-xs text-slate-500">Vencimento</p>
-          <p className="font-medium text-sm">
-            {conta?.data_vencimento ? format(parseISO(conta.data_vencimento), "dd/MM/yyyy", { locale: ptBR }) : '-'}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs text-slate-500">Valor</p>
-          <p className="font-bold text-lg text-slate-800">{formatCurrency(conta?.valor)}</p>
-        </div>
+      <div className="text-right shrink-0">
+        <p className="font-bold text-slate-800">{formatCurrency(conta.valor)}</p>
+        <p className="text-xs text-slate-400">{conta.data_vencimento ? format(parseISO(conta.data_vencimento), 'dd/MM/yy', { locale: ptBR }) : '-'}</p>
       </div>
-
-      {showAnexo && conta?.comprovante_url && (
-        <div className="mb-3">
-          <a 
-            href={conta.comprovante_url} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 text-xs text-blue-600 hover:text-blue-700 hover:underline"
-          >
-            <FileText className="w-3 h-3" />
-            Ver Documento Anexo
-          </a>
-        </div>
-      )}
-
-      {isAtrasada && (
-        <div className="mb-3 p-2 bg-red-100 border border-red-300 rounded-lg">
-          <p className="text-xs font-semibold text-red-700">⚠️ ATRASADA</p>
-        </div>
-      )}
-
-      {isHoje && (
-        <div className="mb-3 p-2 bg-amber-100 border border-amber-300 rounded-lg">
-          <p className="text-xs font-semibold text-amber-700">🔔 VENCE HOJE</p>
-        </div>
-      )}
-
-      <div className="flex gap-2">
-        {conta?.status === 'pendente' && (
-          <PermissionGuard setor="Pagamentos" funcao="liquidar" showBlocked={false}>
-            <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => onQuickPay(conta)}>
-              <DollarSign className="w-4 h-4 mr-2" />
-              Liquidar
-            </Button>
-          </PermissionGuard>
-        )}
+      <div className="flex gap-1 shrink-0">
         <PermissionGuard setor="Pagamentos" funcao="editar" showBlocked={false}>
-          <Button size="sm" variant="outline" onClick={() => onEdit(conta)}>
-            <Edit className="w-4 h-4" />
+          <Button size="sm" variant="ghost" onClick={() => onEdit(conta)} className="h-8 w-8 p-0 text-slate-500">
+            <Edit className="w-3 h-3" />
           </Button>
         </PermissionGuard>
         <PermissionGuard setor="Pagamentos" funcao="excluir" showBlocked={false}>
-          <Button size="sm" variant="ghost" onClick={() => onDelete(conta)} className="text-red-600">
-            <Trash2 className="w-4 h-4" />
+          <Button size="sm" variant="ghost" onClick={() => onDelete(conta)} className="h-8 w-8 p-0 text-red-400">
+            <Trash2 className="w-3 h-3" />
           </Button>
         </PermissionGuard>
+      </div>
+    </div>
+  );
+}
+
+function EmpresaSection({ empresa, contas, onEdit, onDelete, searchTerm }) {
+  const now = new Date();
+
+  const atrasadas = contas.filter(c => {
+    if (!['pendente', 'parcial'].includes(c.status)) return false;
+    if (!c.data_vencimento) return false;
+    return isPast(parseISO(c.data_vencimento)) && !isToday(parseISO(c.data_vencimento));
+  });
+
+  const hoje = contas.filter(c => ['pendente', 'parcial'].includes(c.status) && c.data_vencimento && isToday(parseISO(c.data_vencimento)));
+
+  const futuras = contas.filter(c => {
+    if (!['pendente', 'parcial', 'futuro'].includes(c.status)) return false;
+    if (!c.data_vencimento) return false;
+    return !isPast(parseISO(c.data_vencimento)) && !isToday(parseISO(c.data_vencimento));
+  });
+
+  const pagas = contas.filter(c => c.status === 'pago');
+  const recorrentes = contas.filter(c => c.tipo_lancamento === 'recorrente' && c.status !== 'pago');
+  const aDefinir = contas.filter(c => c.status === 'pendente_preenchimento');
+
+  const filterBySearch = (list) => {
+    if (!searchTerm) return list;
+    const t = searchTerm.toLowerCase();
+    return list.filter(c =>
+      c.fornecedor_nome?.toLowerCase().includes(t) ||
+      c.descricao?.toLowerCase().includes(t) ||
+      c.numero_lancamento?.toLowerCase().includes(t)
+    );
+  };
+
+  const totalAberto = [...atrasadas, ...hoje, ...futuras].reduce((s, c) => s + (c.valor || 0), 0);
+
+  const TabGroup = ({ label, icon: Icon, items, colorClass, emptyMsg }) => {
+    const filtered = filterBySearch(items);
+    if (filtered.length === 0 && !searchTerm) return null;
+    return (
+      <div className="space-y-2">
+        <div className={cn("flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold", colorClass)}>
+          <Icon className="w-3.5 h-3.5" />
+          {label} ({filtered.length})
+          <span className="ml-auto font-bold">{formatCurrency(filtered.reduce((s, c) => s + (c.valor || 0), 0))}</span>
+        </div>
+        {filtered.length === 0 ? (
+          <p className="text-xs text-slate-400 px-3">{emptyMsg}</p>
+        ) : (
+          <div className="space-y-1.5">
+            {filtered.map(c => <ContaRow key={c.id} conta={c} onEdit={onEdit} onDelete={onDelete} />)}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <Card className="overflow-hidden border-2 border-slate-100">
+      <div className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-50 to-white border-b">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
+            <span className="text-white font-bold text-sm">{empresa.sigla?.slice(0, 3) || '?'}</span>
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-slate-800">{empresa.nome}</h3>
+              <Badge variant="outline" className="text-xs font-mono">{empresa.codigo}</Badge>
+            </div>
+            <p className="text-xs text-slate-400">{empresa.razao_social}</p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-slate-500">Total em aberto</p>
+          <p className="font-bold text-lg text-slate-800">{formatCurrency(totalAberto)}</p>
+        </div>
+      </div>
+
+      <div className="p-4">
+        <Tabs defaultValue={atrasadas.length > 0 ? "atrasadas" : "futuras"}>
+          <TabsList className="flex w-full gap-1 h-auto flex-wrap bg-slate-100 p-1 rounded-lg mb-4">
+            {atrasadas.length > 0 && <TabsTrigger value="atrasadas" className="text-xs data-[state=active]:bg-red-500 data-[state=active]:text-white">⚠️ Atraso ({atrasadas.length})</TabsTrigger>}
+            {hoje.length > 0 && <TabsTrigger value="hoje" className="text-xs data-[state=active]:bg-amber-500 data-[state=active]:text-white">🔔 Hoje ({hoje.length})</TabsTrigger>}
+            <TabsTrigger value="futuras" className="text-xs">📅 Futuras ({futuras.length})</TabsTrigger>
+            <TabsTrigger value="pagas" className="text-xs">✅ Pagas ({pagas.length})</TabsTrigger>
+            {recorrentes.length > 0 && <TabsTrigger value="recorrentes" className="text-xs">🔄 Recorrentes ({recorrentes.length})</TabsTrigger>}
+          </TabsList>
+
+          {atrasadas.length > 0 && (
+            <TabsContent value="atrasadas" className="mt-0">
+              <div className="space-y-1.5">
+                {filterBySearch(atrasadas).map(c => <ContaRow key={c.id} conta={c} onEdit={onEdit} onDelete={onDelete} />)}
+              </div>
+            </TabsContent>
+          )}
+
+          {hoje.length > 0 && (
+            <TabsContent value="hoje" className="mt-0">
+              <div className="space-y-1.5">
+                {filterBySearch(hoje).map(c => <ContaRow key={c.id} conta={c} onEdit={onEdit} onDelete={onDelete} />)}
+              </div>
+            </TabsContent>
+          )}
+
+          <TabsContent value="futuras" className="mt-0">
+            {filterBySearch(futuras).length === 0 ? (
+              <p className="text-center text-slate-400 py-6 text-sm">Nenhuma conta futura</p>
+            ) : (
+              <div className="space-y-1.5">
+                {filterBySearch(futuras).map(c => <ContaRow key={c.id} conta={c} onEdit={onEdit} onDelete={onDelete} />)}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="pagas" className="mt-0">
+            {filterBySearch(pagas).length === 0 ? (
+              <p className="text-center text-slate-400 py-6 text-sm">Nenhuma conta paga</p>
+            ) : (
+              <div className="space-y-1.5">
+                {filterBySearch(pagas).map(c => <ContaRow key={c.id} conta={c} onEdit={onEdit} onDelete={onDelete} />)}
+              </div>
+            )}
+          </TabsContent>
+
+          {recorrentes.length > 0 && (
+            <TabsContent value="recorrentes" className="mt-0">
+              <div className="space-y-1.5">
+                {filterBySearch(recorrentes).map(c => <ContaRow key={c.id} conta={c} onEdit={onEdit} onDelete={onDelete} />)}
+              </div>
+              {aDefinir.length > 0 && (
+                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
+                  <p className="text-xs font-semibold text-yellow-800 mb-2">⚠️ {aDefinir.length} conta(s) recorrente(s) aguardando preenchimento de valor:</p>
+                  {filterBySearch(aDefinir).map(c => <ContaRow key={c.id} conta={c} onEdit={onEdit} onDelete={onDelete} />)}
+                </div>
+              )}
+            </TabsContent>
+          )}
+        </Tabs>
       </div>
     </Card>
   );
@@ -580,12 +220,19 @@ export default function Pagamentos() {
   const [selectedConta, setSelectedConta] = useState(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [contaToDelete, setContaToDelete] = useState(null);
-  const [showLiquidarModal, setShowLiquidarModal] = useState(false);
-  const [contaLiquidar, setContaLiquidar] = useState(null);
+  const [showEmpresasModal, setShowEmpresasModal] = useState(false);
+  const [showLiquidarMassaModal, setShowLiquidarMassaModal] = useState(false);
+  const [showBorderoModal, setShowBorderoModal] = useState(false);
+  const [selectedBorderoId, setSelectedBorderoId] = useState(null);
 
   const { data: contas = [], isLoading } = useQuery({
     queryKey: ['contasPagar'],
     queryFn: () => base44.entities.ContaPagar.list('-data_vencimento')
+  });
+
+  const { data: empresas = [] } = useQuery({
+    queryKey: ['empresas'],
+    queryFn: () => base44.entities.Empresa.list('codigo')
   });
 
   const { data: fornecedores = [] } = useQuery({
@@ -600,8 +247,10 @@ export default function Pagamentos() {
 
   const { data: movimentacoesCaixa = [] } = useQuery({
     queryKey: ['caixaDiario'],
-    queryFn: () => base44.entities.CaixaDiario.list('-created_date')
+    queryFn: () => base44.entities.CaixaDiario.list('-created_date', 1)
   });
+
+  const empresasAtivas = useMemo(() => empresas.filter(e => !e.arquivada), [empresas]);
 
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.ContaPagar.create(data),
@@ -635,491 +284,160 @@ export default function Pagamentos() {
     onError: () => toast.error('Erro ao excluir')
   });
 
-  const handleQuickPay = (conta) => {
-    setContaLiquidar(conta);
-    setShowLiquidarModal(true);
-  };
-
-  const liquidarMutation = useMutation({
-    mutationFn: async ({ conta, dadosPagamento }) => {
-      const user = await base44.auth.me();
-      
-      // 1. Gerar número do borderô
-      const borderos = await base44.entities.BorderoPagamento.list();
-      const ultimoNumero = borderos.length > 0 
-        ? Math.max(...borderos.map(b => b.numero_bordero || 0))
-        : 0;
-      const numeroBordero = ultimoNumero + 1;
-
-      // 2. Preparar detalhes dos cheques repassados
-      const chequesRepassados = [];
-      for (const fp of dadosPagamento.formas_pagamento) {
-        if (fp.tipo === 'cheque_terceiro' && fp.cheques_ids && fp.cheques_ids.length > 0) {
-          const chequesList = await base44.entities.Cheque.list();
-          const chequesData = chequesList.filter(c => fp.cheques_ids.includes(c.id));
-          
-          for (const cheque of chequesData) {
-            chequesRepassados.push({
-              cheque_id: cheque.id,
-              numero_cheque: cheque.numero_cheque,
-              banco: cheque.banco,
-              valor: cheque.valor,
-              emitente: cheque.emitente,
-              cliente_nome: cheque.cliente_nome
-            });
-          }
-        }
-      }
-
-      // 3. Criar Borderô de Pagamento
-      const borderoData = {
-        numero_bordero: numeroBordero,
-        fornecedor_codigo: conta.fornecedor_codigo,
-        fornecedor_nome: conta.fornecedor_nome,
-        contas_ids: [conta.id],
-        contas_detalhes: [{
-          conta_id: conta.id,
-          descricao: conta.descricao,
-          valor_original: conta.valor,
-          juros_multa: dadosPagamento.juros_multa || 0,
-          desconto: dadosPagamento.desconto || 0,
-          valor_pago: dadosPagamento.valor_pago,
-          data_vencimento: conta.data_vencimento
-        }],
-        valor_total: dadosPagamento.valor_pago,
-        formas_pagamento: dadosPagamento.formas_pagamento,
-        cheques_repassados: chequesRepassados,
-        recibo_url: dadosPagamento.recibo_url,
-        data_pagamento: dadosPagamento.data_pagamento,
-        observacao: dadosPagamento.observacao,
-        liquidado_por: user.email
-      };
-
-      await base44.entities.BorderoPagamento.create(borderoData);
-
-      // 4. Atualizar a conta
-      await base44.entities.ContaPagar.update(conta.id, dadosPagamento);
-
-      // 5. Registrar movimentações no caixa (dinheiro)
-      const saldoAtual = movimentacoesCaixa[0]?.saldo_atual || 0;
-      let novoSaldo = saldoAtual;
-
-      for (const fp of dadosPagamento.formas_pagamento) {
-        if (fp.tipo === 'dinheiro' && parseFloat(fp.valor) > 0) {
-          novoSaldo -= parseFloat(fp.valor);
-          await base44.entities.CaixaDiario.create({
-            tipo_operacao: 'saida',
-            valor: parseFloat(fp.valor),
-            saldo_anterior: saldoAtual,
-            saldo_atual: novoSaldo,
-            descricao: `Pagamento a ${conta.fornecedor_nome} - ${conta.descricao}`,
-            data_operacao: new Date().toISOString()
-          });
-        }
-
-        // 6. Atualizar status dos cheques (repasse) - múltiplos cheques
-        if (fp.tipo === 'cheque_terceiro' && fp.cheques_ids && fp.cheques_ids.length > 0) {
-          for (const chequeId of fp.cheques_ids) {
-            await base44.entities.Cheque.update(chequeId, {
-              status: 'repassado',
-              fornecedor_repassado_codigo: conta.fornecedor_codigo,
-              fornecedor_repassado_nome: conta.fornecedor_nome,
-              data_repasse: new Date().toISOString()
-            });
-          }
-        }
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['contasPagar'] });
-      queryClient.invalidateQueries({ queryKey: ['borderosPagamento'] });
-      queryClient.invalidateQueries({ queryKey: ['caixaDiario'] });
-      queryClient.invalidateQueries({ queryKey: ['cheques'] });
-      setShowLiquidarModal(false);
-      setContaLiquidar(null);
-      toast.success('✅ Conta liquidada e Borderô gerado!');
-    },
-    onError: () => toast.error('Erro ao processar pagamento')
-  });
-
-  // Filtros para as abas
-  const essaSemana = useMemo(() => {
-    const now = new Date();
-    const inicio = startOfWeek(now, { weekStartsOn: 0 });
-    const fim = endOfWeek(now, { weekStartsOn: 0 });
-
-    return contas.filter(c => 
-      c?.status !== 'pago' && 
-      c?.data_vencimento && 
-      isWithinInterval(parseISO(c.data_vencimento), { start: inicio, end: fim })
-    ).sort((a, b) => {
-      const dateA = parseISO(a.data_vencimento);
-      const dateB = parseISO(b.data_vencimento);
-      return dateA - dateB;
-    });
-  }, [contas]);
-
-  const futuras = useMemo(() => {
-    const now = new Date();
-    const fimSemana = endOfWeek(now, { weekStartsOn: 0 });
-
-    return contas.filter(c => 
-      c?.status !== 'pago' && 
-      c?.data_vencimento && 
-      isAfter(parseISO(c.data_vencimento), fimSemana)
-    );
-  }, [contas]);
-
-  const vales = useMemo(() => {
-    return contas.filter(c => c?.categoria_financeira === 'vale' && c?.status === 'pendente');
-  }, [contas]);
-
-  const historico = useMemo(() => {
-    return contas.filter(c => c?.status === 'pago');
-  }, [contas]);
-
-  const [historicoView, setHistoricoView] = useState('contas'); // 'contas' ou 'borderos'
-  const [selectedBorderoId, setSelectedBorderoId] = useState(null);
-  const [showBorderoModal, setShowBorderoModal] = useState(false);
-
-  const { data: borderosPagamento = [] } = useQuery({
-    queryKey: ['borderosPagamento'],
-    queryFn: () => base44.entities.BorderoPagamento.list('-created_date')
-  });
-
-  const borderos = useMemo(() => {
-    const pagas = contas.filter(c => c?.status === 'pago' && c?.data_pagamento);
-    const grouped = {};
-    
-    pagas.forEach(conta => {
-      const key = `${conta.fornecedor_codigo}_${conta.data_pagamento}`;
-      if (!grouped[key]) {
-        grouped[key] = {
-          fornecedor_codigo: conta.fornecedor_codigo,
-          fornecedor_nome: conta.fornecedor_nome,
-          data_pagamento: conta.data_pagamento,
-          contas: [],
-          valor_total: 0
-        };
-      }
-      grouped[key].contas.push(conta);
-      grouped[key].valor_total += conta.valor_pago || conta.valor || 0;
-    });
-    
-    return Object.values(grouped).sort((a, b) => 
-      new Date(b.data_pagamento) - new Date(a.data_pagamento)
-    );
-  }, [contas]);
-
   const stats = useMemo(() => {
-    const pendentes = contas.filter(c => c?.status === 'pendente' || c?.status === 'pendente_preenchimento');
-    const pagas = contas.filter(c => c?.status === 'pago');
-    const futuras = contas.filter(c => c?.status === 'futuro');
-
+    const pendentes = contas.filter(c => ['pendente', 'pendente_preenchimento', 'parcial'].includes(c.status));
+    const pagas = contas.filter(c => c.status === 'pago');
+    const atrasadas = pendentes.filter(c => c.data_vencimento && isPast(parseISO(c.data_vencimento)) && !isToday(parseISO(c.data_vencimento)));
     return {
-      totalPendente: pendentes.reduce((sum, c) => sum + (c?.valor || 0), 0),
-      totalPago: pagas.reduce((sum, c) => sum + (c?.valor || 0), 0),
-      totalFuturo: futuras.reduce((sum, c) => sum + (c?.valor || 0), 0),
+      totalPendente: pendentes.reduce((s, c) => s + (c.valor || 0), 0),
+      totalPago: pagas.reduce((s, c) => s + (c.valor || 0), 0),
+      qtdAtrasadas: atrasadas.length,
       qtdPendente: pendentes.length
     };
   }, [contas]);
 
-  const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
-
-  const filteredContas = (lista) => lista.filter(c =>
-    c?.fornecedor_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c?.descricao?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleEdit = (conta) => { setSelectedConta(conta); setShowEditModal(true); };
+  const handleDelete = (conta) => { setContaToDelete(conta); setShowDeleteDialog(true); };
 
   return (
     <PermissionGuard setor="Pagamentos">
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 md:p-6">
         <div className="max-w-7xl mx-auto space-y-6">
+
+          {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <Link to={createPageUrl('Dashboard')}>
-                <Button variant="ghost" size="icon" className="rounded-xl">
-                  <ArrowLeft className="w-5 h-5" />
-                </Button>
-              </Link>
-              <div>
-                <h1 className="text-3xl font-bold text-slate-800">Contas a Pagar</h1>
-                <p className="text-slate-500 mt-1">Dashboard com recorrência e vales</p>
-              </div>
+            <div>
+              <h1 className="text-3xl font-bold text-slate-800">Centro Financeiro</h1>
+              <p className="text-slate-500 mt-1">Contas a pagar por empresa</p>
             </div>
-            <PermissionGuard setor="Pagamentos" funcao="adicionar" showBlocked={false}>
-              <Button onClick={() => setShowAddModal(true)} className="gap-2">
-                <Plus className="w-4 h-4" />
-                Nova Conta
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => setShowEmpresasModal(true)} className="gap-2">
+                <Settings className="w-4 h-4" />
+                Empresas
               </Button>
-            </PermissionGuard>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-yellow-100 rounded-lg">
-                  <Calendar className="w-5 h-5 text-yellow-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">Pendentes</p>
-                  <p className="text-2xl font-bold">{formatCurrency(stats.totalPendente)}</p>
-                  <p className="text-xs text-slate-400">{stats.qtdPendente} contas</p>
-                </div>
-              </div>
-            </Card>
-            <Card className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <CheckCircle className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">Pagas</p>
-                  <p className="text-2xl font-bold">{formatCurrency(stats.totalPago)}</p>
-                </div>
-              </div>
-            </Card>
-            <Card className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <DollarSign className="w-5 h-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">Futuras</p>
-                  <p className="text-2xl font-bold">{formatCurrency(stats.totalFuturo)}</p>
-                </div>
-              </div>
-            </Card>
-          </div>
-
-          <Card className="p-4">
-            <div className="relative max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <Input
-                placeholder="Buscar por fornecedor ou descrição..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+              <PermissionGuard setor="Pagamentos" funcao="liquidar" showBlocked={false}>
+                <Button onClick={() => setShowLiquidarMassaModal(true)} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+                  <DollarSign className="w-4 h-4" />
+                  Liquidar Contas
+                </Button>
+              </PermissionGuard>
+              <PermissionGuard setor="Pagamentos" funcao="adicionar" showBlocked={false}>
+                <Button onClick={() => setShowAddModal(true)} className="gap-2">
+                  <Plus className="w-4 h-4" />
+                  Nova Conta
+                </Button>
+              </PermissionGuard>
             </div>
-          </Card>
+          </div>
 
-          <Tabs defaultValue="semana" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="semana" className="gap-2">
-                <Calendar className="w-4 h-4" />
-                Essa Semana ({essaSemana.length})
-              </TabsTrigger>
-              <TabsTrigger value="futuras" className="gap-2">
-                <TrendingUp className="w-4 h-4" />
-                Futuras ({futuras.length})
-              </TabsTrigger>
-              <TabsTrigger value="vales" className="gap-2">
-                <Ticket className="w-4 h-4" />
-                Vales ({vales.length})
-              </TabsTrigger>
-              <TabsTrigger value="historico" className="gap-2">
-                <Archive className="w-4 h-4" />
-                Histórico ({historico.length})
-              </TabsTrigger>
-            </TabsList>
+          {/* Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card className="p-4">
+              <p className="text-xs text-slate-500">Pendentes</p>
+              <p className="text-xl font-bold text-slate-800 mt-1">{formatCurrency(stats.totalPendente)}</p>
+              <p className="text-xs text-slate-400">{stats.qtdPendente} contas</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs text-slate-500">Pagas</p>
+              <p className="text-xl font-bold text-green-600 mt-1">{formatCurrency(stats.totalPago)}</p>
+            </Card>
+            <Card className={cn("p-4", stats.qtdAtrasadas > 0 && "border-red-200 bg-red-50")}>
+              <p className="text-xs text-slate-500">Em Atraso</p>
+              <p className={cn("text-xl font-bold mt-1", stats.qtdAtrasadas > 0 ? "text-red-600" : "text-slate-800")}>{stats.qtdAtrasadas}</p>
+              <p className="text-xs text-slate-400">contas atrasadas</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-xs text-slate-500">Empresas Ativas</p>
+              <p className="text-xl font-bold text-blue-600 mt-1">{empresasAtivas.length}</p>
+            </Card>
+          </div>
 
-            <TabsContent value="semana" className="mt-6">
-              {isLoading ? (
-                <Card className="p-8 text-center text-slate-500">
-                  <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
-                  Carregando...
-                </Card>
-              ) : filteredContas(essaSemana).length === 0 ? (
-                <Card className="p-8 text-center text-slate-500">
-                  <Calendar className="w-12 h-12 text-slate-300 mx-auto mb-2" />
-                  Nenhuma conta para essa semana
-                </Card>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredContas(essaSemana).map((conta) => (
-                    <ContaCard
-                      key={conta?.id}
-                      conta={conta}
-                      onEdit={(c) => { setSelectedConta(c); setShowEditModal(true); }}
-                      onDelete={(c) => { setContaToDelete(c); setShowDeleteDialog(true); }}
-                      onQuickPay={handleQuickPay}
-                    />
-                  ))}
-                </div>
-              )}
-            </TabsContent>
+          {/* Search */}
+          <div className="relative max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Input placeholder="Buscar por fornecedor, descrição, número..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
+          </div>
 
-            <TabsContent value="futuras" className="mt-6">
-              {filteredContas(futuras).length === 0 ? (
-                <Card className="p-8 text-center text-slate-500">
-                  <TrendingUp className="w-12 h-12 text-slate-300 mx-auto mb-2" />
-                  Nenhuma conta futura
-                </Card>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredContas(futuras).map((conta) => (
-                    <ContaCard
-                      key={conta?.id}
-                      conta={conta}
-                      onEdit={(c) => { setSelectedConta(c); setShowEditModal(true); }}
-                      onDelete={(c) => { setContaToDelete(c); setShowDeleteDialog(true); }}
-                      onQuickPay={handleQuickPay}
-                    />
-                  ))}
-                </div>
-              )}
-            </TabsContent>
+          {/* Conteúdo principal */}
+          {isLoading ? (
+            <Card className="p-12 text-center">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-slate-400" />
+              <p className="text-slate-500">Carregando...</p>
+            </Card>
+          ) : empresasAtivas.length === 0 ? (
+            <Card className="p-12 text-center">
+              <Building2 className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+              <h3 className="font-bold text-slate-600 mb-2">Nenhuma empresa configurada</h3>
+              <p className="text-slate-400 text-sm mb-4">Configure as empresas para organizar as contas a pagar por grupo.</p>
+              <Button onClick={() => setShowEmpresasModal(true)} className="gap-2">
+                <Settings className="w-4 h-4" />
+                Configurar Empresas
+              </Button>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              {empresasAtivas.map(empresa => {
+                const contasDaEmpresa = contas.filter(c => c.empresa_codigo === empresa.codigo);
+                // Se busca ativa, mostrar mesmo sem contas correspondentes
+                if (!searchTerm && contasDaEmpresa.length === 0) return null;
+                return (
+                  <EmpresaSection
+                    key={empresa.id}
+                    empresa={empresa}
+                    contas={contasDaEmpresa}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    searchTerm={searchTerm}
+                  />
+                );
+              })}
 
-            <TabsContent value="vales" className="mt-6">
-              {filteredContas(vales).length === 0 ? (
-                <Card className="p-8 text-center text-slate-500">
-                  <Ticket className="w-12 h-12 text-slate-300 mx-auto mb-2" />
-                  Nenhum vale em aberto
-                </Card>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredContas(vales).map((conta) => (
-                    <ContaCard
-                      key={conta?.id}
-                      conta={conta}
-                      onEdit={(c) => { setSelectedConta(c); setShowEditModal(true); }}
-                      onDelete={(c) => { setContaToDelete(c); setShowDeleteDialog(true); }}
-                      onQuickPay={handleQuickPay}
-                    />
-                  ))}
-                </div>
-              )}
-            </TabsContent>
+              {/* Contas sem empresa */}
+              {(() => {
+                const semEmpresa = contas.filter(c => !c.empresa_codigo || !empresasAtivas.find(e => e.codigo === c.empresa_codigo));
+                if (semEmpresa.length === 0) return null;
+                return (
+                  <EmpresaSection
+                    key="sem-empresa"
+                    empresa={{ codigo: '', sigla: '?', nome: 'Sem Empresa', razao_social: 'Contas não vinculadas' }}
+                    contas={semEmpresa}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    searchTerm={searchTerm}
+                  />
+                );
+              })()}
+            </div>
+          )}
 
-            <TabsContent value="historico" className="mt-6">
-              <div className="mb-4 flex items-center gap-2 p-2 bg-white rounded-xl border">
-                <Button 
-                  size="sm" 
-                  variant={historicoView === 'contas' ? 'default' : 'ghost'}
-                  onClick={() => setHistoricoView('contas')}
-                >
-                  Por Contas
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant={historicoView === 'borderos' ? 'default' : 'ghost'}
-                  onClick={() => setHistoricoView('borderos')}
-                >
-                  Por Borderôs
-                </Button>
-              </div>
+          {/* Modais */}
+          <EmpresasModal open={showEmpresasModal} onClose={() => setShowEmpresasModal(false)} />
 
-              {historicoView === 'contas' ? (
-                filteredContas(historico).length === 0 ? (
-                  <Card className="p-8 text-center text-slate-500">
-                    <Archive className="w-12 h-12 text-slate-300 mx-auto mb-2" />
-                    Nenhuma conta paga
-                  </Card>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredContas(historico).map((conta) => (
-                      <ContaCard
-                        key={conta?.id}
-                        conta={conta}
-                        onEdit={(c) => { setSelectedConta(c); setShowEditModal(true); }}
-                        onDelete={(c) => { setContaToDelete(c); setShowDeleteDialog(true); }}
-                        onQuickPay={handleQuickPay}
-                      />
-                    ))}
-                  </div>
-                )
-              ) : (
-                borderosPagamento.length === 0 ? (
-                  <Card className="p-8 text-center text-slate-500">
-                    <Archive className="w-12 h-12 text-slate-300 mx-auto mb-2" />
-                    Nenhum borderô de pagamento encontrado
-                  </Card>
-                ) : (
-                  <div className="space-y-3">
-                    {borderosPagamento.map((bordero) => (
-                      <Card 
-                        key={bordero.id} 
-                        className="p-4 hover:shadow-lg transition-shadow cursor-pointer"
-                        onClick={() => {
-                          setSelectedBorderoId(bordero.id);
-                          setShowBorderoModal(true);
-                        }}
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Badge className="bg-blue-600 text-white">
-                                Borderô #{bordero.numero_bordero}
-                              </Badge>
-                            </div>
-                            <h3 className="font-bold text-slate-800">{bordero.fornecedor_nome}</h3>
-                            <p className="text-sm text-slate-500">
-                              Pago em: {bordero.data_pagamento ? format(parseISO(bordero.data_pagamento), "dd/MM/yyyy", { locale: ptBR }) : '-'}
-                            </p>
-                            {bordero.liquidado_por && (
-                              <p className="text-xs text-slate-400 mt-1">
-                                Por: {bordero.liquidado_por.split('@')[0]}
-                              </p>
-                            )}
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xs text-slate-500">Total Pago</p>
-                            <p className="text-xl font-bold text-green-600">{formatCurrency(bordero.valor_total)}</p>
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-2 pt-3 border-t">
-                          <p className="text-xs font-semibold text-slate-600">
-                            {bordero.contas_detalhes?.length || 0} {bordero.contas_detalhes?.length === 1 ? 'conta liquidada' : 'contas liquidadas'}
-                          </p>
-                          {bordero.contas_detalhes?.slice(0, 3).map((conta, cIdx) => (
-                            <div key={cIdx} className="flex items-center justify-between text-sm bg-slate-50 p-2 rounded">
-                              <span className="text-slate-700 truncate">{conta.descricao}</span>
-                              <span className="font-medium ml-2">{formatCurrency(conta.valor_pago)}</span>
-                            </div>
-                          ))}
-                          {bordero.contas_detalhes?.length > 3 && (
-                            <p className="text-xs text-slate-500 text-center pt-1">
-                              +{bordero.contas_detalhes.length - 3} mais
-                            </p>
-                          )}
-                        </div>
-                        
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="w-full mt-3"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedBorderoId(bordero.id);
-                            setShowBorderoModal(true);
-                          }}
-                        >
-                          Ver Detalhes Completos
-                        </Button>
-                      </Card>
-                    ))}
-                  </div>
-                )
-              )}
-            </TabsContent>
-          </Tabs>
+          <LiquidarContasMassaModal
+            open={showLiquidarMassaModal}
+            onClose={() => setShowLiquidarMassaModal(false)}
+            empresas={empresasAtivas}
+            contas={contas}
+            cheques={cheques}
+            saldoCaixa={movimentacoesCaixa[0]?.saldo_atual || 0}
+          />
 
           <ModalContainer open={showAddModal} onClose={() => setShowAddModal(false)} title="Nova Conta a Pagar" description="Cadastre uma nova conta ou crie recorrência" size="lg">
             <ContaPagarForm
               fornecedores={fornecedores}
+              empresas={empresasAtivas}
               onSave={(data) => createMutation.mutate(data)}
               onCancel={() => setShowAddModal(false)}
               isLoading={createMutation.isPending}
             />
           </ModalContainer>
 
-          <ModalContainer open={showEditModal} onClose={() => { setShowEditModal(false); setSelectedConta(null); }} title="Editar Conta" description="Atualize os dados da conta">
+          <ModalContainer open={showEditModal} onClose={() => { setShowEditModal(false); setSelectedConta(null); }} title="Editar Conta" description="Atualize os dados da conta" size="lg">
             {selectedConta && (
               <ContaPagarForm
                 conta={selectedConta}
                 fornecedores={fornecedores}
+                empresas={empresasAtivas}
                 onSave={(data) => updateMutation.mutate({ id: selectedConta.id, data })}
                 onCancel={() => { setShowEditModal(false); setSelectedConta(null); }}
                 isLoading={updateMutation.isPending}
@@ -1127,49 +445,19 @@ export default function Pagamentos() {
             )}
           </ModalContainer>
 
-          <ModalContainer 
-            open={showLiquidarModal} 
-            onClose={() => { setShowLiquidarModal(false); setContaLiquidar(null); }} 
-            title="Liquidar Conta a Pagar" 
-            description="Múltiplas formas de pagamento e geração de recibo"
-            size="lg"
-          >
-            {contaLiquidar && (
-              <LiquidarContaModal
-                conta={contaLiquidar}
-                saldoCaixa={movimentacoesCaixa[0]?.saldo_atual || 0}
-                cheques={cheques}
-                onConfirm={(dadosPagamento) => liquidarMutation.mutate({ conta: contaLiquidar, dadosPagamento })}
-                onCancel={() => { setShowLiquidarModal(false); setContaLiquidar(null); }}
-                isLoading={liquidarMutation.isPending}
-              />
-            )}
-          </ModalContainer>
-
-          {/* Modal Detalhes do Borderô */}
           {showBorderoModal && selectedBorderoId && (
-            <BorderoPagamentoModal
-              borderoId={selectedBorderoId}
-              onClose={() => {
-                setShowBorderoModal(false);
-                setSelectedBorderoId(null);
-              }}
-            />
+            <BorderoPagamentoModal borderoId={selectedBorderoId} onClose={() => { setShowBorderoModal(false); setSelectedBorderoId(null); }} />
           )}
 
           <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Tem certeza que deseja excluir esta conta a pagar?
-                </AlertDialogDescription>
+                <AlertDialogDescription>Tem certeza que deseja excluir esta conta a pagar?</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel onClick={() => setContaToDelete(null)}>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={() => deleteMutation.mutate(contaToDelete.id)} className="bg-red-600 hover:bg-red-700">
-                  Excluir
-                </AlertDialogAction>
+                <AlertDialogAction onClick={() => deleteMutation.mutate(contaToDelete.id)} className="bg-red-600 hover:bg-red-700">Excluir</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>

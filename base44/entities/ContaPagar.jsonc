@@ -1,0 +1,173 @@
+{
+  "name": "ContaPagar",
+  "type": "object",
+  "properties": {
+    "empresa_codigo": {
+      "type": "string",
+      "description": "C\u00f3digo da empresa \u00e0 qual esta conta pertence"
+    },
+    "empresa_nome": {
+      "type": "string",
+      "description": "Nome da empresa (cache)"
+    },
+    "numero_lancamento": {
+      "type": "string",
+      "description": "N\u00famero \u00fanico do lan\u00e7amento (ex: 1001-JCE-0001)"
+    },
+    "fornecedor_codigo": {
+      "type": "string",
+      "description": "C\u00f3digo do fornecedor"
+    },
+    "fornecedor_nome": {
+      "type": "string",
+      "description": "Nome do fornecedor"
+    },
+    "descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o do item/servi\u00e7o (Informa\u00e7\u00e3o Estrita - aparece em extratos)"
+    },
+    "observacao": {
+      "type": "string",
+      "description": "Observa\u00e7\u00e3o interna (Informa\u00e7\u00e3o Interna - n\u00e3o aparece em extratos)"
+    },
+    "valor": {
+      "type": "number",
+      "description": "Valor original a pagar em R$"
+    },
+    "valor_original": {
+      "type": "number",
+      "description": "Valor original antes de ajustes"
+    },
+    "juros_multa": {
+      "type": "number",
+      "default": 0,
+      "description": "Valor de juros e multa"
+    },
+    "desconto": {
+      "type": "number",
+      "default": 0,
+      "description": "Valor de desconto concedido"
+    },
+    "valor_pago": {
+      "type": "number",
+      "default": 0,
+      "description": "Valor efetivamente pago"
+    },
+    "saldo_restante": {
+      "type": "number",
+      "default": 0,
+      "description": "Saldo ainda em aberto"
+    },
+    "data_vencimento": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de vencimento"
+    },
+    "data_pagamento": {
+      "type": "string",
+      "format": "date",
+      "description": "Data do pagamento"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pendente",
+        "pago",
+        "parcial",
+        "futuro",
+        "pendente_preenchimento"
+      ],
+      "default": "pendente",
+      "description": "Status da conta"
+    },
+    "formas_pagamento": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tipo": {
+            "type": "string"
+          },
+          "valor": {
+            "type": "number"
+          },
+          "detalhes": {
+            "type": "string"
+          },
+          "cheque_id": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Formas de pagamento utilizadas"
+    },
+    "comprovante_url": {
+      "type": "string",
+      "description": "URL do comprovante de pagamento (legado)"
+    },
+    "anexos_urls": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "URLs dos arquivos anexados (boletos, faturas, etc.)"
+    },
+    "recibo_url": {
+      "type": "string",
+      "description": "URL do recibo gerado em PDF"
+    },
+    "tipo_lancamento": {
+      "type": "string",
+      "enum": [
+        "unica",
+        "recorrente",
+        "vale"
+      ],
+      "default": "unica",
+      "description": "Tipo de lan\u00e7amento"
+    },
+    "recorrencia_grupo_id": {
+      "type": "string",
+      "description": "ID que agrupa parcelas recorrentes"
+    },
+    "parcela_numero": {
+      "type": "number",
+      "description": "N\u00famero da parcela (1, 2, 3...)"
+    },
+    "total_parcelas": {
+      "type": "number",
+      "description": "Total de parcelas da recorr\u00eancia"
+    },
+    "categoria_financeira": {
+      "type": "string",
+      "enum": [
+        "aluminio",
+        "vidros",
+        "acessorios",
+        "servicos_terceiros",
+        "manutencao",
+        "logistica",
+        "administrativas",
+        "impostos",
+        "folha",
+        "vale",
+        "comissoes"
+      ],
+      "description": "Categoria financeira"
+    },
+    "origem_id": {
+      "type": "string",
+      "description": "ID do registro de origem"
+    },
+    "origem_tipo": {
+      "type": "string",
+      "description": "Tipo da origem"
+    }
+  },
+  "required": [
+    "fornecedor_codigo",
+    "descricao",
+    "valor",
+    "data_vencimento"
+  ]
+}
