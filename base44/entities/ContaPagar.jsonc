@@ -12,7 +12,11 @@
     },
     "numero_lancamento": {
       "type": "string",
-      "description": "N\u00famero \u00fanico do lan\u00e7amento (ex: 1001-JCE-0001)"
+      "description": "N\u00famero \u00fanico do lan\u00e7amento (ex: 1001-JCE-0001/1)"
+    },
+    "nf_origem": {
+      "type": "string",
+      "description": "N\u00famero da nota fiscal de origem"
     },
     "fornecedor_codigo": {
       "type": "string",
@@ -24,11 +28,11 @@
     },
     "descricao": {
       "type": "string",
-      "description": "Descri\u00e7\u00e3o do item/servi\u00e7o (Informa\u00e7\u00e3o Estrita - aparece em extratos)"
+      "description": "Informa\u00e7\u00e3o Estrita \u2014 aparece em extratos"
     },
     "observacao": {
       "type": "string",
-      "description": "Observa\u00e7\u00e3o interna (Informa\u00e7\u00e3o Interna - n\u00e3o aparece em extratos)"
+      "description": "Informa\u00e7\u00e3o Interna \u2014 n\u00e3o aparece em extratos"
     },
     "valor": {
       "type": "number",
@@ -94,7 +98,13 @@
           "detalhes": {
             "type": "string"
           },
-          "cheque_id": {
+          "cheques_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "comprovante_url": {
             "type": "string"
           }
         }
@@ -103,24 +113,36 @@
     },
     "comprovante_url": {
       "type": "string",
-      "description": "URL do comprovante de pagamento (legado)"
-    },
-    "anexos_urls": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "description": "URLs dos arquivos anexados (boletos, faturas, etc.)"
+      "description": "URL do comprovante (legado)"
     },
     "recibo_url": {
       "type": "string",
-      "description": "URL do recibo gerado em PDF"
+      "description": "URL do recibo PDF"
+    },
+    "anexos_complexos": {
+      "type": "array",
+      "description": "Anexos com observa\u00e7\u00e3o individual por arquivo",
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "observacao": {
+            "type": "string"
+          },
+          "nome": {
+            "type": "string"
+          }
+        }
+      }
     },
     "tipo_lancamento": {
       "type": "string",
       "enum": [
         "unica",
         "recorrente",
+        "parcelado",
         "vale"
       ],
       "default": "unica",
@@ -128,15 +150,15 @@
     },
     "recorrencia_grupo_id": {
       "type": "string",
-      "description": "ID que agrupa parcelas recorrentes"
+      "description": "ID que agrupa parcelas/recorr\u00eancias"
     },
     "parcela_numero": {
       "type": "number",
-      "description": "N\u00famero da parcela (1, 2, 3...)"
+      "description": "N\u00famero da parcela"
     },
     "total_parcelas": {
       "type": "number",
-      "description": "Total de parcelas da recorr\u00eancia"
+      "description": "Total de parcelas"
     },
     "categoria_financeira": {
       "type": "string",

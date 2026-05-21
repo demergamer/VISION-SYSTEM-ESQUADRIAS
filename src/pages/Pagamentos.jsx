@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Search, Plus, Edit, Trash2, Building2, DollarSign, Clock, CheckCircle,
   Calendar, TrendingUp, Archive, AlertCircle, FileText, Settings, RefreshCw,
-  Loader2, X
+  Loader2, X, ChevronDown
 } from "lucide-react";
 import { toast } from "sonner";
 import ModalContainer from "@/components/modals/ModalContainer";
@@ -44,13 +44,17 @@ function ContaRow({ conta, onEdit, onDelete }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-semibold text-sm text-slate-800">{conta.fornecedor_nome}</span>
-          {conta.numero_lancamento && <span className="text-xs font-mono text-slate-400">{conta.numero_lancamento}</span>}
-          {conta.tipo_lancamento === 'recorrente' && <Badge className="bg-purple-100 text-purple-700 text-xs py-0">Recorrente</Badge>}
+          {conta.numero_lancamento && (
+            <span className="text-base font-black font-mono text-blue-700 tracking-wide">{conta.numero_lancamento}</span>
+          )}
+          {conta.tipo_lancamento === 'recorrente' && <Badge className="bg-purple-100 text-purple-700 text-xs py-0">🔄 Recorrente</Badge>}
+          {conta.tipo_lancamento === 'parcelado' && <Badge className="bg-sky-100 text-sky-700 text-xs py-0">📅 Parcelado</Badge>}
           {isAtrasada && <Badge className="bg-red-100 text-red-700 text-xs py-0">⚠️ Atrasada</Badge>}
           {isHoje && <Badge className="bg-amber-100 text-amber-700 text-xs py-0">🔔 Hoje</Badge>}
           {conta.status === 'pendente_preenchimento' && <Badge className="bg-yellow-100 text-yellow-800 text-xs py-0">A Definir</Badge>}
         </div>
         <p className="text-xs text-slate-500 mt-0.5 truncate">{conta.descricao}</p>
+        {conta.nf_origem && <p className="text-xs text-slate-400">NF: {conta.nf_origem}</p>}
       </div>
       <div className="text-right shrink-0">
         <p className="font-bold text-slate-800">{formatCurrency(conta.valor)}</p>
@@ -126,9 +130,15 @@ function EmpresaSection({ empresa, contas, onEdit, onDelete, searchTerm }) {
     );
   };
 
+  const [aberto, setAberto] = useState(atrasadas.length > 0 || hoje.length > 0);
+
   return (
     <Card className="overflow-hidden border-2 border-slate-100">
-      <div className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-50 to-white border-b">
+      {/* Header Acordeão */}
+      <div
+        className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-50 to-white border-b cursor-pointer hover:bg-slate-50 transition-colors select-none"
+        onClick={() => setAberto(o => !o)}
+      >
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
             <span className="text-white font-bold text-sm">{empresa.sigla?.slice(0, 3) || '?'}</span>
@@ -141,13 +151,16 @@ function EmpresaSection({ empresa, contas, onEdit, onDelete, searchTerm }) {
             <p className="text-xs text-slate-400">{empresa.razao_social}</p>
           </div>
         </div>
-        <div className="text-right">
-          <p className="text-xs text-slate-500">Total em aberto</p>
-          <p className="font-bold text-lg text-slate-800">{formatCurrency(totalAberto)}</p>
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <p className="text-xs text-slate-500">Em aberto</p>
+            <p className="font-bold text-lg text-slate-800">{formatCurrency(totalAberto)}</p>
+          </div>
+          <ChevronDown className={cn("w-5 h-5 text-slate-400 transition-transform shrink-0", aberto && "rotate-180")} />
         </div>
       </div>
 
-      <div className="p-4">
+      {aberto && <div className="p-4">
         <Tabs defaultValue={atrasadas.length > 0 ? "atrasadas" : "futuras"}>
           <TabsList className="flex w-full gap-1 h-auto flex-wrap bg-slate-100 p-1 rounded-lg mb-4">
             {atrasadas.length > 0 && <TabsTrigger value="atrasadas" className="text-xs data-[state=active]:bg-red-500 data-[state=active]:text-white">⚠️ Atraso ({atrasadas.length})</TabsTrigger>}
@@ -207,7 +220,7 @@ function EmpresaSection({ empresa, contas, onEdit, onDelete, searchTerm }) {
             </TabsContent>
           )}
         </Tabs>
-      </div>
+      </div>}
     </Card>
   );
 }
