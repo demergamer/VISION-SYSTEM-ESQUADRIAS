@@ -107,7 +107,6 @@ export function imprimirExtrato({ movimentacoes, valesAbertos, dataInicio, dataF
       table { page-break-inside: auto; }
       tr { page-break-inside: avoid; page-break-after: auto; }
       thead { display: table-header-group; }
-      tfoot { display: table-footer-group; }
     }
     table { width: 100%; border-collapse: collapse; }
     th {
@@ -202,14 +201,15 @@ export function imprimirExtrato({ movimentacoes, valesAbertos, dataInicio, dataF
         <th style="text-align:right">Valor</th>
       </tr>
     </thead>
-    <tbody>${linhasVales}</tbody>
-    ${valesAbertos.length > 0 ? `
-    <tfoot>
-      <tr style="background:#fef3c7">
-        <td colspan="4" style="padding:9px 10px; font-size:12px; font-weight:700; color:#92400e">SUBTOTAL — Fundos Circulantes</td>
-        <td style="padding:9px 10px; font-size:13px; font-weight:800; color:#dc2626; text-align:right">${formatCurrency(totalValesAbertos)}</td>
-      </tr>
-    </tfoot>` : ''}
+    <tbody>
+      ${linhasVales}
+      ${valesAbertos.length > 0 ? `
+      <tr style="background:#fef3c7; -webkit-print-color-adjust:exact; print-color-adjust:exact">
+        <td colspan="4" style="padding:9px 12px; font-size:12px; font-weight:700; color:#92400e">SUBTOTAL — Fundos Circulantes</td>
+        <td style="padding:9px 12px; font-size:13px; font-weight:800; color:#b91c1c; text-align:right">${formatCurrency(totalValesAbertos)}</td>
+      </tr>` : ''}
+    </tbody>
+    
   </table>
 
   <p style="text-align:center; font-size:10px; color:#94a3b8; margin-top:28px; border-top:1px solid #e2e8f0; padding-top:12px">
