@@ -391,11 +391,31 @@ export default function CaixaDiario() {
       sangria: <ArrowDownCircle className="w-5 h-5 text-orange-600" />,
       aporte: <ArrowUpCircle className="w-5 h-5 text-blue-600" />,
       ticket_criado: <Ticket className="w-5 h-5 text-amber-600" />,
-      ticket_troco: <ArrowUpCircle className="w-5 h-5 text-green-600" />,
-      ticket_reembolso: <ArrowDownCircle className="w-5 h-5 text-red-600" />,
+      ticket_troco: <ArrowUpCircle className="w-5 h-5 text-cyan-600" />,
+      ticket_reembolso: <ArrowDownCircle className="w-5 h-5 text-purple-600" />,
       ticket_baixa_exata: <CheckCircle className="w-5 h-5 text-slate-500" />
     };
     return icons[tipo] || <Receipt className="w-5 h-5 text-slate-400" />;
+  };
+
+  const getRowBgColor = (tipo) => {
+    const isEntrada = ['entrada', 'ticket_troco', 'aporte'].includes(tipo);
+    const isSaida = ['saida', 'sangria', 'ticket_criado', 'ticket_reembolso'].includes(tipo);
+    const isZero = tipo === 'ticket_baixa_exata';
+    if (isEntrada) return 'bg-green-50/70';
+    if (isSaida) return 'bg-red-50/70';
+    if (isZero) return 'bg-blue-50/70';
+    return 'hover:bg-slate-50';
+  };
+
+  const getValorColor = (tipo) => {
+    const isEntrada = ['entrada', 'ticket_troco', 'aporte'].includes(tipo);
+    const isSaida = ['saida', 'sangria', 'ticket_criado', 'ticket_reembolso'].includes(tipo);
+    const isZero = tipo === 'ticket_baixa_exata';
+    if (isEntrada) return 'text-green-700';
+    if (isSaida) return 'text-red-700';
+    if (isZero) return 'text-blue-700';
+    return 'text-slate-800';
   };
 
   const getTipoLabel = (tipo) => {
@@ -434,34 +454,72 @@ export default function CaixaDiario() {
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-1">
-              {isLoading ? <Card className="p-6 h-48 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-slate-300" /></Card> : <SaldoCard movimentacoes={movimentacoes} />}
-            </div>
-            <div className="lg:col-span-2 grid grid-cols-2 gap-4">
-              <Card className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-amber-100 rounded-lg"><Ticket className="w-5 h-5 text-amber-600" /></div>
-                  <div>
-                    <p className="text-sm text-slate-500">Vales Abertos</p>
-                    <p className="text-2xl font-bold text-amber-600">{valesAbertos.length}</p>
-                    <p className="text-xs text-slate-400">{formatCurrency(valesAbertos.reduce((s, v) => s + v.valor, 0))} em aberto</p>
-                  </div>
+          {/* Stats — Ordem Contábil */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            {/* Saldo Inicial (esquerda) */}
+            <Card className="p-4 bg-slate-50 border border-slate-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-slate-200 rounded-lg"><DollarSign className="w-5 h-5 text-slate-700" /></div>
+                <div>
+                  <p className="text-xs text-slate-500 font-semibold uppercase">Saldo Inicial</p>
+                  <p className="text-xl font-bold text-slate-800">
+                    {historico.length > 0 && historico[historico.length - 1]?.saldo_anterior
+                      ? formatCurrency(historico[historico.length - 1].saldo_anterior)
+                      : '—'}
+                  </p>
                 </div>
-              </Card>
-              <Card className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-100 rounded-lg"><Receipt className="w-5 h-5 text-blue-600" /></div>
-                  <div>
-                    <p className="text-sm text-slate-500">Movimentos Hoje</p>
-                    <p className="text-2xl font-bold text-slate-800">
-                      {movimentacoes.filter(m => m?.created_date && isToday(parseISO(m.created_date))).length}
-                    </p>
-                  </div>
+              </div>
+            </Card>
+
+            {/* Entradas */}
+            <Card className="p-4 bg-green-50 border border-green-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 rounded-lg"><ArrowUpCircle className="w-5 h-5 text-green-600" /></div>
+                <div>
+                  <p className="text-xs text-slate-500 font-semibold uppercase">Entradas</p>
+                  <p className="text-xl font-bold text-green-700">
+                    {formatCurrency(historico.filter(m => ['entrada', 'ticket_troco', 'aporte'].includes(m?.tipo_operacao)).reduce((s, m) => s + (m?.valor || 0), 0))}
+                  </p>
                 </div>
-              </Card>
-            </div>
+              </div>
+            </Card>
+
+            {/* Saídas */}
+            <Card className="p-4 bg-red-50 border border-red-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-red-100 rounded-lg"><ArrowDownCircle className="w-5 h-5 text-red-600" /></div>
+                <div>
+                  <p className="text-xs text-slate-500 font-semibold uppercase">Saídas</p>
+                  <p className="text-xl font-bold text-red-700">
+                    {formatCurrency(historico.filter(m => ['saida', 'sangria', 'ticket_criado', 'ticket_reembolso'].includes(m?.tipo_operacao)).reduce((s, m) => s + (m?.valor || 0), 0))}
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            {/* Vales em Aberto */}
+            <Card className="p-4 bg-amber-50 border border-amber-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-100 rounded-lg"><Ticket className="w-5 h-5 text-amber-600" /></div>
+                <div>
+                  <p className="text-xs text-slate-500 font-semibold uppercase">Vales na Rua</p>
+                  <p className="text-xl font-bold text-amber-700">
+                    {formatCurrency(valesAbertos.reduce((s, v) => s + (v.valor || 0), 0))}
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            {/* Saldo Final (direita) */}
+            <Card className="p-4 bg-gradient-to-br from-blue-50 to-cyan-50 border-2 border-blue-300">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-200 rounded-lg"><Wallet className="w-5 h-5 text-blue-700" /></div>
+                <div>
+                  <p className="text-xs text-slate-500 font-semibold uppercase">Saldo Final</p>
+                  <p className="text-xl font-bold text-blue-900">{formatCurrency(saldoAtual)}</p>
+                </div>
+              </div>
+            </Card>
           </div>
 
           {/* Tabs */}
@@ -565,36 +623,36 @@ export default function CaixaDiario() {
               ) : (
                 <Card className="overflow-hidden">
                   <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-slate-50 border-b">
+                    <table className="w-full text-base">
+                      <thead className="bg-slate-100 border-b-2 border-slate-300">
                         <tr>
-                          <th className="text-left p-4 text-sm font-medium text-slate-600">Tipo</th>
-                          <th className="text-left p-4 text-sm font-medium text-slate-600">Descrição</th>
-                          <th className="text-left p-4 text-sm font-medium text-slate-600">Valor</th>
-                          <th className="text-left p-4 text-sm font-medium text-slate-600">Saldo</th>
-                          <th className="text-left p-4 text-sm font-medium text-slate-600">Data</th>
+                          <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700 uppercase tracking-wide">Operação</th>
+                          <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700 uppercase tracking-wide">Descrição</th>
+                          <th className="text-right px-4 py-3 text-sm font-semibold text-slate-700 uppercase tracking-wide">Valor</th>
+                          <th className="text-right px-4 py-3 text-sm font-semibold text-slate-700 uppercase tracking-wide">Saldo</th>
+                          <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700 uppercase tracking-wide">Data/Hora</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y">
+                      <tbody className="divide-y divide-slate-200">
                         {historico.map((mov) => (
-                          <tr key={mov?.id} className="hover:bg-slate-50">
-                            <td className="p-4">
-                              <div className="flex items-center gap-2">
+                          <tr key={mov?.id} className={cn("transition-colors", getRowBgColor(mov?.tipo_operacao))}>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-3">
                                 {getTipoIcon(mov?.tipo_operacao)}
-                                <span className="text-sm font-medium">{getTipoLabel(mov?.tipo_operacao)}</span>
+                                <span className="text-[15px] font-semibold text-slate-700">{getTipoLabel(mov?.tipo_operacao)}</span>
                               </div>
                             </td>
-                            <td className="p-4"><p className="text-sm text-slate-600 max-w-xs truncate">{mov?.descricao || '-'}</p></td>
-                            <td className="p-4">
-                              <p className={cn("font-semibold", ['entrada', 'ticket_troco', 'aporte'].includes(mov?.tipo_operacao) ? "text-green-600" : mov?.tipo_operacao === 'ticket_baixa_exata' ? "text-slate-500" : "text-red-600")}>
-                                {['entrada', 'ticket_troco', 'aporte'].includes(mov?.tipo_operacao) ? '+' : mov?.tipo_operacao === 'ticket_baixa_exata' ? '~' : '-'}
+                            <td className="px-4 py-3"><p className="text-[15px] text-slate-700 max-w-xs truncate">{mov?.descricao || '—'}</p></td>
+                            <td className="px-4 py-3 text-right">
+                              <p className={cn("text-[15px] font-semibold", getValorColor(mov?.tipo_operacao))}>
+                                {['entrada', 'ticket_troco', 'aporte'].includes(mov?.tipo_operacao) ? '+' : mov?.tipo_operacao === 'ticket_baixa_exata' ? '~' : '−'}
                                 {formatCurrency(mov?.valor)}
                               </p>
                             </td>
-                            <td className="p-4"><p className="font-bold text-slate-800">{formatCurrency(mov?.saldo_atual)}</p></td>
-                            <td className="p-4">
-                              <p className="text-sm text-slate-600">
-                                {mov?.created_date ? format(parseISO(mov.created_date), "dd/MM/yyyy HH:mm", { locale: ptBR }) : '-'}
+                            <td className="px-4 py-3 text-right"><p className="text-[15px] font-bold text-slate-900">{formatCurrency(mov?.saldo_atual)}</p></td>
+                            <td className="px-4 py-3">
+                              <p className="text-[15px] text-slate-700 font-medium">
+                                {mov?.created_date ? format(parseISO(mov.created_date), "dd/MM/yyyy HH:mm", { locale: ptBR }) : '—'}
                               </p>
                             </td>
                           </tr>
