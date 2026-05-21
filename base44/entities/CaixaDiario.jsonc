@@ -1,0 +1,94 @@
+{
+  "name": "CaixaDiario",
+  "type": "object",
+  "properties": {
+    "tipo_operacao": {
+      "type": "string",
+      "enum": [
+        "abertura",
+        "fechamento",
+        "entrada",
+        "saida",
+        "sangria",
+        "aporte",
+        "ticket_criado",
+        "ticket_troco",
+        "ticket_reembolso",
+        "ticket_baixa_exata"
+      ],
+      "description": "Tipo de opera\u00e7\u00e3o no caixa"
+    },
+    "valor": {
+      "type": "number",
+      "description": "Valor da movimenta\u00e7\u00e3o em R$"
+    },
+    "saldo_anterior": {
+      "type": "number",
+      "description": "Saldo antes da opera\u00e7\u00e3o"
+    },
+    "saldo_atual": {
+      "type": "number",
+      "description": "Saldo ap\u00f3s a opera\u00e7\u00e3o"
+    },
+    "descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o da movimenta\u00e7\u00e3o"
+    },
+    "responsavel": {
+      "type": "string",
+      "description": "Nome do respons\u00e1vel pela opera\u00e7\u00e3o"
+    },
+    "ticket_id": {
+      "type": "string",
+      "description": "ID do Vale relacionado (se aplic\u00e1vel)"
+    },
+    "ticket_funcionario": {
+      "type": "string",
+      "description": "Nome do funcion\u00e1rio do ticket"
+    },
+    "comprovante_url": {
+      "type": "string",
+      "description": "URL do comprovante/foto (legado)"
+    },
+    "anexos_complexos": {
+      "type": "array",
+      "description": "Anexos com observa\u00e7\u00e3o individual",
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "observacao": {
+            "type": "string"
+          },
+          "nome": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "data_operacao": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data e hora da opera\u00e7\u00e3o"
+    },
+    "classificacao": {
+      "type": "string",
+      "enum": [
+        "alimentacao",
+        "combustivel",
+        "manutencao",
+        "material",
+        "servico",
+        "outro"
+      ],
+      "description": "Classifica\u00e7\u00e3o da despesa (para tickets)"
+    }
+  },
+  "required": [
+    "tipo_operacao",
+    "valor",
+    "saldo_atual"
+  ]
+}
