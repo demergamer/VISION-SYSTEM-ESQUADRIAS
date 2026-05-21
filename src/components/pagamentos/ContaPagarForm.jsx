@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,8 @@ import { Plus, X, Loader2, Save, Trash2, Upload, CheckCircle, FileText, Hash } f
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format, addMonths, parseISO } from "date-fns";
+import ModalContainer from "@/components/modals/ModalContainer";
+import FornecedorForm from "@/components/fornecedores/FornecedorForm";
 
 const CATEGORIAS = [
   { value: 'aluminio', label: '🏗️ Alumínio' },
@@ -49,8 +51,6 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
   const [tipoLancamento, setTipoLancamento] = useState(conta?.tipo_lancamento || 'unica');
   const [isValorVariavel, setIsValorVariavel] = useState(false);
   const [showAddFornecedor, setShowAddFornecedor] = useState(false);
-  const [novoFornecedor, setNovoFornecedor] = useState({ nome: '', codigo: '' });
-  const [savingFornecedor, setSavingFornecedor] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
 
@@ -142,18 +142,19 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
     uploadFiles(e.dataTransfer.files);
   }, []);
 
-  const handleAddFornecedor = async () => {
-    if (!novoFornecedor.nome || !novoFornecedor.codigo) { toast.error('Preencha nome e código'); return; }
-    setSavingFornecedor(true);
-    try {
-      await base44.entities.Fornecedor.create({ nome: novoFornecedor.nome, codigo: novoFornecedor.codigo });
-      setForm(f => ({ ...f, fornecedor_codigo: novoFornecedor.codigo, fornecedor_nome: novoFornecedor.nome }));
-      setShowAddFornecedor(false);
-      setNovoFornecedor({ nome: '', codigo: '' });
+  const createFornecedorMutation = useMutation({
+    mutationFn: (data) => base44.entities.Fornecedor.create(data),
+    onSuccess: (_, data) => {
       queryClient.invalidateQueries({ queryKey: ['fornecedores'] });
+      setForm(f => ({ ...f, fornecedor_codigo: data.codigo, fornecedor_nome: data.nome }));
+      setShowAddFornecedor(false);
       toast.success('Fornecedor cadastrado!');
-    } catch { toast.error('Erro ao cadastrar fornecedor'); }
-    finally { setSavingFornecedor(false); }
+    },
+    onError: () => toast.error('Erro ao cadastrar fornecedor')
+  });
+
+  const handleAddFornecedor = (data) => {
+    createFornecedorMutation.mutate(data);
   };
 
   const handleSubmit = async (e) => {
@@ -216,26 +217,13 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
 
   return (
     <>
-      {showAddFornecedor && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-          <Card className="w-full max-w-md p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-lg">Cadastro Rápido de Fornecedor</h3>
-              <Button type="button" size="icon" variant="ghost" onClick={() => setShowAddFornecedor(false)}><X className="w-4 h-4" /></Button>
-            </div>
-            <div className="space-y-3">
-              <div className="space-y-1"><Label className="text-xs">Nome *</Label><Input value={novoFornecedor.nome} onChange={e => setNovoFornecedor(f => ({ ...f, nome: e.target.value }))} placeholder="Nome do fornecedor" autoFocus /></div>
-              <div className="space-y-1"><Label className="text-xs">Código / CNPJ *</Label><Input value={novoFornecedor.codigo} onChange={e => setNovoFornecedor(f => ({ ...f, codigo: e.target.value }))} placeholder="Ex: FORN001" /></div>
-            </div>
-            <div className="flex justify-end gap-3 pt-2 border-t">
-              <Button type="button" variant="outline" onClick={() => setShowAddFornecedor(false)} disabled={savingFornecedor}>Cancelar</Button>
-              <Button type="button" onClick={handleAddFornecedor} disabled={savingFornecedor}>
-                {savingFornecedor ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}Salvar
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
+      <ModalContainer open={showAddFornecedor} onClose={() => setShowAddFornecedor(false)} title="Cadastro Rápido de Fornecedor" description="Adicione um novo fornecedor" size="md">
+        <FornecedorForm
+          onSave={handleAddFornecedor}
+          onCancel={() => setShowAddFornecedor(false)}
+          isLoading={createFornecedorMutation.isPending}
+        />
+      </ModalContainer>
 
       <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
         {/* Tipo de Lançamento */}
@@ -326,6 +314,26 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
             </div>
           )}
 
+          {/* Preview de parcelas (MOVIDO PARA CIMA - antes da descrição) */}
+          {tipoLancamento === 'parcelado' && parcelas.length > 0 && (
+            <div className="space-y-2 md:col-span-2">
+              <Label className="text-xs font-semibold">Parcelas — ajuste valores se necessário</Label>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {parcelas.map((p, i) => (
+                  <div key={i} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border">
+                    <span className="text-xs font-mono font-bold text-blue-600 w-8 shrink-0">{i + 1}x</span>
+                    <Input type="number" step="0.01" value={p.valor} onChange={e => setParcelas(prev => prev.map((pp, ii) => ii === i ? { ...pp, valor: e.target.value } : pp))} className="h-7 text-xs w-28" />
+                    <Input type="date" value={p.data_vencimento} onChange={e => setParcelas(prev => prev.map((pp, ii) => ii === i ? { ...pp, data_vencimento: e.target.value } : pp))} className="h-7 text-xs flex-1" />
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-slate-500">
+                Total: R$ {parcelas.reduce((s, p) => s + (parseFloat(p.valor) || 0), 0).toFixed(2)} |
+                Esperado: R$ {parseFloat(form.valor || 0).toFixed(2)}
+              </p>
+            </div>
+          )}
+
           {/* Descrição */}
           <div className="space-y-1 md:col-span-2">
             <Label className="text-xs">
@@ -344,26 +352,6 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
             <Textarea value={form.observacao} onChange={e => setForm(f => ({ ...f, observacao: e.target.value }))} rows={2} className="text-sm" />
           </div>
         </div>
-
-        {/* Preview de parcelas (tipo parcelado) */}
-        {tipoLancamento === 'parcelado' && parcelas.length > 0 && (
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold">Parcelas — ajuste valores se necessário</Label>
-            <div className="space-y-1.5 max-h-48 overflow-y-auto">
-              {parcelas.map((p, i) => (
-                <div key={i} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border">
-                  <span className="text-xs font-mono font-bold text-blue-600 w-8 shrink-0">{i + 1}x</span>
-                  <Input type="number" step="0.01" value={p.valor} onChange={e => setParcelas(prev => prev.map((pp, ii) => ii === i ? { ...pp, valor: e.target.value } : pp))} className="h-7 text-xs w-28" />
-                  <Input type="date" value={p.data_vencimento} onChange={e => setParcelas(prev => prev.map((pp, ii) => ii === i ? { ...pp, data_vencimento: e.target.value } : pp))} className="h-7 text-xs flex-1" />
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-slate-500">
-              Total: R$ {parcelas.reduce((s, p) => s + (parseFloat(p.valor) || 0), 0).toFixed(2)} |
-              Esperado: R$ {parseFloat(form.valor || 0).toFixed(2)}
-            </p>
-          </div>
-        )}
 
         {/* Anexos com Drag & Drop e observação individual */}
         <div className="space-y-2">

@@ -37,8 +37,8 @@ function SeletorCheques({ cheques, onConfirm, onClose }) {
   const totalSel = cheques.filter(c => selecionados.includes(c.id)).reduce((s, c) => s + (c.valor || 0), 0);
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[70] p-4">
-      <Card className="w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+      <Card className="w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden z-[9999]">
         <div className="p-4 border-b space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="font-bold">🔍 Selecionar Cheques em Carteira</h3>
