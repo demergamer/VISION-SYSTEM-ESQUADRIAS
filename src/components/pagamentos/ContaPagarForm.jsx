@@ -6,11 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, X, Loader2, Save, Trash2, Upload, CheckCircle, FileText, Hash } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Plus, X, Loader2, Save, Upload, CheckCircle, FileText, Hash, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format, addMonths, parseISO } from "date-fns";
@@ -37,7 +35,7 @@ async function gerarProximoSequencial(empresaCodigo) {
   let proximo = 1;
   if (daEmpresa.length > 0) {
     const nums = daEmpresa.map(c => {
-      const base = (c.numero_lancamento || '').split('/')[0]; // pega parte antes de /N
+      const base = (c.numero_lancamento || '').split('/')[0];
       const partes = base.split('-');
       return parseInt(partes[partes.length - 1]) || 0;
     });
@@ -48,11 +46,23 @@ async function gerarProximoSequencial(empresaCodigo) {
 
 export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, onCancel, isLoading }) {
   const queryClient = useQueryClient();
-  const [tipoLancamento, setTipoLancamento] = useState(conta?.tipo_lancamento || 'unica');
-  const [isValorVariavel, setIsValorVariavel] = useState(false);
   const [showAddFornecedor, setShowAddFornecedor] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  // Recorrência: 'inativo' | 'ativo'
+  const [recorrencia, setRecorrencia] = useState(() => {
+    if (conta?.tipo_lancamento === 'recorrente') return 'ativo';
+    return 'inativo';
+  });
+
+  // Parcelas: número >= 1. Se > 1 e recorrência inativo => parcelado
+  const [qtdParcelas, setQtdParcelas] = useState(
+    conta?.total_parcelas || 1
+  );
+  const [isValorVariavel, setIsValorVariavel] = useState(false);
+
+  const tipoLancamento = recorrencia === 'ativo' ? 'recorrente' : (qtdParcelas > 1 ? 'parcelado' : 'unica');
 
   const [form, setForm] = useState({
     empresa_codigo: conta?.empresa_codigo || empresas?.[0]?.codigo || '',
@@ -66,13 +76,14 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
     data_vencimento: conta?.data_vencimento || '',
     status: conta?.status || 'pendente',
     categoria_financeira: conta?.categoria_financeira || 'aluminio',
-    total_parcelas: conta?.total_parcelas || 2
+    // Impostos
+    irrf: conta?.irrf || '',
+    icms: conta?.icms || '',
+    iss: conta?.iss || '',
+    outros_impostos: conta?.outros_impostos || '',
   });
 
-  // Parcelas para parcelado
   const [parcelas, setParcelas] = useState([]);
-
-  // Anexos complexos {url, observacao, nome}
   const [anexos, setAnexos] = useState(() => {
     if (conta?.anexos_complexos?.length) return conta.anexos_complexos;
     if (conta?.comprovante_url) return [{ url: conta.comprovante_url, observacao: '', nome: 'Comprovante' }];
@@ -82,7 +93,8 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
   const recalcularParcelas = (valor, qtd, dataBase) => {
     if (!valor || !qtd || !dataBase) return;
     const total = parseFloat(valor) || 0;
-    const n = parseInt(qtd) || 2;
+    const n = parseInt(qtd) || 1;
+    if (n <= 1) { setParcelas([]); return; }
     const base = Math.floor((total / n) * 100) / 100;
     const resto = Math.round((total - base * n) * 100) / 100;
     const novas = Array.from({ length: n }, (_, i) => ({
@@ -92,24 +104,20 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
     setParcelas(novas);
   };
 
-  const handleTipoChange = (tipo) => {
-    setTipoLancamento(tipo);
-    if (tipo === 'parcelado' && form.valor && form.data_vencimento) {
-      recalcularParcelas(form.valor, form.total_parcelas, form.data_vencimento);
-    }
-  };
-
   const handleValorChange = (val) => {
     setForm(f => ({ ...f, valor: val }));
     if (tipoLancamento === 'parcelado' && form.data_vencimento) {
-      recalcularParcelas(val, form.total_parcelas, form.data_vencimento);
+      recalcularParcelas(val, qtdParcelas, form.data_vencimento);
     }
   };
 
   const handleQtdParcelasChange = (qtd) => {
-    setForm(f => ({ ...f, total_parcelas: qtd }));
-    if (tipoLancamento === 'parcelado' && form.valor && form.data_vencimento) {
-      recalcularParcelas(form.valor, qtd, form.data_vencimento);
+    const n = parseInt(qtd) || 1;
+    setQtdParcelas(n);
+    if (recorrencia === 'inativo' && n > 1 && form.valor && form.data_vencimento) {
+      recalcularParcelas(form.valor, n, form.data_vencimento);
+    } else if (n <= 1) {
+      setParcelas([]);
     }
   };
 
@@ -153,16 +161,21 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
     onError: () => toast.error('Erro ao cadastrar fornecedor')
   });
 
-  const handleAddFornecedor = (data) => {
-    createFornecedorMutation.mutate(data);
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.empresa_codigo) { toast.error('Selecione a empresa'); return; }
     if (!form.fornecedor_codigo) { toast.error('Selecione o fornecedor'); return; }
 
-    const baseData = { ...form, tipo_lancamento: tipoLancamento, anexos_complexos: anexos };
+    const baseData = {
+      ...form,
+      tipo_lancamento: tipoLancamento,
+      anexos_complexos: anexos,
+      // limpa campos de impostos se vazios
+      irrf: parseFloat(form.irrf) || 0,
+      icms: parseFloat(form.icms) || 0,
+      iss: parseFloat(form.iss) || 0,
+      outros_impostos: parseFloat(form.outros_impostos) || 0,
+    };
 
     if (tipoLancamento === 'unica') {
       const seq = conta?.numero_lancamento || `${form.empresa_codigo}-${String(await gerarProximoSequencial(form.empresa_codigo)).padStart(4, '0')}`;
@@ -172,7 +185,7 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
 
     if (tipoLancamento === 'recorrente') {
       const grupoId = `REC-${Date.now()}`;
-      const n = parseInt(form.total_parcelas) || 2;
+      const n = parseInt(qtdParcelas) || 2;
       const valorParc = parseFloat(form.valor) || 0;
       const dataBase = parseISO(form.data_vencimento);
       const seq = await gerarProximoSequencial(form.empresa_codigo);
@@ -215,29 +228,19 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
     }
   };
 
+  const labelParcelas = recorrencia === 'ativo' ? 'Quantidade de Recorrências' : 'Nº de Parcelas';
+
   return (
     <>
       <ModalContainer open={showAddFornecedor} onClose={() => setShowAddFornecedor(false)} title="Cadastro Rápido de Fornecedor" description="Adicione um novo fornecedor" size="md">
         <FornecedorForm
-          onSave={handleAddFornecedor}
+          onSave={(data) => createFornecedorMutation.mutate(data)}
           onCancel={() => setShowAddFornecedor(false)}
           isLoading={createFornecedorMutation.isPending}
         />
       </ModalContainer>
 
       <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
-        {/* Tipo de Lançamento */}
-        <div className="flex gap-2 p-3 bg-slate-50 rounded-xl">
-          {[
-            { val: 'unica', label: '📄 Única' },
-            { val: 'recorrente', label: '🔄 Recorrente' },
-            { val: 'parcelado', label: '📅 Parcelado' },
-          ].map(t => (
-            <Button key={t.val} type="button" size="sm" variant={tipoLancamento === t.val ? 'default' : 'outline'} onClick={() => handleTipoChange(t.val)} className="flex-1 text-xs">
-              {t.label}
-            </Button>
-          ))}
-        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* Empresa */}
@@ -265,7 +268,7 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
                   {fornecedores.map(f => <SelectItem key={f.codigo} value={f.codigo}>{f.codigo} - {f.nome}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Button type="button" size="icon" variant="outline" onClick={() => setShowAddFornecedor(true)} className="shrink-0 h-9 w-9"><Plus className="w-4 h-4" /></Button>
+              <Button type="button" size="icon" variant="outline" onClick={() => setShowAddFornecedor(true)} className="shrink-0 h-9 w-9" title="Cadastrar novo fornecedor"><Plus className="w-4 h-4" /></Button>
             </div>
           </div>
 
@@ -278,6 +281,12 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
             </Select>
           </div>
 
+          {/* NF Origem */}
+          <div className="space-y-1">
+            <Label className="text-xs flex items-center gap-1"><Hash className="w-3 h-3" />NF de Origem</Label>
+            <Input value={form.nf_origem} onChange={e => setForm(f => ({ ...f, nf_origem: e.target.value }))} placeholder="Ex: NF-001234" className="h-9" />
+          </div>
+
           {/* Valor */}
           <div className="space-y-1">
             <Label className="text-xs">Valor Total (R$) *</Label>
@@ -287,55 +296,108 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
           {/* Data */}
           <div className="space-y-1">
             <Label className="text-xs">{tipoLancamento === 'parcelado' ? 'Vencimento 1ª Parcela *' : tipoLancamento === 'recorrente' ? 'Vencimento 1ª Recorrência *' : 'Vencimento *'}</Label>
-            <Input type="date" value={form.data_vencimento} onChange={e => { setForm(f => ({ ...f, data_vencimento: e.target.value })); if (tipoLancamento === 'parcelado') recalcularParcelas(form.valor, form.total_parcelas, e.target.value); }} className="h-9" required />
+            <Input type="date" value={form.data_vencimento} onChange={e => {
+              setForm(f => ({ ...f, data_vencimento: e.target.value }));
+              if (tipoLancamento === 'parcelado') recalcularParcelas(form.valor, qtdParcelas, e.target.value);
+            }} className="h-9" required />
           </div>
 
-          {/* NF Origem */}
+          {/* Recorrência + Parcelas (lado a lado) */}
           <div className="space-y-1">
-            <Label className="text-xs flex items-center gap-1"><Hash className="w-3 h-3" />NF de Origem</Label>
-            <Input value={form.nf_origem} onChange={e => setForm(f => ({ ...f, nf_origem: e.target.value }))} placeholder="Ex: NF-001234" className="h-9" />
+            <Label className="text-xs">Recorrência</Label>
+            <Select value={recorrencia} onValueChange={v => { setRecorrencia(v); if (v === 'ativo' && qtdParcelas < 2) setQtdParcelas(2); }}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="inativo">⏸️ Inativo</SelectItem>
+                <SelectItem value="ativo">🔄 Ativo</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
-          {/* Qtd parcelas (recorrente ou parcelado) */}
-          {(tipoLancamento === 'recorrente' || tipoLancamento === 'parcelado') && (
-            <div className="space-y-1">
-              <Label className="text-xs">{tipoLancamento === 'parcelado' ? 'Nº de Parcelas *' : 'Quantidade de Recorrências *'}</Label>
-              <Input type="number" min="2" max="60" value={form.total_parcelas} onChange={e => handleQtdParcelasChange(e.target.value)} className="h-9" required />
-            </div>
-          )}
+          <div className="space-y-1">
+            <Label className="text-xs">{labelParcelas}</Label>
+            <Input
+              type="number"
+              min="1"
+              max="60"
+              value={qtdParcelas}
+              onChange={e => handleQtdParcelasChange(e.target.value)}
+              className="h-9"
+            />
+          </div>
 
-          {tipoLancamento === 'recorrente' && (
+          {/* Checkbox valor variável para recorrente */}
+          {recorrencia === 'ativo' && (
             <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl md:col-span-2">
               <Checkbox checked={isValorVariavel} onCheckedChange={setIsValorVariavel} id="valor-variavel" className="mt-0.5" />
               <div>
                 <Label htmlFor="valor-variavel" className="cursor-pointer font-semibold text-amber-900 text-sm">Valor Variável (A definir mês a mês)</Label>
-                <p className="text-xs text-amber-700 mt-0.5">Parcelas 2 a {form.total_parcelas} criadas com R$ 0,00 e status "A Definir".</p>
+                <p className="text-xs text-amber-700 mt-0.5">Parcelas 2 a {qtdParcelas} criadas com R$ 0,00 e status "A Definir".</p>
               </div>
             </div>
           )}
+        </div>
 
-          {/* Preview de parcelas (MOVIDO PARA CIMA - antes da descrição) */}
-          {tipoLancamento === 'parcelado' && parcelas.length > 0 && (
-            <div className="space-y-2 md:col-span-2">
-              <Label className="text-xs font-semibold">Parcelas — ajuste valores se necessário</Label>
-              <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                {parcelas.map((p, i) => (
-                  <div key={i} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border">
-                    <span className="text-xs font-mono font-bold text-blue-600 w-8 shrink-0">{i + 1}x</span>
-                    <Input type="number" step="0.01" value={p.valor} onChange={e => setParcelas(prev => prev.map((pp, ii) => ii === i ? { ...pp, valor: e.target.value } : pp))} className="h-7 text-xs w-28" />
-                    <Input type="date" value={p.data_vencimento} onChange={e => setParcelas(prev => prev.map((pp, ii) => ii === i ? { ...pp, data_vencimento: e.target.value } : pp))} className="h-7 text-xs flex-1" />
-                  </div>
-                ))}
+        {/* Preview de parcelas — aparece logo após configurações */}
+        {tipoLancamento === 'parcelado' && parcelas.length > 0 && (
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold">📅 Parcelas — ajuste valores se necessário</Label>
+            <div className="space-y-1.5 max-h-48 overflow-y-auto">
+              {parcelas.map((p, i) => (
+                <div key={i} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border">
+                  <span className="text-xs font-mono font-bold text-blue-600 w-8 shrink-0">{i + 1}x</span>
+                  <Input type="number" step="0.01" value={p.valor} onChange={e => setParcelas(prev => prev.map((pp, ii) => ii === i ? { ...pp, valor: e.target.value } : pp))} className="h-7 text-xs w-28" />
+                  <Input type="date" value={p.data_vencimento} onChange={e => setParcelas(prev => prev.map((pp, ii) => ii === i ? { ...pp, data_vencimento: e.target.value } : pp))} className="h-7 text-xs flex-1" />
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-slate-500">
+              Total: R$ {parcelas.reduce((s, p) => s + (parseFloat(p.valor) || 0), 0).toFixed(2)} |
+              Esperado: R$ {parseFloat(form.valor || 0).toFixed(2)}
+            </p>
+          </div>
+        )}
+
+        {/* Acordeão de Impostos */}
+        <Accordion type="single" collapsible className="border rounded-xl overflow-hidden">
+          <AccordionItem value="impostos" className="border-0">
+            <AccordionTrigger className="px-4 py-3 text-sm font-medium text-slate-700 hover:no-underline hover:bg-slate-50">
+              ⚖️ Detalhamento de Impostos (IRRF, ICMS, ISS...)
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">IRRF (R$)</Label>
+                  <Input type="number" step="0.01" min="0" value={form.irrf} onChange={e => setForm(f => ({ ...f, irrf: e.target.value }))} placeholder="0,00" className="h-8 text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">ICMS (R$)</Label>
+                  <Input type="number" step="0.01" min="0" value={form.icms} onChange={e => setForm(f => ({ ...f, icms: e.target.value }))} placeholder="0,00" className="h-8 text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">ISS (R$)</Label>
+                  <Input type="number" step="0.01" min="0" value={form.iss} onChange={e => setForm(f => ({ ...f, iss: e.target.value }))} placeholder="0,00" className="h-8 text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Outros Impostos (R$)</Label>
+                  <Input type="number" step="0.01" min="0" value={form.outros_impostos} onChange={e => setForm(f => ({ ...f, outros_impostos: e.target.value }))} placeholder="0,00" className="h-8 text-xs" />
+                </div>
               </div>
-              <p className="text-xs text-slate-500">
-                Total: R$ {parcelas.reduce((s, p) => s + (parseFloat(p.valor) || 0), 0).toFixed(2)} |
-                Esperado: R$ {parseFloat(form.valor || 0).toFixed(2)}
+              <p className="text-xs text-slate-400 mt-2">
+                Total impostos: R$ {(
+                  (parseFloat(form.irrf) || 0) +
+                  (parseFloat(form.icms) || 0) +
+                  (parseFloat(form.iss) || 0) +
+                  (parseFloat(form.outros_impostos) || 0)
+                ).toFixed(2)}
               </p>
-            </div>
-          )}
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
 
-          {/* Descrição */}
-          <div className="space-y-1 md:col-span-2">
+        <div className="grid grid-cols-1 gap-3">
+          {/* Descrição — Info Estrita */}
+          <div className="space-y-1">
             <Label className="text-xs">
               Descrição *
               <span className="ml-2 bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] font-normal">📋 Info Estrita — aparece em extratos</span>
@@ -343,8 +405,8 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
             <Textarea value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} rows={2} required className="text-sm" />
           </div>
 
-          {/* Observação */}
-          <div className="space-y-1 md:col-span-2">
+          {/* Observação — Info Interna */}
+          <div className="space-y-1">
             <Label className="text-xs">
               Observações
               <span className="ml-2 bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-[10px] font-normal">🔒 Info Interna — não aparece em extratos</span>
@@ -403,7 +465,10 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
         <div className="flex justify-end gap-3 pt-3 border-t">
           <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}><X className="w-4 h-4 mr-2" />Cancelar</Button>
           <Button type="submit" disabled={isLoading}>
-            {isLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</> : <><Save className="w-4 h-4 mr-2" />{tipoLancamento === 'parcelado' ? 'Criar Parcelas' : tipoLancamento === 'recorrente' ? 'Criar Recorrências' : 'Salvar'}</>}
+            {isLoading
+              ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</>
+              : <><Save className="w-4 h-4 mr-2" />{tipoLancamento === 'parcelado' ? 'Criar Parcelas' : tipoLancamento === 'recorrente' ? 'Criar Recorrências' : 'Salvar'}</>
+            }
           </Button>
         </div>
       </form>
