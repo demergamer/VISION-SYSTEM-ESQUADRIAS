@@ -12,8 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Wallet, Plus, DollarSign, Clock, ArrowLeft, Save, Loader2,
   CheckCircle, Ticket, Receipt, ArrowUpCircle, ArrowDownCircle,
-  Users, AlertCircle, Edit, Hash
+  Users, AlertCircle, Edit, Hash, FileText, Filter
 } from "lucide-react";
+import { imprimirExtrato } from "@/components/caixa/ExtratoCaixaPDF";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import ModalContainer from "@/components/modals/ModalContainer";
@@ -205,6 +206,8 @@ export default function CaixaDiario() {
   const [showBaixarModal, setShowBaixarModal] = useState(false);
   const [showEditarModal, setShowEditarModal] = useState(false);
   const [valeSelecionado, setValeSelecionado] = useState(null);
+  const [filtroDataInicio, setFiltroDataInicio] = useState('');
+  const [filtroDataFim, setFiltroDataFim] = useState('');
 
   const { data: movimentacoes = [], isLoading: loadingMov } = useQuery({
     queryKey: ['caixaDiario'],
@@ -230,7 +233,29 @@ export default function CaixaDiario() {
   const valesAbertos = useMemo(() => vales.filter(v => v.status === 'aberto'), [vales]);
   const valesFechados = useMemo(() => vales.filter(v => v.status === 'baixado'), [vales]);
 
-  const historico = useMemo(() => movimentacoes.filter(m => !['ticket_criado'].includes(m?.tipo_operacao)), [movimentacoes]);
+  const historico = useMemo(() => {
+    return movimentacoes.filter(m => {
+      if (!m) return false;
+      // Aplica filtro de período se definido
+      const dataRef = m.data_operacao || m.created_date;
+      if (filtroDataInicio && dataRef) {
+        if (dataRef.slice(0, 10) < filtroDataInicio) return false;
+      }
+      if (filtroDataFim && dataRef) {
+        if (dataRef.slice(0, 10) > filtroDataFim) return false;
+      }
+      return true;
+    });
+  }, [movimentacoes, filtroDataInicio, filtroDataFim]);
+
+  const handleEmitirExtrato = () => {
+    imprimirExtrato({
+      movimentacoes: historico,
+      valesAbertos,
+      dataInicio: filtroDataInicio || null,
+      dataFim: filtroDataFim || null,
+    });
+  };
 
   // ── Mutation: Registrar operação de caixa ───────────────────────────────
   const caixaMutation = useMutation({
@@ -499,10 +524,43 @@ export default function CaixaDiario() {
 
             {/* Histórico */}
             <TabsContent value="historico" className="mt-6">
+              {/* Filtros de período + botão extrato */}
+              <div className="flex flex-col sm:flex-row gap-3 mb-4 items-end">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+                  <Label className="text-xs text-slate-500 shrink-0">De:</Label>
+                  <Input
+                    type="date"
+                    value={filtroDataInicio}
+                    onChange={e => setFiltroDataInicio(e.target.value)}
+                    className="w-36 h-8 text-sm"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs text-slate-500 shrink-0">Até:</Label>
+                  <Input
+                    type="date"
+                    value={filtroDataFim}
+                    onChange={e => setFiltroDataFim(e.target.value)}
+                    className="w-36 h-8 text-sm"
+                  />
+                </div>
+                {(filtroDataInicio || filtroDataFim) && (
+                  <Button size="sm" variant="ghost" className="text-slate-400 h-8 px-2 text-xs" onClick={() => { setFiltroDataInicio(''); setFiltroDataFim(''); }}>
+                    Limpar
+                  </Button>
+                )}
+                <div className="sm:ml-auto">
+                  <Button onClick={handleEmitirExtrato} className="gap-2 bg-blue-600 hover:bg-blue-700 h-8 text-sm">
+                    <FileText className="w-4 h-4" />Emitir Extrato PDF
+                  </Button>
+                </div>
+              </div>
+
               {historico.length === 0 ? (
                 <Card className="p-12 text-center">
                   <Clock className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-                  <p className="text-slate-500">Nenhuma movimentação registrada</p>
+                  <p className="text-slate-500">Nenhuma movimentação{(filtroDataInicio || filtroDataFim) ? ' no período selecionado' : ' registrada'}</p>
                 </Card>
               ) : (
                 <Card className="overflow-hidden">
@@ -528,8 +586,8 @@ export default function CaixaDiario() {
                             </td>
                             <td className="p-4"><p className="text-sm text-slate-600 max-w-xs truncate">{mov?.descricao || '-'}</p></td>
                             <td className="p-4">
-                              <p className={cn("font-semibold", ['entrada', 'ticket_troco', 'aporte', 'ticket_baixa_exata'].includes(mov?.tipo_operacao) ? "text-green-600" : "text-red-600")}>
-                                {['entrada', 'ticket_troco', 'aporte', 'ticket_baixa_exata'].includes(mov?.tipo_operacao) ? '+' : '-'}
+                              <p className={cn("font-semibold", ['entrada', 'ticket_troco', 'aporte'].includes(mov?.tipo_operacao) ? "text-green-600" : mov?.tipo_operacao === 'ticket_baixa_exata' ? "text-slate-500" : "text-red-600")}>
+                                {['entrada', 'ticket_troco', 'aporte'].includes(mov?.tipo_operacao) ? '+' : mov?.tipo_operacao === 'ticket_baixa_exata' ? '~' : '-'}
                                 {formatCurrency(mov?.valor)}
                               </p>
                             </td>
