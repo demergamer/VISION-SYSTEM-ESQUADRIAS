@@ -91,15 +91,37 @@ export function imprimirExtrato({ movimentacoes, valesAbertos, dataInicio, dataF
   <title>Extrato de Caixa — ${periodoLabel}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #1e293b; padding: 24px; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #fff;
+      color: #1e293b;
+      padding: 24px;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
     @media print {
       body { padding: 12px; }
       .no-print { display: none !important; }
-      @page { margin: 15mm; }
+      @page { margin: 10mm 12mm; size: A4 landscape; }
+      table { page-break-inside: auto; }
+      tr { page-break-inside: avoid; page-break-after: auto; }
+      thead { display: table-header-group; }
+      tfoot { display: table-footer-group; }
     }
     table { width: 100%; border-collapse: collapse; }
-    th { background: #1e293b; color: #fff; padding: 9px 10px; font-size: 11px; text-align: left; font-weight: 600; }
-    tr:hover { background: #f0f9ff !important; }
+    th {
+      background: #1e293b !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color: #fff;
+      padding: 9px 10px;
+      font-size: 11px;
+      text-align: left;
+      font-weight: 600;
+    }
+    tr { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    td { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
   </style>
 </head>
 <body>
