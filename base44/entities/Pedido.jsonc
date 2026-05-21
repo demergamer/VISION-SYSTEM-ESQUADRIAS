@@ -232,5 +232,49 @@
     "cliente_nome",
     "numero_pedido",
     "valor_pedido"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "$or": [
+        {
+          "created_by": "{{user.email}}"
+        },
+        {
+          "data.cliente_codigo": "{{user.data.codigo}}"
+        },
+        {
+          "data.representante_codigo": "{{user.data.codigo}}"
+        },
+        {
+          "data.motorista_codigo": "{{user.data.codigo}}"
+        },
+        {
+          "data.motorista_codigo": "{{user.id}}"
+        },
+        {
+          "data.usuario_confirmou_entrega": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
 }
