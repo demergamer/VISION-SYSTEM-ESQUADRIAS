@@ -24,9 +24,14 @@ const CATEGORIAS = [
   { value: 'logistica', label: '🚛 Logística' },
   { value: 'administrativas', label: '🏢 Administrativas' },
   { value: 'impostos', label: '⚖️ Impostos' },
-  { value: 'folha', label: '👷 Folha' },
+  { value: 'custo_producao', label: '👷 Custo de Produção' },
   { value: 'vale', label: '🎟️ Vale' },
   { value: 'comissoes', label: '💰 Comissões' },
+  { value: 'aluguel', label: '🏠 Aluguel' },
+  { value: 'ferramentaria', label: '🔧 Ferramentaria' },
+  { value: 'despesas', label: '📂 Despesas' },
+  { value: 'gas', label: '🔥 Gás' },
+  { value: 'produtos_quimicos', label: '🧪 Produtos Químicos' },
 ];
 
 async function gerarProximoSequencial(empresaCodigo) {
