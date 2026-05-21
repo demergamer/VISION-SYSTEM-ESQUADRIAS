@@ -171,9 +171,14 @@
         "logistica",
         "administrativas",
         "impostos",
-        "folha",
+        "custo_producao",
         "vale",
-        "comissoes"
+        "comissoes",
+        "aluguel",
+        "ferramentaria",
+        "despesas",
+        "gas",
+        "produtos_quimicos"
       ],
       "description": "Categoria financeira"
     },
