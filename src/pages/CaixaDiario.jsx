@@ -286,31 +286,35 @@ export default function CaixaDiario() {
 
   // ── Mutation: Baixar Vale ───────────────────────────────────────────────
   const baixarValeMutation = useMutation({
-    mutationFn: async ({ valorGasto, diferenca, dataDevolucao, anexosBaixa }) => {
+    mutationFn: async ({ tipoBaixa, valorAjuste, dataDevolucao, anexosBaixa }) => {
       const vale = valeSelecionado;
-      let tipoOperacao = 'ticket_baixa_exata';
-      let novoSaldo = saldoAtual;
 
-      if (diferenca > 0) {
-        tipoOperacao = 'ticket_troco';
-        novoSaldo = saldoAtual + diferenca;
-      } else if (diferenca < 0) {
-        tipoOperacao = 'ticket_reembolso';
-        novoSaldo = saldoAtual - Math.abs(diferenca);
-      }
+      // Mapeia tipo de baixa → tipo de operação e impacto no saldo
+      const tipoOperacaoMap = {
+        troco:     'ticket_troco',
+        sem_troco: 'ticket_baixa_exata',
+        estorno:   'ticket_reembolso',
+      };
+      const tipoOperacao = tipoOperacaoMap[tipoBaixa];
 
-      const descricao = diferenca > 0
-        ? `Troco do vale #${vale.ticket_id} (${vale.funcionario}) — gastou ${formatCurrency(valorGasto)} de ${formatCurrency(vale.valor)}`
-        : diferenca < 0
-        ? `Reembolso do vale #${vale.ticket_id} (${vale.funcionario}) — gastou ${formatCurrency(valorGasto)} de ${formatCurrency(vale.valor)}`
-        : `Baixa exata do vale #${vale.ticket_id} (${vale.funcionario})`;
+      const novoSaldo =
+        tipoBaixa === 'troco'    ? saldoAtual + valorAjuste :
+        tipoBaixa === 'estorno'  ? saldoAtual - valorAjuste :
+        saldoAtual; // sem_troco: sem alteração
 
-      // 1. Cria movimentação de caixa APENAS se houver diferença
+      const descricaoMap = {
+        troco:     `Troco do vale #${vale.ticket_id} (${vale.funcionario}) — ${formatCurrency(valorAjuste)} devolvidos ao caixa`,
+        sem_troco: `Baixa s/ troco do vale #${vale.ticket_id} (${vale.funcionario}) — valor exato`,
+        estorno:   `Estorno do vale #${vale.ticket_id} (${vale.funcionario}) — ${formatCurrency(valorAjuste)} reembolsados`,
+      };
+      const descricao = descricaoMap[tipoBaixa];
+
+      // 1. Cria movimentação de caixa apenas quando há impacto financeiro
       let movId = null;
-      if (diferenca !== 0) {
+      if (tipoBaixa !== 'sem_troco') {
         const mov = await base44.entities.CaixaDiario.create({
           tipo_operacao: tipoOperacao,
-          valor: Math.abs(diferenca),
+          valor: valorAjuste,
           saldo_anterior: saldoAtual,
           saldo_atual: novoSaldo,
           descricao,
@@ -325,9 +329,9 @@ export default function CaixaDiario() {
       // 2. Atualiza o Vale para 'baixado'
       await base44.entities.Vale.update(vale.id, {
         status: 'baixado',
-        valor_gasto: valorGasto,
-        diferenca,
-        tipo_diferenca: diferenca > 0 ? 'troco' : diferenca < 0 ? 'reembolso' : 'exato',
+        valor_gasto: tipoBaixa === 'sem_troco' ? vale.valor : vale.valor + (tipoBaixa === 'estorno' ? valorAjuste : -valorAjuste),
+        diferenca: tipoBaixa === 'troco' ? valorAjuste : tipoBaixa === 'estorno' ? -valorAjuste : 0,
+        tipo_diferenca: tipoBaixa === 'troco' ? 'troco' : tipoBaixa === 'estorno' ? 'reembolso' : 'exato',
         data_devolucao: dataDevolucao,
         anexos_baixa: anexosBaixa,
         movimentacao_baixa_id: movId,
