@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card } from "@/components/ui/card";
@@ -229,6 +229,31 @@ export default function Pagamentos() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+
+  // ── Auto-sync em tempo real via SDK Base44 ──────────────────────────────
+  useEffect(() => {
+    const unsubs = [
+      base44.entities.ContaPagar.subscribe(() => {
+        queryClient.invalidateQueries({ queryKey: ['contasPagar'] });
+      }),
+      base44.entities.Empresa.subscribe(() => {
+        queryClient.invalidateQueries({ queryKey: ['empresas'] });
+      }),
+      base44.entities.Fornecedor.subscribe(() => {
+        queryClient.invalidateQueries({ queryKey: ['fornecedores'] });
+      }),
+      base44.entities.Cheque.subscribe(() => {
+        queryClient.invalidateQueries({ queryKey: ['cheques'] });
+      }),
+      base44.entities.CaixaDiario.subscribe(() => {
+        queryClient.invalidateQueries({ queryKey: ['caixaDiario'] });
+      }),
+      base44.entities.BorderoPagamento.subscribe(() => {
+        queryClient.invalidateQueries({ queryKey: ['borderosPagamento'] });
+      }),
+    ];
+    return () => unsubs.forEach(u => u());
+  }, [queryClient]);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedConta, setSelectedConta] = useState(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
