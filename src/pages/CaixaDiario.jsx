@@ -86,8 +86,8 @@ function OperacaoCaixaForm({ movimentacoes, onSave, onCancel, isLoading }) {
     e.preventDefault();
     const valorNum = parseFloat(valor) || 0;
     if (valorNum <= 0) { toast.error('Valor deve ser maior que zero'); return; }
-    const novoSaldo = ['entrada', 'aporte'].includes(tipo) ? saldoAtual + valorNum : saldoAtual - valorNum;
-    onSave({ tipo_operacao: tipo, valor: valorNum, saldo_anterior: saldoAtual, saldo_atual: novoSaldo, descricao, data_operacao: new Date().toISOString() });
+    // Passa apenas os dados básicos — a mutation busca o saldo fresco do banco
+    onSave({ tipo_operacao: tipo, valor: valorNum, descricao });
   };
 
   return (
@@ -275,7 +275,22 @@ export default function CaixaDiario() {
 
   // ── Mutation: Registrar operação de caixa ───────────────────────────────
   const caixaMutation = useMutation({
-    mutationFn: (data) => base44.entities.CaixaDiario.create(data),
+    mutationFn: async ({ tipo_operacao, valor, descricao }) => {
+      // 🔄 REFRESH: busca saldo real do banco antes de salvar
+      const ultimaMov = await base44.entities.CaixaDiario.list('-created_date', 1);
+      const saldoFresh = ultimaMov[0]?.saldo_atual || 0;
+      const novoSaldo = ['entrada', 'aporte'].includes(tipo_operacao)
+        ? saldoFresh + valor
+        : saldoFresh - valor;
+      return base44.entities.CaixaDiario.create({
+        tipo_operacao,
+        valor,
+        saldo_anterior: saldoFresh,
+        saldo_atual: novoSaldo,
+        descricao,
+        data_operacao: new Date().toISOString(),
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['caixaDiario'] });
       setShowOperacaoModal(false);
