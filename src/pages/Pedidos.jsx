@@ -12,7 +12,7 @@ import {
   FileText, ArrowLeft, Filter, Upload, Truck, Clock, CheckCircle, XCircle,
   MoreHorizontal, LayoutGrid, List, MapPin, Calendar, Edit, Eye, RotateCcw,
   SlidersHorizontal, X as XIcon, Loader2, Factory, Split, UserPlus, AlertCircle,
-  RepeatIcon, UserCheck, GitMerge, UploadCloud
+  RepeatIcon, UserCheck, GitMerge, UploadCloud, Copy, Trash2
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Link } from "react-router-dom";
@@ -46,6 +46,7 @@ import DividirRotaModal from "@/components/pedidos/DividirRotaModal";
 import AdicionarRepresentanteModal from "@/components/pedidos/AdicionarRepresentanteModal";
 import MesclarNFModal from "@/components/pedidos/MesclarNFModal";
 import EntregarManualModal from "@/components/pedidos/EntregarManualModal";
+import PedidosDuplicadosModal from "@/components/pedidos/PedidosDuplicadosModal";
 import PermissionGuard from "@/components/PermissionGuard";
 import { usePermissions } from "@/components/hooks/usePermissions";
 import PaginacaoControles, { SeletorItensPorPagina } from "@/components/pedidos/PaginacaoControles";
@@ -275,6 +276,7 @@ export default function Pedidos() {
   const [pedidoParaCancelar, setPedidoParaCancelar] = useState(null);
   const [pedidoParaReverter, setPedidoParaReverter] = useState(null);
   const [showMesclarNFModal, setShowMesclarNFModal] = useState(false);
+  const [showDuplicadosModal, setShowDuplicadosModal] = useState(false);
   const debounceRef = useRef(null);
 
   // --- QUERIES ---
@@ -641,15 +643,41 @@ export default function Pedidos() {
     }
   };
   
+  const handleDeletarRotasVazias = async () => {
+    setIsProcessing(true);
+    try {
+      const todasRotas = await base44.entities.RotaImportada.list('-created_date', 1000);
+      const todosPedidos = await base44.entities.Pedido.list('-created_date', 5000);
+      const rotasVazias = todasRotas.filter(r => {
+        const pedidosDaRota = todosPedidos.filter(p => p.rota_importada_id === r.id);
+        return pedidosDaRota.length === 0;
+      });
+      if (rotasVazias.length === 0) {
+        toast.info('Nenhuma rota vazia encontrada.');
+        return;
+      }
+      await Promise.all(rotasVazias.map(r => base44.entities.RotaImportada.delete(r.id)));
+      await refetchRotas();
+      toast.success(`${rotasVazias.length} rota(s) vazia(s) excluída(s)!`);
+    } catch (e) {
+      toast.error('Erro ao deletar rotas: ' + e.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleRefresh = async () => {
     setRefreshingData(true);
     setRefreshMessage('Conectando ao banco de dados...');
     try {
-        const [latestPedidos, latestRotas, latestClientes] = await Promise.all([
-            base44.entities.Pedido.list('-created_date', 5000),
+        // Busca TODOS os pedidos independente de status para garantir varredura completa
+        const [abertos, parciais, latestRotas, latestClientes] = await Promise.all([
+            base44.entities.Pedido.filter({ status: 'aberto' }, '-created_date', 5000),
+            base44.entities.Pedido.filter({ status: 'parcial' }, '-created_date', 2000),
             base44.entities.RotaImportada.list(),
             base44.entities.Cliente.list()
         ]);
+        const latestPedidos = [...abertos, ...parciais].filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i);
 
         setRefreshMessage('Verificando clientes pendentes...');
         let clientesVinculados = 0;
@@ -686,7 +714,7 @@ export default function Pedidos() {
         let residuosLimpos = 0;
         const promisesResiduos = latestPedidos
             .filter(p => {
-                if (p.status !== 'aberto' && p.status !== 'parcial') return false;
+                if (p.status !== 'aberto' && p.status !== 'parcial') return false; // já filtrado, mas mantém segurança
                 
                 const valorTotal = parseFloat(p.valor_pedido) || 0;
                 const totalPago = parseFloat(p.total_pago) || 0;
@@ -715,9 +743,11 @@ export default function Pedidos() {
         await Promise.all(promisesResiduos);
 
         setRefreshMessage(`Sincronizando ${latestRotas.length} rotas de entrega...`);
+        // Para a sincronização de rotas, buscar TODOS os pedidos (incluindo pagos/cancelados)
+        const todosPedidosParaRotas = await base44.entities.Pedido.list('-created_date', 8000);
         let routesUpdatedCount = 0;
         const updatePromises = latestRotas.map(rota => {
-            const pedidosDaRota = latestPedidos.filter(p => p.rota_importada_id === rota.id);
+            const pedidosDaRota = todosPedidosParaRotas.filter(p => p.rota_importada_id === rota.id);
             const total = pedidosDaRota.length;
             const confirmados = pedidosDaRota.filter(p => p.confirmado_entrega).length;
             
@@ -1072,6 +1102,10 @@ export default function Pedidos() {
                             <DropdownMenuItem onClick={() => setShowRotaCobrancaModal(true)}><FileText className="w-4 h-4 mr-2" /> Rota de Cobrança</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setShowMesclarNFModal(true)}><GitMerge className="w-4 h-4 mr-2 text-blue-500" /> Mesclar NF</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => { setActiveTab('cancelados'); }}><XIcon className="w-4 h-4 mr-2" /> Ver Cancelados</DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuLabel className="text-xs text-slate-400 font-normal">Limpeza</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => setShowDuplicadosModal(true)}><Copy className="w-4 h-4 mr-2 text-orange-500" /> Pedidos Duplicados</DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleDeletarRotasVazias} disabled={isProcessing}><Trash2 className="w-4 h-4 mr-2 text-red-500" /> Deletar Rotas Vazias</DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuLabel className="text-xs text-slate-400 font-normal">Plataformas</DropdownMenuLabel>
                             <DropdownMenuItem asChild>
@@ -1560,6 +1594,14 @@ export default function Pedidos() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+
+          <ModalContainer open={showDuplicadosModal} onClose={() => setShowDuplicadosModal(false)} title="Pedidos com Números Duplicados" description="Identifique e exclua versões duplicadas do mesmo número de pedido" size="xl">
+            <PedidosDuplicadosModal
+              pedidos={pedidos}
+              onClose={() => setShowDuplicadosModal(false)}
+              onRefresh={() => { refetchPedidos(); }}
+            />
+          </ModalContainer>
 
           <ModalContainer open={showMesclarNFModal} onClose={() => setShowMesclarNFModal(false)} title="Mesclar NF" description="Selecione os pedidos do mesmo cliente para gerar uma NF consolidada" size="lg">
             <MesclarNFModal
