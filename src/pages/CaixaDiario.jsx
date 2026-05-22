@@ -228,6 +228,7 @@ export default function CaixaDiario() {
     return () => unsubs.forEach(u => u());
   }, [queryClient]);
 
+  // Saldo atual = sempre da movimentação mais recente do banco (sem filtro de data)
   const saldoAtual = movimentacoes[0]?.saldo_atual || 0;
 
   const valesAbertos = useMemo(() => vales.filter(v => v.status === 'aberto'), [vales]);
@@ -236,17 +237,32 @@ export default function CaixaDiario() {
   const historico = useMemo(() => {
     return movimentacoes.filter(m => {
       if (!m) return false;
-      // Aplica filtro de período se definido
-      const dataRef = m.data_operacao || m.created_date;
-      if (filtroDataInicio && dataRef) {
-        if (dataRef.slice(0, 10) < filtroDataInicio) return false;
-      }
-      if (filtroDataFim && dataRef) {
-        if (dataRef.slice(0, 10) > filtroDataFim) return false;
-      }
+      const dataRef = (m.data_operacao || m.created_date || '').slice(0, 10);
+      if (filtroDataInicio && dataRef < filtroDataInicio) return false;
+      if (filtroDataFim && dataRef > filtroDataFim) return false;
       return true;
     });
   }, [movimentacoes, filtroDataInicio, filtroDataFim]);
+
+  // Saldo inicial do período = saldo_anterior da movimentação mais antiga do histórico filtrado
+  // Saldo final do período = saldo_atual da movimentação mais recente do histórico filtrado
+  const temFiltro = !!(filtroDataInicio || filtroDataFim);
+  const saldoInicialPeriodo = useMemo(() => {
+    if (!temFiltro) {
+      // Sem filtro: saldo_anterior da movimentação mais antiga
+      const maisAntiga = movimentacoes[movimentacoes.length - 1];
+      return maisAntiga?.saldo_anterior ?? 0;
+    }
+    // Com filtro: saldo_anterior da movimentação mais antiga dentro do período
+    const maisAntiga = historico[historico.length - 1];
+    return maisAntiga?.saldo_anterior ?? 0;
+  }, [historico, movimentacoes, temFiltro]);
+
+  const saldoFinalPeriodo = useMemo(() => {
+    if (!temFiltro) return saldoAtual;
+    // Com filtro: saldo_atual da movimentação mais recente do período
+    return historico[0]?.saldo_atual ?? 0;
+  }, [historico, saldoAtual, temFiltro]);
 
   const handleEmitirExtrato = () => {
     imprimirExtrato({
@@ -463,9 +479,7 @@ export default function CaixaDiario() {
                 <div>
                   <p className="text-xs text-slate-500 font-semibold uppercase">Saldo Inicial</p>
                   <p className="text-xl font-bold text-slate-800">
-                    {historico.length > 0 && historico[historico.length - 1]?.saldo_anterior
-                      ? formatCurrency(historico[historico.length - 1].saldo_anterior)
-                      : '—'}
+                    {(historico.length > 0) ? formatCurrency(saldoInicialPeriodo) : '—'}
                   </p>
                 </div>
               </div>
@@ -516,7 +530,7 @@ export default function CaixaDiario() {
                 <div className="p-2 bg-blue-200 rounded-lg"><Wallet className="w-5 h-5 text-blue-700" /></div>
                 <div>
                   <p className="text-xs text-slate-500 font-semibold uppercase">Saldo Final</p>
-                  <p className="text-xl font-bold text-blue-900">{formatCurrency(saldoAtual)}</p>
+                  <p className="text-xl font-bold text-blue-900">{formatCurrency(saldoFinalPeriodo)}</p>
                 </div>
               </div>
             </Card>
