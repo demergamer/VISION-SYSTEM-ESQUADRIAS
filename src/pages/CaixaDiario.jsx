@@ -288,13 +288,16 @@ export default function CaixaDiario() {
   const criarValeMutation = useMutation({
     mutationFn: async (formData) => {
       const ticketId = await getProximoTicketId();
-      const novoSaldo = saldoAtual - formData.valor;
+      // 🔄 REFRESH: Buscar o saldo mais recente do banco antes de criar a operação
+      const ultimaMov = await base44.entities.CaixaDiario.list('-created_date', 1);
+      const saldoAtualFresh = ultimaMov[0]?.saldo_atual || 0;
+      const novoSaldo = saldoAtualFresh - formData.valor;
 
       // 1. Cria a movimentação de caixa (saída)
       const mov = await base44.entities.CaixaDiario.create({
         tipo_operacao: 'ticket_criado',
         valor: formData.valor,
-        saldo_anterior: saldoAtual,
+        saldo_anterior: saldoAtualFresh,
         saldo_atual: novoSaldo,
         descricao: `Vale #${ticketId} para ${formData.funcionario} - ${formData.motivo}`,
         ticket_funcionario: formData.funcionario,
@@ -330,6 +333,10 @@ export default function CaixaDiario() {
     mutationFn: async ({ tipoBaixa, valorAjuste, dataDevolucao, anexosBaixa }) => {
       const vale = valeSelecionado;
 
+      // 🔄 REFRESH: Buscar o saldo mais recente do banco antes de criar a operação
+      const ultimaMov = await base44.entities.CaixaDiario.list('-created_date', 1);
+      const saldoAtualFresh = ultimaMov[0]?.saldo_atual || 0;
+
       // Mapeia tipo de baixa → tipo de operação e impacto no saldo
       const tipoOperacaoMap = {
         troco:     'ticket_troco',
@@ -339,9 +346,9 @@ export default function CaixaDiario() {
       const tipoOperacao = tipoOperacaoMap[tipoBaixa];
 
       const novoSaldo =
-        tipoBaixa === 'troco'    ? saldoAtual + valorAjuste :
-        tipoBaixa === 'estorno'  ? saldoAtual - valorAjuste :
-        saldoAtual; // sem_troco: sem alteração
+        tipoBaixa === 'troco'    ? saldoAtualFresh + valorAjuste :
+        tipoBaixa === 'estorno'  ? saldoAtualFresh - valorAjuste :
+        saldoAtualFresh; // sem_troco: sem alteração
 
       const descricaoMap = {
         troco:     `Troco do vale #${vale.ticket_id} (${vale.funcionario}) — ${formatCurrency(valorAjuste)} devolvidos ao caixa`,
@@ -356,7 +363,7 @@ export default function CaixaDiario() {
         const mov = await base44.entities.CaixaDiario.create({
           tipo_operacao: tipoOperacao,
           valor: valorAjuste,
-          saldo_anterior: saldoAtual,
+          saldo_anterior: saldoAtualFresh,
           saldo_atual: novoSaldo,
           descricao,
           ticket_funcionario: vale.funcionario,
