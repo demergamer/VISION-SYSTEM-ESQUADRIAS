@@ -183,6 +183,31 @@
       ],
       "description": "Categoria financeira"
     },
+    "imposto_irrf": {
+      "type": "number",
+      "default": 0,
+      "description": "Valor de IRRF retido"
+    },
+    "imposto_icms": {
+      "type": "number",
+      "default": 0,
+      "description": "Valor de ICMS"
+    },
+    "imposto_iss": {
+      "type": "number",
+      "default": 0,
+      "description": "Valor de ISS"
+    },
+    "imposto_iptu": {
+      "type": "number",
+      "default": 0,
+      "description": "Valor de IPTU"
+    },
+    "imposto_outros": {
+      "type": "number",
+      "default": 0,
+      "description": "Outros impostos/reten\u00e7\u00f5es"
+    },
     "origem_id": {
       "type": "string",
       "description": "ID do registro de origem"

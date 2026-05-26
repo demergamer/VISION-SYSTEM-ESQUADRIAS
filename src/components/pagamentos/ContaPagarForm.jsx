@@ -86,10 +86,11 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
     status: conta?.status || 'pendente',
     categoria_financeira: conta?.categoria_financeira || 'aluminio',
     // Impostos
-    irrf: conta?.irrf || '',
-    icms: conta?.icms || '',
-    iss: conta?.iss || '',
-    outros_impostos: conta?.outros_impostos || '',
+    imposto_irrf: conta?.imposto_irrf || '',
+    imposto_icms: conta?.imposto_icms || '',
+    imposto_iss: conta?.imposto_iss || '',
+    imposto_iptu: conta?.imposto_iptu || '',
+    imposto_outros: conta?.imposto_outros || '',
   });
 
   const [parcelas, setParcelas] = useState([]);
@@ -198,11 +199,11 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
       ...form,
       tipo_lancamento: tipoLancamento,
       anexos_complexos: anexos,
-      // limpa campos de impostos se vazios
-      irrf: parseFloat(form.irrf) || 0,
-      icms: parseFloat(form.icms) || 0,
-      iss: parseFloat(form.iss) || 0,
-      outros_impostos: parseFloat(form.outros_impostos) || 0,
+      imposto_irrf: parseFloat(form.imposto_irrf) || 0,
+      imposto_icms: parseFloat(form.imposto_icms) || 0,
+      imposto_iss: parseFloat(form.imposto_iss) || 0,
+      imposto_iptu: parseFloat(form.imposto_iptu) || 0,
+      imposto_outros: parseFloat(form.imposto_outros) || 0,
     };
 
     if (tipoLancamento === 'unica') {
@@ -439,27 +440,32 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs">IRRF (R$)</Label>
-                  <Input type="number" step="0.01" min="0" value={form.irrf} onChange={e => setForm(f => ({ ...f, irrf: e.target.value }))} placeholder="0,00" className="h-8 text-xs" />
+                  <Input type="number" step="0.01" min="0" value={form.imposto_irrf} onChange={e => setForm(f => ({ ...f, imposto_irrf: e.target.value }))} placeholder="0,00" className="h-8 text-xs" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">ICMS (R$)</Label>
-                  <Input type="number" step="0.01" min="0" value={form.icms} onChange={e => setForm(f => ({ ...f, icms: e.target.value }))} placeholder="0,00" className="h-8 text-xs" />
+                  <Input type="number" step="0.01" min="0" value={form.imposto_icms} onChange={e => setForm(f => ({ ...f, imposto_icms: e.target.value }))} placeholder="0,00" className="h-8 text-xs" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">ISS (R$)</Label>
-                  <Input type="number" step="0.01" min="0" value={form.iss} onChange={e => setForm(f => ({ ...f, iss: e.target.value }))} placeholder="0,00" className="h-8 text-xs" />
+                  <Input type="number" step="0.01" min="0" value={form.imposto_iss} onChange={e => setForm(f => ({ ...f, imposto_iss: e.target.value }))} placeholder="0,00" className="h-8 text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">IPTU (R$)</Label>
+                  <Input type="number" step="0.01" min="0" value={form.imposto_iptu} onChange={e => setForm(f => ({ ...f, imposto_iptu: e.target.value }))} placeholder="0,00" className="h-8 text-xs" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Outros Impostos (R$)</Label>
-                  <Input type="number" step="0.01" min="0" value={form.outros_impostos} onChange={e => setForm(f => ({ ...f, outros_impostos: e.target.value }))} placeholder="0,00" className="h-8 text-xs" />
+                  <Input type="number" step="0.01" min="0" value={form.imposto_outros} onChange={e => setForm(f => ({ ...f, imposto_outros: e.target.value }))} placeholder="0,00" className="h-8 text-xs" />
                 </div>
               </div>
               <p className="text-xs text-slate-400 mt-2">
                 Total impostos: R$ {(
-                  (parseFloat(form.irrf) || 0) +
-                  (parseFloat(form.icms) || 0) +
-                  (parseFloat(form.iss) || 0) +
-                  (parseFloat(form.outros_impostos) || 0)
+                  (parseFloat(form.imposto_irrf) || 0) +
+                  (parseFloat(form.imposto_icms) || 0) +
+                  (parseFloat(form.imposto_iss) || 0) +
+                  (parseFloat(form.imposto_iptu) || 0) +
+                  (parseFloat(form.imposto_outros) || 0)
                 ).toFixed(2)}
               </p>
             </AccordionContent>

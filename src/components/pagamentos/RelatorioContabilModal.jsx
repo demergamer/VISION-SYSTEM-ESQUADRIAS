@@ -50,6 +50,7 @@ function extrairImpostos(c) {
   if (c.imposto_irrf > 0)   linhas.push(`IRRF: ${formatCurrency(c.imposto_irrf)}`);
   if (c.imposto_icms > 0)   linhas.push(`ICMS: ${formatCurrency(c.imposto_icms)}`);
   if (c.imposto_iss > 0)    linhas.push(`ISS: ${formatCurrency(c.imposto_iss)}`);
+  if (c.imposto_iptu > 0)   linhas.push(`IPTU: ${formatCurrency(c.imposto_iptu)}`);
   if (c.imposto_outros > 0) linhas.push(`Outros imp.: ${formatCurrency(c.imposto_outros)}`);
   // fallback: objeto tributacao ou impostos
   if (linhas.length === 0 && c.tributacao && typeof c.tributacao === 'object') {
