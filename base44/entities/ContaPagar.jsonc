@@ -178,7 +178,8 @@
         "ferramentaria",
         "despesas",
         "gas",
-        "produtos_quimicos"
+        "produtos_quimicos",
+        "telefone"
       ],
       "description": "Categoria financeira"
     },

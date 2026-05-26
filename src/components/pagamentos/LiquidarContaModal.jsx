@@ -195,7 +195,8 @@ export default function LiquidarContaModal({ conta, saldoCaixa, cheques, onConfi
                           fp.tipo === 'pecas' ? '⚙️ Peças/Permuta' :
                           fp.tipo === 'pix' ? '🏦 PIX' :
                           fp.tipo === 'transferencia' ? '🏦 Transferência' :
-                          fp.tipo === 'credito' ? '💳 Cartão Crédito' : fp.tipo;
+                          fp.tipo === 'credito' ? '💳 Cartão Crédito' :
+                          fp.tipo === 'boleto' ? '🧾 Boleto' : fp.tipo;
           
           doc.text(`${idx + 1}. ${tipoLabel}: ${formatCurrency(fp.valor)}`, 20, y);
           if (fp.detalhes) {
@@ -602,6 +603,7 @@ export default function LiquidarContaModal({ conta, saldoCaixa, cheques, onConfi
                         <SelectItem value="pix">🏦 PIX</SelectItem>
                         <SelectItem value="transferencia">🏦 Transferência</SelectItem>
                         <SelectItem value="credito">💳 Cartão Crédito</SelectItem>
+                        <SelectItem value="boleto">🧾 Boleto</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -668,6 +670,17 @@ export default function LiquidarContaModal({ conta, saldoCaixa, cheques, onConfi
                       onChange={(e) => atualizarFormaPagamento(index, 'detalhes', e.target.value)}
                       placeholder="Ex: Troca por mercadoria do Pedido #12345"
                       rows={2}
+                    />
+                  </div>
+                )}
+
+                {fp.tipo === 'boleto' && (
+                  <div className="space-y-2">
+                    <Label>Código de Barras / Observação</Label>
+                    <Input
+                      value={fp.detalhes}
+                      onChange={(e) => atualizarFormaPagamento(index, 'detalhes', e.target.value)}
+                      placeholder="Ex: 34191.09008 01111.111115 00000.000000 0 00000000000000"
                     />
                   </div>
                 )}

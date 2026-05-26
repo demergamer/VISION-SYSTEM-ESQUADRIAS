@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Plus, X, Loader2, Save, Upload, CheckCircle, FileText, Hash, ChevronDown } from "lucide-react";
+import { Plus, X, Loader2, Save, Upload, CheckCircle, FileText, Hash, ChevronDown, Search } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format, addMonths, parseISO } from "date-fns";
@@ -32,6 +32,7 @@ const CATEGORIAS = [
   { value: 'despesas', label: '📂 Despesas' },
   { value: 'gas', label: '🔥 Gás' },
   { value: 'produtos_quimicos', label: '🧪 Produtos Químicos' },
+  { value: 'telefone', label: '📞 Telefone' },
 ];
 
 async function gerarProximoSequencial(empresaCodigo) {
@@ -54,6 +55,9 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
   const [showAddFornecedor, setShowAddFornecedor] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [fornecedorSearch, setFornecedorSearch] = useState('');
+  const [showFornecedorDropdown, setShowFornecedorDropdown] = useState(false);
+  const fornecedorRef = useRef(null);
 
   // Recorrência: 'inativo' | 'ativo'
   const [recorrencia, setRecorrencia] = useState(() => {
@@ -134,7 +138,26 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
   const handleFornecedorChange = (codigo) => {
     const forn = fornecedores.find(f => f.codigo === codigo);
     setForm(f => ({ ...f, fornecedor_codigo: codigo, fornecedor_nome: forn?.nome || '' }));
+    setFornecedorSearch('');
+    setShowFornecedorDropdown(false);
   };
+
+  const fornecedoresFiltrados = fornecedores.filter(f => {
+    if (!fornecedorSearch) return true;
+    const term = fornecedorSearch.toLowerCase();
+    return f.nome?.toLowerCase().includes(term) || f.codigo?.toLowerCase().includes(term) || f.cnpj?.toLowerCase().includes(term);
+  });
+
+  // Fechar dropdown ao clicar fora
+  useEffect(() => {
+    const handler = (e) => {
+      if (fornecedorRef.current && !fornecedorRef.current.contains(e.target)) {
+        setShowFornecedorDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const uploadFiles = async (files) => {
     if (!files?.length) return;
@@ -264,15 +287,58 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
           </div>
 
           {/* Fornecedor */}
-          <div className="space-y-1">
+          <div className="space-y-1" ref={fornecedorRef}>
             <Label className="text-xs">Fornecedor *</Label>
             <div className="flex gap-2">
-              <Select value={form.fornecedor_codigo} onValueChange={handleFornecedorChange}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>
-                  {fornecedores.map(f => <SelectItem key={f.codigo} value={f.codigo}>{f.codigo} - {f.nome}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <div className="relative flex-1">
+                {/* Campo de busca / seleção */}
+                <div
+                  className="h-9 flex items-center gap-2 px-3 border rounded-md bg-white cursor-text text-sm"
+                  onClick={() => { setShowFornecedorDropdown(true); }}
+                >
+                  <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  {showFornecedorDropdown ? (
+                    <input
+                      autoFocus
+                      value={fornecedorSearch}
+                      onChange={e => setFornecedorSearch(e.target.value)}
+                      placeholder="Pesquisar por nome, código ou CNPJ..."
+                      className="flex-1 outline-none bg-transparent text-sm"
+                    />
+                  ) : (
+                    <span className={form.fornecedor_nome ? 'text-slate-800 flex-1 truncate' : 'text-slate-400 flex-1'}>
+                      {form.fornecedor_nome ? `${form.fornecedor_codigo} - ${form.fornecedor_nome}` : 'Selecione o fornecedor'}
+                    </span>
+                  )}
+                  {form.fornecedor_codigo && !showFornecedorDropdown && (
+                    <button type="button" onClick={e => { e.stopPropagation(); setForm(f => ({ ...f, fornecedor_codigo: '', fornecedor_nome: '' })); }} className="text-slate-400 hover:text-red-500">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Dropdown de resultados */}
+                {showFornecedorDropdown && (
+                  <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-xl max-h-56 overflow-y-auto">
+                    {fornecedoresFiltrados.length === 0 ? (
+                      <div className="px-4 py-3 text-sm text-slate-400 text-center">Nenhum fornecedor encontrado</div>
+                    ) : (
+                      fornecedoresFiltrados.map(f => (
+                        <button
+                          key={f.codigo}
+                          type="button"
+                          onClick={() => handleFornecedorChange(f.codigo)}
+                          className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors border-b last:border-0"
+                        >
+                          <span className="font-mono text-xs text-slate-400 mr-2">{f.codigo}</span>
+                          <span className="text-sm font-medium text-slate-800">{f.nome}</span>
+                          {f.cnpj && <span className="text-xs text-slate-400 ml-2">{f.cnpj}</span>}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
               <Button type="button" size="icon" variant="outline" onClick={() => setShowAddFornecedor(true)} className="shrink-0 h-9 w-9" title="Cadastrar novo fornecedor"><Plus className="w-4 h-4" /></Button>
             </div>
           </div>
