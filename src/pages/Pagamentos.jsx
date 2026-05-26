@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Search, Plus, Edit, Trash2, Building2, DollarSign, Clock, CheckCircle,
   Calendar, TrendingUp, Archive, AlertCircle, FileText, Settings, RefreshCw,
-  Loader2, X, ChevronDown
+  Loader2, X, ChevronDown, BarChart3
 } from "lucide-react";
 import { toast } from "sonner";
 import ModalContainer from "@/components/modals/ModalContainer";
@@ -23,6 +23,7 @@ import ContaPagarForm from '@/components/pagamentos/ContaPagarForm';
 import EmpresasModal from '@/components/pagamentos/EmpresasModal';
 import LiquidarContasMassaModal from '@/components/pagamentos/LiquidarContasMassaModal';
 import BorderoPagamentoModal from "@/components/pagamentos/BorderoPagamentoModal";
+import RelatorioContabilModal from "@/components/pagamentos/RelatorioContabilModal";
 
 const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
@@ -262,6 +263,7 @@ export default function Pagamentos() {
   const [showLiquidarMassaModal, setShowLiquidarMassaModal] = useState(false);
   const [showBorderoModal, setShowBorderoModal] = useState(false);
   const [selectedBorderoId, setSelectedBorderoId] = useState(null);
+  const [showRelatorioModal, setShowRelatorioModal] = useState(false);
 
   const { data: contas = [], isLoading } = useQuery({
     queryKey: ['contasPagar'],
@@ -349,6 +351,10 @@ export default function Pagamentos() {
               <p className="text-slate-500 mt-1">Contas a pagar por empresa</p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => setShowRelatorioModal(true)} className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50">
+                <BarChart3 className="w-4 h-4" />
+                Relatório Contábil
+              </Button>
               <Button variant="outline" onClick={() => setShowEmpresasModal(true)} className="gap-2">
                 <Settings className="w-4 h-4" />
                 Empresas
@@ -486,6 +492,13 @@ export default function Pagamentos() {
           {showBorderoModal && selectedBorderoId && (
             <BorderoPagamentoModal borderoId={selectedBorderoId} onClose={() => { setShowBorderoModal(false); setSelectedBorderoId(null); }} />
           )}
+
+          <RelatorioContabilModal
+            open={showRelatorioModal}
+            onClose={() => setShowRelatorioModal(false)}
+            empresas={empresasAtivas}
+            contasTodas={contas}
+          />
 
           <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
             <AlertDialogContent>
