@@ -412,6 +412,7 @@ export default function LiquidarContasMassaModal({ open, onClose, empresas, cont
                             <SelectItem value="cheque_terceiro">🎫 Cheque Terceiro</SelectItem>
                             <SelectItem value="credito">💳 Cartão Crédito</SelectItem>
                             <SelectItem value="pecas">⚙️ Peças/Permuta</SelectItem>
+                            <SelectItem value="boleto">🧾 Boleto</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -453,6 +454,13 @@ export default function LiquidarContasMassaModal({ open, onClose, empresas, cont
                       <div className="space-y-0.5">
                         <Label className="text-xs">Números dos Pedidos Abatidos</Label>
                         <Input value={fp.detalhes} onChange={e => atualizarFP(idx, 'detalhes', e.target.value)} placeholder="Ex: 70.230, 70.231, 70.232" className="h-8 text-xs" />
+                      </div>
+                    )}
+
+                    {fp.tipo === 'boleto' && (
+                      <div className="space-y-0.5">
+                        <Label className="text-xs">Código de Barras / Observação</Label>
+                        <Input value={fp.detalhes} onChange={e => atualizarFP(idx, 'detalhes', e.target.value)} placeholder="Ex: 34191.09008 01111.111115..." className="h-8 text-xs" />
                       </div>
                     )}
 
