@@ -24,20 +24,38 @@ const CATEGORIA_LABELS = {
   gas: 'Gás', produtos_quimicos: 'Prod. Químicos', telefone: 'Telefone',
 };
 
+const TIPO_PGTO_LABELS = {
+  pix: 'PIX', transferencia: 'Transf.', dinheiro: 'Dinheiro',
+  cheque_terceiro: 'Cheque', credito: 'Cartão', pecas: 'Peças',
+  boleto: 'Boleto', debito: 'Débito',
+};
+
 function extrairFormaPagamento(conta) {
-  if (conta.formas_pagamento?.length > 0) {
-    return conta.formas_pagamento.map(fp => {
-      const tipo = fp.tipo === 'pix' ? 'PIX' :
-        fp.tipo === 'transferencia' ? 'Transf.' :
-        fp.tipo === 'dinheiro' ? 'Dinheiro' :
-        fp.tipo === 'cheque_terceiro' ? 'Cheque' :
-        fp.tipo === 'credito' ? 'Cartão' :
-        fp.tipo === 'pecas' ? 'Peças' :
-        fp.tipo === 'boleto' ? 'Boleto' : fp.tipo;
-      return tipo;
-    }).join(', ');
+  const arr = conta.formas_pagamento;
+  if (!Array.isArray(arr) || arr.length === 0) return '—';
+  return arr.map(fp => {
+    // Array de strings simples
+    if (typeof fp === 'string') return TIPO_PGTO_LABELS[fp] || fp;
+    // Array de objetos com .tipo
+    if (fp && fp.tipo) return TIPO_PGTO_LABELS[fp.tipo] || fp.tipo;
+    // Array de objetos com .forma ou .nome
+    if (fp && fp.forma) return fp.forma;
+    if (fp && fp.nome) return fp.nome;
+    return String(fp);
+  }).filter(Boolean).join(', ') || '—';
+}
+
+function extrairImpostos(c) {
+  const linhas = [];
+  if (c.imposto_irrf > 0)   linhas.push(`IRRF: ${formatCurrency(c.imposto_irrf)}`);
+  if (c.imposto_icms > 0)   linhas.push(`ICMS: ${formatCurrency(c.imposto_icms)}`);
+  if (c.imposto_iss > 0)    linhas.push(`ISS: ${formatCurrency(c.imposto_iss)}`);
+  if (c.imposto_outros > 0) linhas.push(`Outros imp.: ${formatCurrency(c.imposto_outros)}`);
+  // fallback: objeto tributacao ou impostos
+  if (linhas.length === 0 && c.tributacao && typeof c.tributacao === 'object') {
+    Object.entries(c.tributacao).forEach(([k, v]) => { if (v > 0) linhas.push(`${k.toUpperCase()}: ${formatCurrency(v)}`); });
   }
-  return '—';
+  return linhas;
 }
 
 function gerarHTMLRelatorio(empresa, contasSelecionadas, dataInicio, dataFim) {
@@ -56,18 +74,31 @@ function gerarHTMLRelatorio(empresa, contasSelecionadas, dataInicio, dataFim) {
     const forma = extrairFormaPagamento(c);
     const categoria = CATEGORIA_LABELS[c.categoria_financeira] || c.categoria_financeira || '—';
     const rowBg = i % 2 === 0 ? '#ffffff' : '#f8fafc';
+
+    // Descrição + impostos concatenados
+    const impostos = extrairImpostos(c);
+    const descricaoHTML = impostos.length > 0
+      ? `${c.descricao || '—'}<div style="margin-top:3px;padding-top:3px;border-top:1px dashed #cbd5e1;color:#64748b;font-size:9px">${impostos.join(' | ')}</div>`
+      : (c.descricao || '—');
+
+    // Coluna de datas agrupadas
+    const datasHTML = `
+      <div style="white-space:nowrap;font-size:9.5px;line-height:1.6">
+        <div><span style="font-weight:600;color:#475569">Lanç:</span> ${dataLanc}</div>
+        <div><span style="font-weight:600;color:#475569">Venc:</span> ${dataVenc}</div>
+        <div><span style="font-weight:600;color:#16a34a">Pgto:</span> <strong>${dataPgto}</strong></div>
+      </div>`;
+
     return `
       <tr style="background:${rowBg}">
-        <td style="padding:5px 6px;font-size:10px;font-family:monospace;color:#1e40af;font-weight:600;white-space:nowrap">${c.numero_lancamento || '—'}</td>
-        <td style="padding:5px 6px;font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.fornecedor_nome || '—'}</td>
-        <td style="padding:5px 6px;font-size:10px;white-space:nowrap">${categoria}</td>
-        <td style="padding:5px 6px;font-size:10px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.descricao || '—'}</td>
-        <td style="padding:5px 6px;font-size:10px;text-align:center;white-space:nowrap">${dataLanc}</td>
-        <td style="padding:5px 6px;font-size:10px;text-align:center;white-space:nowrap">${dataVenc}</td>
-        <td style="padding:5px 6px;font-size:10px;text-align:center;white-space:nowrap;font-weight:600;color:#16a34a">${dataPgto}</td>
-        <td style="padding:5px 6px;font-size:10px;text-align:center;white-space:nowrap">${forma}</td>
-        <td style="padding:5px 6px;font-size:10px;text-align:right;white-space:nowrap">${formatCurrency(valorOriginal)}</td>
-        <td style="padding:5px 6px;font-size:10px;text-align:right;white-space:nowrap;font-weight:700;color:${juros > 0 ? '#dc2626' : desconto > 0 ? '#16a34a' : '#1e293b'}">${formatCurrency(valorPago)}</td>
+        <td style="padding:5px 6px;font-size:10px;font-family:monospace;color:#1e40af;font-weight:600;white-space:nowrap;width:9%">${c.numero_lancamento || '—'}</td>
+        <td style="padding:5px 6px;font-size:10px;width:14%;overflow:hidden">${c.fornecedor_nome || '—'}</td>
+        <td style="padding:5px 6px;font-size:10px;white-space:nowrap;width:9%">${categoria}</td>
+        <td style="padding:5px 6px;font-size:10px;width:35%">${descricaoHTML}</td>
+        <td style="padding:5px 6px;width:11%;vertical-align:top">${datasHTML}</td>
+        <td style="padding:5px 6px;font-size:10px;text-align:center;white-space:nowrap;width:9%">${forma}</td>
+        <td style="padding:5px 6px;font-size:10px;text-align:right;white-space:nowrap;width:7%">${formatCurrency(valorOriginal)}</td>
+        <td style="padding:5px 6px;font-size:10px;text-align:right;white-space:nowrap;font-weight:700;width:6%;color:${juros > 0 ? '#dc2626' : desconto > 0 ? '#16a34a' : '#1e293b'}">${formatCurrency(valorPago)}</td>
       </tr>
     `;
   }).join('');
@@ -124,22 +155,20 @@ function gerarHTMLRelatorio(empresa, contasSelecionadas, dataInicio, dataFim) {
   <table>
     <thead>
       <tr>
-        <th>Lançamento</th>
-        <th>Fornecedor</th>
-        <th>Categoria</th>
-        <th>Descrição (Extrato)</th>
-        <th class="center">Dt. Lançamento</th>
-        <th class="center">Dt. Vencimento</th>
-        <th class="center">Dt. Pagamento</th>
-        <th class="center">Forma Pgto</th>
-        <th class="right">Vlr. Original</th>
-        <th class="right">Vlr. Pago</th>
+        <th style="width:9%">Lançamento</th>
+        <th style="width:14%">Fornecedor</th>
+        <th style="width:9%">Categoria</th>
+        <th style="width:35%">Descrição (Extrato)</th>
+        <th class="center" style="width:11%">Datas</th>
+        <th class="center" style="width:9%">Forma Pgto</th>
+        <th class="right" style="width:7%">Vlr. Original</th>
+        <th class="right" style="width:6%">Vlr. Pago</th>
       </tr>
     </thead>
     <tbody>
       ${linhas}
       <tr class="footer-row">
-        <td colspan="8" style="text-align:right;padding-right:12px">TOTAIS</td>
+        <td colspan="6" style="text-align:right;padding-right:12px">TOTAIS</td>
         <td class="right">${formatCurrency(totalOriginal)}</td>
         <td class="right">${formatCurrency(totalPago)}</td>
       </tr>
