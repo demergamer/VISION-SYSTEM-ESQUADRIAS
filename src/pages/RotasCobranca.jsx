@@ -3,9 +3,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Eye, FileText, MessageSquare, CheckCircle2 } from 'lucide-react';
+import { Plus, Eye, FileText, MessageSquare, CheckCircle2, MapPin } from 'lucide-react';
 import CriarRotaModal from '@/components/cobranca/CriarRotaModal';
 import DetalhesRotaModal from '@/components/cobranca/DetalhesRotaModal';
+import GeocodificarClientesModal from '@/components/cobranca/GeocodificarClientesModal';
 
 const formatCurrency = (val) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
@@ -20,6 +21,7 @@ export default function RotasCobranca() {
   const queryClient = useQueryClient();
   const [showCriar, setShowCriar] = useState(false);
   const [rotaSelecionada, setRotaSelecionada] = useState(null);
+  const [showGeocodificar, setShowGeocodificar] = useState(false);
 
   const { data: rotas = [], isLoading } = useQuery({
     queryKey: ['rotas_cobranca'],
@@ -34,9 +36,14 @@ export default function RotasCobranca() {
           <h1 className="text-2xl font-extrabold text-slate-800">🛵 Rota do Gil</h1>
           <p className="text-sm text-slate-500 mt-0.5">Gerenciador de Rotas de Cobrança</p>
         </div>
-        <Button onClick={() => setShowCriar(true)} className="bg-blue-600 hover:bg-blue-700 gap-2">
-          <Plus className="w-4 h-4" /> Nova Rota
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowGeocodificar(true)} className="gap-2 text-slate-600">
+            <MapPin className="w-4 h-4" /> Geocodificar Clientes
+          </Button>
+          <Button onClick={() => setShowCriar(true)} className="bg-blue-600 hover:bg-blue-700 gap-2">
+            <Plus className="w-4 h-4" /> Nova Rota
+          </Button>
+        </div>
       </div>
 
       {/* Stats rápidas */}
@@ -100,6 +107,10 @@ export default function RotasCobranca() {
           </div>
         )}
       </div>
+
+      {showGeocodificar && (
+        <GeocodificarClientesModal onClose={() => setShowGeocodificar(false)} />
+      )}
 
       {showCriar && (
         <CriarRotaModal

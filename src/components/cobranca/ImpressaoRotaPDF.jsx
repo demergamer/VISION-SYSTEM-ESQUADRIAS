@@ -20,20 +20,48 @@ function getDiaSemana(dateStr) {
 const ORIGEM_LAT = -23.7108;
 const ORIGEM_LNG = -46.4117;
 
-function calcDistancia(lat, lng) {
-  if (!lat || !lng) return 99999;
+function haversine(lat1, lng1, lat2, lng2) {
   const R = 6371;
-  const dLat = (lat - ORIGEM_LAT) * Math.PI / 180;
-  const dLng = (lng - ORIGEM_LNG) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(ORIGEM_LAT * Math.PI / 180) * Math.cos(lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// Algoritmo do Vizinho Mais Próximo (Nearest Neighbor TSP)
+// Garante uma rota coerente entre todos os pontos, não apenas relação com origem
+function ordenarRotaTSP(clientes) {
+  const comCoordenada = clientes.filter(c => c.cliente_latitude && c.cliente_longitude);
+  const semCoordenada = clientes.filter(c => !c.cliente_latitude || !c.cliente_longitude);
+
+  if (comCoordenada.length === 0) return clientes;
+
+  const visitados = new Set();
+  const rota = [];
+  let latAtual = ORIGEM_LAT;
+  let lngAtual = ORIGEM_LNG;
+
+  while (visitados.size < comCoordenada.length) {
+    let menorDist = Infinity;
+    let proximo = null;
+    for (const c of comCoordenada) {
+      if (visitados.has(c.cliente_codigo || c.cliente_nome)) continue;
+      const dist = haversine(latAtual, lngAtual, c.cliente_latitude, c.cliente_longitude);
+      if (dist < menorDist) { menorDist = dist; proximo = c; }
+    }
+    if (!proximo) break;
+    visitados.add(proximo.cliente_codigo || proximo.cliente_nome);
+    rota.push(proximo);
+    latAtual = proximo.cliente_latitude;
+    lngAtual = proximo.cliente_longitude;
+  }
+
+  return [...rota, ...semCoordenada];
+}
+
 function gerarHTML(rota) {
-  // Ordenar clientes do mais próximo ao mais distante
-  const clientes = [...(rota.dados_cobranca || [])].sort((a, b) =>
-    calcDistancia(a.cliente_latitude, a.cliente_longitude) - calcDistancia(b.cliente_latitude, b.cliente_longitude)
-  );
+  // Ordenar usando TSP do vizinho mais próximo para rota coerente
+  const clientes = ordenarRotaTSP([...(rota.dados_cobranca || [])]);
   const totalGeral = rota.valor_total_rota || clientes.reduce((s, c) => s + (c.total_cliente || 0), 0);
   const dataFormatada = formatDate(rota.data_rota);
   const diaSemana = getDiaSemana(rota.data_rota);
