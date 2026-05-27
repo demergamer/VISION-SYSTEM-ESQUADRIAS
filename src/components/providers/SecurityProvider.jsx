@@ -132,19 +132,15 @@ export function SecurityProvider({ children }) {
     );
   }
 
-  // 4. Tela bloqueada (PIN) → apenas o LockScreen, sem children
-  if (isLocked) {
-    return (
-      <SecurityContext.Provider value={{ isLocked, showOnboarding, unlock, lockScreen, completeOnboarding }}>
-        <LockScreen onUnlock={unlock} />
-      </SecurityContext.Provider>
-    );
-  }
-
-  // 5. Sessão válida → renderiza a aplicação normalmente
+  // 4. Sessão bloqueada OU válida → children SEMPRE no DOM (preserva estado/página/modais).
+  //    LockScreen sobrepõe via z-index quando necessário.
   return (
     <SecurityContext.Provider value={{ isLocked, showOnboarding, unlock, lockScreen, completeOnboarding }}>
-      {children}
+      {/* Children ficam montados mas inacessíveis enquanto bloqueado */}
+      <div style={isLocked ? { pointerEvents: 'none', userSelect: 'none', filter: 'blur(4px)', transition: 'filter 0.2s' } : {}}>
+        {children}
+      </div>
+      {isLocked && <LockScreen onUnlock={unlock} />}
     </SecurityContext.Provider>
   );
 }
