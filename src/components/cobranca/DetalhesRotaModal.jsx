@@ -436,7 +436,20 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
     setLocalClientes(dadosAtualizados);
     setAlterado(true);
     setShowCorrigirErros(false);
-    toast.success(`✅ ${corrigidos} cliente(s) sincronizado(s)! Maps agora aparece. Salve as alterações.`);
+    
+    // Salva automaticamente após corrigir
+    setSalvando(true);
+    try {
+      await base44.entities.RotaCobranca.update(rota.id, { dados_cobranca: dadosAtualizados });
+      const atualizado = await base44.entities.RotaCobranca.filter({ id: rota.id });
+      if (atualizado?.[0]) onUpdated(atualizado[0]);
+      setAlterado(false);
+      toast.success(`✅ ${corrigidos} cliente(s) sincronizado(s) e salvos!`);
+    } catch (e) {
+      toast.error(`Erro ao salvar: ${e.message}`);
+    } finally {
+      setSalvando(false);
+    }
   };
 
   // ── Concluir rota ─────────────────────────────────────────────────────────

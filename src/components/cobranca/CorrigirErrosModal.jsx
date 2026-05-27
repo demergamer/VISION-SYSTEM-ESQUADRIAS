@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { AlertCircle, MapPin, Phone } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { AlertCircle, MapPin, Phone, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import ModalContainer from '@/components/modals/ModalContainer';
@@ -12,6 +12,20 @@ const formatCurrency = (val) =>
 
 export default function CorrigirErrosModal({ rota, clientesDB = [], onClose, onCorrigir }) {
   const [clienteSelecionado, setClienteSelecionado] = useState(null);
+  const [representantes, setRepresentantes] = useState([]);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    const fetchRepresentantes = async () => {
+      try {
+        const reps = await base44.entities.Representante.list('nome', 500);
+        setRepresentantes(reps || []);
+      } catch (e) {
+        console.error('Erro ao buscar representantes:', e);
+      }
+    };
+    fetchRepresentantes();
+  }, []);
 
   // Identifica quais dados faltam para cada cliente
   const clientesComErros = useMemo(() => {
@@ -58,14 +72,15 @@ export default function CorrigirErrosModal({ rota, clientesDB = [], onClose, onC
         description={`Atualize os dados de ${clienteSelecionado.cliente_nome}`}
         size="lg"
       >
-        <div className="max-h-[70vh] overflow-y-auto">
-          <ClienteForm
-            cliente={clienteSelecionado.clienteDB}
-            onSave={handleSalvarCliente}
-            onCancel={() => setClienteSelecionado(null)}
-            isClientMode={false}
-          />
-        </div>
+        <ClienteForm
+          cliente={clienteSelecionado.clienteDB}
+          representantes={representantes}
+          allClientes={clientesDB}
+          todosClientes={clientesDB}
+          onSave={handleSalvarCliente}
+          onCancel={() => setClienteSelecionado(null)}
+          isClientMode={false}
+        />
       </ModalContainer>
     );
   }
@@ -140,8 +155,22 @@ export default function CorrigirErrosModal({ rota, clientesDB = [], onClose, onC
         <Button variant="outline" onClick={onClose} className="flex-1">
           Fechar
         </Button>
-        <Button onClick={onClose} className="flex-1 bg-green-600 hover:bg-green-700">
-          Salvar e Gerar Links
+        <Button 
+          onClick={async () => {
+            setIsSaving(true);
+            try {
+              await onCorrigir();
+              onClose();
+            } catch (e) {
+              toast.error('Erro ao salvar');
+            } finally {
+              setIsSaving(false);
+            }
+          }} 
+          disabled={isSaving}
+          className="flex-1 bg-green-600 hover:bg-green-700"
+        >
+          {isSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Salvando...</> : 'Salvar e Gerar Links'}
         </Button>
       </div>
     </ModalContainer>
