@@ -1,4 +1,6 @@
 import { useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { base44 } from '@/api/base44Client';
 
 const formatCurrency = (val) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
@@ -59,9 +61,21 @@ function ordenarRotaTSP(clientes) {
   return [...rota, ...semCoordenada];
 }
 
-function gerarHTML(rota) {
+function gerarHTML(rota, clientesDB = []) {
+  // Enriquecer dados com cidades do banco de dados se faltarem
+  const enriquecidos = (rota.dados_cobranca || []).map(item => {
+    if (!item.cliente_cidade) {
+      const clienteDB = clientesDB.find(c => c.codigo === item.cliente_codigo);
+      return {
+        ...item,
+        cliente_cidade: clienteDB?.cidade || item.cliente_cidade || '',
+      };
+    }
+    return item;
+  });
+
   // Ordenar usando TSP do vizinho mais próximo para rota coerente
-  const clientes = ordenarRotaTSP([...(rota.dados_cobranca || [])]);
+  const clientes = ordenarRotaTSP([...enriquecidos]);
   const totalGeral = rota.valor_total_rota || clientes.reduce((s, c) => s + (c.total_cliente || 0), 0);
   const dataFormatada = formatDate(rota.data_rota);
   const diaSemana = getDiaSemana(rota.data_rota);
@@ -181,15 +195,22 @@ function gerarHTML(rota) {
 }
 
 export default function ImpressaoRotaPDF({ rota, onClose }) {
+  const { data: clientesDB = [] } = useQuery({
+    queryKey: ['clientes_pdf_impressao'],
+    queryFn: () => base44.entities.Cliente.list('codigo', 500),
+  });
+
   useEffect(() => {
-    const html = gerarHTML(rota);
-    const janela = window.open('', '_blank');
-    if (janela) {
-      janela.document.write(html);
-      janela.document.close();
+    if (clientesDB.length > 0) {
+      const html = gerarHTML(rota, clientesDB);
+      const janela = window.open('', '_blank');
+      if (janela) {
+        janela.document.write(html);
+        janela.document.close();
+      }
+      onClose();
     }
-    onClose();
-  }, []);
+  }, [clientesDB, rota, onClose]);
 
   return null;
 }

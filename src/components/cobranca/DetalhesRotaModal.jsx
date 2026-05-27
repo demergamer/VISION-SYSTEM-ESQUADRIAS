@@ -399,19 +399,37 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
     finally { setReenvioLoading(prev => ({ ...prev, [falha.cliente_nome]: false })); }
   };
 
-  // ── Corrigir erros da rota ───────────────────────────────────────────────
-  const handleCorrigirErros = async () => {
+  // ── Corrigir erros da rota (local) ──────────────────────────────────────
+  const handleCorrigirErros = () => {
     setCorrigindo(true);
     try {
-      const res = await base44.functions.invoke('corrigirErrosRota', { rota_id: rota.id });
-      if (res.data?.success) {
-        onUpdated(res.data.rota);
-        setLocalClientes(res.data.rota.dados_cobranca || []);
-        setAlterado(false);
-        toast.success(`✅ ${res.data.corrigidos} cliente(s) corrigido(s)! Maps gerado.`);
-      } else {
-        toast.error(res.data?.error || 'Erro ao corrigir');
-      }
+      let corrigidos = 0;
+      const dadosAtualizados = (localClientes || []).map(item => {
+        const clienteDB = clientesDB.find(c => c.codigo === item.cliente_codigo);
+        if (clienteDB) {
+          const endereco = [clienteDB.endereco, clienteDB.numero]
+            .filter(Boolean).join(', ');
+          const endereco_completo = [endereco, clienteDB.cidade, clienteDB.estado || 'SP']
+            .filter(Boolean).join(', ') + ', Brasil';
+          
+          const atualizado = {
+            ...item,
+            cliente_cidade: clienteDB.cidade || item.cliente_cidade || '',
+            cliente_estado: clienteDB.estado || 'SP',
+            cliente_endereco_completo: endereco_completo,
+            cliente_latitude: clienteDB.latitude || item.cliente_latitude || null,
+            cliente_longitude: clienteDB.longitude || item.cliente_longitude || null,
+          };
+          
+          if (atualizado.cliente_cidade !== item.cliente_cidade) corrigidos++;
+          return atualizado;
+        }
+        return item;
+      });
+      
+      setLocalClientes(dadosAtualizados);
+      setAlterado(true);
+      toast.success(`✅ ${corrigidos} cliente(s) sincronizado(s)! Maps agora aparece. Salve as alterações.`);
     } catch (e) {
       toast.error(`Erro: ${e.message}`);
     } finally {
