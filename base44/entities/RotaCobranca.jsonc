@@ -31,6 +31,47 @@
           "cliente_telefone": {
             "type": "string"
           },
+          "contatos_nomeados": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "telefone": {
+                  "type": "string"
+                },
+                "nome": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "todos_telefones": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "representante_codigo": {
+            "type": "string"
+          },
+          "representante_nome": {
+            "type": "string"
+          },
+          "cliente_cidade": {
+            "type": "string"
+          },
+          "cliente_estado": {
+            "type": "string"
+          },
+          "cliente_endereco_completo": {
+            "type": "string"
+          },
+          "cliente_latitude": {
+            "type": "number"
+          },
+          "cliente_longitude": {
+            "type": "number"
+          },
           "pedidos": {
             "type": "array",
             "items": {
@@ -44,6 +85,23 @@
                 },
                 "data_entrega": {
                   "type": "string"
+                },
+                "tipo_item": {
+                  "type": "string",
+                  "enum": [
+                    "pedido",
+                    "cheque"
+                  ]
+                },
+                "pedido_id": {
+                  "type": "string"
+                },
+                "status_original": {
+                  "type": "string"
+                },
+                "em_transito": {
+                  "type": "boolean",
+                  "default": false
                 }
               }
             }
@@ -57,6 +115,11 @@
           },
           "whatsapp_erro": {
             "type": "string"
+          },
+          "recusado": {
+            "type": "boolean",
+            "default": false,
+            "description": "Marca se o cliente recusou a cobran\u00e7a"
           }
         }
       }
