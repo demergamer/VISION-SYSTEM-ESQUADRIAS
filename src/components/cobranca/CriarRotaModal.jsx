@@ -18,20 +18,19 @@ const STATUS_LABELS = {
   aguardando: { label: 'Em Trânsito', color: 'bg-amber-100 text-amber-700' },
   pago: { label: 'Liquidado', color: 'bg-slate-100 text-slate-500' },
   cancelado: { label: 'Cancelado', color: 'bg-slate-100 text-slate-400' },
-  devolvido: { label: 'Devolvido', color: 'bg-red-100 text-red-700' },
 };
 
 export default function CriarRotaModal({ onClose, onSaved }) {
   const [dataRota, setDataRota] = useState('');
   const [cobradorNome, setCobradorNome] = useState('Gil');
   const [busca, setBusca] = useState('');
-  const [selecionados, setSelecionados] = useState({}); // { key: [item_id, ...] }
-  const [ticarTransito, setTicarTransito] = useState({});
+  const [selecionados, setSelecionados] = useState({}); // { key: [pedido_id, ...] }
+  const [ticarTransito, setTicarTransito] = useState({}); // { pedido_id: bool }
   const [salvando, setSalvando] = useState(false);
   const [expandirBusca, setExpandirBusca] = useState(false);
 
-  // ── Pedidos ativos ──────────────────────────────────────────────────────
-  const { data: pedidosAtivos = [], isLoading: loadingPedidos } = useQuery({
+  // Pedidos ativos (aberto, parcial, aguardando/trânsito)
+  const { data: pedidosAtivos = [], isLoading } = useQuery({
     queryKey: ['pedidos_cobranca_ativos'],
     queryFn: () => base44.entities.Pedido.filter(
       { status: { '$in': ['aberto', 'parcial', 'aguardando'] } }, 'cliente_nome', 1000
@@ -39,14 +38,7 @@ export default function CriarRotaModal({ onClose, onSaved }) {
     refetchInterval: 30000,
   });
 
-  // ── Cheques devolvidos ──────────────────────────────────────────────────
-  const { data: chequesDevolvidos = [], isLoading: loadingCheques } = useQuery({
-    queryKey: ['cheques_devolvidos_rota'],
-    queryFn: () => base44.entities.Cheque.filter({ status: 'devolvido' }, 'cliente_nome', 500),
-    refetchInterval: 30000,
-  });
-
-  // ── Pedidos extras (busca expandida) ───────────────────────────────────
+  // Pedidos pagos/cancelados — carregados apenas se busca expandida
   const { data: pedidosExtras = [], isLoading: loadingExtras } = useQuery({
     queryKey: ['pedidos_cobranca_extras', busca],
     enabled: expandirBusca && busca.length >= 3,
@@ -63,95 +55,94 @@ export default function CriarRotaModal({ onClose, onSaved }) {
     queryFn: () => base44.entities.Representante.list('nome', 200),
   });
 
-  // ── Pool de itens unificados (pedidos + cheques) ───────────────────────
-  const todosItens = useMemo(() => {
+  // Pool de pedidos a exibir
+  const todosPedidos = useMemo(() => {
     const mapa = new Map();
-    pedidosAtivos.forEach(p => mapa.set(`pedido_${p.id}`, { ...p, _tipo: 'pedido' }));
+    pedidosAtivos.forEach(p => mapa.set(p.id, p));
     if (expandirBusca) {
       pedidosExtras
         .filter(p => !['aberto', 'parcial', 'aguardando'].includes(p.status))
-        .forEach(p => mapa.set(`pedido_${p.id}`, { ...p, _tipo: 'pedido' }));
+        .forEach(p => mapa.set(p.id, p));
     }
-    chequesDevolvidos.forEach(c => mapa.set(`cheque_${c.id}`, { ...c, _tipo: 'cheque' }));
     return Array.from(mapa.values());
-  }, [pedidosAtivos, pedidosExtras, chequesDevolvidos, expandirBusca]);
+  }, [pedidosAtivos, pedidosExtras, expandirBusca]);
 
-  // ── Agrupamento por cliente ────────────────────────────────────────────
+  // Agrupar por cliente
   const porCliente = useMemo(() => {
+    const base = todosPedidos;
     const acc = {};
-    todosItens.forEach(item => {
-      const key = item.cliente_codigo || item.cliente_nome || item.emitente || 'sem_cliente';
+    base.forEach(p => {
+      const key = p.cliente_codigo || p.cliente_nome;
       if (!acc[key]) {
-        const cli = clientes.find(c => c.codigo === (item.cliente_codigo)) || {};
-        const rep = representantes.find(r => r.codigo === item.representante_codigo) || {};
+        const cli = clientes.find(c => c.codigo === p.cliente_codigo) || {};
+        const rep = representantes.find(r => r.codigo === p.representante_codigo) || {};
         acc[key] = {
-          cliente_codigo: item.cliente_codigo || '',
-          cliente_nome: item.cliente_nome || item.emitente || key,
-          representante_codigo: item.representante_codigo || '',
-          representante_nome: item.representante_nome || rep.nome || '',
+          cliente_codigo: p.cliente_codigo,
+          cliente_nome: p.cliente_nome,
+          representante_nome: p.representante_nome || rep.nome || '',
           cliente_telefone: cli.telefone_1 || cli.contatos_lista?.[0]?.telefone || '',
-          todos_telefones: [cli.telefone_1, cli.telefone_2, cli.telefone_3,
-            ...(cli.contatos_lista || []).map(c => c.telefone)].filter(Boolean),
+          todos_telefones: [
+            cli.telefone_1,
+            cli.telefone_2,
+            cli.telefone_3,
+            ...(cli.contatos_lista || []).map(c => c.telefone),
+          ].filter(Boolean),
           contatos_nomeados: [
             cli.telefone_1 ? { telefone: cli.telefone_1, nome: cli.responsavel_1 || '' } : null,
             cli.telefone_2 ? { telefone: cli.telefone_2, nome: cli.responsavel_2 || '' } : null,
             cli.telefone_3 ? { telefone: cli.telefone_3, nome: cli.responsavel_3 || '' } : null,
             ...(cli.contatos_lista || []).map(c => ({ telefone: c.telefone, nome: c.nome_responsavel || '' })),
           ].filter(Boolean),
-          cliente_cidade: cli.cidade || item.cliente_regiao || '',
+          cliente_cidade: cli.cidade || p.cliente_regiao || '',
           cliente_estado: cli.estado || '',
           cliente_endereco: cli.endereco || '',
           cliente_numero: cli.numero || '',
           cliente_latitude: cli.latitude || null,
           cliente_longitude: cli.longitude || null,
-          itens: [],
+          pedidos: [],
         };
       }
-      acc[key].itens.push(item);
+      acc[key].pedidos.push(p);
     });
     return acc;
-  }, [todosItens, clientes, representantes]);
+  }, [todosPedidos, clientes, representantes]);
 
-  // ── Filtro de busca ────────────────────────────────────────────────────
+  // Filtro inteligente único
   const clientesLista = useMemo(() => {
     if (!busca) return Object.values(porCliente);
     const lower = busca.toLowerCase();
     return Object.values(porCliente).filter(c =>
       c.cliente_nome?.toLowerCase().includes(lower) ||
       c.representante_nome?.toLowerCase().includes(lower) ||
-      c.itens.some(i => (i.numero_pedido || i.numero_cheque)?.toString().includes(lower))
+      c.pedidos.some(p => p.numero_pedido?.toString().includes(lower))
     );
   }, [porCliente, busca]);
 
+  // Auto-expandir busca se não encontrou nada nos ativos
   const handleBusca = (val) => {
     setBusca(val);
     if (val.length >= 3 && clientesLista.length === 0) setExpandirBusca(true);
     else if (!val) setExpandirBusca(false);
   };
 
-  const isPedidoDisabled = (item) =>
-    item._tipo === 'pedido' && (item.status === 'pago' || item.status === 'cancelado');
-  const isPedidoTransito = (item) =>
-    item._tipo === 'pedido' && item.status === 'aguardando' && !item.confirmado_entrega;
+  const isPedidoDisabled = (p) => p.status === 'pago' || p.status === 'cancelado';
+  const isPedidoTransito = (p) => p.status === 'aguardando' && !p.confirmado_entrega;
 
-  const getItemKey = (item) => `${item._tipo}_${item.id}`;
-
-  const toggleItem = (clienteKey, item) => {
-    if (isPedidoDisabled(item)) return;
-    const k = getItemKey(item);
+  const togglePedido = (key, pedido) => {
+    if (isPedidoDisabled(pedido)) return;
     setSelecionados(prev => {
-      const atual = prev[clienteKey] || [];
-      const jatem = atual.includes(k);
-      return { ...prev, [clienteKey]: jatem ? atual.filter(id => id !== k) : [...atual, k] };
+      const atual = prev[key] || [];
+      const jatem = atual.includes(pedido.id);
+      return { ...prev, [key]: jatem ? atual.filter(id => id !== pedido.id) : [...atual, pedido.id] };
     });
   };
 
-  const toggleCliente = (clienteKey) => {
-    const cli = porCliente[clienteKey];
-    const habilitados = cli.itens.filter(i => !isPedidoDisabled(i)).map(getItemKey);
-    const atual = selecionados[clienteKey] || [];
+  const toggleCliente = (key) => {
+    const cliente = porCliente[key];
+    const habilitados = cliente.pedidos.filter(p => !isPedidoDisabled(p)).map(p => p.id);
+    const atual = selecionados[key] || [];
     const todosMarcados = habilitados.every(id => atual.includes(id));
-    setSelecionados(prev => ({ ...prev, [clienteKey]: todosMarcados ? [] : habilitados }));
+    setSelecionados(prev => ({ ...prev, [key]: todosMarcados ? [] : habilitados }));
   };
 
   const handleSalvar = async () => {
@@ -161,39 +152,30 @@ export default function CriarRotaModal({ onClose, onSaved }) {
     const pedidosParaTicar = [];
 
     for (const [key, clienteDados] of Object.entries(porCliente)) {
-      const sel = selecionados[key] || [];
-      if (!sel.length) continue;
+      const pedidosSel = selecionados[key] || [];
+      if (!pedidosSel.length) continue;
 
-      const itensSel = clienteDados.itens.filter(i => sel.includes(getItemKey(i)));
+      const pedidosSnap = clienteDados.pedidos
+        .filter(p => pedidosSel.includes(p.id))
+        .map(p => {
+          if (isPedidoTransito(p) && ticarTransito[p.id]) pedidosParaTicar.push(p.id);
+          return {
+            numero_pedido: p.numero_pedido,
+            valor_saldo: p.saldo_restante ?? p.valor_pedido ?? 0,
+            data_entrega: p.data_entrega || '',
+            pedido_id: p.id,
+            status_original: p.status,
+            em_transito: isPedidoTransito(p),
+          };
+        });
 
-      const pedidosSnap = itensSel.map(item => {
-        if (item._tipo === 'pedido' && isPedidoTransito(item) && ticarTransito[item.id]) {
-          pedidosParaTicar.push(item.id);
-        }
-        return {
-          tipo_item: item._tipo,
-          numero_pedido: item._tipo === 'cheque' ? (item.numero_cheque || item.id) : item.numero_pedido,
-          valor_saldo: item._tipo === 'cheque'
-            ? ((item.valor || 0) - (item.valor_pago || 0))
-            : (item.saldo_restante ?? item.valor_pedido ?? 0),
-          data_entrega: item.data_entrega || item.data_vencimento || '',
-          pedido_id: item.id,
-          status_original: item.status,
-          em_transito: isPedidoTransito(item),
-        };
-      });
-
-      const endParts = [clienteDados.cliente_endereco, clienteDados.cliente_numero,
-        clienteDados.cliente_cidade, clienteDados.cliente_estado].filter(Boolean);
-      const enderecoCompleto = endParts.length >= 2
-        ? endParts.join(', ') + ', Brasil'
-        : clienteDados.cliente_cidade ? `${clienteDados.cliente_cidade}, ${clienteDados.cliente_estado || 'SP'}, Brasil` : null;
+      // Monta endereço completo para link de navegação
+      const endParts = [clienteDados.cliente_endereco, clienteDados.cliente_numero, clienteDados.cliente_cidade, clienteDados.cliente_estado].filter(Boolean);
+      const enderecoCompleto = endParts.length >= 2 ? endParts.join(', ') + ', Brasil' : (clienteDados.cliente_cidade ? `${clienteDados.cliente_cidade}, ${clienteDados.cliente_estado || 'SP'}, Brasil` : null);
 
       dadosCobranca.push({
         cliente_codigo: clienteDados.cliente_codigo,
         cliente_nome: clienteDados.cliente_nome,
-        representante_codigo: clienteDados.representante_codigo,
-        representante_nome: clienteDados.representante_nome,
         cliente_telefone: clienteDados.cliente_telefone,
         todos_telefones: clienteDados.todos_telefones,
         contatos_nomeados: clienteDados.contatos_nomeados || [],
@@ -206,11 +188,10 @@ export default function CriarRotaModal({ onClose, onSaved }) {
         total_cliente: pedidosSnap.reduce((s, p) => s + p.valor_saldo, 0),
         whatsapp_enviado: false,
         whatsapp_erro: null,
-        recusado: false,
       });
     }
 
-    if (!dadosCobranca.length) { toast.error('Selecione pelo menos um item'); return; }
+    if (!dadosCobranca.length) { toast.error('Selecione pelo menos um pedido'); return; }
 
     setSalvando(true);
     try {
@@ -233,12 +214,14 @@ export default function CriarRotaModal({ onClose, onSaved }) {
         whatsapp_disparado: false,
       });
 
+      // Ticar pedidos em trânsito
       if (pedidosParaTicar.length) {
         const now = new Date().toISOString();
         const user = await base44.auth.me();
         await Promise.all(pedidosParaTicar.map(id =>
           base44.entities.Pedido.update(id, {
-            confirmado_entrega: true, data_entregue: now,
+            confirmado_entrega: true,
+            data_entregue: now,
             usuario_confirmou_entrega: user?.email || '',
           })
         ));
@@ -246,23 +229,24 @@ export default function CriarRotaModal({ onClose, onSaved }) {
       }
 
       onSaved(nova);
-    } finally { setSalvando(false); }
+    } finally {
+      setSalvando(false);
+    }
   };
 
   const totalSelecionado = useMemo(() =>
     Object.entries(selecionados).reduce((total, [key, ids]) => {
       const cli = porCliente[key];
       if (!cli || !ids.length) return total;
-      return total + cli.itens.filter(i => ids.includes(getItemKey(i))).reduce((s, i) =>
-        s + (i._tipo === 'cheque' ? (i.valor || 0) - (i.valor_pago || 0) : (i.saldo_restante ?? i.valor_pedido ?? 0)), 0);
+      return total + cli.pedidos.filter(p => ids.includes(p.id)).reduce((s, p) => s + (p.saldo_restante ?? p.valor_pedido ?? 0), 0);
     }, 0),
   [selecionados, porCliente]);
 
   const qtdClientes = Object.values(selecionados).filter(ids => ids.length > 0).length;
-  const isLoading = loadingPedidos || loadingCheques;
 
   return (
-    <ModalContainer open={true} onClose={onClose} title="🛵 Nova Rota de Cobrança" description="Selecione pedidos e cheques devolvidos" size="xl">
+    <ModalContainer open={true} onClose={onClose} title="🛵 Nova Rota de Cobrança" description="Selecione os pedidos que o Gil vai cobrar" size="xl">
+      {/* Campos de data e cobrador */}
       <div className="flex gap-3 flex-wrap mb-4">
         <div className="flex-1 min-w-[160px]">
           <label className="text-xs font-semibold text-slate-600 mb-1 block">Data da Rota *</label>
@@ -274,10 +258,11 @@ export default function CriarRotaModal({ onClose, onSaved }) {
         </div>
       </div>
 
+      {/* Barra de busca inteligente única */}
       <div className="relative mb-3">
         <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
         <Input
-          placeholder="Buscar por cliente, representante, nº pedido ou nº cheque..."
+          placeholder="Buscar por cliente, representante ou nº pedido..."
           className="pl-9"
           value={busca}
           onChange={e => handleBusca(e.target.value)}
@@ -289,22 +274,23 @@ export default function CriarRotaModal({ onClose, onSaved }) {
         )}
       </div>
 
+      {/* Lista */}
       <div className="flex-1 overflow-y-auto space-y-2 max-h-[50vh]">
         {isLoading ? (
-          <div className="text-center py-8 text-slate-400">Carregando...</div>
+          <div className="text-center py-8 text-slate-400">Carregando pedidos...</div>
         ) : clientesLista.length === 0 ? (
           <div className="text-center py-8 text-slate-400">
             <p>Nenhum resultado.</p>
             {!expandirBusca && busca.length >= 3 && (
               <button onClick={() => setExpandirBusca(true)} className="mt-2 text-blue-600 underline text-sm">
-                Buscar em todos os pedidos
+                Buscar em todos os pedidos (incluindo liquidados)
               </button>
             )}
           </div>
         ) : clientesLista.map(cliente => {
           const key = cliente.cliente_codigo || cliente.cliente_nome;
           const sel = selecionados[key] || [];
-          const habilitados = cliente.itens.filter(i => !isPedidoDisabled(i)).map(getItemKey);
+          const habilitados = cliente.pedidos.filter(p => !isPedidoDisabled(p)).map(p => p.id);
           const todosMarcados = habilitados.length > 0 && habilitados.every(id => sel.includes(id));
           const algumMarcado = habilitados.some(id => sel.includes(id));
 
@@ -314,61 +300,48 @@ export default function CriarRotaModal({ onClose, onSaved }) {
                 <Checkbox checked={todosMarcados} data-state={algumMarcado && !todosMarcados ? 'indeterminate' : undefined} />
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-slate-800 text-sm truncate">{cliente.cliente_nome}</p>
-                  <p className="text-xs text-slate-400">
-                    {cliente.representante_nome && `Rep: ${cliente.representante_nome} · `}
-                    {cliente.itens.filter(i => i._tipo === 'pedido').length > 0 && `${cliente.itens.filter(i => i._tipo === 'pedido').length} pedido(s)`}
-                    {cliente.itens.filter(i => i._tipo === 'cheque').length > 0 && ` · ${cliente.itens.filter(i => i._tipo === 'cheque').length} cheque(s) dev.`}
-                  </p>
+                  <p className="text-xs text-slate-400">{cliente.representante_nome && `Rep: ${cliente.representante_nome} · `}{cliente.pedidos.length} pedido(s)</p>
                 </div>
                 <span className="text-sm font-bold text-blue-700 shrink-0">
-                  {formatCurrency(cliente.itens.filter(i => !isPedidoDisabled(i)).reduce((s, i) =>
-                    s + (i._tipo === 'cheque' ? (i.valor || 0) - (i.valor_pago || 0) : (i.saldo_restante ?? i.valor_pedido ?? 0)), 0))}
+                  {formatCurrency(cliente.pedidos.filter(p => !isPedidoDisabled(p)).reduce((s, p) => s + (p.saldo_restante ?? p.valor_pedido ?? 0), 0))}
                 </span>
               </div>
-
               <div className="divide-y divide-slate-50">
-                {cliente.itens.map(item => {
-                  const disabled = isPedidoDisabled(item);
-                  const emTransito = isPedidoTransito(item);
-                  const saldo = item._tipo === 'cheque'
-                    ? (item.valor || 0) - (item.valor_pago || 0)
-                    : (item.saldo_restante ?? item.valor_pedido ?? 0);
-                  const isSelecionado = sel.includes(getItemKey(item));
-                  const statusInfo = STATUS_LABELS[item.status] || { label: item.status, color: 'bg-slate-100 text-slate-500' };
+                {cliente.pedidos.map(pedido => {
+                  const disabled = isPedidoDisabled(pedido);
+                  const emTransito = isPedidoTransito(pedido);
+                  const saldo = pedido.saldo_restante ?? pedido.valor_pedido ?? 0;
+                  const statusInfo = STATUS_LABELS[pedido.status] || { label: pedido.status, color: 'bg-slate-100 text-slate-500' };
+                  const isSelecionado = sel.includes(pedido.id);
 
                   return (
                     <div
-                      key={getItemKey(item)}
+                      key={pedido.id}
                       className={`flex items-center gap-3 px-4 py-2.5 ${disabled ? 'opacity-50 cursor-not-allowed bg-slate-50' : 'cursor-pointer hover:bg-slate-50'} ${emTransito && !disabled ? 'bg-green-50/50' : ''}`}
-                      onClick={() => toggleItem(key, item)}
+                      onClick={() => togglePedido(key, pedido)}
                     >
                       <Checkbox checked={isSelecionado} disabled={disabled} />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          {item._tipo === 'cheque' ? (
-                            <Badge className="bg-red-100 text-red-800 text-[10px]">[CHEQUE DEV #{item.numero_cheque}]</Badge>
-                          ) : (
-                            <Badge className="bg-blue-100 text-blue-800 text-[10px]">[PEDIDO #{item.numero_pedido}]</Badge>
-                          )}
+                          <p className={`text-sm font-medium ${disabled ? 'text-slate-400' : emTransito ? 'text-green-700' : 'text-slate-700'}`}>
+                            #{pedido.numero_pedido}
+                          </p>
                           <Badge className={`text-[10px] h-4 px-1.5 ${statusInfo.color}`}>{statusInfo.label}</Badge>
                           {emTransito && <Truck className="w-3 h-3 text-green-600" />}
-                          {item._tipo === 'cheque' && item.banco && (
-                            <span className="text-xs text-slate-400">{item.banco}</span>
-                          )}
                         </div>
+                        {pedido.data_entrega && <p className="text-xs text-slate-400">Entrega: {pedido.data_entrega}</p>}
+                        {/* Opção ticar pedido em trânsito */}
                         {emTransito && !disabled && isSelecionado && (
                           <div
                             className="flex items-center gap-1.5 mt-1"
-                            onClick={e => { e.stopPropagation(); setTicarTransito(prev => ({ ...prev, [item.id]: !prev[item.id] })); }}
+                            onClick={e => { e.stopPropagation(); setTicarTransito(prev => ({ ...prev, [pedido.id]: !prev[pedido.id] })); }}
                           >
-                            <Checkbox checked={!!ticarTransito[item.id]} className="h-3 w-3" />
+                            <Checkbox checked={!!ticarTransito[pedido.id]} className="h-3 w-3" />
                             <span className="text-[11px] text-green-700 font-medium">Ticar pedido (baixa logística)</span>
                           </div>
                         )}
                       </div>
-                      <span className={`text-sm font-semibold shrink-0 ${disabled ? 'text-slate-400' : 'text-slate-800'}`}>
-                        {formatCurrency(saldo)}
-                      </span>
+                      <span className={`text-sm font-semibold shrink-0 ${disabled ? 'text-slate-400' : 'text-slate-800'}`}>{formatCurrency(saldo)}</span>
                     </div>
                   );
                 })}
@@ -378,6 +351,7 @@ export default function CriarRotaModal({ onClose, onSaved }) {
         })}
       </div>
 
+      {/* Footer */}
       <div className="flex items-center justify-between gap-3 mt-4 pt-4 border-t border-slate-100">
         <div className="text-sm text-slate-600">
           <span className="font-bold text-slate-800">{qtdClientes}</span> cliente(s) ·{' '}
