@@ -5,7 +5,26 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import ModalContainer from '@/components/modals/ModalContainer';
 import { MapPin, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
-import { geocodeEndereco } from '@/api/geocodemaps';
+// Geocodificação direta via Nominatim (OpenStreetMap) — sem chave de API
+async function geocodificarNominatim(endereco) {
+  const params = new URLSearchParams({
+    q: endereco,
+    format: 'json',
+    countrycodes: 'br',
+    limit: '1',
+    addressdetails: '0',
+  });
+  const url = `https://nominatim.openstreetmap.org/search?${params}`;
+  const res = await fetch(url, {
+    headers: { 'Accept-Language': 'pt-BR', 'User-Agent': 'JCVisionSystem/1.0' }
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  if (data.length > 0) {
+    return { latitude: parseFloat(data[0].lat), longitude: parseFloat(data[0].lon) };
+  }
+  return null;
+}
 import { toast } from 'sonner';
 
 export default function GeocodificarClientesModal({ onClose }) {
@@ -43,19 +62,25 @@ export default function GeocodificarClientesModal({ onClose }) {
       const c = clientes[i];
       setProgresso(Math.round(((i + 1) / clientes.length) * 100));
 
-      // Monta endereço
-      const partes = [c.endereco, c.numero, c.bairro, c.cidade, c.estado].filter(Boolean);
-      if (partes.length < 2 || !c.cidade) {
-        addLog(`⚠️ ${c.nome} — endereço incompleto, pulando`, 'aviso');
+      // Monta endereço — usa apenas rua + número + cidade + estado para maximizar acerto
+      if (!c.cidade) {
+        addLog(`⚠️ ${c.nome} — sem cidade cadastrada, pulando`, 'aviso');
         pulado++;
         setResultados({ ok, erro, pulado });
         continue;
       }
 
-      const enderecoCompleto = partes.join(', ') + ', Brasil';
+      // Tenta primeiro endereço completo, depois só cidade se falhar
+      const enderecoCompleto = [c.endereco, c.numero, c.cidade, c.estado].filter(Boolean).join(', ') + ', Brasil';
+      const enderecoFallback = [c.cidade, c.estado].filter(Boolean).join(', ') + ', Brasil';
 
       try {
-        const geo = await geocodeEndereco(enderecoCompleto);
+        let geo = await geocodificarNominatim(enderecoCompleto);
+        // Fallback: só cidade+estado se endereço completo falhar
+        if (!geo && enderecoCompleto !== enderecoFallback) {
+          await sleep(600);
+          geo = await geocodificarNominatim(enderecoFallback);
+        }
         if (geo?.latitude && geo?.longitude) {
           await base44.entities.Cliente.update(c.id, {
             latitude: geo.latitude,
@@ -64,7 +89,7 @@ export default function GeocodificarClientesModal({ onClose }) {
           addLog(`✅ ${c.nome} → (${geo.latitude.toFixed(4)}, ${geo.longitude.toFixed(4)})`, 'ok');
           ok++;
         } else {
-          addLog(`❌ ${c.nome} — sem resultado para "${enderecoCompleto}"`, 'erro');
+          addLog(`❌ ${c.nome} — sem resultado`, 'erro');
           erro++;
         }
       } catch (e) {
