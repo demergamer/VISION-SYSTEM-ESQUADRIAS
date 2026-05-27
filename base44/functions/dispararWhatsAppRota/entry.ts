@@ -1,3 +1,5 @@
+// Backend mantido para uso via automações/agendamentos
+// O disparo principal agora ocorre no frontend (DetalhesRotaModal) para feedback em tempo real
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 Deno.serve(async (req) => {
@@ -28,15 +30,27 @@ Deno.serve(async (req) => {
       return `${d}/${m}/${y}`;
     };
 
+    const limparNumero = (n) => {
+      if (!n) return '';
+      const digits = n.replace(/\D/g, '');
+      return digits.startsWith('55') ? digits : `55${digits}`;
+    };
+
+    const isValido = (n) => {
+      const d = n.replace(/\D/g, '');
+      return d.length >= 12 && d.length <= 15;
+    };
+
     const resultados = [];
     const dadosAtualizados = [...(rota.dados_cobranca || [])];
 
     for (let i = 0; i < dadosAtualizados.length; i++) {
       const cliente = dadosAtualizados[i];
-      const numero = (cliente.cliente_telefone || '').replace(/\D/g, '');
-      const numeroFormatado = numero.startsWith('55') ? numero : `55${numero}`;
+      const numeros = (cliente.todos_telefones?.length ? cliente.todos_telefones : [cliente.cliente_telefone])
+        .map(limparNumero)
+        .filter(n => n && isValido(n));
 
-      if (!numeroFormatado || numeroFormatado.length < 12) {
+      if (!numeros.length) {
         dadosAtualizados[i] = { ...cliente, whatsapp_enviado: false, whatsapp_erro: 'Número inválido' };
         resultados.push({ cliente: cliente.cliente_nome, status: 'erro', erro: 'Número inválido' });
         continue;
@@ -47,39 +61,43 @@ Deno.serve(async (req) => {
         .join('\n');
 
       const texto =
-        `Olá, *${cliente.cliente_nome}*! Tudo bem? 😊\n\n` +
-        `O nosso cobrador *Gil* estará na sua região no dia *${formatDate(rota.data_rota)}*. ` +
-        `Podemos confirmar a visita dele para o acerto das pendências?\n\n` +
-        `*📋 Resumo das Pendências:*\n${linhasPedidos || '▪ Consulte nosso financeiro'}\n\n` +
-        `*💰 Total a Acertar: ${formatCurrency(cliente.total_cliente)}*\n\n` +
-        `Aguardamos confirmação. Obrigado! 🙏\n_Equipe J&C Esquadrias_`;
+        `Olá, *${cliente.cliente_nome}*! 😊\n\n` +
+        `O nosso cobrador *Gil* estará na sua região no dia *${formatDate(rota.data_rota)}*.\n\n` +
+        `*📋 Pendências:*\n${linhasPedidos || '▪ Consulte nosso financeiro'}\n\n` +
+        `*💰 Total: ${formatCurrency(cliente.total_cliente)}*\n\n` +
+        `Aguardamos confirmação! 🙏\n_Equipe J&C Esquadrias_`;
 
-      try {
-        const resp = await fetch(`${EVOLUTION_API_URL}/message/sendText/${EVOLUTION_INSTANCE}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_API_KEY },
-          body: JSON.stringify({ number: numeroFormatado, text: texto }),
-        });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        dadosAtualizados[i] = { ...cliente, whatsapp_enviado: true, whatsapp_erro: null };
-        resultados.push({ cliente: cliente.cliente_nome, status: 'ok', numero: numeroFormatado });
-      } catch (e) {
-        dadosAtualizados[i] = { ...cliente, whatsapp_enviado: false, whatsapp_erro: e.message };
-        resultados.push({ cliente: cliente.cliente_nome, status: 'erro', erro: e.message });
+      let enviou = false;
+      for (const numero of numeros) {
+        try {
+          const resp = await fetch(`${EVOLUTION_API_URL}/message/sendText/${EVOLUTION_INSTANCE}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_API_KEY },
+            body: JSON.stringify({ number: numero, text: texto }),
+          });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          dadosAtualizados[i] = { ...cliente, whatsapp_enviado: true, whatsapp_erro: null };
+          resultados.push({ cliente: cliente.cliente_nome, status: 'ok', numero });
+          enviou = true;
+          break;
+        } catch (e) { /* tenta próximo */ }
       }
 
-      // Aguarda 1s entre envios para não sobrecarregar a API
-      await new Promise(r => setTimeout(r, 1000));
+      if (!enviou) {
+        dadosAtualizados[i] = { ...cliente, whatsapp_enviado: false, whatsapp_erro: 'Falha no envio' };
+        resultados.push({ cliente: cliente.cliente_nome, status: 'erro', erro: 'Falha em todos os números' });
+      }
+
+      await new Promise(r => setTimeout(r, 800));
     }
 
     await base44.asServiceRole.entities.RotaCobranca.update(rota_id, {
-      whatsapp_disparado: true,
+      whatsapp_disparado: dadosAtualizados.some(c => c.whatsapp_enviado),
       dados_cobranca: dadosAtualizados,
     });
 
     const enviados = resultados.filter(r => r.status === 'ok').length;
     const erros = resultados.filter(r => r.status === 'erro').length;
-
     return Response.json({ success: true, enviados, erros, resultados });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
