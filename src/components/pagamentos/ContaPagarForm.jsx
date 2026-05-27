@@ -33,6 +33,8 @@ const CATEGORIAS = [
   { value: 'gas', label: '🔥 Gás' },
   { value: 'produtos_quimicos', label: '🧪 Produtos Químicos' },
   { value: 'telefone', label: '📞 Telefone' },
+  { value: 'compra_revenda', label: '🛒 Compra para Revenda' },
+  { value: 'despesa_operacional', label: '⚙️ Despesa Operacional' },
 ];
 
 async function gerarProximoSequencial(empresaCodigo) {
@@ -91,6 +93,7 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
     imposto_iss: conta?.imposto_iss || '',
     imposto_iptu: conta?.imposto_iptu || '',
     imposto_outros: conta?.imposto_outros || '',
+    cpf_beneficiario: conta?.cpf_beneficiario || '',
   });
 
   const [parcelas, setParcelas] = useState([]);
@@ -457,6 +460,10 @@ export default function ContaPagarForm({ conta, fornecedores, empresas, onSave, 
                 <div className="space-y-1">
                   <Label className="text-xs">Outros Impostos (R$)</Label>
                   <Input type="number" step="0.01" min="0" value={form.imposto_outros} onChange={e => setForm(f => ({ ...f, imposto_outros: e.target.value }))} placeholder="0,00" className="h-8 text-xs" />
+                </div>
+                <div className="space-y-1 col-span-2">
+                  <Label className="text-xs">🪪 CPF do Beneficiário</Label>
+                  <Input value={form.cpf_beneficiario} onChange={e => setForm(f => ({ ...f, cpf_beneficiario: e.target.value }))} placeholder="000.000.000-00" className="h-8 text-xs" maxLength={14} />
                 </div>
               </div>
               <p className="text-xs text-slate-400 mt-2">

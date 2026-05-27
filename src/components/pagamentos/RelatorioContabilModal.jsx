@@ -22,6 +22,7 @@ const CATEGORIA_LABELS = {
   custo_producao: 'Custo Produção', vale: 'Vale', comissoes: 'Comissões',
   aluguel: 'Aluguel', ferramentaria: 'Ferramentaria', despesas: 'Despesas',
   gas: 'Gás', produtos_quimicos: 'Prod. Químicos', telefone: 'Telefone',
+  compra_revenda: 'Compra Revenda', despesa_operacional: 'Desp. Operacional',
 };
 
 const TIPO_PGTO_LABELS = {
@@ -76,10 +77,11 @@ function gerarHTMLRelatorio(empresa, contasSelecionadas, dataInicio, dataFim, us
     const categoria = CATEGORIA_LABELS[c.categoria_financeira] || c.categoria_financeira || '—';
     const rowBg = i % 2 === 0 ? '#ffffff' : '#f8fafc';
 
-    // Descrição + impostos concatenados
+    // Descrição + impostos + CPF concatenados
     const impostos = extrairImpostos(c);
-    const descricaoHTML = impostos.length > 0
-      ? `${c.descricao || '—'}<div style="margin-top:3px;padding-top:3px;border-top:1px dashed #cbd5e1;color:#64748b;font-size:9px">${impostos.join(' | ')}</div>`
+    const cpfLine = c.cpf_beneficiario ? `<div style="margin-top:2px;color:#7c3aed;font-size:9px;font-weight:600">CPF: ${c.cpf_beneficiario}</div>` : '';
+    const descricaoHTML = (impostos.length > 0 || cpfLine)
+      ? `${c.descricao || '—'}${cpfLine}<div style="margin-top:3px;padding-top:3px;border-top:1px dashed #cbd5e1;color:#64748b;font-size:9px">${impostos.join(' | ')}</div>`
       : (c.descricao || '—');
 
     // Coluna de datas agrupadas
