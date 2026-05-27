@@ -87,6 +87,9 @@ export default function CriarRotaModal({ onClose, onSaved }) {
             ...(cli.contatos_lista || []).map(c => c.telefone),
           ].filter(Boolean),
           cliente_cidade: cli.cidade || p.cliente_regiao || '',
+          cliente_estado: cli.estado || '',
+          cliente_endereco: cli.endereco || '',
+          cliente_numero: cli.numero || '',
           cliente_latitude: cli.latitude || null,
           cliente_longitude: cli.longitude || null,
           pedidos: [],
@@ -159,12 +162,17 @@ export default function CriarRotaModal({ onClose, onSaved }) {
           };
         });
 
+      // Monta endereço completo para link de navegação
+      const endParts = [clienteDados.cliente_endereco, clienteDados.cliente_numero, clienteDados.cliente_cidade, clienteDados.cliente_estado].filter(Boolean);
+      const enderecoCompleto = endParts.length >= 2 ? endParts.join(', ') + ', Brasil' : (clienteDados.cliente_cidade ? `${clienteDados.cliente_cidade}, ${clienteDados.cliente_estado || 'SP'}, Brasil` : null);
+
       dadosCobranca.push({
         cliente_codigo: clienteDados.cliente_codigo,
         cliente_nome: clienteDados.cliente_nome,
         cliente_telefone: clienteDados.cliente_telefone,
         todos_telefones: clienteDados.todos_telefones,
         cliente_cidade: clienteDados.cliente_cidade || '',
+        cliente_endereco_completo: enderecoCompleto || '',
         cliente_latitude: clienteDados.cliente_latitude || null,
         cliente_longitude: clienteDados.cliente_longitude || null,
         pedidos: pedidosSnap,

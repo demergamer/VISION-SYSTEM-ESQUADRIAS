@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { MessageSquare, CheckCircle2, Loader2, AlertTriangle, Printer, RefreshCw } from 'lucide-react';
+import { MessageSquare, CheckCircle2, Loader2, AlertTriangle, Printer, RefreshCw, Map, Navigation } from 'lucide-react';
 import ModalContainer from '@/components/modals/ModalContainer';
 import ImpressaoRotaPDF from './ImpressaoRotaPDF';
 import { toast } from 'sonner';
@@ -38,6 +38,28 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
   const [showPDF, setShowPDF] = useState(false);
 
   const clientes = rota.dados_cobranca || [];
+
+  // Monta URLs de navegação baseados no endereço de cada cliente
+  const buildNavLinks = () => {
+    const stops = clientes
+      .map(c => c.cliente_endereco_completo || (c.cliente_cidade ? `${c.cliente_cidade}, SP, Brasil` : null))
+      .filter(Boolean);
+
+    if (stops.length === 0) return { maps: null, waze: null };
+
+    // Google Maps: origin=Ribeirão Pires + waypoints + destination=último
+    const origin = encodeURIComponent('Ribeirão Pires, SP, Brasil');
+    const destination = encodeURIComponent(stops[stops.length - 1]);
+    const waypoints = stops.slice(0, -1).map(s => encodeURIComponent(s)).join('|');
+    const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints ? `&waypoints=${waypoints}` : ''}&travelmode=driving`;
+
+    // Waze: suporta apenas 1 destino, então abre o primeiro endereço
+    const wazeUrl = `https://waze.com/ul?q=${encodeURIComponent(stops[0])}&navigate=yes`;
+
+    return { maps: mapsUrl, waze: wazeUrl };
+  };
+
+  const navLinks = buildNavLinks();
 
   const handleDisparar = async () => {
     setDisparando(true);
@@ -195,6 +217,26 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
         description={`📅 ${formatDate(rota.data_rota)} · 👤 ${rota.cobrador_nome || 'Gil'} · 👥 ${clientes.length} clientes`}
         size="xl"
       >
+        {/* Links de Navegação */}
+        {(navLinks.maps || navLinks.waze) && (
+          <div className="flex gap-2 flex-wrap mb-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+            <span className="text-xs font-semibold text-slate-500 w-full">🗺️ Abrir rota em:</span>
+            {navLinks.maps && (
+              <a href={navLinks.maps} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-medium text-blue-700 hover:bg-blue-50 hover:border-blue-300 transition-colors shadow-sm">
+                <Map className="w-4 h-4" /> Google Maps
+              </a>
+            )}
+            {navLinks.waze && (
+              <a href={navLinks.waze} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-medium text-cyan-700 hover:bg-cyan-50 hover:border-cyan-300 transition-colors shadow-sm">
+                <Navigation className="w-4 h-4" /> Waze
+              </a>
+            )}
+            <span className="text-[10px] text-slate-400 w-full">Rota com {clientes.filter(c => c.cliente_endereco).length} paradas na ordem do itinerário</span>
+          </div>
+        )}
+
         {/* Ações */}
         <div className="flex gap-2 flex-wrap mb-4">
           <Button
