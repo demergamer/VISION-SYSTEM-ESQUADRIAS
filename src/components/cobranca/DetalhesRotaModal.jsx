@@ -102,15 +102,25 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
     setAlterado(true);
   };
 
-  const marcarRecusado = (idx) => {
+  const marcarRecusado = async (idx) => {
     const novo = localClientes.map((c, i) =>
       i === idx ? { ...c, recusado: !c.recusado } : c
     );
-    atualizarLocal(novo);
-    toast.info(novo[idx].recusado ? '❌ Marcado como recusado' : '✓ Recusa removida');
+    setLocalClientes(novo);
+    setAlterado(true);
+    
+    try {
+      await base44.entities.RotaCobranca.update(rota.id, { dados_cobranca: novo });
+      const rotas = await base44.entities.RotaCobranca.filter({ id: rota.id });
+      if (rotas?.[0]) onUpdated(rotas[0]);
+      setAlterado(false);
+      toast.success(novo[idx].recusado ? '❌ Marcado como recusado' : '✓ Recusa removida');
+    } catch (e) {
+      toast.error(`Erro: ${e.message}`);
+    }
   };
 
-  const handleSalvarContato = ({ telefone, nome }) => {
+  const handleSalvarContato = async ({ telefone, nome }) => {
     if (editarContatoIdx === null) return;
     const novo = [...localClientes];
     novo[editarContatoIdx] = {
@@ -118,9 +128,17 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
       cliente_telefone: telefone?.trim(),
       contatos_nomeados: [{ telefone: telefone?.trim(), nome: nome?.trim() || '' }],
     };
-    atualizarLocal(novo);
-    setEditarContatoIdx(null);
-    toast.success('✏️ Contato atualizado');
+    
+    try {
+      await base44.entities.RotaCobranca.update(rota.id, { dados_cobranca: novo });
+      const rotas = await base44.entities.RotaCobranca.filter({ id: rota.id });
+      if (rotas?.[0]) onUpdated(rotas[0]);
+      setLocalClientes(novo);
+      setEditarContatoIdx(null);
+      toast.success('✏️ Contato atualizado e salvo');
+    } catch (e) {
+      toast.error(`Erro: ${e.message}`);
+    }
   };
 
   const extrairNumeros = (cliente) => {
@@ -182,10 +200,18 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
       const novo = localClientes.map((c, i) =>
         i === idx ? { ...c, whatsapp_enviado: true, whatsapp_erro: null } : c
       );
-      setLocalClientes(novo);
-      await base44.entities.RotaCobranca.update(rota.id, { dados_cobranca: novo });
-      onUpdated({ ...rota, dados_cobranca: novo });
-      toast.success(`✓ Enviado para ${cliente.cliente_nome}`);
+      
+      try {
+        await base44.entities.RotaCobranca.update(rota.id, { dados_cobranca: novo });
+        const rotas = await base44.entities.RotaCobranca.filter({ id: rota.id });
+        if (rotas?.[0]) {
+          onUpdated(rotas[0]);
+          setLocalClientes(rotas[0].dados_cobranca || []);
+        }
+        toast.success(`✓ Enviado para ${cliente.cliente_nome}`);
+      } catch (e) {
+        toast.error(`Erro ao salvar: ${e.message}`);
+      }
     } else {
       toast.error(`Erro ao enviar para ${cliente.cliente_nome}`);
     }
