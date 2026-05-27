@@ -39,28 +39,33 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
 
   const clientes = rota.dados_cobranca || [];
 
-  // Monta URLs de navegação baseados no endereço de cada cliente
+  // Monta URLs de navegação baseados no endereço/coordenadas de cada cliente
   const buildNavLinks = () => {
-    const stops = clientes
+    const origin = encodeURIComponent('Ribeirão Pires, SP, Brasil');
+
+    // Tenta montar paradas por endereço textual
+    const stopsTexto = clientes
       .map(c => {
-        // Tenta endereço completo salvo no snapshot
         if (c.cliente_endereco_completo) return c.cliente_endereco_completo;
-        // Fallback: monta a partir dos campos individuais do snapshot
         const cidade = c.cliente_cidade || c.cliente_regiao;
         if (cidade) return `${cidade}, SP, Brasil`;
         return null;
       })
       .filter(Boolean);
 
+    // Tenta montar paradas por coordenadas lat/lon
+    const stopsCoordenada = clientes
+      .filter(c => c.cliente_latitude && c.cliente_longitude)
+      .map(c => `${c.cliente_latitude},${c.cliente_longitude}`);
+
+    const stops = stopsTexto.length >= clientes.length * 0.5 ? stopsTexto : 
+                  stopsCoordenada.length > 0 ? stopsCoordenada : stopsTexto;
+
     if (stops.length === 0) return { maps: null, waze: null };
 
-    // Google Maps: origin=Ribeirão Pires + waypoints + destination=último
-    const origin = encodeURIComponent('Ribeirão Pires, SP, Brasil');
     const destination = encodeURIComponent(stops[stops.length - 1]);
     const waypoints = stops.slice(0, -1).map(s => encodeURIComponent(s)).join('|');
     const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints ? `&waypoints=${waypoints}` : ''}&travelmode=driving`;
-
-    // Waze: suporta apenas 1 destino, então abre o primeiro endereço
     const wazeUrl = `https://waze.com/ul?q=${encodeURIComponent(stops[0])}&navigate=yes`;
 
     return { maps: mapsUrl, waze: wazeUrl };
