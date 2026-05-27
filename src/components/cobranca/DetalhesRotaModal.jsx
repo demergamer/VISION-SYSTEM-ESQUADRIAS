@@ -125,43 +125,41 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
   };
 
   const handleReenviar = async (falha) => {
-    const numeroCorrigido = numerosCorrecao[falha.cliente_nome] || falha.numero;
+    const numeroCorrigido = numerosCorrecao[falha.cliente_nome] !== undefined
+      ? numerosCorrecao[falha.cliente_nome]
+      : falha.numero;
     const numero = limparNumero(numeroCorrigido);
-    if (!isNumeroValido(numero)) { toast.error('Número inválido'); return; }
-
-    const EVOLUTION_API_URL = import.meta.env.VITE_EVOLUTION_API_URL;
-    const EVOLUTION_API_KEY = import.meta.env.VITE_EVOLUTION_API_KEY;
-    const EVOLUTION_INSTANCE = import.meta.env.VITE_EVOLUTION_INSTANCE;
+    if (!isNumeroValido(numero)) {
+      toast.error(`Número inválido: "${numeroCorrigido}" → "${numero}" (esperado 12-15 dígitos com DDI 55)`);
+      return;
+    }
 
     const cliente = clientes.find(c => c.cliente_nome === falha.cliente_nome);
     if (!cliente) return;
 
-    const linhasPedidos = (cliente.pedidos || [])
-      .map(p => `▪ Pedido #${p.numero_pedido} — ${formatCurrency(p.valor_saldo)}`)
-      .join('\n');
-    const texto =
-      `Olá, *${cliente.cliente_nome}*! 😊\n\n` +
-      `O nosso cobrador *Gil* estará na sua região no dia *${formatDate(rota.data_rota)}*.\n\n` +
-      `*📋 Pendências:*\n${linhasPedidos}\n\n` +
-      `*💰 Total: ${formatCurrency(cliente.total_cliente)}*\n\n` +
-      `Aguardamos confirmação! 🙏\n_Equipe J&C Esquadrias_`;
-
     setReenvioLoading(prev => ({ ...prev, [falha.cliente_nome]: true }));
     try {
-      const resp = await fetch(`${EVOLUTION_API_URL}/message/sendText/${EVOLUTION_INSTANCE}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_API_KEY },
-        body: JSON.stringify({ number: numero, text: texto }),
+      const res = await base44.functions.invoke('reenviarWhatsAppCliente', {
+        rota_id: rota.id,
+        cliente_nome: falha.cliente_nome,
+        numero_corrigido: numero,
       });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      toast.success(`✅ Reenviado para ${cliente.cliente_nome}!`);
-      setResultadoDisparo(prev => ({
-        ...prev,
-        enviados: [...prev.enviados, { cliente_nome: falha.cliente_nome, numero }],
-        falhas: prev.falhas.filter(f => f.cliente_nome !== falha.cliente_nome),
-      }));
+
+      if (res.data?.success) {
+        toast.success(`✅ Reenviado para ${cliente.cliente_nome}!`);
+        setResultadoDisparo(prev => ({
+          ...prev,
+          enviados: [...(prev.enviados || []), { cliente_nome: falha.cliente_nome, numero }],
+          falhas: prev.falhas.filter(f => f.cliente_nome !== falha.cliente_nome),
+        }));
+        // Atualiza estado local da rota
+        const atualizado = await base44.entities.RotaCobranca.filter({ id: rota.id });
+        if (atualizado?.[0]) onUpdated(atualizado[0]);
+      } else {
+        toast.error(`Falha: ${res.data?.error || 'Erro desconhecido'}`);
+      }
     } catch (e) {
-      toast.error(`Falhou: ${e.message}`);
+      toast.error(`Erro: ${e.message}`);
     } finally {
       setReenvioLoading(prev => ({ ...prev, [falha.cliente_nome]: false }));
     }
