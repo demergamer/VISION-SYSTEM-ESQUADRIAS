@@ -12,51 +12,119 @@ const formatDate = (dateStr) => {
 function gerarHTML(rota) {
   const clientes = rota.dados_cobranca || [];
   const totalGeral = rota.valor_total_rota || clientes.reduce((s, c) => s + (c.total_cliente || 0), 0);
-  const totalPedidos = clientes.reduce((s, c) => s + (c.pedidos?.length || 0), 0);
-  const comWhatsApp = clientes.filter(c => c.whatsapp_enviado).length;
+  const dataFormatada = formatDate(rota.data_rota);
+  const nomeRota = `COBRANÇA ${rota.cobrador_nome || 'GIL'} - ${new Date().toLocaleDateString('pt-BR', { weekday: 'long' }).toUpperCase()}`;
 
-  const linhasClientes = clientes.map((cliente, idx) => {
+  // Dividir em páginas (aproximadamente 25 linhas por página)
+  let linhasAcumuladas = 0;
+  let paginaAtual = 1;
+  const linhasHTMLPorPagina = [];
+  let linhasHTMLPagina = '';
+
+  for (let i = 0; i < clientes.length; i++) {
+    const cliente = clientes[i];
+    const pedidosCount = (cliente.pedidos || []).length;
+    const linhasEste = pedidosCount + 1; // pedidos + subtotal
+
+    // Se vai ultrapassar limite, começa nova página
+    if (linhasAcumuladas + linhasEste > 25 && linhasAcumuladas > 0) {
+      linhasHTMLPorPagina.push(linhasHTMLPagina);
+      linhasHTMLPagina = '';
+      linhasAcumuladas = 0;
+      paginaAtual++;
+    }
+
+    // Adicionar cliente
     const pedidosRows = (cliente.pedidos || []).map((p, pi) => `
-      <tr style="background:${pi % 2 === 0 ? '#ffffff' : '#f8fafc'}">
-        <td style="padding:5px 10px;font-size:10px;font-weight:700;color:#1e40af">#${p.numero_pedido}</td>
-        <td style="padding:5px 10px;font-size:10px;color:#64748b">${formatDate(p.data_entrega)}</td>
-        <td style="padding:5px 10px;font-size:10px;color:${p.em_transito ? '#16a34a' : '#64748b'}">${p.em_transito ? '🚚 Em Trânsito' : (p.status_original || '-')}</td>
-        <td style="padding:5px 10px;font-size:10px;text-align:right;font-weight:700">${formatCurrency(p.valor_saldo)}</td>
-        <td style="padding:5px 10px;font-size:10px;color:#94a3b8"></td>
+      <tr>
+        <td style="border:1px solid #000;padding:4px;font-size:9px">${p.numero_pedido}</td>
+        <td style="border:1px solid #000;padding:4px;font-size:9px">${formatCurrency(p.valor_saldo)}</td>
+        <td style="border:1px solid #000;padding:4px;font-size:9px"></td>
+        <td style="border:1px solid #000;padding:4px;font-size:9px">${formatCurrency(p.valor_saldo)}</td>
+        <td style="border:1px solid #000;padding:4px;font-size:9px"></td>
+        <td style="border:1px solid #000;padding:4px;font-size:9px"></td>
+        <td style="border:1px solid #000;padding:4px;font-size:9px"></td>
       </tr>
     `).join('');
 
+    const clienteHTML = `
+      <tr style="background:#e8e8e8">
+        <td style="border:1px solid #000;padding:4px;font-weight:bold;font-size:9px">${cliente.cliente_nome}</td>
+        <td style="border:1px solid #000;padding:4px;font-size:9px"></td>
+        <td style="border:1px solid #000;padding:4px;font-size:9px"></td>
+        <td style="border:1px solid #000;padding:4px;font-size:9px"></td>
+        <td style="border:1px solid #000;padding:4px;font-size:9px"></td>
+        <td style="border:1px solid #000;padding:4px;font-size:9px"></td>
+        <td style="border:1px solid #000;padding:4px;font-size:9px"></td>
+      </tr>
+      ${pedidosRows}
+      <tr style="background:#d0d0d0">
+        <td colspan="3" style="border:1px solid #000;padding:4px;font-weight:bold;font-size:9px;text-align:right">SUBTOTAL ${cliente.cliente_nome}:</td>
+        <td style="border:1px solid #000;padding:4px;font-weight:bold;font-size:9px">${formatCurrency(cliente.total_cliente)}</td>
+        <td style="border:1px solid #000;padding:4px;font-size:9px"></td>
+        <td style="border:1px solid #000;padding:4px;font-size:9px"></td>
+        <td style="border:1px solid #000;padding:4px;font-size:9px"></td>
+      </tr>
+    `;
+
+    linhasHTMLPagina += clienteHTML;
+    linhasAcumuladas += linhasEste;
+  }
+
+  if (linhasHTMLPagina) {
+    linhasHTMLPorPagina.push(linhasHTMLPagina);
+  }
+
+  const paginasHTML = linhasHTMLPorPagina.map((linhas, idx) => {
+    const numeroPagina = idx + 1;
     return `
-      <div style="margin-bottom:14px;page-break-inside:avoid">
-        <div style="background:#1e3a8a;color:white;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;border-radius:6px 6px 0 0">
-          <div>
-            <strong style="font-size:13px">${idx + 1}. ${cliente.cliente_nome}</strong>
-            <span style="font-size:10px;opacity:0.8;margin-left:10px">${cliente.cliente_telefone || 'Sem telefone'}</span>
+      <div style="page-break-after:always;padding:0;margin:0">
+        <!-- Header da página -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #000">
+          <div style="display:flex;align-items:center;gap:8px">
+            <img src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png" style="height:30px" alt="J&C" />
+            <div>
+              <div style="font-size:9px;font-weight:bold;color:#333">J&C ONE VISION SYSTEM</div>
+              <div style="font-size:8px;color:#666">Sistema de Gestão Integrado</div>
+            </div>
           </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            ${cliente.whatsapp_enviado ? '<span style="font-size:10px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px">✓ WhatsApp</span>' : ''}
-            <strong style="font-size:13px">${formatCurrency(cliente.total_cliente)}</strong>
+          <div style="text-align:right;font-size:9px">
+            <strong>Página ${numeroPagina}</strong>
           </div>
         </div>
-        <table style="width:100%;border-collapse:collapse;font-size:11px;border:1px solid #e2e8f0;border-top:none">
+
+        <!-- Título e total -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div>
+            <div style="font-weight:bold;font-size:11px">${nomeRota}</div>
+            <div style="font-size:9px">TABELA PRINCIPAL ${dataFormatada}</div>
+          </div>
+          <div style="text-align:right;font-weight:bold;font-size:10px">
+            TOTAL A RECEBER: ${formatCurrency(totalGeral)}
+          </div>
+        </div>
+
+        <!-- Tabela -->
+        <table style="width:100%;border-collapse:collapse;font-size:9px">
           <thead>
-            <tr style="background:#f8fafc">
-              <th style="padding:5px 10px;text-align:left;border-bottom:1px solid #e2e8f0;width:80px;font-size:10px">Pedido</th>
-              <th style="padding:5px 10px;text-align:left;border-bottom:1px solid #e2e8f0;font-size:10px">Entrega Prev.</th>
-              <th style="padding:5px 10px;text-align:left;border-bottom:1px solid #e2e8f0;font-size:10px">Status</th>
-              <th style="padding:5px 10px;text-align:right;border-bottom:1px solid #e2e8f0;width:90px;font-size:10px">Saldo (R$)</th>
-              <th style="padding:5px 10px;text-align:left;border-bottom:1px solid #e2e8f0;width:130px;font-size:10px">Observações / Recibo</th>
+            <tr style="background:#999;color:white">
+              <th style="border:1px solid #000;padding:4px;text-align:left;font-size:9px">CLIENTE</th>
+              <th style="border:1px solid #000;padding:4px;text-align:left;font-size:9px">REGIÃO</th>
+              <th style="border:1px solid #000;padding:4px;text-align:left;font-size:9px">PEDIDO</th>
+              <th style="border:1px solid #000;padding:4px;text-align:left;font-size:9px">VALOR</th>
+              <th style="border:1px solid #000;padding:4px;text-align:left;font-size:9px">PAGO</th>
+              <th style="border:1px solid #000;padding:4px;text-align:left;font-size:9px">COBRAR</th>
+              <th style="border:1px solid #000;padding:4px;text-align:left;font-size:9px">OBSERVAÇÕES</th>
             </tr>
           </thead>
           <tbody>
-            ${pedidosRows}
-            <tr style="background:#f0f4ff">
-              <td colspan="3" style="padding:5px 10px;font-weight:700;font-size:11px;color:#1e3a8a">SUBTOTAL ${cliente.cliente_nome}</td>
-              <td style="padding:5px 10px;text-align:right;font-weight:900;color:#1e3a8a">${formatCurrency(cliente.total_cliente)}</td>
-              <td></td>
-            </tr>
+            ${linhas}
           </tbody>
         </table>
+
+        <div style="margin-top:8px;text-align:center;font-size:8px;color:#999">
+          Página ${numeroPagina}
+        </div>
       </div>
     `;
   }).join('');
@@ -67,59 +135,27 @@ function gerarHTML(rota) {
   <meta charset="UTF-8">
   <title>Rota de Cobrança — ${rota.codigo_rota}</title>
   <style>
-    @page { size: A4 portrait; margin: 12mm; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: Arial, sans-serif; color: #1e293b; background: #fff; }
+    @page {
+      size: A4 landscape;
+      margin: 10mm;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      color: #000;
+      background: #fff;
+    }
     @media print {
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
   </style>
 </head>
 <body>
-  <!-- Cabeçalho -->
-  <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;border-bottom:2px solid #1e3a8a;padding-bottom:12px">
-    <img src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png" style="height:44px" alt="J&C" />
-    <div style="flex:1">
-      <div style="font-size:18px;font-weight:900;color:#1e3a8a">Rota de Cobrança — ${rota.codigo_rota}</div>
-      <div style="font-size:11px;color:#64748b;margin-top:2px">
-        Data: <strong>${formatDate(rota.data_rota)}</strong> &nbsp;·&nbsp;
-        Cobrador: <strong>${rota.cobrador_nome || 'Gil'}</strong> &nbsp;·&nbsp;
-        Gerado em: ${new Date().toLocaleString('pt-BR')}
-      </div>
-    </div>
-    <div style="text-align:right">
-      <div style="font-size:11px;color:#64748b">Total Geral</div>
-      <div style="font-size:20px;font-weight:900;color:#1e3a8a">${formatCurrency(totalGeral)}</div>
-    </div>
-  </div>
-
-  <!-- Resumo rápido -->
-  <div style="display:flex;gap:10px;margin-bottom:16px">
-    ${[
-      { label: 'Clientes', value: clientes.length },
-      { label: 'Pedidos', value: totalPedidos },
-      { label: 'Com WhatsApp', value: comWhatsApp },
-    ].map(s => `
-      <div style="flex:1;border:1px solid #e2e8f0;border-radius:6px;padding:8px 10px;text-align:center">
-        <div style="font-size:9px;color:#64748b;text-transform:uppercase;margin-bottom:2px">${s.label}</div>
-        <div style="font-size:16px;font-weight:900;color:#1e3a8a">${s.value}</div>
-      </div>
-    `).join('')}
-  </div>
-
-  <!-- Clientes e pedidos -->
-  ${linhasClientes}
-
-  <!-- Total Geral -->
-  <div style="background:#1e3a8a;color:white;padding:12px 20px;border-radius:6px;display:flex;justify-content:space-between;align-items:center;margin-top:8px">
-    <span style="font-size:14px;font-weight:700">💰 TOTAL GERAL DA ROTA ${rota.codigo_rota}</span>
-    <span style="font-size:20px;font-weight:900">${formatCurrency(totalGeral)}</span>
-  </div>
-
-  <p style="font-size:9px;color:#94a3b8;text-align:center;margin-top:12px">
-    J&C One Vision System · Rota ${rota.codigo_rota} · ${formatDate(rota.data_rota)} · Relatório gerado em ${new Date().toLocaleString('pt-BR')}
-  </p>
-
+  ${paginasHTML}
   <script>window.onload = function() { window.print(); }</script>
 </body>
 </html>`;
@@ -133,7 +169,6 @@ export default function ImpressaoRotaPDF({ rota, onClose }) {
       janela.document.write(html);
       janela.document.close();
     }
-    // Fecha o componente após abrir a janela
     onClose();
   }, []);
 
