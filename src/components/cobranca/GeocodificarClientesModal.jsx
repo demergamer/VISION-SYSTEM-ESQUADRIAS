@@ -104,6 +104,8 @@ export default function GeocodificarClientesModal({ onClose }) {
     }
 
     queryClient.invalidateQueries({ queryKey: ['clientes_sem_coordenada'] });
+    queryClient.invalidateQueries({ queryKey: ['clientes'] });
+    queryClient.invalidateQueries({ queryKey: ['clientes_lista_cobranca'] });
     setConcluido(true);
     setRodando(false);
     toast.success(`Geocodificação concluída: ${ok} ok, ${erro} erro(s), ${pulado} pulado(s)`);
