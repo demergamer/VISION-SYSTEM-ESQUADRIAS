@@ -139,11 +139,19 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
   // ── Salvar alterações manualmente ─────────────────────────────────────────
   const handleSalvar = async () => {
     setSalvando(true);
-    await base44.entities.RotaCobranca.update(rota.id, { dados_cobranca: localClientes });
-    onUpdated({ ...rota, dados_cobranca: localClientes });
-    setAlterado(false);
-    setSalvando(false);
-    toast.success('Alterações salvas!');
+    try {
+      const payload = { dados_cobranca: localClientes };
+      await base44.entities.RotaCobranca.update(rota.id, payload);
+      const rotas = await base44.entities.RotaCobranca.filter({ id: rota.id });
+      if (rotas?.[0]) onUpdated(rotas[0]);
+      setAlterado(false);
+      toast.success('✅ Alterações salvas!');
+    } catch (e) {
+      toast.error(`Erro ao salvar: ${e.message}`);
+      console.error('Erro ao salvar rota:', e);
+    } finally {
+      setSalvando(false);
+    }
   };
 
   // ── Marcar como recusado ──────────────────────────────────────────────────
@@ -158,14 +166,23 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
   // ── Salvar contato editado ────────────────────────────────────────────────
   const handleSalvarContato = ({ telefone, nome }) => {
     const idx = editarContatoIdx;
-    const novo = localClientes.map((c, i) => {
-      if (i !== idx) return c;
-      const contatosNomeados = [{ telefone, nome }, ...(c.contatos_nomeados || []).slice(1)];
-      return { ...c, cliente_telefone: telefone, contatos_nomeados: contatosNomeados };
-    });
+    if (idx === null) return;
+    
+    const novo = [...localClientes];
+    const contatosNomeados = [
+      { telefone, nome },
+      ...(novo[idx].contatos_nomeados || []).filter((_, i) => i > 0)
+    ].filter(c => c.telefone);
+    
+    novo[idx] = {
+      ...novo[idx],
+      cliente_telefone: telefone,
+      contatos_nomeados: contatosNomeados
+    };
+    
     atualizarLocal(novo);
     setEditarContatoIdx(null);
-    toast.success('Contato atualizado! Clique em "Salvar Alterações" para confirmar.');
+    toast.success('✏️ Contato atualizado! Clique em "Salvar Alterações" para confirmar.');
   };
 
   // ── Reenvio individual por cliente ────────────────────────────────────────
