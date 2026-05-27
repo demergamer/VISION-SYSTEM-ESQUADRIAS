@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Eye, FileText, MessageSquare, CheckCircle2, MapPin } from 'lucide-react';
 import CriarRotaModal from '@/components/cobranca/CriarRotaModal';
-import DetalhesRotaModal from '@/components/cobranca/DetalhesRotaModal';
+import DetalhesRotaModalRefatorado from '@/components/cobranca/DetalhesRotaModalRefatorado';
 import GeocodificarClientesModal from '@/components/cobranca/GeocodificarClientesModal';
 
 const formatCurrency = (val) =>
@@ -125,7 +125,7 @@ export default function RotasCobranca() {
       )}
 
       {rotaSelecionada && (
-        <DetalhesRotaModal
+        <DetalhesRotaModalRefatorado
           rota={rotaSelecionada}
           onClose={() => setRotaSelecionada(null)}
           onUpdated={(rotaAtualizada) => {
