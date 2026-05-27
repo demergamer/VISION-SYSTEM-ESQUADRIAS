@@ -39,7 +39,7 @@ import AlterarPortadorModal from "@/components/pedidos/AlterarPortadorModal";
 import ClienteForm from "@/components/clientes/ClienteForm";
 import CancelarPedidoModal from "@/components/pedidos/CancelarPedidoModal";
 import LiquidacaoMassa from "@/components/pedidos/LiquidacaoMassa";
-import RotaCobrancaModal from "@/components/pedidos/RotaCobrancaModal";
+import { useNavigate } from "react-router-dom";
 import BorderoDetails from "@/components/pedidos/BorderoDetails";
 import AprovarLiquidacaoModal from "@/components/pedidos/AprovarLiquidacaoModal";
 import DividirRotaModal from "@/components/pedidos/DividirRotaModal";
@@ -224,6 +224,7 @@ const PedidoGridCard = ({ pedido, onEdit, onView, onLiquidar, onCancelar, onReve
 export default function Pedidos() {
   const queryClient = useQueryClient();
   const { canDo } = usePermissions();
+  const navigate = useNavigate();
   
   // --- STATES ---
   const [inputValue, setInputValue] = useState('');
@@ -262,7 +263,7 @@ export default function Pedidos() {
   const [showCadastrarClienteModal, setShowCadastrarClienteModal] = useState(false);
   const [showCancelarPedidoModal, setShowCancelarPedidoModal] = useState(false);
   const [showLiquidacaoMassaModal, setShowLiquidacaoMassaModal] = useState(false);
-  const [showRotaCobrancaModal, setShowRotaCobrancaModal] = useState(false);
+
   const [showAutorizacaoModal, setShowAutorizacaoModal] = useState(false);
   const [showDividirRotaModal, setShowDividirRotaModal] = useState(false);
   const [showReverterDialog, setShowReverterDialog] = useState(false);
@@ -1099,7 +1100,7 @@ export default function Pedidos() {
                             <DropdownMenuItem onClick={() => { setImportTipo('producao'); setShowImportModal(true); }}><Factory className="w-4 h-4 mr-2 text-blue-500" /> Importar Produção</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => { setImportTipo('rota'); setShowImportModal(true); }}><Truck className="w-4 h-4 mr-2 text-purple-500" /> Importar Entrega</DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => setShowRotaCobrancaModal(true)}><FileText className="w-4 h-4 mr-2" /> Rota de Cobrança</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => navigate('/rotas-cobranca')}><FileText className="w-4 h-4 mr-2" /> Rota de Cobrança</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setShowMesclarNFModal(true)}><GitMerge className="w-4 h-4 mr-2 text-blue-500" /> Mesclar NF</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => { setActiveTab('cancelados'); }}><XIcon className="w-4 h-4 mr-2" /> Ver Cancelados</DropdownMenuItem>
                             <DropdownMenuSeparator />
@@ -1621,14 +1622,6 @@ export default function Pedidos() {
               />
             )}
           </ModalContainer>
-
-          {showRotaCobrancaModal && (
-            <RotaCobrancaModal 
-              pedidos={pedidos} 
-              cheques={cheques} 
-              onClose={() => setShowRotaCobrancaModal(false)} 
-            />
-          )}
 
           <ModalContainer open={showEntregarManualModal} onClose={() => setShowEntregarManualModal(false)} title="Entregar Manualmente" description="Registre uma entrega sem rota importada (retira ou envio direto)">
             {pedidoParaEntregarManual && (
