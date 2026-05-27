@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
   MessageSquare, CheckCircle2, Loader2, AlertTriangle, Printer,
-  RefreshCw, Map, Ban, ChevronDown, Users, Truck
+  RefreshCw, Map, Ban, ChevronDown, Users, Truck, Save, Phone, X
 } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
@@ -49,19 +49,75 @@ async function enviarWhatsApp(numero, texto) {
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 }
 
+// ── Mini-modal de edição de contato individual ────────────────────────────────
+function EditarContatoModal({ cliente, onSave, onClose }) {
+  const [telefone, setTelefone] = useState(
+    cliente.contatos_nomeados?.[0]?.telefone || cliente.cliente_telefone || ''
+  );
+  const [nome, setNome] = useState(
+    cliente.contatos_nomeados?.[0]?.nome || ''
+  );
+
+  return (
+    <div className="fixed inset-0 z-[600] flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-2xl shadow-2xl p-5 w-full max-w-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
+            <Phone className="w-4 h-4 text-blue-600" /> Editar Contato
+          </h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <p className="text-xs text-slate-500 mb-3 font-medium">{cliente.cliente_nome}</p>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-semibold text-slate-600 mb-1 block">Telefone / WhatsApp *</label>
+            <Input
+              value={telefone}
+              onChange={e => setTelefone(e.target.value)}
+              placeholder="Ex: 11999998888"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-600 mb-1 block">Nome do Responsável</label>
+            <Input
+              value={nome}
+              onChange={e => setNome(e.target.value)}
+              placeholder="Ex: João da Silva"
+            />
+          </div>
+        </div>
+        <div className="flex gap-2 mt-4">
+          <Button variant="outline" onClick={onClose} className="flex-1">Cancelar</Button>
+          <Button
+            className="flex-1 bg-blue-600 hover:bg-blue-700"
+            onClick={() => onSave({ telefone: telefone.trim(), nome: nome.trim() })}
+            disabled={!telefone.trim()}
+          >
+            Salvar
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
   const [disparando, setDisparando] = useState(false);
-  const [confirmarDisparo, setConfirmarDisparo] = useState(null); // 'clientes' | 'representantes' | 'cobrador'
   const [resultadoDisparo, setResultadoDisparo] = useState(null);
   const [numerosCorrecao, setNumerosCorrecao] = useState({});
   const [reenvioLoading, setReenvioLoading] = useState({});
   const [concluindo, setConcluindo] = useState(false);
+  const [salvando, setSalvando] = useState(false);
   const [showPDF, setShowPDF] = useState(false);
-  const [preFlightAction, setPreFlightAction] = useState(null); // ação pendente após preflight
+  const [preFlightAction, setPreFlightAction] = useState(null);
   const [showPreFlight, setShowPreFlight] = useState(false);
   const [localClientes, setLocalClientes] = useState(rota.dados_cobranca || []);
+  const [alterado, setAlterado] = useState(false);
+  const [editarContatoIdx, setEditarContatoIdx] = useState(null); // idx do cliente sendo editado
+  const [reenvioIndividualLoading, setReenvioIndividualLoading] = useState({});
 
-  // Carrega clientes e representantes para o pre-flight
   const { data: clientesDB = [] } = useQuery({
     queryKey: ['clientes_lista_cobranca'],
     queryFn: () => base44.entities.Cliente.list('nome', 500),
@@ -74,36 +130,112 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
   const itensAtivos = useMemo(() => localClientes.filter(c => !c.recusado), [localClientes]);
   const mapsUrls = useMemo(() => gerarUrlsMaps(getParadasValidas(itensAtivos)), [itensAtivos]);
 
+  // ── Helpers de mutação local ──────────────────────────────────────────────
+  const atualizarLocal = (novosDados) => {
+    setLocalClientes(novosDados);
+    setAlterado(true);
+  };
+
+  // ── Salvar alterações manualmente ─────────────────────────────────────────
+  const handleSalvar = async () => {
+    setSalvando(true);
+    await base44.entities.RotaCobranca.update(rota.id, { dados_cobranca: localClientes });
+    onUpdated({ ...rota, dados_cobranca: localClientes });
+    setAlterado(false);
+    setSalvando(false);
+    toast.success('Alterações salvas!');
+  };
+
   // ── Marcar como recusado ──────────────────────────────────────────────────
-  const marcarRecusado = async (idx) => {
+  const marcarRecusado = (idx) => {
     const novo = localClientes.map((c, i) =>
       i === idx ? { ...c, recusado: !c.recusado } : c
     );
-    setLocalClientes(novo);
-    await base44.entities.RotaCobranca.update(rota.id, { dados_cobranca: novo });
-    onUpdated({ ...rota, dados_cobranca: novo });
+    atualizarLocal(novo);
     toast.info(novo[idx].recusado ? 'Item marcado como recusado.' : 'Recusa removida.');
   };
 
-  // ── Pre-flight gate ───────────────────────────────────────────────────────
-  const iniciarAcao = (acao) => {
-    setPreFlightAction(acao);
-    setShowPreFlight(true);
+  // ── Salvar contato editado ────────────────────────────────────────────────
+  const handleSalvarContato = ({ telefone, nome }) => {
+    const idx = editarContatoIdx;
+    const novo = localClientes.map((c, i) => {
+      if (i !== idx) return c;
+      const contatosNomeados = [{ telefone, nome }, ...(c.contatos_nomeados || []).slice(1)];
+      return { ...c, cliente_telefone: telefone, contatos_nomeados: contatosNomeados };
+    });
+    atualizarLocal(novo);
+    setEditarContatoIdx(null);
+    toast.success('Contato atualizado! Clique em "Salvar Alterações" para confirmar.');
   };
+
+  // ── Reenvio individual por cliente ────────────────────────────────────────
+  const handleReenviarIndividual = async (idx) => {
+    const cliente = localClientes[idx];
+    const contatosNomeados = cliente.contatos_nomeados?.filter(c => c.telefone) || [];
+    const numeros = (contatosNomeados.length
+      ? contatosNomeados.map(c => c.telefone)
+      : cliente.todos_telefones?.length ? cliente.todos_telefones : [cliente.cliente_telefone]
+    ).map(limparNumero).filter(n => n && isNumeroValido(n));
+
+    if (!numeros.length) {
+      toast.error('Nenhum número válido para este cliente. Edite o contato primeiro.');
+      return;
+    }
+
+    const nomeResponsavel = contatosNomeados.find(c => c.nome)?.nome || '';
+    const linhasPedidos = (cliente.pedidos || [])
+      .map(p => {
+        const tag = p.tipo_item === 'cheque' ? `▪ Cheque Dev #${p.numero_pedido}` : `▪ Pedido #${p.numero_pedido}`;
+        return `${tag} — ${formatCurrency(p.valor_saldo)}`;
+      }).join('\n');
+
+    const saudacao = nomeResponsavel ? `Olá, *${nomeResponsavel}*! 😊` : `Olá, *${cliente.cliente_nome}*! 😊`;
+    const texto =
+      `${saudacao}\n\n` +
+      `Representando *${cliente.cliente_nome}*.\n` +
+      `O nosso cobrador *Gil* estará na sua região no dia *${formatDate(rota.data_rota)}*.\n\n` +
+      `*📋 Pendências:*\n${linhasPedidos || '▪ Consulte nosso financeiro'}\n\n` +
+      `*💰 Total: ${formatCurrency(cliente.total_cliente)}*\n\n` +
+      `Aguardamos confirmação! 🙏\n_Equipe J&C Esquadrias_`;
+
+    setReenvioIndividualLoading(prev => ({ ...prev, [idx]: true }));
+    let enviou = false;
+    for (const numero of numeros) {
+      try {
+        await enviarWhatsApp(numero, texto);
+        enviou = true;
+        break;
+      } catch (_) {}
+    }
+
+    if (enviou) {
+      const novo = localClientes.map((c, i) =>
+        i === idx ? { ...c, whatsapp_enviado: true, whatsapp_erro: null } : c
+      );
+      setLocalClientes(novo);
+      await base44.entities.RotaCobranca.update(rota.id, { dados_cobranca: novo });
+      onUpdated({ ...rota, dados_cobranca: novo });
+      toast.success(`✅ Mensagem enviada para ${cliente.cliente_nome}!`);
+    } else {
+      toast.error(`Falha ao enviar para ${cliente.cliente_nome}`);
+    }
+    setReenvioIndividualLoading(prev => ({ ...prev, [idx]: false }));
+  };
+
+  // ── Pre-flight ────────────────────────────────────────────────────────────
+  const iniciarAcao = (acao) => { setPreFlightAction(acao); setShowPreFlight(true); };
 
   const executarAposPreFlight = async () => {
     setShowPreFlight(false);
-    if (preFlightAction === 'clientes') await handleDispariarClientes();
+    if (preFlightAction === 'clientes') await handleDispararClientes();
     else if (preFlightAction === 'representantes') await handleDispararRepresentantes();
     else if (preFlightAction === 'cobrador') await handleDispararCobrador();
-    else if (preFlightAction === 'maps') {} // maps abre direto
     setPreFlightAction(null);
   };
 
-  // ── Disparo para CLIENTES ─────────────────────────────────────────────────
-  const handleDispariarClientes = async () => {
+  // ── Disparo em massa CLIENTES ─────────────────────────────────────────────
+  const handleDispararClientes = async () => {
     setDisparando(true);
-    setConfirmarDisparo(null);
     setResultadoDisparo(null);
 
     const enviados = [];
@@ -164,29 +296,24 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
       dados_cobranca: dadosAtualizados,
     });
     const atualizado = await base44.entities.RotaCobranca.filter({ id: rota.id });
-    if (atualizado?.[0]) { onUpdated(atualizado[0]); setLocalClientes(atualizado[0].dados_cobranca || []); }
+    if (atualizado?.[0]) { onUpdated(atualizado[0]); setLocalClientes(atualizado[0].dados_cobranca || []); setAlterado(false); }
 
-    setResultadoDisparo({ tipo: 'clientes', enviados, falhas });
+    setResultadoDisparo({ enviados, falhas });
     setDisparando(false);
     falhas.length === 0
       ? toast.success(`✅ WhatsApp enviado para ${enviados.length} cliente(s)!`)
       : toast.warning(`Enviado: ${enviados.length} · Falha: ${falhas.length}`);
   };
 
-  // ── Disparo para REPRESENTANTES ──────────────────────────────────────────
+  // ── Disparo REPRESENTANTES ────────────────────────────────────────────────
   const handleDispararRepresentantes = async () => {
     setDisparando(true);
-    // Agrupa clientes por representante
     const porRep = {};
     itensAtivos.forEach(item => {
       const repCod = item.representante_codigo || item.representante_nome || 'Sem Rep';
       if (!porRep[repCod]) {
         const repDB = representantesDB.find(r => r.codigo === item.representante_codigo);
-        porRep[repCod] = {
-          nome: item.representante_nome || repCod,
-          telefone: repDB?.telefone || '',
-          clientes: [],
-        };
+        porRep[repCod] = { nome: item.representante_nome || repCod, telefone: repDB?.telefone || '', clientes: [] };
       }
       porRep[repCod].clientes.push(`${item.cliente_nome}${item.cliente_cidade ? ' (' + item.cliente_cidade + ')' : ''}`);
     });
@@ -195,30 +322,25 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
     for (const [, rep] of Object.entries(porRep)) {
       const numero = limparNumero(rep.telefone);
       if (!isNumeroValido(numero)) continue;
-      const listaClientes = rep.clientes.join(', ');
       const texto =
         `Olá *${rep.nome}*! 👋\n\n` +
         `O cobrador *Gil* fará a rota de cobrança no dia *${formatDate(rota.data_rota)}*.\n\n` +
-        `Os seus clientes que serão visitados são:\n📍 ${listaClientes}\n\n` +
+        `Os seus clientes que serão visitados são:\n📍 ${rep.clientes.join(', ')}\n\n` +
         `_Equipe J&C Esquadrias_`;
-      try {
-        await enviarWhatsApp(numero, texto);
-        enviados++;
-      } catch (_) {}
+      try { await enviarWhatsApp(numero, texto); enviados++; } catch (_) {}
     }
 
     setDisparando(false);
     toast.success(`✅ Mensagens enviadas para ${enviados} representante(s)!`);
   };
 
-  // ── Disparo para COBRADOR (Gil) ───────────────────────────────────────────
+  // ── Disparo COBRADOR ──────────────────────────────────────────────────────
   const handleDispararCobrador = async () => {
     setDisparando(true);
     const numeroGil = '5511981264504';
     const cidades = [...new Set(itensAtivos.map(i => i.cliente_cidade).filter(Boolean))].join(', ');
     const listaClientes = itensAtivos.map(i => i.cliente_nome).join(', ');
     const linksTexto = mapsUrls.map((url, i) => `Parte ${i + 1}: ${url}`).join('\n');
-
     const texto =
       `Olá *Gil*! 🛵\n\n` +
       `Sua rota do dia *${formatDate(rota.data_rota)}* está pronta!\n\n` +
@@ -226,22 +348,17 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
       `👥 *Clientes:* ${listaClientes || '—'}\n\n` +
       `🗺️ *Links do Maps:*\n${linksTexto || '—'}\n\n` +
       `_Sistema J&C Esquadrias_`;
-
     try {
       await enviarWhatsApp(numeroGil, texto);
       toast.success('✅ Mensagem enviada para o Gil!');
-    } catch (e) {
-      toast.error('Erro ao enviar para o Gil: ' + e.message);
-    }
+    } catch (e) { toast.error('Erro ao enviar para o Gil: ' + e.message); }
     setDisparando(false);
   };
 
-  const handleReenviar = async (falha) => {
+  // ── Reenvio da lista de falhas ────────────────────────────────────────────
+  const handleReenviarFalha = async (falha) => {
     const numeroCorrigido = limparNumero(numerosCorrecao[falha.cliente_nome] ?? falha.numero);
-    if (!isNumeroValido(numeroCorrigido)) {
-      toast.error('Número inválido para reenvio');
-      return;
-    }
+    if (!isNumeroValido(numeroCorrigido)) { toast.error('Número inválido para reenvio'); return; }
     const cliente = localClientes.find(c => c.cliente_nome === falha.cliente_nome);
     if (!cliente) return;
     setReenvioLoading(prev => ({ ...prev, [falha.cliente_nome]: true }));
@@ -258,13 +375,12 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
         }));
         const atualizado = await base44.entities.RotaCobranca.filter({ id: rota.id });
         if (atualizado?.[0]) { onUpdated(atualizado[0]); setLocalClientes(atualizado[0].dados_cobranca || []); }
-      } else {
-        toast.error(`Falha: ${res.data?.error || 'Erro desconhecido'}`);
-      }
+      } else { toast.error(`Falha: ${res.data?.error || 'Erro desconhecido'}`); }
     } catch (e) { toast.error(e.message); }
     finally { setReenvioLoading(prev => ({ ...prev, [falha.cliente_nome]: false })); }
   };
 
+  // ── Concluir rota ─────────────────────────────────────────────────────────
   const handleConcluir = async () => {
     setConcluindo(true);
     await base44.entities.RotaCobranca.update(rota.id, { status: 'Concluída' });
@@ -292,6 +408,9 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
                 <MessageSquare className="w-3 h-3 mr-1" /> WhatsApp Enviado
               </Badge>
             )}
+            {alterado && (
+              <Badge className="bg-amber-50 text-amber-700 border border-amber-200">⚠ Alterações não salvas</Badge>
+            )}
           </div>
         }
         description={`📅 ${formatDate(rota.data_rota)} · 👤 ${rota.cobrador_nome || 'Gil'} · 👥 ${localClientes.length} clientes`}
@@ -315,6 +434,14 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
 
         {/* ── Ações ── */}
         <div className="flex gap-2 flex-wrap mb-4">
+          {/* Salvar alterações */}
+          {alterado && (
+            <Button onClick={handleSalvar} disabled={salvando} className="gap-2 bg-amber-500 hover:bg-amber-600">
+              {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Salvar Alterações
+            </Button>
+          )}
+
           {/* WhatsApp dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -348,7 +475,7 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
           )}
         </div>
 
-        {/* ── Resultado do disparo ── */}
+        {/* ── Resultado do disparo em massa ── */}
         {resultadoDisparo && (
           <div className="mb-4 space-y-3">
             <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
@@ -372,7 +499,7 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
                       onChange={e => setNumerosCorrecao(prev => ({ ...prev, [falha.cliente_nome]: e.target.value }))}
                     />
                     <span className="text-xs text-red-500">{falha.erro}</span>
-                    <Button size="sm" onClick={() => handleReenviar(falha)}
+                    <Button size="sm" onClick={() => handleReenviarFalha(falha)}
                       disabled={reenvioLoading[falha.cliente_nome]} className="bg-blue-600 hover:bg-blue-700 h-8 gap-1">
                       {reenvioLoading[falha.cliente_nome] ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                       Reenviar
@@ -384,7 +511,7 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
           </div>
         )}
 
-        {/* ── Lista de itens ── */}
+        {/* ── Lista de clientes ── */}
         <div className="space-y-3 max-h-[45vh] overflow-y-auto">
           {localClientes.map((cliente, idx) => (
             <div key={idx} className={`border rounded-xl overflow-hidden transition-all ${cliente.recusado ? 'border-slate-300 opacity-60' : 'border-slate-200'}`}>
@@ -411,17 +538,48 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
                     <p className="text-xs text-red-400">Sem telefone</p>
                   )}
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className={`font-bold ${cliente.recusado ? 'text-slate-400' : 'text-blue-700'}`}>
+
+                {/* Ações por cliente */}
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className={`font-bold text-sm mr-1 ${cliente.recusado ? 'text-slate-400' : 'text-blue-700'}`}>
                     {formatCurrency(cliente.total_cliente)}
                   </span>
+
+                  {/* Editar contato */}
+                  {!cliente.recusado && (
+                    <Button
+                      size="sm" variant="ghost"
+                      title="Editar contato"
+                      onClick={() => setEditarContatoIdx(idx)}
+                      className="h-7 w-7 p-0 text-slate-400 hover:text-blue-600"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+
+                  {/* Reenviar WhatsApp individual */}
+                  {!cliente.recusado && (
+                    <Button
+                      size="sm" variant="ghost"
+                      title="Reenviar WhatsApp"
+                      onClick={() => handleReenviarIndividual(idx)}
+                      disabled={reenvioIndividualLoading[idx]}
+                      className="h-7 w-7 p-0 text-slate-400 hover:text-green-600"
+                    >
+                      {reenvioIndividualLoading[idx]
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : <RefreshCw className="w-3.5 h-3.5" />}
+                    </Button>
+                  )}
+
+                  {/* Marcar recusado */}
                   <Button
                     size="sm" variant="ghost"
                     title={cliente.recusado ? 'Remover recusa' : 'Marcar como recusado'}
                     onClick={() => marcarRecusado(idx)}
                     className={`h-7 w-7 p-0 ${cliente.recusado ? 'text-green-600 hover:text-green-700' : 'text-slate-400 hover:text-red-500'}`}
                   >
-                    <Ban className="w-4 h-4" />
+                    <Ban className="w-3.5 h-3.5" />
                   </Button>
                 </div>
               </div>
@@ -448,7 +606,15 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
         {/* Footer */}
         <div className="mt-4 p-4 bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 flex-wrap gap-2">
           <span className="text-sm font-semibold text-slate-600">💰 Total Ativo da Rota</span>
-          <span className="text-xl font-extrabold text-blue-700">{formatCurrency(totalAtivo)}</span>
+          <div className="flex items-center gap-3">
+            {alterado && (
+              <Button onClick={handleSalvar} disabled={salvando} size="sm" className="gap-2 bg-amber-500 hover:bg-amber-600">
+                {salvando ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                Salvar Alterações
+              </Button>
+            )}
+            <span className="text-xl font-extrabold text-blue-700">{formatCurrency(totalAtivo)}</span>
+          </div>
         </div>
       </ModalContainer>
 
@@ -461,6 +627,14 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
           representantes={representantesDB}
           onConfirm={executarAposPreFlight}
           onClose={() => { setShowPreFlight(false); setPreFlightAction(null); }}
+        />
+      )}
+
+      {editarContatoIdx !== null && (
+        <EditarContatoModal
+          cliente={localClientes[editarContatoIdx]}
+          onSave={handleSalvarContato}
+          onClose={() => setEditarContatoIdx(null)}
         />
       )}
     </>
