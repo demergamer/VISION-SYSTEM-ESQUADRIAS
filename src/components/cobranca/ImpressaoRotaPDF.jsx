@@ -16,8 +16,24 @@ function getDiaSemana(dateStr) {
   return dias[new Date(Number(y), Number(m) - 1, Number(d)).getDay()];
 }
 
+// Ponto de origem: Av. Miró Atílio Peduzi, 500 - Ribeirão Pires, SP
+const ORIGEM_LAT = -23.7108;
+const ORIGEM_LNG = -46.4117;
+
+function calcDistancia(lat, lng) {
+  if (!lat || !lng) return 99999;
+  const R = 6371;
+  const dLat = (lat - ORIGEM_LAT) * Math.PI / 180;
+  const dLng = (lng - ORIGEM_LNG) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(ORIGEM_LAT * Math.PI / 180) * Math.cos(lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 function gerarHTML(rota) {
-  const clientes = rota.dados_cobranca || [];
+  // Ordenar clientes do mais próximo ao mais distante
+  const clientes = [...(rota.dados_cobranca || [])].sort((a, b) =>
+    calcDistancia(a.cliente_latitude, a.cliente_longitude) - calcDistancia(b.cliente_latitude, b.cliente_longitude)
+  );
   const totalGeral = rota.valor_total_rota || clientes.reduce((s, c) => s + (c.total_cliente || 0), 0);
   const dataFormatada = formatDate(rota.data_rota);
   const diaSemana = getDiaSemana(rota.data_rota);
@@ -28,7 +44,7 @@ function gerarHTML(rota) {
   let todasLinhas = '';
   for (const cliente of clientes) {
     const pedidos = cliente.pedidos || [];
-    const regiao = cliente.cliente_regiao || '';
+    const regiao = cliente.cliente_cidade || cliente.cliente_regiao || '';
     const telefone = cliente.cliente_telefone ? `Tel: ${cliente.cliente_telefone}` : '';
 
     // Linha de cabeçalho do cliente
@@ -97,7 +113,7 @@ function gerarHTML(rota) {
     <thead>
       <tr style="background:#888;color:white">
         <th style="border:1px solid #666;padding:4px 6px;text-align:left;font-size:9px;width:18%">CLIENTE</th>
-        <th style="border:1px solid #666;padding:4px 6px;text-align:left;font-size:9px;width:14%">REGIÃO</th>
+        <th style="border:1px solid #666;padding:4px 6px;text-align:left;font-size:9px;width:14%">CIDADE</th>
         <th style="border:1px solid #666;padding:4px 6px;text-align:left;font-size:9px;width:7%">PEDIDO</th>
         <th style="border:1px solid #666;padding:4px 6px;text-align:left;font-size:9px;width:9%">VALOR</th>
         <th style="border:1px solid #666;padding:4px 6px;text-align:left;font-size:9px;width:9%">PAGO</th>

@@ -86,6 +86,9 @@ export default function CriarRotaModal({ onClose, onSaved }) {
             cli.telefone_3,
             ...(cli.contatos_lista || []).map(c => c.telefone),
           ].filter(Boolean),
+          cliente_cidade: cli.cidade || p.cliente_regiao || '',
+          cliente_latitude: cli.latitude || null,
+          cliente_longitude: cli.longitude || null,
           pedidos: [],
         };
       }
@@ -161,6 +164,9 @@ export default function CriarRotaModal({ onClose, onSaved }) {
         cliente_nome: clienteDados.cliente_nome,
         cliente_telefone: clienteDados.cliente_telefone,
         todos_telefones: clienteDados.todos_telefones,
+        cliente_cidade: clienteDados.cliente_cidade || '',
+        cliente_latitude: clienteDados.cliente_latitude || null,
+        cliente_longitude: clienteDados.cliente_longitude || null,
         pedidos: pedidosSnap,
         total_cliente: pedidosSnap.reduce((s, p) => s + p.valor_saldo, 0),
         whatsapp_enviado: false,
