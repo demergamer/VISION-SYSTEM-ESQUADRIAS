@@ -34,10 +34,32 @@ export function gerarUrlsMaps(paradas) {
  * Extrai endereço textual de um item da dados_cobranca.
  */
 export function extrairEnderecoItem(item) {
-  if (item.cliente_endereco_completo) return item.cliente_endereco_completo;
-  if (item.cliente_latitude && item.cliente_longitude)
+  // 1. Prefere endereco completo
+  if (item.cliente_endereco_completo?.trim()) return item.cliente_endereco_completo.trim();
+  
+  // 2. Tenta coordenadas
+  if (item.cliente_latitude && item.cliente_longitude) {
     return `${item.cliente_latitude},${item.cliente_longitude}`;
-  if (item.cliente_cidade) return `${item.cliente_cidade}, SP, Brasil`;
+  }
+  
+  // 3. Monta de partes
+  const partes = [
+    item.cliente_endereco,
+    item.cliente_numero,
+    item.cliente_cidade
+  ].filter(p => p?.trim());
+  
+  if (partes.length > 0) {
+    const estado = item.cliente_estado?.trim() || 'SP';
+    return partes.join(', ') + ', ' + estado + ', Brasil';
+  }
+  
+  // 4. Fallback para cidade + estado
+  if (item.cliente_cidade?.trim()) {
+    const estado = item.cliente_estado?.trim() || 'SP';
+    return `${item.cliente_cidade}, ${estado}, Brasil`;
+  }
+  
   return null;
 }
 

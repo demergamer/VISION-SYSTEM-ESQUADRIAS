@@ -25,16 +25,24 @@ Deno.serve(async (req) => {
     
     // Atualizar cidades faltantes
     const dadosAtualizados = dadosCobranca.map(item => {
-      if (!item.cliente_cidade || item.cliente_cidade.trim() === '') {
-        const clienteDB = clientesDB.find(c => c.codigo === item.cliente_codigo);
-        if (clienteDB && clienteDB.cidade) {
-          return {
-            ...item,
-            cliente_cidade: clienteDB.cidade,
-            cliente_regiao: clienteDB.regiao || clienteDB.cidade || item.cliente_regiao || '',
-            cliente_estado: clienteDB.estado || item.cliente_estado || 'SP',
-          };
-        }
+      const clienteDB = clientesDB.find(c => c.codigo === item.cliente_codigo);
+      
+      // Se não tem cidade, tenta do cliente DB
+      const cidade = item.cliente_cidade?.trim() ? item.cliente_cidade : (clienteDB?.cidade || '');
+      const estado = item.cliente_estado?.trim() ? item.cliente_estado : (clienteDB?.estado || 'SP');
+      
+      if (!cidade && clienteDB?.cidade) {
+        return {
+          ...item,
+          cliente_cidade: clienteDB.cidade,
+          cliente_estado: clienteDB.estado || 'SP',
+          cliente_endereco_completo: [
+            clienteDB.endereco,
+            clienteDB.numero,
+            clienteDB.cidade,
+            clienteDB.estado || 'SP'
+          ].filter(Boolean).join(', ') + ', Brasil' || item.cliente_endereco_completo || '',
+        };
       }
       return item;
     });
