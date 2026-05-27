@@ -98,7 +98,7 @@ export default function CriarRotaModal({ onClose, onSaved }) {
             cli.telefone_3 ? { telefone: cli.telefone_3, nome: cli.responsavel_3 || '' } : null,
             ...(cli.contatos_lista || []).map(c => ({ telefone: c.telefone, nome: c.nome_responsavel || '' })),
           ].filter(Boolean),
-          cliente_cidade: cli.cidade || item.cliente_regiao || '',
+          cliente_cidade: cli.cidade || '',
           cliente_estado: cli.estado || '',
           cliente_endereco: cli.endereco || '',
           cliente_numero: cli.numero || '',

@@ -11,54 +11,49 @@ Deno.serve(async (req) => {
 
     const { rota_id } = await req.json();
     
-    // Buscar a rota
     const rotas = await base44.entities.RotaCobranca.filter({ id: rota_id });
-    if (!rotas || rotas.length === 0) {
+    if (!rotas?.[0]) {
       return Response.json({ error: 'Rota não encontrada' }, { status: 404 });
     }
 
     const rota = rotas[0];
-    const dadosCobranca = rota.dados_cobranca || [];
-    
-    // Buscar todos os clientes do banco
     const clientesDB = await base44.entities.Cliente.list('codigo', 500);
     
-    // Atualizar cidades faltantes
-    const dadosAtualizados = dadosCobranca.map(item => {
+    let corrigidos = 0;
+    const dadosAtualizados = (rota.dados_cobranca || []).map(item => {
       const clienteDB = clientesDB.find(c => c.codigo === item.cliente_codigo);
       
-      // Se não tem cidade, tenta do cliente DB
-      const cidade = item.cliente_cidade?.trim() ? item.cliente_cidade : (clienteDB?.cidade || '');
-      const estado = item.cliente_estado?.trim() ? item.cliente_estado : (clienteDB?.estado || 'SP');
-      
-      if (!cidade && clienteDB?.cidade) {
-        return {
+      if (clienteDB) {
+        const endereco = [clienteDB.endereco, clienteDB.numero]
+          .filter(Boolean).join(', ');
+        const endereco_completo = [endereco, clienteDB.cidade, clienteDB.estado || 'SP']
+          .filter(Boolean).join(', ') + ', Brasil';
+        
+        const atualizado = {
           ...item,
-          cliente_cidade: clienteDB.cidade,
+          cliente_cidade: clienteDB.cidade || item.cliente_cidade || '',
           cliente_estado: clienteDB.estado || 'SP',
-          cliente_endereco_completo: [
-            clienteDB.endereco,
-            clienteDB.numero,
-            clienteDB.cidade,
-            clienteDB.estado || 'SP'
-          ].filter(Boolean).join(', ') + ', Brasil' || item.cliente_endereco_completo || '',
+          cliente_endereco_completo: endereco_completo,
+          cliente_latitude: clienteDB.latitude || item.cliente_latitude || null,
+          cliente_longitude: clienteDB.longitude || item.cliente_longitude || null,
         };
+        
+        if (atualizado.cliente_cidade !== item.cliente_cidade) corrigidos++;
+        return atualizado;
       }
       return item;
     });
 
-    // Salvar de volta
     await base44.entities.RotaCobranca.update(rota_id, { dados_cobranca: dadosAtualizados });
-    
     const rotaAtualizada = await base44.entities.RotaCobranca.filter({ id: rota_id });
     
     return Response.json({ 
       success: true, 
       rota: rotaAtualizada[0],
-      atualizados: dadosAtualizados.filter((d, i) => d.cliente_cidade !== dadosCobranca[i]?.cliente_cidade).length
+      corrigidos
     });
   } catch (error) {
-    console.error('Erro ao sincronizar cidades:', error);
+    console.error('Erro ao corrigir rota:', error);
     return Response.json({ error: error.message }, { status: 500 });
   }
 });

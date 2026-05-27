@@ -117,7 +117,7 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
   const [alterado, setAlterado] = useState(false);
   const [editarContatoIdx, setEditarContatoIdx] = useState(null); // idx do cliente sendo editado
   const [reenvioIndividualLoading, setReenvioIndividualLoading] = useState({});
-  const [sincronizandoCidades, setSincronizandoCidades] = useState(false);
+  const [corrigindo, setCorrigindo] = useState(false);
 
   const { data: clientesDB = [] } = useQuery({
     queryKey: ['clientes_lista_cobranca'],
@@ -399,22 +399,23 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
     finally { setReenvioLoading(prev => ({ ...prev, [falha.cliente_nome]: false })); }
   };
 
-  // ── Sincronizar cidades faltantes ────────────────────────────────────────
-  const handleSincronizarCidades = async () => {
-    setSincronizandoCidades(true);
+  // ── Corrigir erros da rota ───────────────────────────────────────────────
+  const handleCorrigirErros = async () => {
+    setCorrigindo(true);
     try {
-      const res = await base44.functions.invoke('sincronizarCidadesRota', { rota_id: rota.id });
+      const res = await base44.functions.invoke('corrigirErrosRota', { rota_id: rota.id });
       if (res.data?.success) {
         onUpdated(res.data.rota);
         setLocalClientes(res.data.rota.dados_cobranca || []);
-        toast.success(`✅ ${res.data.atualizados} cliente(s) sincronizado(s)!`);
+        setAlterado(false);
+        toast.success(`✅ ${res.data.corrigidos} cliente(s) corrigido(s)! Maps gerado.`);
       } else {
-        toast.error(res.data?.error || 'Erro ao sincronizar');
+        toast.error(res.data?.error || 'Erro ao corrigir');
       }
     } catch (e) {
       toast.error(`Erro: ${e.message}`);
     } finally {
-      setSincronizandoCidades(false);
+      setCorrigindo(false);
     }
   };
 
@@ -472,16 +473,16 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
 
         {/* ── Ações ── */}
         <div className="flex gap-2 flex-wrap mb-4">
-          {/* Sincronizar cidades */}
+          {/* Corrigir Erros */}
           <Button 
-            onClick={handleSincronizarCidades} 
-            disabled={sincronizandoCidades} 
+            onClick={handleCorrigirErros} 
+            disabled={corrigindo} 
             variant="outline" 
             className="gap-2"
-            title="Atualizar cidades faltantes do banco de dados"
+            title="Atualiza cidades, endereços e coordenadas do banco de dados"
           >
-            {sincronizandoCidades ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-            Sincronizar Cidades
+            {corrigindo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+            Corrigir Erros
           </Button>
 
           {/* Salvar alterações */}
