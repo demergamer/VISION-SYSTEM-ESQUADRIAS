@@ -113,9 +113,9 @@ function gerarHTMLRelatorio(empresa, contasSelecionadas, dataInicio, dataFim, us
     @page { size: A4 landscape; margin: 12mm 10mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, sans-serif; color: #1e293b; background: #fff; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; border-bottom: 2px solid #1e40af; padding-bottom: 10px; gap: 16px; }
-    .header-logo { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 70px; }
-    .header-logo img { height: 50px; margin-bottom: 4px; }
+    .header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin-bottom: 14px; border-bottom: 2px solid #1e40af; padding-bottom: 10px; gap: 16px; }
+    .header-logo { display: flex; flex-direction: column; align-items: center; text-align: center; }
+    .header-logo img { height: 54px; margin-bottom: 4px; }
     .header-logo .system-name { font-size: 10px; font-weight: 800; color: #1e40af; letter-spacing: 0.5px; text-transform: uppercase; }
     .header-left h1 { font-size: 18px; font-weight: 800; color: #1e40af; }
     .header-left h2 { font-size: 13px; font-weight: 600; color: #334155; margin-top: 2px; }

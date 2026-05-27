@@ -200,7 +200,8 @@ export default function LiquidarContasMassaModal({ open, onClose, empresas, cont
         await base44.entities.ContaPagar.update(conta.id, {
           status: 'pago', data_pagamento: dataPagamento,
           valor_pago: (conta.valor || 0) + juros - desc,
-          juros_multa: juros, desconto: desc
+          juros_multa: juros, desconto: desc,
+          formas_pagamento: formasPagamento.filter(fp => parseFloat(fp.valor) > 0).map(fp => ({ tipo: fp.tipo, valor: parseFloat(fp.valor), detalhes: fp.detalhes, cheques_ids: fp.cheques_ids, comprovante_url: fp.comprovante_url }))
         });
 
         if (conta.tipo_lancamento === 'recorrente') {
