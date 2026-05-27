@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
   MessageSquare, CheckCircle2, Loader2, AlertTriangle, Printer,
-  RefreshCw, Map, Ban, ChevronDown, Users, Truck, Save, Phone, X
+  RefreshCw, Map, Ban, ChevronDown, Users, Truck, Save, Phone, X, Zap
 } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
@@ -117,6 +117,7 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
   const [alterado, setAlterado] = useState(false);
   const [editarContatoIdx, setEditarContatoIdx] = useState(null); // idx do cliente sendo editado
   const [reenvioIndividualLoading, setReenvioIndividualLoading] = useState({});
+  const [sincronizandoCidades, setSincronizandoCidades] = useState(false);
 
   const { data: clientesDB = [] } = useQuery({
     queryKey: ['clientes_lista_cobranca'],
@@ -398,6 +399,25 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
     finally { setReenvioLoading(prev => ({ ...prev, [falha.cliente_nome]: false })); }
   };
 
+  // ── Sincronizar cidades faltantes ────────────────────────────────────────
+  const handleSincronizarCidades = async () => {
+    setSincronizandoCidades(true);
+    try {
+      const res = await base44.functions.invoke('sincronizarCidadesRota', { rota_id: rota.id });
+      if (res.data?.success) {
+        onUpdated(res.data.rota);
+        setLocalClientes(res.data.rota.dados_cobranca || []);
+        toast.success(`✅ ${res.data.atualizados} cliente(s) sincronizado(s)!`);
+      } else {
+        toast.error(res.data?.error || 'Erro ao sincronizar');
+      }
+    } catch (e) {
+      toast.error(`Erro: ${e.message}`);
+    } finally {
+      setSincronizandoCidades(false);
+    }
+  };
+
   // ── Concluir rota ─────────────────────────────────────────────────────────
   const handleConcluir = async () => {
     setConcluindo(true);
@@ -452,6 +472,18 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
 
         {/* ── Ações ── */}
         <div className="flex gap-2 flex-wrap mb-4">
+          {/* Sincronizar cidades */}
+          <Button 
+            onClick={handleSincronizarCidades} 
+            disabled={sincronizandoCidades} 
+            variant="outline" 
+            className="gap-2"
+            title="Atualizar cidades faltantes do banco de dados"
+          >
+            {sincronizandoCidades ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+            Sincronizar Cidades
+          </Button>
+
           {/* Salvar alterações */}
           {alterado && (
             <Button onClick={handleSalvar} disabled={salvando} className="gap-2 bg-amber-500 hover:bg-amber-600">
