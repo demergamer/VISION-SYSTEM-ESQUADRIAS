@@ -1,0 +1,113 @@
+{
+  "name": "RotaCobranca",
+  "type": "object",
+  "properties": {
+    "codigo_rota": {
+      "type": "string",
+      "description": "C\u00f3digo \u00fanico da rota (ex: ROTA-001)"
+    },
+    "data_rota": {
+      "type": "string",
+      "format": "date",
+      "description": "Data programada da rota de cobran\u00e7a"
+    },
+    "cobrador_nome": {
+      "type": "string",
+      "default": "Gil",
+      "description": "Nome do cobrador respons\u00e1vel"
+    },
+    "dados_cobranca": {
+      "type": "array",
+      "description": "Snapshot dos clientes e pedidos no momento da cria\u00e7\u00e3o",
+      "items": {
+        "type": "object",
+        "properties": {
+          "cliente_codigo": {
+            "type": "string"
+          },
+          "cliente_nome": {
+            "type": "string"
+          },
+          "cliente_telefone": {
+            "type": "string"
+          },
+          "pedidos": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "numero_pedido": {
+                  "type": "string"
+                },
+                "valor_saldo": {
+                  "type": "number"
+                },
+                "data_entrega": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "total_cliente": {
+            "type": "number"
+          },
+          "whatsapp_enviado": {
+            "type": "boolean",
+            "default": false
+          },
+          "whatsapp_erro": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "valor_total_rota": {
+      "type": "number",
+      "description": "Soma total de todos os saldos da rota"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Aberta",
+        "Conclu\u00edda"
+      ],
+      "default": "Aberta",
+      "description": "Status da rota"
+    },
+    "whatsapp_disparado": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se o disparo em massa de WhatsApp foi realizado"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es gerais da rota"
+    }
+  },
+  "required": [
+    "codigo_rota",
+    "data_rota"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

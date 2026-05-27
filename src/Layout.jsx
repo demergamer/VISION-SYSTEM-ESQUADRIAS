@@ -108,6 +108,7 @@ const menuStructure = [
       { name: "Cheques", icon: ScrollText },
       { name: "Creditos", icon: CreditCard },
       { name: "Balanco", icon: BarChart3 },
+      { name: "RotasCobranca", path: "rotas-cobranca", label: "🛵 Rota do Gil", icon: Truck },
       { name: "EntradaCaucao", icon: Wallet },
     ]
   },

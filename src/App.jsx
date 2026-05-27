@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import PermissionGuard from "@/components/PermissionGuard";
 import VisionMessage from '@/pages/VisionMessage';
+import RotasCobranca from '@/pages/RotasCobranca';
 import Atualizacoes from '@/pages/Atualizacoes';
 import Portaria from '@/pages/Portaria';
 import EstacionamentoVirtual from '@/pages/EstacionamentoVirtual';
@@ -142,6 +143,15 @@ const AuthenticatedApp = () => {
       <Route path="/vision-message" element={
         <LayoutWrapper currentPageName="VisionMessage">
           <VisionMessage />
+        </LayoutWrapper>
+      } />
+
+      {/* 🛵 MÓDULO ROTAS DE COBRANÇA */}
+      <Route path="/rotas-cobranca" element={
+        <LayoutWrapper currentPageName="RotasCobranca">
+          <PermissionGuard setor="Financeiro">
+            <RotasCobranca />
+          </PermissionGuard>
         </LayoutWrapper>
       } />
 
