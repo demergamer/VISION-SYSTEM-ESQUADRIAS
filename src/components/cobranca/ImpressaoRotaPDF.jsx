@@ -72,7 +72,7 @@ function gerarHTML(rota) {
   let todasLinhas = '';
   for (const cliente of clientes) {
     const pedidos = cliente.pedidos || [];
-    const regiao = cliente.cliente_cidade || cliente.cliente_regiao || '';
+    const regiao = cliente.cliente_cidade || cliente.cliente_regiao || cliente.cliente_estado || '';
     const telefone = cliente.cliente_telefone ? `Tel: ${cliente.cliente_telefone}` : '';
 
     // Linha de cabeçalho do cliente

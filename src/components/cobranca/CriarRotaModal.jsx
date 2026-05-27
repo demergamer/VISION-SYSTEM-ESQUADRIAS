@@ -172,6 +172,7 @@ export default function CriarRotaModal({ onClose, onSaved }) {
         cliente_telefone: clienteDados.cliente_telefone,
         todos_telefones: clienteDados.todos_telefones,
         cliente_cidade: clienteDados.cliente_cidade || '',
+        cliente_regiao: clienteDados.cliente_cidade || '',
         cliente_endereco_completo: enderecoCompleto || '',
         cliente_latitude: clienteDados.cliente_latitude || null,
         cliente_longitude: clienteDados.cliente_longitude || null,

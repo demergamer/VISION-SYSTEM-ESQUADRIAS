@@ -42,7 +42,14 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
   // Monta URLs de navegação baseados no endereço de cada cliente
   const buildNavLinks = () => {
     const stops = clientes
-      .map(c => c.cliente_endereco_completo || (c.cliente_cidade ? `${c.cliente_cidade}, SP, Brasil` : null))
+      .map(c => {
+        // Tenta endereço completo salvo no snapshot
+        if (c.cliente_endereco_completo) return c.cliente_endereco_completo;
+        // Fallback: monta a partir dos campos individuais do snapshot
+        const cidade = c.cliente_cidade || c.cliente_regiao;
+        if (cidade) return `${cidade}, SP, Brasil`;
+        return null;
+      })
       .filter(Boolean);
 
     if (stops.length === 0) return { maps: null, waze: null };
@@ -233,7 +240,7 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
                 <Navigation className="w-4 h-4" /> Waze
               </a>
             )}
-            <span className="text-[10px] text-slate-400 w-full">Rota com {clientes.filter(c => c.cliente_endereco).length} paradas na ordem do itinerário</span>
+            <span className="text-[10px] text-slate-400 w-full">Rota com {clientes.filter(c => c.cliente_endereco_completo || c.cliente_cidade || c.cliente_regiao).length} paradas na ordem do itinerário</span>
           </div>
         )}
 
