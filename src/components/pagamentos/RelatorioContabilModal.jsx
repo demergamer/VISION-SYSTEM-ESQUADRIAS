@@ -59,7 +59,7 @@ function extrairImpostos(c) {
   return linhas;
 }
 
-function gerarHTMLRelatorio(empresa, contasSelecionadas, dataInicio, dataFim) {
+function gerarHTMLRelatorio(empresa, contasSelecionadas, dataInicio, dataFim, usuarioNome) {
   const totalOriginal = contasSelecionadas.reduce((s, c) => s + (c.valor || 0), 0);
   const totalPago = contasSelecionadas.reduce((s, c) => s + (c.valor_pago || c.valor || 0), 0);
   const periodoStr = `${format(parseISO(dataInicio), 'dd/MM/yyyy')} a ${format(parseISO(dataFim), 'dd/MM/yyyy')}`;
@@ -113,12 +113,16 @@ function gerarHTMLRelatorio(empresa, contasSelecionadas, dataInicio, dataFim) {
     @page { size: A4 landscape; margin: 12mm 10mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, sans-serif; color: #1e293b; background: #fff; }
+    .logo-section { text-align: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0; }
+    .logo-section img { height: 60px; margin-bottom: 6px; }
+    .logo-section .system-name { font-size: 12px; font-weight: 800; color: #1e40af; letter-spacing: 0.5px; text-transform: uppercase; }
     .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; border-bottom: 2px solid #1e40af; padding-bottom: 10px; }
     .header-left h1 { font-size: 18px; font-weight: 800; color: #1e40af; }
     .header-left h2 { font-size: 13px; font-weight: 600; color: #334155; margin-top: 2px; }
     .header-left p { font-size: 11px; color: #64748b; margin-top: 2px; }
     .header-right { text-align: right; }
     .header-right .periodo { font-size: 11px; color: #475569; }
+    .header-right .emitido-por { font-size: 10px; color: #94a3b8; margin-top: 8px; padding-top: 6px; border-top: 1px solid #cbd5e1; }
     .header-right .gerado { font-size: 10px; color: #94a3b8; margin-top: 4px; }
     .badge { display: inline-block; background: #dbeafe; color: #1e40af; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 12px; margin-top: 4px; }
     table { width: 100%; border-collapse: collapse; font-size: 10px; }
@@ -140,6 +144,11 @@ function gerarHTMLRelatorio(empresa, contasSelecionadas, dataInicio, dataFim) {
   </style>
 </head>
 <body>
+  <div class="logo-section">
+    <img src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png" alt="J&C One Vision Logo" />
+    <div class="system-name">One Vision System</div>
+  </div>
+
   <div class="header">
     <div class="header-left">
       <h1>${empresa?.nome || 'Empresa'}</h1>
@@ -149,6 +158,7 @@ function gerarHTMLRelatorio(empresa, contasSelecionadas, dataInicio, dataFim) {
     </div>
     <div class="header-right">
       <div class="periodo">📅 Período: <strong>${periodoStr}</strong></div>
+      <div class="emitido-por">Emitido por: <strong>${usuarioNome || 'Sistema'}</strong></div>
       <div class="gerado">Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</div>
     </div>
   </div>
@@ -241,10 +251,21 @@ export default function RelatorioContabilModal({ open, onClose, empresas, contas
 
   const toggle = (id) => setSelecionadas(p => ({ ...p, [id]: !p[id] }));
 
+  const { data: user } = useQuery({
+    queryKey: ['current_user'],
+    queryFn: async () => {
+      try {
+        return await base44.auth.me();
+      } catch {
+        return null;
+      }
+    },
+  });
+
   const gerarPDF = () => {
     const contasParaImprimir = contasFiltradas.filter(c => selecionadas[c.id]);
     if (contasParaImprimir.length === 0) return;
-    const html = gerarHTMLRelatorio(empresa, contasParaImprimir, dataInicio, dataFim);
+    const html = gerarHTMLRelatorio(empresa, contasParaImprimir, dataInicio, dataFim, user?.full_name || 'Sistema');
     const janela = window.open('', '_blank');
     janela.document.write(html);
     janela.document.close();
