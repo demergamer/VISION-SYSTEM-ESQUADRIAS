@@ -35,6 +35,7 @@ export default function CriarRotaModal({ onClose, onSaved }) {
     queryFn: () => base44.entities.Pedido.filter(
       { status: { '$in': ['aberto', 'parcial', 'aguardando'] } }, 'cliente_nome', 1000
     ),
+    refetchInterval: 30000,
   });
 
   // Pedidos pagos/cancelados — carregados apenas se busca expandida
@@ -125,7 +126,7 @@ export default function CriarRotaModal({ onClose, onSaved }) {
   };
 
   const isPedidoDisabled = (p) => p.status === 'pago' || p.status === 'cancelado';
-  const isPedidoTransito = (p) => p.status === 'aguardando' || p.rota_importada_id;
+  const isPedidoTransito = (p) => p.status === 'aguardando' && !p.confirmado_entrega;
 
   const togglePedido = (key, pedido) => {
     if (isPedidoDisabled(pedido)) return;

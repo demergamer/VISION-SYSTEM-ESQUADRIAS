@@ -26,6 +26,7 @@ export default function RotasCobranca() {
   const { data: rotas = [], isLoading } = useQuery({
     queryKey: ['rotas_cobranca'],
     queryFn: () => base44.entities.RotaCobranca.list('-data_rota', 100),
+    refetchInterval: 30000,
   });
 
   return (
