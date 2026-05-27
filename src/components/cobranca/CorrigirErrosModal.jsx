@@ -33,11 +33,18 @@ export default function CorrigirErrosModal({ rota, clientesDB = [], onClose, onC
       const clienteDB = clientesDB.find(c => c.codigo === item.cliente_codigo);
       
       const erros = [];
-      if (!item.cliente_cidade && !clienteDB?.cidade) erros.push('Cidade faltando');
-      if (!item.cliente_endereco_completo && !clienteDB?.endereco) erros.push('Endereço faltando');
-      if (!item.cliente_telefone && !clienteDB?.telefone_1) erros.push('Telefone faltando');
-      if (!item.cliente_latitude && !clienteDB?.latitude) erros.push('Latitude faltando');
-      if (!item.cliente_longitude && !clienteDB?.longitude) erros.push('Longitude faltando');
+      // Só marca erro se REALMENTE estiver faltando em ambos os locais
+      const temCidade = item.cliente_cidade?.trim() || clienteDB?.cidade?.trim();
+      const temEndereco = item.cliente_endereco_completo?.trim() || (clienteDB?.endereco?.trim() || clienteDB?.numero?.trim());
+      const temTelefone = item.cliente_telefone?.trim() || clienteDB?.telefone_1?.trim();
+      const temLatitude = item.cliente_latitude || clienteDB?.latitude;
+      const temLongitude = item.cliente_longitude || clienteDB?.longitude;
+      
+      if (!temCidade) erros.push('Cidade faltando');
+      if (!temEndereco) erros.push('Endereço faltando');
+      if (!temTelefone) erros.push('Telefone faltando');
+      if (!temLatitude) erros.push('Latitude faltando');
+      if (!temLongitude) erros.push('Longitude faltando');
 
       return {
         ...item,
