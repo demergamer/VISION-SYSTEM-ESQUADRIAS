@@ -1,11 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { MessageSquare, CheckCircle2, Loader2, AlertTriangle, Printer, RefreshCw, Map, Navigation } from 'lucide-react';
+import {
+  MessageSquare, CheckCircle2, Loader2, AlertTriangle, Printer,
+  RefreshCw, Map, Ban, ChevronDown, Users, Truck
+} from 'lucide-react';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 import ModalContainer from '@/components/modals/ModalContainer';
 import ImpressaoRotaPDF from './ImpressaoRotaPDF';
+import PreFlightModal from './PreFlightModal';
+import { gerarUrlsMaps, getParadasValidas } from './mapsUtils';
 import { toast } from 'sonner';
 
 const formatCurrency = (val) =>
@@ -28,183 +37,232 @@ function isNumeroValido(n) {
   return d.length >= 12 && d.length <= 15;
 }
 
+async function enviarWhatsApp(numero, texto) {
+  const url = import.meta.env.VITE_EVOLUTION_API_URL;
+  const key = import.meta.env.VITE_EVOLUTION_API_KEY;
+  const inst = import.meta.env.VITE_EVOLUTION_INSTANCE;
+  const resp = await fetch(`${url}/message/sendText/${inst}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': key },
+    body: JSON.stringify({ number: numero, text: texto }),
+  });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+}
+
 export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
   const [disparando, setDisparando] = useState(false);
-  const [confirmarDisparo, setConfirmarDisparo] = useState(false);
-  const [resultadoDisparo, setResultadoDisparo] = useState(null); // { enviados, falhas: [{cliente_nome, numero, erro}] }
-  const [numerosCorrecao, setNumerosCorrecao] = useState({}); // { cliente_nome: novo_numero }
+  const [confirmarDisparo, setConfirmarDisparo] = useState(null); // 'clientes' | 'representantes' | 'cobrador'
+  const [resultadoDisparo, setResultadoDisparo] = useState(null);
+  const [numerosCorrecao, setNumerosCorrecao] = useState({});
   const [reenvioLoading, setReenvioLoading] = useState({});
   const [concluindo, setConcluindo] = useState(false);
   const [showPDF, setShowPDF] = useState(false);
+  const [preFlightAction, setPreFlightAction] = useState(null); // ação pendente após preflight
+  const [showPreFlight, setShowPreFlight] = useState(false);
+  const [localClientes, setLocalClientes] = useState(rota.dados_cobranca || []);
 
-  const clientes = rota.dados_cobranca || [];
+  // Carrega clientes e representantes para o pre-flight
+  const { data: clientesDB = [] } = useQuery({
+    queryKey: ['clientes_lista_cobranca'],
+    queryFn: () => base44.entities.Cliente.list('nome', 500),
+  });
+  const { data: representantesDB = [] } = useQuery({
+    queryKey: ['representantes_cobranca'],
+    queryFn: () => base44.entities.Representante.list('nome', 200),
+  });
 
-  // Monta URLs de navegação baseados no endereço/coordenadas de cada cliente
-  const buildNavLinks = () => {
-    const origin = encodeURIComponent('Ribeirão Pires, SP, Brasil');
+  const itensAtivos = useMemo(() => localClientes.filter(c => !c.recusado), [localClientes]);
+  const mapsUrls = useMemo(() => gerarUrlsMaps(getParadasValidas(itensAtivos)), [itensAtivos]);
 
-    // Tenta montar paradas por endereço textual
-    const stopsTexto = clientes
-      .map(c => {
-        if (c.cliente_endereco_completo) return c.cliente_endereco_completo;
-        const cidade = c.cliente_cidade || c.cliente_regiao;
-        if (cidade) return `${cidade}, SP, Brasil`;
-        return null;
-      })
-      .filter(Boolean);
-
-    // Tenta montar paradas por coordenadas lat/lon
-    const stopsCoordenada = clientes
-      .filter(c => c.cliente_latitude && c.cliente_longitude)
-      .map(c => `${c.cliente_latitude},${c.cliente_longitude}`);
-
-    const stops = stopsTexto.length >= clientes.length * 0.5 ? stopsTexto : 
-                  stopsCoordenada.length > 0 ? stopsCoordenada : stopsTexto;
-
-    if (stops.length === 0) return { maps: null, waze: null };
-
-    const destination = encodeURIComponent(stops[stops.length - 1]);
-    const waypoints = stops.slice(0, -1).map(s => encodeURIComponent(s)).join('|');
-    const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints ? `&waypoints=${waypoints}` : ''}&travelmode=driving`;
-    const wazeUrl = `https://waze.com/ul?q=${encodeURIComponent(stops[0])}&navigate=yes`;
-
-    return { maps: mapsUrl, waze: wazeUrl };
+  // ── Marcar como recusado ──────────────────────────────────────────────────
+  const marcarRecusado = async (idx) => {
+    const novo = localClientes.map((c, i) =>
+      i === idx ? { ...c, recusado: !c.recusado } : c
+    );
+    setLocalClientes(novo);
+    await base44.entities.RotaCobranca.update(rota.id, { dados_cobranca: novo });
+    onUpdated({ ...rota, dados_cobranca: novo });
+    toast.info(novo[idx].recusado ? 'Item marcado como recusado.' : 'Recusa removida.');
   };
 
-  const navLinks = buildNavLinks();
+  // ── Pre-flight gate ───────────────────────────────────────────────────────
+  const iniciarAcao = (acao) => {
+    setPreFlightAction(acao);
+    setShowPreFlight(true);
+  };
 
-  const handleDisparar = async () => {
+  const executarAposPreFlight = async () => {
+    setShowPreFlight(false);
+    if (preFlightAction === 'clientes') await handleDispariarClientes();
+    else if (preFlightAction === 'representantes') await handleDispararRepresentantes();
+    else if (preFlightAction === 'cobrador') await handleDispararCobrador();
+    else if (preFlightAction === 'maps') {} // maps abre direto
+    setPreFlightAction(null);
+  };
+
+  // ── Disparo para CLIENTES ─────────────────────────────────────────────────
+  const handleDispariarClientes = async () => {
     setDisparando(true);
-    setConfirmarDisparo(false);
+    setConfirmarDisparo(null);
     setResultadoDisparo(null);
-
-    const EVOLUTION_API_URL = import.meta.env.VITE_EVOLUTION_API_URL;
-    const EVOLUTION_API_KEY = import.meta.env.VITE_EVOLUTION_API_KEY;
-    const EVOLUTION_INSTANCE = import.meta.env.VITE_EVOLUTION_INSTANCE;
 
     const enviados = [];
     const falhas = [];
-    const dadosAtualizados = clientes.map(c => ({ ...c }));
+    const dadosAtualizados = [...localClientes];
 
-    const formatDate2 = (dateStr) => {
-      if (!dateStr) return 'em breve';
-      const [y, m, d] = dateStr.split('-');
-      return `${d}/${m}/${y}`;
-    };
+    for (let i = 0; i < localClientes.length; i++) {
+      const cliente = localClientes[i];
+      if (cliente.recusado) continue;
 
-    for (let i = 0; i < clientes.length; i++) {
-      const cliente = clientes[i];
-      // Usa contatos_nomeados para pegar o nome do responsável junto ao número
       const contatosNomeados = cliente.contatos_nomeados?.filter(c => c.telefone) || [];
       const numeros = (contatosNomeados.length
         ? contatosNomeados.map(c => c.telefone)
         : cliente.todos_telefones?.length ? cliente.todos_telefones : [cliente.cliente_telefone]
       ).map(limparNumero).filter(n => n && isNumeroValido(n));
 
-      // Nome do responsável principal (primeiro contato com nome)
       const nomeResponsavel = contatosNomeados.find(c => c.nome)?.nome || '';
 
       if (!numeros.length) {
-        falhas.push({ cliente_nome: cliente.cliente_nome, numero: cliente.cliente_telefone || '', erro: 'Número inválido ou ausente' });
+        falhas.push({ cliente_nome: cliente.cliente_nome, numero: '', erro: 'Número inválido ou ausente' });
         dadosAtualizados[i] = { ...dadosAtualizados[i], whatsapp_enviado: false, whatsapp_erro: 'Número inválido' };
         continue;
       }
 
       const linhasPedidos = (cliente.pedidos || [])
-        .map(p => `▪ Pedido #${p.numero_pedido} — ${formatCurrency(p.valor_saldo)}`)
-        .join('\n');
+        .map(p => {
+          const tag = p.tipo_item === 'cheque' ? `▪ Cheque Dev #${p.numero_pedido}` : `▪ Pedido #${p.numero_pedido}`;
+          return `${tag} — ${formatCurrency(p.valor_saldo)}`;
+        }).join('\n');
 
       const saudacao = nomeResponsavel ? `Olá, *${nomeResponsavel}*! 😊` : `Olá, *${cliente.cliente_nome}*! 😊`;
       const texto =
         `${saudacao}\n\n` +
         `Representando *${cliente.cliente_nome}*.\n` +
-        `O nosso cobrador *Gil* estará na sua região no dia *${formatDate2(rota.data_rota)}*.\n\n` +
+        `O nosso cobrador *Gil* estará na sua região no dia *${formatDate(rota.data_rota)}*.\n\n` +
         `*📋 Pendências:*\n${linhasPedidos || '▪ Consulte nosso financeiro'}\n\n` +
         `*💰 Total: ${formatCurrency(cliente.total_cliente)}*\n\n` +
         `Aguardamos confirmação! 🙏\n_Equipe J&C Esquadrias_`;
 
-      let enviouAlgum = false;
+      let enviou = false;
       for (const numero of numeros) {
         try {
-          const resp = await fetch(`${EVOLUTION_API_URL}/message/sendText/${EVOLUTION_INSTANCE}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_API_KEY },
-            body: JSON.stringify({ number: numero, text: texto }),
-          });
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          await enviarWhatsApp(numero, texto);
           enviados.push({ cliente_nome: cliente.cliente_nome, numero });
           dadosAtualizados[i] = { ...dadosAtualizados[i], whatsapp_enviado: true, whatsapp_erro: null };
-          enviouAlgum = true;
-          break; // enviou para 1 número com sucesso, passa para o próximo cliente
-        } catch (e) {
-          // tenta o próximo número
-        }
+          enviou = true;
+          break;
+        } catch (_) {}
       }
-
-      if (!enviouAlgum) {
-        falhas.push({ cliente_nome: cliente.cliente_nome, numero: numeros[0] || '', erro: 'Falha no envio para todos os números' });
+      if (!enviou) {
+        falhas.push({ cliente_nome: cliente.cliente_nome, numero: numeros[0] || '', erro: 'Falha no envio' });
         dadosAtualizados[i] = { ...dadosAtualizados[i], whatsapp_enviado: false, whatsapp_erro: 'Falha no envio' };
       }
     }
 
-    // Atualiza entidade com status por cliente
     await base44.entities.RotaCobranca.update(rota.id, {
       whatsapp_disparado: enviados.length > 0,
       dados_cobranca: dadosAtualizados,
     });
-
     const atualizado = await base44.entities.RotaCobranca.filter({ id: rota.id });
-    if (atualizado?.[0]) onUpdated(atualizado[0]);
+    if (atualizado?.[0]) { onUpdated(atualizado[0]); setLocalClientes(atualizado[0].dados_cobranca || []); }
 
-    setResultadoDisparo({ enviados, falhas });
+    setResultadoDisparo({ tipo: 'clientes', enviados, falhas });
     setDisparando(false);
+    falhas.length === 0
+      ? toast.success(`✅ WhatsApp enviado para ${enviados.length} cliente(s)!`)
+      : toast.warning(`Enviado: ${enviados.length} · Falha: ${falhas.length}`);
+  };
 
-    if (falhas.length === 0) {
-      toast.success(`✅ WhatsApp enviado para ${enviados.length} cliente(s)!`);
-    } else {
-      toast.warning(`Enviado: ${enviados.length} · Falha: ${falhas.length}`);
+  // ── Disparo para REPRESENTANTES ──────────────────────────────────────────
+  const handleDispararRepresentantes = async () => {
+    setDisparando(true);
+    // Agrupa clientes por representante
+    const porRep = {};
+    itensAtivos.forEach(item => {
+      const repCod = item.representante_codigo || item.representante_nome || 'Sem Rep';
+      if (!porRep[repCod]) {
+        const repDB = representantesDB.find(r => r.codigo === item.representante_codigo);
+        porRep[repCod] = {
+          nome: item.representante_nome || repCod,
+          telefone: repDB?.telefone || '',
+          clientes: [],
+        };
+      }
+      porRep[repCod].clientes.push(`${item.cliente_nome}${item.cliente_cidade ? ' (' + item.cliente_cidade + ')' : ''}`);
+    });
+
+    let enviados = 0;
+    for (const [, rep] of Object.entries(porRep)) {
+      const numero = limparNumero(rep.telefone);
+      if (!isNumeroValido(numero)) continue;
+      const listaClientes = rep.clientes.join(', ');
+      const texto =
+        `Olá *${rep.nome}*! 👋\n\n` +
+        `O cobrador *Gil* fará a rota de cobrança no dia *${formatDate(rota.data_rota)}*.\n\n` +
+        `Os seus clientes que serão visitados são:\n📍 ${listaClientes}\n\n` +
+        `_Equipe J&C Esquadrias_`;
+      try {
+        await enviarWhatsApp(numero, texto);
+        enviados++;
+      } catch (_) {}
     }
+
+    setDisparando(false);
+    toast.success(`✅ Mensagens enviadas para ${enviados} representante(s)!`);
+  };
+
+  // ── Disparo para COBRADOR (Gil) ───────────────────────────────────────────
+  const handleDispararCobrador = async () => {
+    setDisparando(true);
+    const numeroGil = '5511981264504';
+    const cidades = [...new Set(itensAtivos.map(i => i.cliente_cidade).filter(Boolean))].join(', ');
+    const listaClientes = itensAtivos.map(i => i.cliente_nome).join(', ');
+    const linksTexto = mapsUrls.map((url, i) => `Parte ${i + 1}: ${url}`).join('\n');
+
+    const texto =
+      `Olá *Gil*! 🛵\n\n` +
+      `Sua rota do dia *${formatDate(rota.data_rota)}* está pronta!\n\n` +
+      `🏙️ *Cidades:* ${cidades || '—'}\n\n` +
+      `👥 *Clientes:* ${listaClientes || '—'}\n\n` +
+      `🗺️ *Links do Maps:*\n${linksTexto || '—'}\n\n` +
+      `_Sistema J&C Esquadrias_`;
+
+    try {
+      await enviarWhatsApp(numeroGil, texto);
+      toast.success('✅ Mensagem enviada para o Gil!');
+    } catch (e) {
+      toast.error('Erro ao enviar para o Gil: ' + e.message);
+    }
+    setDisparando(false);
   };
 
   const handleReenviar = async (falha) => {
-    const numeroCorrigido = numerosCorrecao[falha.cliente_nome] !== undefined
-      ? numerosCorrecao[falha.cliente_nome]
-      : falha.numero;
-    const numero = limparNumero(numeroCorrigido);
-    if (!isNumeroValido(numero)) {
-      toast.error(`Número inválido: "${numeroCorrigido}" → "${numero}" (esperado 12-15 dígitos com DDI 55)`);
+    const numeroCorrigido = limparNumero(numerosCorrecao[falha.cliente_nome] ?? falha.numero);
+    if (!isNumeroValido(numeroCorrigido)) {
+      toast.error('Número inválido para reenvio');
       return;
     }
-
-    const cliente = clientes.find(c => c.cliente_nome === falha.cliente_nome);
+    const cliente = localClientes.find(c => c.cliente_nome === falha.cliente_nome);
     if (!cliente) return;
-
     setReenvioLoading(prev => ({ ...prev, [falha.cliente_nome]: true }));
     try {
       const res = await base44.functions.invoke('reenviarWhatsAppCliente', {
-        rota_id: rota.id,
-        cliente_nome: falha.cliente_nome,
-        numero_corrigido: numero,
+        rota_id: rota.id, cliente_nome: falha.cliente_nome, numero_corrigido: numeroCorrigido,
       });
-
       if (res.data?.success) {
-        toast.success(`✅ Reenviado para ${cliente.cliente_nome}!`);
+        toast.success(`✅ Reenviado para ${falha.cliente_nome}!`);
         setResultadoDisparo(prev => ({
           ...prev,
-          enviados: [...(prev.enviados || []), { cliente_nome: falha.cliente_nome, numero }],
+          enviados: [...(prev.enviados || []), { cliente_nome: falha.cliente_nome, numero: numeroCorrigido }],
           falhas: prev.falhas.filter(f => f.cliente_nome !== falha.cliente_nome),
         }));
-        // Atualiza estado local da rota
         const atualizado = await base44.entities.RotaCobranca.filter({ id: rota.id });
-        if (atualizado?.[0]) onUpdated(atualizado[0]);
+        if (atualizado?.[0]) { onUpdated(atualizado[0]); setLocalClientes(atualizado[0].dados_cobranca || []); }
       } else {
         toast.error(`Falha: ${res.data?.error || 'Erro desconhecido'}`);
       }
-    } catch (e) {
-      toast.error(`Erro: ${e.message}`);
-    } finally {
-      setReenvioLoading(prev => ({ ...prev, [falha.cliente_nome]: false }));
-    }
+    } catch (e) { toast.error(e.message); }
+    finally { setReenvioLoading(prev => ({ ...prev, [falha.cliente_nome]: false })); }
   };
 
   const handleConcluir = async () => {
@@ -215,6 +273,8 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
     setConcluindo(false);
     toast.success('Rota concluída!');
   };
+
+  const totalAtivo = itensAtivos.reduce((s, c) => s + (c.total_cliente || 0), 0);
 
   return (
     <>
@@ -234,39 +294,49 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
             )}
           </div>
         }
-        description={`📅 ${formatDate(rota.data_rota)} · 👤 ${rota.cobrador_nome || 'Gil'} · 👥 ${clientes.length} clientes`}
+        description={`📅 ${formatDate(rota.data_rota)} · 👤 ${rota.cobrador_nome || 'Gil'} · 👥 ${localClientes.length} clientes`}
         size="xl"
       >
-        {/* Links de Navegação */}
-        {(navLinks.maps || navLinks.waze) && (
+        {/* ── Links do Maps ── */}
+        {mapsUrls.length > 0 && (
           <div className="flex gap-2 flex-wrap mb-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
-            <span className="text-xs font-semibold text-slate-500 w-full">🗺️ Abrir rota em:</span>
-            {navLinks.maps && (
-              <a href={navLinks.maps} target="_blank" rel="noopener noreferrer"
+            <span className="text-xs font-semibold text-slate-500 w-full">🗺️ Rota Google Maps:</span>
+            {mapsUrls.map((url, i) => (
+              <a key={i} href={url} target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-medium text-blue-700 hover:bg-blue-50 hover:border-blue-300 transition-colors shadow-sm">
-                <Map className="w-4 h-4" /> Google Maps
+                <Map className="w-4 h-4" /> 📍 Maps Parte {i + 1}
               </a>
-            )}
-            {navLinks.waze && (
-              <a href={navLinks.waze} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-medium text-cyan-700 hover:bg-cyan-50 hover:border-cyan-300 transition-colors shadow-sm">
-                <Navigation className="w-4 h-4" /> Waze
-              </a>
-            )}
-            <span className="text-[10px] text-slate-400 w-full">Rota com {clientes.filter(c => c.cliente_endereco_completo || c.cliente_cidade || c.cliente_regiao).length} paradas na ordem do itinerário</span>
+            ))}
+            <span className="text-[10px] text-slate-400 w-full">
+              {itensAtivos.filter(c => c.cliente_endereco_completo || c.cliente_cidade).length} paradas válidas · {mapsUrls.length} lote(s)
+            </span>
           </div>
         )}
 
-        {/* Ações */}
+        {/* ── Ações ── */}
         <div className="flex gap-2 flex-wrap mb-4">
-          <Button
-            onClick={() => setConfirmarDisparo(true)}
-            disabled={disparando}
-            className="gap-2 bg-green-600 hover:bg-green-700 flex-1"
-          >
-            {disparando ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageSquare className="w-4 h-4" />}
-            {disparando ? 'Enviando...' : rota.whatsapp_disparado ? '🔄 Disparar Novamente' : 'Disparar WhatsApp'}
-          </Button>
+          {/* WhatsApp dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button disabled={disparando} className="gap-2 bg-green-600 hover:bg-green-700 flex-1">
+                {disparando ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageSquare className="w-4 h-4" />}
+                {disparando ? 'Enviando...' : 'Disparar WhatsApp'}
+                <ChevronDown className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuItem onClick={() => iniciarAcao('clientes')} className="gap-2">
+                <Users className="w-4 h-4 text-green-600" /> Para Clientes
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => iniciarAcao('representantes')} className="gap-2">
+                <Users className="w-4 h-4 text-blue-600" /> Para Representantes
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => iniciarAcao('cobrador')} className="gap-2">
+                <Truck className="w-4 h-4 text-orange-600" /> Para o Cobrador (Gil)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button variant="outline" onClick={() => setShowPDF(true)} className="gap-2 flex-1">
             <Printer className="w-4 h-4" /> Relatório PDF
           </Button>
@@ -278,31 +348,16 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
           )}
         </div>
 
-        {/* Confirmação */}
-        {confirmarDisparo && (
-          <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-            <p className="font-semibold text-amber-800 mb-1">⚠️ Confirmar Disparo em Massa</p>
-            <p className="text-sm text-amber-700 mb-3">
-              Enviará mensagens para <strong>{clientes.length} cliente(s)</strong>. Tentará todos os números cadastrados.
-            </p>
-            <div className="flex gap-2">
-              <Button size="sm" onClick={handleDisparar} className="bg-green-600 hover:bg-green-700">Sim, disparar!</Button>
-              <Button size="sm" variant="outline" onClick={() => setConfirmarDisparo(false)}>Cancelar</Button>
-            </div>
-          </div>
-        )}
-
-        {/* Resultado do disparo */}
+        {/* ── Resultado do disparo ── */}
         {resultadoDisparo && (
           <div className="mb-4 space-y-3">
             <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
-              ✅ Disparo concluído! <strong>{resultadoDisparo.enviados.length}</strong> cliente(s) receberam.
-              {resultadoDisparo.falhas.length > 0 && (
-                <span className="text-red-600 ml-2">❌ Falha em <strong>{resultadoDisparo.falhas.length}</strong> cliente(s).</span>
+              ✅ Disparo concluído! <strong>{resultadoDisparo.enviados.length}</strong> enviado(s).
+              {resultadoDisparo.falhas?.length > 0 && (
+                <span className="text-red-600 ml-2">❌ Falha: <strong>{resultadoDisparo.falhas.length}</strong></span>
               )}
             </div>
-
-            {resultadoDisparo.falhas.length > 0 && (
+            {resultadoDisparo.falhas?.length > 0 && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-xl space-y-3">
                 <p className="text-sm font-semibold text-red-700 flex items-center gap-1">
                   <AlertTriangle className="w-4 h-4" /> Falhas — corrija e reenvie:
@@ -317,12 +372,8 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
                       onChange={e => setNumerosCorrecao(prev => ({ ...prev, [falha.cliente_nome]: e.target.value }))}
                     />
                     <span className="text-xs text-red-500">{falha.erro}</span>
-                    <Button
-                      size="sm"
-                      onClick={() => handleReenviar(falha)}
-                      disabled={reenvioLoading[falha.cliente_nome]}
-                      className="bg-blue-600 hover:bg-blue-700 h-8 gap-1"
-                    >
+                    <Button size="sm" onClick={() => handleReenviar(falha)}
+                      disabled={reenvioLoading[falha.cliente_nome]} className="bg-blue-600 hover:bg-blue-700 h-8 gap-1">
                       {reenvioLoading[falha.cliente_nome] ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                       Reenviar
                     </Button>
@@ -333,19 +384,22 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
           </div>
         )}
 
-        {/* Lista clientes */}
+        {/* ── Lista de itens ── */}
         <div className="space-y-3 max-h-[45vh] overflow-y-auto">
-          {clientes.map((cliente, idx) => (
-            <div key={idx} className="border border-slate-200 rounded-xl overflow-hidden">
-              <div className="flex items-center gap-3 p-3 bg-slate-50">
+          {localClientes.map((cliente, idx) => (
+            <div key={idx} className={`border rounded-xl overflow-hidden transition-all ${cliente.recusado ? 'border-slate-300 opacity-60' : 'border-slate-200'}`}>
+              <div className={`flex items-center gap-3 p-3 ${cliente.recusado ? 'bg-slate-100' : 'bg-slate-50'}`}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-slate-800 text-sm">{cliente.cliente_nome}</p>
-                    {cliente.whatsapp_enviado && <Badge className="bg-green-100 text-green-700 text-xs">✓ Enviado</Badge>}
-                    {cliente.whatsapp_erro && !cliente.whatsapp_enviado && <Badge className="bg-red-100 text-red-700 text-xs">✗ Falha</Badge>}
+                    <p className={`font-semibold text-sm ${cliente.recusado ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                      {cliente.cliente_nome}
+                    </p>
+                    {cliente.recusado && <Badge className="bg-slate-200 text-slate-500 text-xs">[RECUSADO]</Badge>}
+                    {cliente.whatsapp_enviado && !cliente.recusado && <Badge className="bg-green-100 text-green-700 text-xs">✓ Enviado</Badge>}
+                    {cliente.whatsapp_erro && !cliente.whatsapp_enviado && !cliente.recusado && <Badge className="bg-red-100 text-red-700 text-xs">✗ Falha</Badge>}
                   </div>
-                  {/* Números em destaque */}
-                  {(cliente.contatos_nomeados?.length ? cliente.contatos_nomeados.slice(0, 2) : 
+                  {/* Contatos */}
+                  {!cliente.recusado && (cliente.contatos_nomeados?.length ? cliente.contatos_nomeados.slice(0, 2) :
                     cliente.cliente_telefone ? [{ telefone: cliente.cliente_telefone, nome: '' }] : []
                   ).map((c, ci) => (
                     <div key={ci} className="flex items-center gap-1.5 mt-0.5">
@@ -353,17 +407,37 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
                       {c.nome && <span className="text-xs text-slate-500">{c.nome}</span>}
                     </div>
                   ))}
-                  {!cliente.contatos_nomeados?.length && !cliente.cliente_telefone && (
+                  {!cliente.recusado && !cliente.contatos_nomeados?.length && !cliente.cliente_telefone && (
                     <p className="text-xs text-red-400">Sem telefone</p>
                   )}
                 </div>
-                <span className="font-bold text-blue-700 shrink-0">{formatCurrency(cliente.total_cliente)}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={`font-bold ${cliente.recusado ? 'text-slate-400' : 'text-blue-700'}`}>
+                    {formatCurrency(cliente.total_cliente)}
+                  </span>
+                  <Button
+                    size="sm" variant="ghost"
+                    title={cliente.recusado ? 'Remover recusa' : 'Marcar como recusado'}
+                    onClick={() => marcarRecusado(idx)}
+                    className={`h-7 w-7 p-0 ${cliente.recusado ? 'text-green-600 hover:text-green-700' : 'text-slate-400 hover:text-red-500'}`}
+                  >
+                    <Ban className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
+
               <div className="divide-y divide-slate-50">
                 {(cliente.pedidos || []).map((p, pi) => (
-                  <div key={pi} className="flex items-center justify-between px-4 py-2 text-sm">
-                    <span className="text-slate-600">#{p.numero_pedido}</span>
-                    <span className="font-semibold text-slate-800">{formatCurrency(p.valor_saldo)}</span>
+                  <div key={pi} className="flex items-center justify-between px-4 py-2 text-sm gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {p.tipo_item === 'cheque'
+                        ? <Badge className="bg-red-100 text-red-800 text-[10px]">[CHEQUE DEV #{p.numero_pedido}]</Badge>
+                        : <Badge className="bg-blue-100 text-blue-800 text-[10px]">[PEDIDO #{p.numero_pedido}]</Badge>
+                      }
+                    </div>
+                    <span className={`font-semibold shrink-0 ${cliente.recusado ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                      {formatCurrency(p.valor_saldo)}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -371,14 +445,24 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
           ))}
         </div>
 
-        {/* Footer total */}
-        <div className="mt-4 p-4 bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100">
-          <span className="text-sm font-semibold text-slate-600">💰 Total da Rota</span>
-          <span className="text-xl font-extrabold text-blue-700">{formatCurrency(rota.valor_total_rota)}</span>
+        {/* Footer */}
+        <div className="mt-4 p-4 bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 flex-wrap gap-2">
+          <span className="text-sm font-semibold text-slate-600">💰 Total Ativo da Rota</span>
+          <span className="text-xl font-extrabold text-blue-700">{formatCurrency(totalAtivo)}</span>
         </div>
       </ModalContainer>
 
       {showPDF && <ImpressaoRotaPDF rota={rota} onClose={() => setShowPDF(false)} />}
+
+      {showPreFlight && (
+        <PreFlightModal
+          itens={itensAtivos}
+          clientes={clientesDB}
+          representantes={representantesDB}
+          onConfirm={executarAposPreFlight}
+          onClose={() => { setShowPreFlight(false); setPreFlightAction(null); }}
+        />
+      )}
     </>
   );
 }
