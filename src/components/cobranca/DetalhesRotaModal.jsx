@@ -14,6 +14,7 @@ import {
 import ModalContainer from '@/components/modals/ModalContainer';
 import ImpressaoRotaPDF from './ImpressaoRotaPDF';
 import PreFlightModal from './PreFlightModal';
+import CorrigirErrosModal from './CorrigirErrosModal';
 import { gerarUrlsMaps, getParadasValidas } from './mapsUtils';
 import { toast } from 'sonner';
 
@@ -117,7 +118,7 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
   const [alterado, setAlterado] = useState(false);
   const [editarContatoIdx, setEditarContatoIdx] = useState(null); // idx do cliente sendo editado
   const [reenvioIndividualLoading, setReenvioIndividualLoading] = useState({});
-  const [corrigindo, setCorrigindo] = useState(false);
+  const [showCorrigirErros, setShowCorrigirErros] = useState(false);
 
   const { data: clientesDB = [] } = useQuery({
     queryKey: ['clientes_lista_cobranca'],
@@ -399,42 +400,43 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
     finally { setReenvioLoading(prev => ({ ...prev, [falha.cliente_nome]: false })); }
   };
 
-  // ── Corrigir erros da rota (local) ──────────────────────────────────────
-  const handleCorrigirErros = () => {
-    setCorrigindo(true);
-    try {
-      let corrigidos = 0;
-      const dadosAtualizados = (localClientes || []).map(item => {
-        const clienteDB = clientesDB.find(c => c.codigo === item.cliente_codigo);
-        if (clienteDB) {
-          const endereco = [clienteDB.endereco, clienteDB.numero]
-            .filter(Boolean).join(', ');
-          const endereco_completo = [endereco, clienteDB.cidade, clienteDB.estado || 'SP']
-            .filter(Boolean).join(', ') + ', Brasil';
-          
-          const atualizado = {
-            ...item,
-            cliente_cidade: clienteDB.cidade || item.cliente_cidade || '',
-            cliente_estado: clienteDB.estado || 'SP',
-            cliente_endereco_completo: endereco_completo,
-            cliente_latitude: clienteDB.latitude || item.cliente_latitude || null,
-            cliente_longitude: clienteDB.longitude || item.cliente_longitude || null,
-          };
-          
-          if (atualizado.cliente_cidade !== item.cliente_cidade) corrigidos++;
-          return atualizado;
-        }
-        return item;
-      });
-      
-      setLocalClientes(dadosAtualizados);
-      setAlterado(true);
-      toast.success(`✅ ${corrigidos} cliente(s) sincronizado(s)! Maps agora aparece. Salve as alterações.`);
-    } catch (e) {
-      toast.error(`Erro: ${e.message}`);
-    } finally {
-      setCorrigindo(false);
-    }
+  // ── Corrigir erros da rota ──────────────────────────────────────────────
+  const handleCorrigirErros = async () => {
+    setShowCorrigirErros(true);
+  };
+
+  const handleErrosCorrigidos = async () => {
+    // Busca dados atualizados dos clientes após edições
+    const clientesDBAtualizado = await base44.entities.Cliente.list('codigo', 500);
+    
+    let corrigidos = 0;
+    const dadosAtualizados = (localClientes || []).map(item => {
+      const clienteDB = clientesDBAtualizado.find(c => c.codigo === item.cliente_codigo);
+      if (clienteDB) {
+        const endereco = [clienteDB.endereco, clienteDB.numero]
+          .filter(Boolean).join(', ');
+        const endereco_completo = [endereco, clienteDB.cidade, clienteDB.estado || 'SP']
+          .filter(Boolean).join(', ') + ', Brasil';
+        
+        const atualizado = {
+          ...item,
+          cliente_cidade: clienteDB.cidade || item.cliente_cidade || '',
+          cliente_estado: clienteDB.estado || 'SP',
+          cliente_endereco_completo: endereco_completo,
+          cliente_latitude: clienteDB.latitude || item.cliente_latitude || null,
+          cliente_longitude: clienteDB.longitude || item.cliente_longitude || null,
+        };
+        
+        if (atualizado.cliente_cidade !== item.cliente_cidade) corrigidos++;
+        return atualizado;
+      }
+      return item;
+    });
+    
+    setLocalClientes(dadosAtualizados);
+    setAlterado(true);
+    setShowCorrigirErros(false);
+    toast.success(`✅ ${corrigidos} cliente(s) sincronizado(s)! Maps agora aparece. Salve as alterações.`);
   };
 
   // ── Concluir rota ─────────────────────────────────────────────────────────
@@ -494,12 +496,11 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
           {/* Corrigir Erros */}
           <Button 
             onClick={handleCorrigirErros} 
-            disabled={corrigindo} 
             variant="outline" 
             className="gap-2"
-            title="Atualiza cidades, endereços e coordenadas do banco de dados"
+            title="Editar dados faltantes dos clientes"
           >
-            {corrigindo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+            <Zap className="w-4 h-4" />
             Corrigir Erros
           </Button>
 
@@ -704,6 +705,15 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
           cliente={localClientes[editarContatoIdx]}
           onSave={handleSalvarContato}
           onClose={() => setEditarContatoIdx(null)}
+        />
+      )}
+
+      {showCorrigirErros && (
+        <CorrigirErrosModal
+          rota={rota}
+          clientesDB={clientesDB}
+          onClose={() => setShowCorrigirErros(false)}
+          onCorrigir={handleErrosCorrigidos}
         />
       )}
     </>
