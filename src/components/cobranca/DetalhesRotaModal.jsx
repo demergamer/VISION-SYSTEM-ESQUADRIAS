@@ -94,9 +94,15 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
 
     for (let i = 0; i < clientes.length; i++) {
       const cliente = clientes[i];
-      const numeros = (cliente.todos_telefones?.length ? cliente.todos_telefones : [cliente.cliente_telefone])
-        .map(limparNumero)
-        .filter(n => n && isNumeroValido(n));
+      // Usa contatos_nomeados para pegar o nome do responsável junto ao número
+      const contatosNomeados = cliente.contatos_nomeados?.filter(c => c.telefone) || [];
+      const numeros = (contatosNomeados.length
+        ? contatosNomeados.map(c => c.telefone)
+        : cliente.todos_telefones?.length ? cliente.todos_telefones : [cliente.cliente_telefone]
+      ).map(limparNumero).filter(n => n && isNumeroValido(n));
+
+      // Nome do responsável principal (primeiro contato com nome)
+      const nomeResponsavel = contatosNomeados.find(c => c.nome)?.nome || '';
 
       if (!numeros.length) {
         falhas.push({ cliente_nome: cliente.cliente_nome, numero: cliente.cliente_telefone || '', erro: 'Número inválido ou ausente' });
@@ -108,8 +114,10 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
         .map(p => `▪ Pedido #${p.numero_pedido} — ${formatCurrency(p.valor_saldo)}`)
         .join('\n');
 
+      const saudacao = nomeResponsavel ? `Olá, *${nomeResponsavel}*! 😊` : `Olá, *${cliente.cliente_nome}*! 😊`;
       const texto =
-        `Olá, *${cliente.cliente_nome}*! 😊\n\n` +
+        `${saudacao}\n\n` +
+        `Representando *${cliente.cliente_nome}*.\n` +
         `O nosso cobrador *Gil* estará na sua região no dia *${formatDate2(rota.data_rota)}*.\n\n` +
         `*📋 Pendências:*\n${linhasPedidos || '▪ Consulte nosso financeiro'}\n\n` +
         `*💰 Total: ${formatCurrency(cliente.total_cliente)}*\n\n` +
@@ -336,7 +344,18 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
                     {cliente.whatsapp_enviado && <Badge className="bg-green-100 text-green-700 text-xs">✓ Enviado</Badge>}
                     {cliente.whatsapp_erro && !cliente.whatsapp_enviado && <Badge className="bg-red-100 text-red-700 text-xs">✗ Falha</Badge>}
                   </div>
-                  <p className="text-xs text-slate-500">{cliente.cliente_telefone || 'Sem telefone'}</p>
+                  {/* Números em destaque */}
+                  {(cliente.contatos_nomeados?.length ? cliente.contatos_nomeados.slice(0, 2) : 
+                    cliente.cliente_telefone ? [{ telefone: cliente.cliente_telefone, nome: '' }] : []
+                  ).map((c, ci) => (
+                    <div key={ci} className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded-md px-2 py-0.5">{c.telefone}</span>
+                      {c.nome && <span className="text-xs text-slate-500">{c.nome}</span>}
+                    </div>
+                  ))}
+                  {!cliente.contatos_nomeados?.length && !cliente.cliente_telefone && (
+                    <p className="text-xs text-red-400">Sem telefone</p>
+                  )}
                 </div>
                 <span className="font-bold text-blue-700 shrink-0">{formatCurrency(cliente.total_cliente)}</span>
               </div>

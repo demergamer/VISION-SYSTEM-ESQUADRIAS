@@ -456,10 +456,52 @@ export default function ClienteForm({ cliente, representantes = [], todosCliente
             <AccordionContent className="pb-4 pt-2 space-y-4">
                <div className="space-y-1"><Label className={labelClass}>Email Geral</Label><Input name="email" value={form.email} onChange={handleInputChange} className={inputClass} /></div>
                
+               {/* Telefones legados (telefone_1/2/3) exibidos como cards de referência */}
+               {[
+                 { tel: form.telefone_1, resp: form.responsavel_1 },
+                 { tel: form.telefone_2, resp: form.responsavel_2 },
+                 { tel: form.telefone_3, resp: form.responsavel_3 },
+               ].filter(c => c.tel).length > 0 && (
+                 <div className="space-y-2">
+                   <Label className={labelClass}>📱 Telefones Cadastrados (legado)</Label>
+                   <div className="flex flex-wrap gap-2">
+                     {[
+                       { tel: form.telefone_1, resp: form.responsavel_1, field: '1' },
+                       { tel: form.telefone_2, resp: form.responsavel_2, field: '2' },
+                       { tel: form.telefone_3, resp: form.responsavel_3, field: '3' },
+                     ].filter(c => c.tel).map((c, i) => (
+                       <div key={i} className="flex items-center gap-3 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl shadow-sm">
+                         <div>
+                           <p className="text-sm font-bold text-blue-800">{c.tel}</p>
+                           {c.resp && <p className="text-xs text-blue-600">{c.resp}</p>}
+                         </div>
+                         <div className="flex flex-col gap-1">
+                           <Input
+                             value={c.tel}
+                             onChange={e => {
+                               const v = formatTelefoneDinamico(e.target.value);
+                               setForm(prev => ({ ...prev, [`telefone_${c.field}`]: v }));
+                             }}
+                             className="h-8 w-36 text-sm border-blue-300 bg-white"
+                             placeholder="Telefone"
+                           />
+                           <Input
+                             value={c.resp}
+                             onChange={e => setForm(prev => ({ ...prev, [`responsavel_${c.field}`]: e.target.value }))}
+                             className="h-8 w-36 text-xs border-blue-200 bg-white"
+                             placeholder="Nome responsável"
+                           />
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                 </div>
+               )}
+
                {/* Contatos dinâmicos */}
                <div className="space-y-3">
                  <div className="flex items-center justify-between">
-                   <Label className={labelClass}>Lista de Contatos</Label>
+                   <Label className={labelClass}>Lista de Contatos Adicionais</Label>
                    <Button type="button" size="sm" variant="outline" onClick={adicionarContato} className="h-8 text-xs gap-1">
                      <Plus className="w-3.5 h-3.5" /> Adicionar Contato
                    </Button>
