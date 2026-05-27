@@ -170,14 +170,15 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
     
     const novo = [...localClientes];
     const contatosNomeados = [
-      { telefone, nome },
+      { telefone: telefone?.trim(), nome: nome?.trim() || '' },
       ...(novo[idx].contatos_nomeados || []).filter((_, i) => i > 0)
     ].filter(c => c.telefone);
     
     novo[idx] = {
       ...novo[idx],
-      cliente_telefone: telefone,
-      contatos_nomeados: contatosNomeados
+      cliente_telefone: telefone?.trim(),
+      contatos_nomeados: contatosNomeados,
+      cliente_cidade: novo[idx].cliente_cidade || '', // garante que cidade está sempre presente
     };
     
     atualizarLocal(novo);

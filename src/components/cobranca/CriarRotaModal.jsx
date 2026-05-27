@@ -98,7 +98,7 @@ export default function CriarRotaModal({ onClose, onSaved }) {
             cli.telefone_3 ? { telefone: cli.telefone_3, nome: cli.responsavel_3 || '' } : null,
             ...(cli.contatos_lista || []).map(c => ({ telefone: c.telefone, nome: c.nome_responsavel || '' })),
           ].filter(Boolean),
-          cliente_cidade: cli.cidade || item.cliente_regiao || '',
+          cliente_cidade: cli.cidade || item.cliente_regiao || item.cliente_cidade || '',
           cliente_estado: cli.estado || '',
           cliente_endereco: cli.endereco || '',
           cliente_numero: cli.numero || '',
@@ -183,11 +183,12 @@ export default function CriarRotaModal({ onClose, onSaved }) {
         };
       });
 
+      const cidadeValida = clienteDados.cliente_cidade?.trim();
       const endParts = [clienteDados.cliente_endereco, clienteDados.cliente_numero,
-        clienteDados.cliente_cidade, clienteDados.cliente_estado].filter(Boolean);
-      const enderecoCompleto = endParts.length >= 2
-        ? endParts.join(', ') + ', Brasil'
-        : clienteDados.cliente_cidade ? `${clienteDados.cliente_cidade}, ${clienteDados.cliente_estado || 'SP'}, Brasil` : null;
+        cidadeValida, clienteDados.cliente_estado].filter(Boolean);
+      const enderecoCompleto = cidadeValida
+        ? (endParts.length >= 2 ? endParts.join(', ') : cidadeValida) + ', Brasil'
+        : null;
 
       dadosCobranca.push({
         cliente_codigo: clienteDados.cliente_codigo,
