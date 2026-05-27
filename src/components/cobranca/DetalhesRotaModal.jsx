@@ -570,7 +570,7 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
         <div className="space-y-2 max-h-[40vh] overflow-y-auto mb-4">
           {localClientes.map((cliente, idx) => (
             <RotaClienteCard
-              key={idx}
+              key={`${cliente.cliente_codigo}-${cliente.recusado}-${cliente.whatsapp_enviado}`}
               cliente={cliente}
               idx={idx}
               onMarcarRecusado={marcarRecusado}
