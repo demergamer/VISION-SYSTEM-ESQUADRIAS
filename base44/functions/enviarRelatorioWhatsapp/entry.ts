@@ -233,7 +233,8 @@ Deno.serve(async (req) => {
     const headers = { 'Content-Type': 'application/json', 'apikey': EVOLUTION_API_KEY };
 
     // --- 1. Mensagem de texto resumo ---
-    let msg = `📋 *RELATÓRIO DE CONTAS A VENCER*\n`;
+    let msg = `*\`J&C Vision | Mensagem Automática\`*\n\n`;
+    msg += `📋 *RELATÓRIO DE CONTAS A VENCER*\n`;
     msg += `_Próximos 7 dias — ${formatDate(toISO(hoje))} a ${formatDate(toISO(em7dias))}_\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
@@ -253,8 +254,9 @@ Deno.serve(async (req) => {
       msg += `━━━━━━━━━━━━━━━━━━━━━━\n`;
       msg += `💰 *TOTAL GERAL: ${formatCurrency(totalGeral)}*\n`;
       msg += `📊 ${contasVencer.length} lançamento(s)\n`;
-    }
-    msg += `\n_Gerado em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}_`;
+      }
+      msg += `\n_Gerado em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}_\n\n`;
+      msg += `Para mais informações acesse: https://jcvision.base44.app/`;
 
     const r1 = await fetch(`${EVOLUTION_API_URL}/message/sendText/${EVOLUTION_INSTANCE}`, {
       method: 'POST', headers,

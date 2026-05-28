@@ -61,11 +61,13 @@ Deno.serve(async (req) => {
         .join('\n');
 
       const texto =
+        `*\`J&C Vision | Mensagem Automática\`*\n\n` +
         `Olá, *${cliente.cliente_nome}*! 😊\n\n` +
         `O nosso cobrador *Gil* estará na sua região no dia *${formatDate(rota.data_rota)}*.\n\n` +
         `*📋 Pendências:*\n${linhasPedidos || '▪ Consulte nosso financeiro'}\n\n` +
         `*💰 Total: ${formatCurrency(cliente.total_cliente)}*\n\n` +
-        `Aguardamos confirmação! 🙏\n_Equipe J&C Esquadrias_`;
+        `Aguardamos confirmação! 🙏\n_Equipe J&C Esquadrias_\n\n` +
+        `Para mais informações acesse: https://jcvision.base44.app/`;
 
       let enviou = false;
       for (const numero of numeros) {

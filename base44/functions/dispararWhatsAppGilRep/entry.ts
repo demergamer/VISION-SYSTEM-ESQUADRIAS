@@ -99,13 +99,15 @@ Deno.serve(async (req) => {
         : '—';
 
       const texto =
+        `*\`J&C Vision | Mensagem Automática\`*\n\n` +
         `Olá *Gil*! 🛵\n\n` +
         `Sua rota do dia *${formatDate(rota.data_rota)}* está pronta!\n\n` +
         `🏙️ *Cidades:* ${cidades || '—'}\n\n` +
         `💰 *Total a cobrar:* ${formatCurrency(totalGeral)}\n\n` +
         `👥 *Clientes (${itensAtivos.length}):*\n\n${listaClientes || '—'}\n\n` +
         `🗺️ *Links do Maps:*\n${linksTexto}\n\n` +
-        `_Sistema J&C Esquadrias_`;
+        `_Sistema J&C Esquadrias_\n\n` +
+        `Para mais informações acesse: https://jcvision.base44.app/`;
 
       await enviar(EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE, numeroGil, texto);
       return Response.json({ success: true, destino: 'gil', numero: numeroGil });
@@ -173,11 +175,13 @@ Deno.serve(async (req) => {
         const totalRep = rep.clientes.reduce((s, c) => s + (c.total_cliente || 0), 0);
 
         const texto =
+          `*\`J&C Vision | Mensagem Automática\`*\n\n` +
           `Olá *${rep.nome}*! 👋\n\n` +
           `O cobrador *Gil* fará a rota de cobrança no dia *${formatDate(rota.data_rota)}*.\n\n` +
           `Os seus clientes que serão visitados são:\n${listaClientes}\n\n` +
           `💰 *Total: ${formatCurrency(totalRep)}*\n\n` +
-          `_Equipe J&C Esquadrias_`;
+          `_Equipe J&C Esquadrias_\n\n` +
+          `Para mais informações acesse: https://jcvision.base44.app/`;
 
         try {
           await enviar(EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE, numero, texto);
