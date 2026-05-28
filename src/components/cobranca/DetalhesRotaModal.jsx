@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
   MessageSquare, CheckCircle2, Loader2, AlertTriangle, Printer, RefreshCw,
-  Map as MapIcon, Zap, Save, ChevronDown, Users, Truck
+  Map as MapIcon, Zap, Save, ChevronDown, Users, Truck, ArrowUpDown, Wand2, GripVertical, MapPin, MapPinOff, X
 } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -17,7 +17,7 @@ import EditarContatoModal from './EditarContatoModal';
 import CorrigirErrosModal from './CorrigirErrosModal';
 import ImpressaoRotaPDF from './ImpressaoRotaPDF';
 import PreFlightModal from './PreFlightModal';
-import { gerarUrlsMaps, getParadasValidas } from './mapsUtils';
+import { gerarUrlsMaps, getParadasValidas, otimizarOrdemNearestNeighbor } from './mapsUtils';
 import { toast } from 'sonner';
 
 const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
@@ -60,6 +60,12 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
   const [preFlightAction, setPreFlightAction] = useState(null);
   const [editarContatoIdx, setEditarContatoIdx] = useState(null);
   const [showCorrigirErros, setShowCorrigirErros] = useState(false);
+
+  // ── Drag & Drop / Ordenação ──
+  const [modoOrdenacao, setModoOrdenacao] = useState(false);
+  const [ordemLocal, setOrdemLocal] = useState([]);
+  const [salvandoOrdem, setSalvandoOrdem] = useState(false);
+  const dragIndexRef = useRef(null);
 
   // ── Queries para popular a rota em tempo real ──
   const idsPedidos = useMemo(() => itensRota.filter(i => i.tipo === 'pedido').map(i => i.item_id), [itensRota]);
@@ -331,6 +337,68 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
     queryClient.invalidateQueries({ queryKey: ['rota_clientes_detalhes'] });
   };
 
+  // ── Ordenação / Drag & Drop ──
+  const entrarModoOrdenacao = () => {
+    setOrdemLocal([...clientesAgrupados]);
+    setModoOrdenacao(true);
+  };
+
+  const cancelarOrdenacao = () => {
+    setModoOrdenacao(false);
+    setOrdemLocal([]);
+  };
+
+  const reconstruirItensRota = (novaOrdemClientes) => {
+    const novoArray = [];
+    novaOrdemClientes.forEach(cliente => {
+      const itensDoCliente = itensRota.filter(i => i.cliente_codigo === cliente.cliente_codigo);
+      novoArray.push(...itensDoCliente);
+    });
+    // Adiciona itens sem cliente_codigo no final
+    const codigosIncluidos = new Set(novaOrdemClientes.map(c => c.cliente_codigo).filter(Boolean));
+    itensRota.forEach(i => {
+      if (!i.cliente_codigo || !codigosIncluidos.has(i.cliente_codigo)) novoArray.push(i);
+    });
+    return novoArray;
+  };
+
+  const handleAutoOtimizar = () => {
+    const otimizado = otimizarOrdemNearestNeighbor(ordemLocal);
+    setOrdemLocal(otimizado);
+    toast.info('🪄 Rota otimizada por GPS (Nearest Neighbor)');
+  };
+
+  const handleSalvarOrdem = async () => {
+    setSalvandoOrdem(true);
+    try {
+      const novosItens = reconstruirItensRota(ordemLocal);
+      await base44.entities.RotaCobranca.update(rota.id, { itens_rota: novosItens });
+      setItensRota(novosItens);
+      const rotasAtualizadas = await base44.entities.RotaCobranca.filter({ id: rota.id });
+      if (rotasAtualizadas?.[0]) onUpdated(rotasAtualizadas[0]);
+      setModoOrdenacao(false);
+      setOrdemLocal([]);
+      toast.success('✓ Nova ordem salva com sucesso!');
+    } catch (e) {
+      toast.error(`Erro ao salvar ordem: ${e.message}`);
+    } finally {
+      setSalvandoOrdem(false);
+    }
+  };
+
+  // Drag & Drop handlers
+  const handleDragStart = (idx) => { dragIndexRef.current = idx; };
+  const handleDragEnter = (idx) => {
+    if (dragIndexRef.current === null || dragIndexRef.current === idx) return;
+    const nova = [...ordemLocal];
+    const item = nova.splice(dragIndexRef.current, 1)[0];
+    nova.splice(idx, 0, item);
+    dragIndexRef.current = idx;
+    setOrdemLocal(nova);
+  };
+  const handleDragEnd = () => { dragIndexRef.current = null; };
+  const handleDragOver = (e) => { e.preventDefault(); };
+
   return (
     <>
       <ModalContainer
@@ -371,39 +439,59 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
                 <Zap className="w-3 h-3" /> Auto-Corrigir Cadastros
               </Button>
 
-              {alterado && (
+              {alterado && !modoOrdenacao && (
                 <Button size="sm" onClick={handleSalvar} disabled={salvando} className="gap-1 bg-amber-600 hover:bg-amber-700">
                   {salvando ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Salvar Mudanças
                 </Button>
               )}
 
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button disabled={disparando} className="gap-1 bg-green-600 hover:bg-green-700 flex-1">
-                    {disparando ? <Loader2 className="w-3 h-3 animate-spin" /> : <MessageSquare className="w-3 h-3" />} Disparar WhatsApp <ChevronDown className="w-3 h-3" />
+              {!modoOrdenacao ? (
+                <>
+                  <Button variant="outline" size="sm" onClick={entrarModoOrdenacao} className="gap-1 border-purple-300 text-purple-700 hover:bg-purple-50">
+                    <ArrowUpDown className="w-3 h-3" /> Ordenar Rota
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem onClick={() => { setPreFlightAction('clientes'); setShowPreFlight(true); }}>
-                    <Users className="w-4 h-4 mr-2 text-green-600" /> Para Clientes
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setPreFlightAction('representantes'); setShowPreFlight(true); }}>
-                    <Users className="w-4 h-4 mr-2 text-blue-600" /> Para Representantes
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setPreFlightAction('cobrador'); setShowPreFlight(true); }}>
-                    <Truck className="w-4 h-4 mr-2 text-orange-600" /> Para o Cobrador (Gil)
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
 
-              <Button variant="outline" size="sm" onClick={() => setShowPDF(true)} className="gap-1 border-blue-200 text-blue-700 hover:bg-blue-50">
-                <Printer className="w-3 h-3" /> Relatório PDF
-              </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button disabled={disparando} className="gap-1 bg-green-600 hover:bg-green-700 flex-1">
+                        {disparando ? <Loader2 className="w-3 h-3 animate-spin" /> : <MessageSquare className="w-3 h-3" />} Disparar WhatsApp <ChevronDown className="w-3 h-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuItem onClick={() => { setPreFlightAction('clientes'); setShowPreFlight(true); }}>
+                        <Users className="w-4 h-4 mr-2 text-green-600" /> Para Clientes
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => { setPreFlightAction('representantes'); setShowPreFlight(true); }}>
+                        <Users className="w-4 h-4 mr-2 text-blue-600" /> Para Representantes
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => { setPreFlightAction('cobrador'); setShowPreFlight(true); }}>
+                        <Truck className="w-4 h-4 mr-2 text-orange-600" /> Para o Cobrador (Gil)
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
 
-              {rota.status === 'Aberta' && (
-                <Button variant="outline" size="sm" onClick={handleConcluir} disabled={concluindo} className="gap-1">
-                  {concluindo ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3 text-green-600" />} Concluir
-                </Button>
+                  <Button variant="outline" size="sm" onClick={() => setShowPDF(true)} className="gap-1 border-blue-200 text-blue-700 hover:bg-blue-50">
+                    <Printer className="w-3 h-3" /> Relatório PDF
+                  </Button>
+
+                  {rota.status === 'Aberta' && (
+                    <Button variant="outline" size="sm" onClick={handleConcluir} disabled={concluindo} className="gap-1">
+                      {concluindo ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3 text-green-600" />} Concluir
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Button size="sm" onClick={handleAutoOtimizar} className="gap-1 bg-purple-600 hover:bg-purple-700">
+                    <Wand2 className="w-3 h-3" /> Auto-Otimizar por GPS
+                  </Button>
+                  <Button size="sm" onClick={handleSalvarOrdem} disabled={salvandoOrdem} className="gap-1 bg-green-600 hover:bg-green-700">
+                    {salvandoOrdem ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Salvar Nova Ordem
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={cancelarOrdenacao} className="gap-1">
+                    <X className="w-3 h-3" /> Cancelar
+                  </Button>
+                </>
               )}
             </div>
 
@@ -472,19 +560,49 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
             )}
 
             {/* Clientes Listados */}
-            <div className="space-y-2 max-h-[45vh] overflow-y-auto mb-4 p-1">
-              {clientesAgrupados.map((cliente, idx) => (
-                <RotaClienteCard
-                  key={`${cliente.cliente_codigo || cliente.cliente_nome}-${idx}`}
-                  cliente={cliente}
-                  idx={idx}
-                  onMarcarRecusado={handleMarcarRecusado}
-                  onEditarContato={(i) => setEditarContatoIdx(i)}
-                  onReenviarIndividual={(i) => handleReenviarIndividual(i)}
-                  reenvioLoading={reenvioIndividualLoading}
-                />
-              ))}
-            </div>
+            {modoOrdenacao ? (
+              <div className="space-y-1.5 max-h-[45vh] overflow-y-auto mb-4 p-1">
+                <p className="text-xs text-slate-500 mb-2 px-1">Arraste os blocos para reordenar. Clientes sem GPS ficam no final na auto-otimização.</p>
+                {ordemLocal.map((cliente, idx) => (
+                  <div
+                    key={`ord-${cliente.cliente_codigo || cliente.cliente_nome}-${idx}`}
+                    draggable
+                    onDragStart={() => handleDragStart(idx)}
+                    onDragEnter={() => handleDragEnter(idx)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={handleDragOver}
+                    className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg cursor-grab active:cursor-grabbing select-none hover:border-purple-300 hover:bg-purple-50 transition-colors"
+                  >
+                    <GripVertical className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                    <span className="text-xs font-bold text-slate-400 w-5 text-center">{idx + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 truncate">{cliente.cliente_nome}</p>
+                      <p className="text-xs text-slate-500 truncate">{cliente.cliente_cidade || 'Cidade não cadastrada'}</p>
+                    </div>
+                    <div className="flex-shrink-0">
+                      {cliente.cliente_latitude && cliente.cliente_longitude
+                        ? <span className="flex items-center gap-1 text-xs text-green-600 font-medium"><MapPin className="w-3 h-3" /> GPS</span>
+                        : <span className="flex items-center gap-1 text-xs text-slate-400"><MapPinOff className="w-3 h-3" /> Sem GPS</span>
+                      }
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[45vh] overflow-y-auto mb-4 p-1">
+                {clientesAgrupados.map((cliente, idx) => (
+                  <RotaClienteCard
+                    key={`${cliente.cliente_codigo || cliente.cliente_nome}-${idx}`}
+                    cliente={cliente}
+                    idx={idx}
+                    onMarcarRecusado={handleMarcarRecusado}
+                    onEditarContato={(i) => setEditarContatoIdx(i)}
+                    onReenviarIndividual={(i) => handleReenviarIndividual(i)}
+                    reenvioLoading={reenvioIndividualLoading}
+                  />
+                ))}
+              </div>
+            )}
 
             <div className="p-3 bg-slate-50 rounded border border-slate-200 flex items-center justify-between shadow-inner">
               <span className="text-sm font-semibold text-slate-600">Total Válido na Rota</span>

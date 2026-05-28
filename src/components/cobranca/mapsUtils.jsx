@@ -3,6 +3,51 @@
  * Aplica chunking de até 9 paradas por URL para contornar o limite do Maps.
  */
 
+/**
+ * Calcula a distância em Km entre duas coordenadas usando a fórmula de Haversine.
+ */
+export function calcularDistanciaHaversine(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+/**
+ * Ordena um array de clientesAgrupados usando o algoritmo Nearest Neighbor,
+ * partindo das coordenadas da fábrica em Ribeirão Pires.
+ * Clientes sem coordenadas são colocados no final.
+ */
+export function otimizarOrdemNearestNeighbor(clientesAgrupados, startLat = -23.7141, startLon = -46.4137) {
+  const comCoords = clientesAgrupados.filter(c => c.cliente_latitude && c.cliente_longitude);
+  const semCoords = clientesAgrupados.filter(c => !c.cliente_latitude || !c.cliente_longitude);
+
+  const ordenados = [];
+  const restantes = [...comCoords];
+  let latAtual = startLat;
+  let lonAtual = startLon;
+
+  while (restantes.length > 0) {
+    let menorDist = Infinity;
+    let idxMaisProximo = 0;
+    restantes.forEach((c, i) => {
+      const dist = calcularDistanciaHaversine(latAtual, lonAtual, c.cliente_latitude, c.cliente_longitude);
+      if (dist < menorDist) { menorDist = dist; idxMaisProximo = i; }
+    });
+    const maisProximo = restantes.splice(idxMaisProximo, 1)[0];
+    latAtual = maisProximo.cliente_latitude;
+    lonAtual = maisProximo.cliente_longitude;
+    ordenados.push(maisProximo);
+  }
+
+  return [...ordenados, ...semCoords];
+}
+
 const FABRICA = 'J&C Esquadrias, Ribeirão Pires, SP, Brasil';
 const CHUNK_SIZE = 9; // paradas por lote (excluindo origem/destino do chunk)
 
