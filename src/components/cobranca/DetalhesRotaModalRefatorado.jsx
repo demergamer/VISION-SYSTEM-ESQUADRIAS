@@ -281,65 +281,39 @@ export default function DetalhesRotaModalRefatorado({ rota, onClose, onUpdated }
 
   const handleDispararRepresentantes = async () => {
     setDisparando(true);
-    const porRep = {};
-
-    itensAtivos.forEach((item) => {
-      const repCod = item.representante_codigo || item.representante_nome || 'Sem Rep';
-      if (!porRep[repCod]) {
-        const repDB = representantesDB.find((r) => r.codigo === item.representante_codigo);
-        porRep[repCod] = {
-          nome: item.representante_nome || repCod,
-          telefone: repDB?.telefone || '',
-          clientes: [],
-        };
+    try {
+      const res = await base44.functions.invoke('dispararWhatsAppGilRep', {
+        rota_id: rota.id,
+        destino: 'representantes',
+      });
+      const enviados = res.data?.enviados ?? 0;
+      const resultados = res.data?.resultados || [];
+      const erros = resultados.filter(r => r.status === 'erro');
+      if (erros.length > 0) {
+        toast.warning(`${enviados} representante(s) notificado(s) · ${erros.length} sem telefone válido`);
+      } else {
+        toast.success(`✅ ${enviados} representante(s) notificado(s)!`);
       }
-      porRep[repCod].clientes.push(
-        `${item.cliente_nome}${item.cliente_cidade ? ' (' + item.cliente_cidade + ')' : ''}`
-      );
-    });
-
-    let enviados = 0;
-    for (const [, rep] of Object.entries(porRep)) {
-      const numero = limparNumero(rep.telefone);
-      if (!isNumeroValido(numero)) continue;
-      const texto =
-        `Olá *${rep.nome}*! 👋\n\n` +
-        `O cobrador *Gil* fará a rota de cobrança no dia *${formatDate(rota.data_rota)}*.\n\n` +
-        `Os seus clientes que serão visitados são:\n📍 ${rep.clientes.join(', ')}\n\n` +
-        `_Equipe J&C Esquadrias_`;
-      try {
-        await enviarWhatsApp(numero, texto);
-        enviados++;
-      } catch (_) {}
+    } catch (e) {
+      toast.error(`Erro: ${e.message}`);
+    } finally {
+      setDisparando(false);
     }
-
-    setDisparando(false);
-    toast.success(`✅ Mensagens enviadas para ${enviados} representante(s)!`);
   };
 
   const handleDispararCobrador = async () => {
     setDisparando(true);
-    const numeroGil = '5511981264504';
-    const cidades = [...new Set(itensAtivos.map((i) => i.cliente_cidade).filter(Boolean))].join(', ');
-    const listaClientes = itensAtivos.map((i) => i.cliente_nome).join(', ');
-    const linksTexto = mapsUrls.map((url, i) => `Parte ${i + 1}: ${url}`).join('\n');
-
-    const texto =
-      `Olá *Gil*! 🛵\n\n` +
-      `Sua rota do dia *${formatDate(rota.data_rota)}* está pronta!\n\n` +
-      `🏙️ *Cidades:* ${cidades || '—'}\n\n` +
-      `👥 *Clientes:* ${listaClientes || '—'}\n\n` +
-      `🗺️ *Links do Maps:*\n${linksTexto || '—'}\n\n` +
-      `_Sistema J&C Esquadrias_`;
-
     try {
-      await enviarWhatsApp(numeroGil, texto);
+      await base44.functions.invoke('dispararWhatsAppGilRep', {
+        rota_id: rota.id,
+        destino: 'gil',
+      });
       toast.success('✅ Mensagem enviada para o Gil!');
     } catch (e) {
-      toast.error('Erro ao enviar para o Gil: ' + e.message);
+      toast.error(`Erro ao enviar para o Gil: ${e.message}`);
+    } finally {
+      setDisparando(false);
     }
-
-    setDisparando(false);
   };
 
   const executarAposPreFlight = async (action) => {
