@@ -16,117 +16,40 @@
       "default": "Gil",
       "description": "Nome do cobrador respons\u00e1vel"
     },
-    "dados_cobranca": {
+    "itens_rota": {
       "type": "array",
-      "description": "Snapshot dos clientes e pedidos no momento da cria\u00e7\u00e3o",
+      "description": "Lista normalizada de IDs dos pedidos e cheques associados \u00e0 rota",
       "items": {
         "type": "object",
         "properties": {
+          "item_id": {
+            "type": "string",
+            "description": "ID do Pedido ou do Cheque"
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "pedido",
+              "cheque"
+            ]
+          },
           "cliente_codigo": {
-            "type": "string"
-          },
-          "cliente_nome": {
-            "type": "string"
-          },
-          "cliente_telefone": {
-            "type": "string"
-          },
-          "contatos_nomeados": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "telefone": {
-                  "type": "string"
-                },
-                "nome": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "todos_telefones": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "representante_codigo": {
-            "type": "string"
-          },
-          "representante_nome": {
-            "type": "string"
-          },
-          "cliente_cidade": {
-            "type": "string"
-          },
-          "cliente_estado": {
-            "type": "string"
-          },
-          "cliente_endereco_completo": {
-            "type": "string"
-          },
-          "cliente_latitude": {
-            "type": "number"
-          },
-          "cliente_longitude": {
-            "type": "number"
-          },
-          "pedidos": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "numero_pedido": {
-                  "type": "string"
-                },
-                "valor_saldo": {
-                  "type": "number"
-                },
-                "data_entrega": {
-                  "type": "string"
-                },
-                "tipo_item": {
-                  "type": "string",
-                  "enum": [
-                    "pedido",
-                    "cheque"
-                  ]
-                },
-                "pedido_id": {
-                  "type": "string"
-                },
-                "status_original": {
-                  "type": "string"
-                },
-                "em_transito": {
-                  "type": "boolean",
-                  "default": false
-                }
-              }
-            }
-          },
-          "total_cliente": {
-            "type": "number"
-          },
-          "whatsapp_enviado": {
-            "type": "boolean",
-            "default": false
-          },
-          "whatsapp_erro": {
             "type": "string"
           },
           "recusado": {
             "type": "boolean",
-            "default": false,
-            "description": "Marca se o cliente recusou a cobran\u00e7a"
+            "default": false
+          },
+          "whatsapp_enviado": {
+            "type": "boolean",
+            "default": false
           }
         }
       }
     },
     "valor_total_rota": {
       "type": "number",
-      "description": "Soma total de todos os saldos da rota"
+      "description": "Soma total de todos os saldos da rota no momento da cria\u00e7\u00e3o"
     },
     "status": {
       "type": "string",
@@ -134,43 +57,18 @@
         "Aberta",
         "Conclu\u00edda"
       ],
-      "default": "Aberta",
-      "description": "Status da rota"
+      "default": "Aberta"
     },
     "whatsapp_disparado": {
       "type": "boolean",
-      "default": false,
-      "description": "Se o disparo em massa de WhatsApp foi realizado"
+      "default": false
     },
     "observacoes": {
-      "type": "string",
-      "description": "Observa\u00e7\u00f5es gerais da rota"
+      "type": "string"
     }
   },
   "required": [
     "codigo_rota",
     "data_rota"
-  ],
-  "rls": {
-    "create": {
-      "user_condition": {
-        "role": "admin"
-      }
-    },
-    "read": {
-      "user_condition": {
-        "role": "admin"
-      }
-    },
-    "update": {
-      "user_condition": {
-        "role": "admin"
-      }
-    },
-    "delete": {
-      "user_condition": {
-        "role": "admin"
-      }
-    }
-  }
+  ]
 }
