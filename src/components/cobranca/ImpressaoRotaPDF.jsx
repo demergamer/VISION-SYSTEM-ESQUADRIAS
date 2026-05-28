@@ -167,7 +167,7 @@ function gerarHTML(rota) {
     <div class="logo-area">
       <img src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png" alt="J&C"/>
       <div class="logo-text">
-        <div class="title">J&C ONE VISION SYSTEM</div>
+        <div class="title">J&C One Vision System</div>
         <div class="subtitle">Sistema de Gestão Integrado</div>
       </div>
     </div>
@@ -201,7 +201,7 @@ function gerarHTML(rota) {
   </table>
 
   <div class="footer-total">
-    <span>💰 TOTAL GERAL A RECEBER</span>
+    <span> TOTAL A RECEBER</span>
     <span>${formatCurrency(totalGeral)}</span>
   </div>
 
