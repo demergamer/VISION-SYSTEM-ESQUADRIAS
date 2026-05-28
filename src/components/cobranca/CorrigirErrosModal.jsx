@@ -1,90 +1,42 @@
-import { useState, useMemo, useEffect } from 'react';
-import { AlertCircle, MapPin, Phone, Loader2 } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { AlertCircle, MapPin, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { base44 } from '@/api/base44Client';
+import { Badge } from '@/components/ui/badge';
 import ModalContainer from '@/components/modals/ModalContainer';
 import ClienteForm from '@/components/clientes/ClienteForm';
-import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
 
-const formatCurrency = (val) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
-
-export default function CorrigirErrosModal({ rota, clientesDB = [], onClose, onCorrigir }) {
+export default function CorrigirErrosModal({ clientesAgrupados = [], clientesDB = [], onClose, onCorrigido }) {
   const [clienteSelecionado, setClienteSelecionado] = useState(null);
-  const [representantes, setRepresentantes] = useState([]);
-  const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    const fetchRepresentantes = async () => {
-      try {
-        const reps = await base44.entities.Representante.list('nome', 500);
-        setRepresentantes(reps || []);
-      } catch (e) {
-        console.error('Erro ao buscar representantes:', e);
-      }
-    };
-    fetchRepresentantes();
-  }, []);
-
-  // Identifica quais dados faltam para cada cliente
+  // Analisa o array agrupado para detetar faltas
   const clientesComErros = useMemo(() => {
-    return (rota.dados_cobranca || []).map(item => {
-      const clienteDB = clientesDB.find(c => c.codigo === item.cliente_codigo);
-      
+    return clientesAgrupados.map(cliente => {
       const erros = [];
-      // Só marca erro se REALMENTE estiver faltando em ambos os locais
-      const temCidade = item.cliente_cidade?.trim() || clienteDB?.cidade?.trim();
-      const temEndereco = item.cliente_endereco_completo?.trim() || (clienteDB?.endereco?.trim() || clienteDB?.numero?.trim());
-      const temTelefone = item.cliente_telefone?.trim() || clienteDB?.telefone_1?.trim();
-      const temLatitude = item.cliente_latitude || clienteDB?.latitude;
-      const temLongitude = item.cliente_longitude || clienteDB?.longitude;
-      
-      if (!temCidade) erros.push('Cidade faltando');
-      if (!temEndereco) erros.push('Endereço faltando');
-      if (!temTelefone) erros.push('Telefone faltando');
-      if (!temLatitude) erros.push('Latitude faltando');
-      if (!temLongitude) erros.push('Longitude faltando');
+      if (!cliente.cliente_cidade) erros.push('Cidade / Endereço');
+      if (!cliente.cliente_telefone) erros.push('Telefone');
+      if (!cliente.cliente_latitude || !cliente.cliente_longitude) erros.push('Coordenadas (Maps)');
 
       return {
-        ...item,
-        clienteDB,
+        ...cliente,
+        clienteDBRef: clientesDB.find(c => c.codigo === cliente.cliente_codigo),
         erros,
         temErro: erros.length > 0,
       };
-    });
-  }, [rota, clientesDB]);
+    }).filter(c => c.temErro);
+  }, [clientesAgrupados, clientesDB]);
 
-  const clientesComErroFiltrado = clientesComErros.filter(c => c.temErro);
-
-  const handleSalvarCliente = async (dataToSave) => {
-    if (!clienteSelecionado?.clienteDB?.id) return;
-    
-    try {
-      await base44.entities.Cliente.update(clienteSelecionado.clienteDB.id, dataToSave);
-      toast.success('✅ Cliente atualizado!');
-      setClienteSelecionado(null);
-    } catch (e) {
-      console.error('Erro ao salvar cliente:', e);
-      toast.error('Erro ao salvar cliente');
-    }
-  };
-
-  if (clienteSelecionado?.clienteDB) {
+  // Se ele escolheu editar um, abrimos o formulário mestre de clientes
+  if (clienteSelecionado?.clienteDBRef) {
     return (
-      <ModalContainer
-        open={true}
-        onClose={() => setClienteSelecionado(null)}
-        title="Editar Cliente"
-        description={`Atualize os dados de ${clienteSelecionado.cliente_nome}`}
-        size="lg"
-      >
+      <ModalContainer open={true} onClose={() => setClienteSelecionado(null)} title="Editar Cliente" size="lg">
         <ClienteForm
-          cliente={clienteSelecionado.clienteDB}
-          representantes={representantes}
+          cliente={clienteSelecionado.clienteDBRef}
+          representantes={[]} // Deixe vazio ou passe os reps se quiser permitir trocar o rep aqui
           allClientes={clientesDB}
-          todosClientes={clientesDB}
-          onSave={handleSalvarCliente}
+          onSave={async () => {
+            setClienteSelecionado(null);
+            onCorrigido(); // Manda o componente pai re-fazer o fetch (sincronizar)
+          }}
           onCancel={() => setClienteSelecionado(null)}
           isClientMode={false}
         />
@@ -94,90 +46,66 @@ export default function CorrigirErrosModal({ rota, clientesDB = [], onClose, onC
 
   return (
     <ModalContainer
-      open={true}
-      onClose={onClose}
-      title="Corrigir Erros da Rota"
-      description={`${clientesComErroFiltrado.length} cliente(s) com dados faltantes`}
+      open={true} onClose={onClose}
+      title="Corrigir Dados de Cadastro"
+      description={`${clientesComErros.length} cliente(s) na rota precisam de correção para o Google Maps ou WhatsApp funcionar.`}
       size="lg"
     >
-      {clientesComErroFiltrado.length === 0 ? (
-        <div className="p-6 text-center">
-          <p className="text-sm text-slate-600">✅ Todos os clientes possuem dados válidos para gerar os links de mapas!</p>
+      {clientesComErros.length === 0 ? (
+        <div className="p-8 text-center bg-green-50 rounded-xl border border-green-200">
+          <p className="text-green-700 font-bold text-lg mb-1">✅ Tudo perfeito!</p>
+          <p className="text-green-600 text-sm">Nenhum cliente tem dados faltantes nesta rota.</p>
         </div>
       ) : (
-        <div className="space-y-3 max-h-[60vh] overflow-y-auto">
-          {clientesComErroFiltrado.map((cliente, idx) => (
-            <div
-              key={idx}
-              className="border rounded-xl p-4 bg-red-50 border-red-200 hover:shadow-md transition-shadow"
+        <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2">
+          {clientesComErros.map((cliente) => (
+            <div 
+              key={cliente.cliente_codigo} 
+              className="border border-red-200 bg-red-50 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-red-300 transition-colors"
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-bold text-slate-800 truncate">{cliente.cliente_nome}</h4>
-                  <p className="text-xs text-slate-600 mt-1">Cód: {cliente.cliente_codigo}</p>
-                  
-                  {/* Erros encontrados */}
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {cliente.erros.map((erro, i) => (
-                      <Badge key={i} className="bg-red-100 text-red-700 border border-red-300 text-[10px]">
-                        <AlertCircle className="w-3 h-3 mr-1" /> {erro}
-                      </Badge>
-                    ))}
-                  </div>
-
-                  {/* Dados disponíveis */}
-                  <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
-                    {cliente.cliente_cidade && (
-                      <div className="flex items-center gap-1 text-slate-600">
-                        <MapPin className="w-3 h-3 text-green-600" /> {cliente.cliente_cidade}
-                      </div>
-                    )}
-                    {cliente.cliente_telefone && (
-                      <div className="flex items-center gap-1 text-slate-600">
-                        <Phone className="w-3 h-3 text-green-600" /> {cliente.cliente_telefone}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Total de pendências */}
-                  <div className="mt-2 text-xs text-slate-600">
-                    <strong>Total:</strong> {formatCurrency(cliente.total_cliente)}
-                  </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-bold text-slate-800 truncate">{cliente.cliente_nome}</h4>
+                <p className="text-xs text-slate-600 mb-2 font-mono">Cód: {cliente.cliente_codigo}</p>
+                
+                {/* Erros encontrados */}
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {cliente.erros.map((erro, i) => (
+                    <Badge key={i} className="bg-red-100 text-red-700 border border-red-200 text-[10px] uppercase">
+                      <AlertCircle className="w-3 h-3 mr-1" /> Faltando: {erro}
+                    </Badge>
+                  ))}
                 </div>
 
-                {/* Botão de editar */}
-                <Button
-                  onClick={() => setClienteSelecionado(cliente)}
-                  className="gap-2 shrink-0 bg-blue-600 hover:bg-blue-700"
-                >
-                  Editar
-                </Button>
+                {/* Dados que já temos (para referência) */}
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {cliente.cliente_cidade && (
+                    <div className="flex items-center gap-1 text-slate-600">
+                      <MapPin className="w-3 h-3 text-emerald-600" /> {cliente.cliente_cidade}
+                    </div>
+                  )}
+                  {cliente.cliente_telefone && (
+                    <div className="flex items-center gap-1 text-slate-600">
+                      <Phone className="w-3 h-3 text-emerald-600" /> {cliente.cliente_telefone}
+                    </div>
+                  )}
+                </div>
               </div>
+
+              {/* Botão de editar abre o ClienteForm original */}
+              <Button
+                onClick={() => setClienteSelecionado(cliente)}
+                className="gap-2 shrink-0 bg-blue-600 hover:bg-blue-700 w-full md:w-auto shadow-sm"
+              >
+                Abrir Cadastro
+              </Button>
             </div>
           ))}
         </div>
       )}
 
-      <div className="flex gap-2 mt-4 pt-4 border-t">
-        <Button variant="outline" onClick={onClose} className="flex-1">
-          Fechar
-        </Button>
-        <Button 
-          onClick={async () => {
-            setIsSaving(true);
-            try {
-              await onCorrigir();
-              onClose();
-            } catch (e) {
-              toast.error('Erro ao salvar');
-            } finally {
-              setIsSaving(false);
-            }
-          }} 
-          disabled={isSaving}
-          className="flex-1 bg-green-600 hover:bg-green-700"
-        >
-          {isSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Salvando...</> : 'Salvar e Gerar Links'}
+      <div className="flex justify-end mt-4 pt-4 border-t border-slate-200">
+        <Button variant="outline" onClick={onClose} className="px-6 border-slate-300 hover:bg-slate-50 text-slate-700 font-medium">
+          Concluir e Voltar para a Rota
         </Button>
       </div>
     </ModalContainer>
