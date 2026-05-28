@@ -86,7 +86,71 @@ Deno.serve(async (req) => {
     const rota = rotas?.[0];
     if (!rota) return Response.json({ error: 'Rota não encontrada' }, { status: 404 });
 
-    const itensAtivos = (rota.dados_cobranca || []).filter(c => !c.recusado);
+    // ── Suporte ao novo formato itens_rota ──────────────────────────────
+    const usaFormatoNovo = rota.itens_rota?.length > 0;
+    let itensAtivos = [];
+
+    if (usaFormatoNovo) {
+      const itensNaoRecusados = rota.itens_rota.filter(i => !i.recusado);
+
+      const idsPedidos = itensNaoRecusados.filter(i => i.tipo === 'pedido').map(i => i.item_id);
+      const idsCheques = itensNaoRecusados.filter(i => i.tipo === 'cheque').map(i => i.item_id);
+
+      const [pedidosDB, chequesDB, clientesDB] = await Promise.all([
+        idsPedidos.length ? base44.asServiceRole.entities.Pedido.filter({ id: { '$in': idsPedidos } }, '', 1000) : [],
+        idsCheques.length ? base44.asServiceRole.entities.Cheque.filter({ id: { '$in': idsCheques } }, '', 500) : [],
+        base44.asServiceRole.entities.Cliente.list('nome', 1000),
+      ]);
+
+      const clienteMap = {};
+      clientesDB.forEach(c => { clienteMap[c.codigo] = c; });
+
+      // Agrupar por cliente_codigo
+      const grupoMap = new Map();
+      itensNaoRecusados.forEach(rotaItem => {
+        const itemDB = rotaItem.tipo === 'pedido'
+          ? pedidosDB.find(p => p.id === rotaItem.item_id)
+          : chequesDB.find(c => c.id === rotaItem.item_id);
+        if (!itemDB) return;
+
+        const codCli = rotaItem.cliente_codigo || itemDB.cliente_codigo;
+        const clienteDB = clienteMap[codCli] || {};
+        const key = codCli || itemDB.cliente_nome || 'sem_cliente';
+
+        if (!grupoMap.has(key)) {
+          const endParts = [clienteDB.endereco, clienteDB.numero, clienteDB.cidade, clienteDB.estado || 'SP'].filter(Boolean);
+          grupoMap.set(key, {
+            cliente_codigo: codCli,
+            cliente_nome: clienteDB.nome || itemDB.cliente_nome || 'Desconhecido',
+            cliente_cidade: clienteDB.cidade || itemDB.cliente_regiao || '',
+            cliente_estado: clienteDB.estado || 'SP',
+            cliente_latitude: clienteDB.latitude || null,
+            cliente_longitude: clienteDB.longitude || null,
+            cliente_endereco_completo: clienteDB.cidade ? endParts.join(', ') + ', Brasil' : '',
+            representante_nome: clienteDB.representante_nome || itemDB.representante_nome || null,
+            representante_codigo: clienteDB.representante_codigo || itemDB.representante_codigo || null,
+            pedidos: [],
+            total_cliente: 0,
+          });
+        }
+
+        const grupo = grupoMap.get(key);
+        const valorSaldo = rotaItem.tipo === 'cheque'
+          ? ((itemDB.valor || 0) - (itemDB.valor_pago || 0))
+          : (itemDB.saldo_restante ?? itemDB.valor_pedido ?? 0);
+
+        grupo.pedidos.push({
+          numero_pedido: rotaItem.tipo === 'cheque' ? itemDB.numero_cheque : itemDB.numero_pedido,
+          valor_saldo: valorSaldo,
+          tipo_item: rotaItem.tipo,
+        });
+        grupo.total_cliente += valorSaldo;
+      });
+
+      itensAtivos = Array.from(grupoMap.values());
+    } else {
+      itensAtivos = (rota.dados_cobranca || []).filter(c => !c.recusado);
+    }
 
     // ── DESTINO: GIL ──────────────────────────────────────────────────
     if (destino === 'gil') {
@@ -97,7 +161,10 @@ Deno.serve(async (req) => {
       const listaClientes = itensAtivos
         .map(c => {
           const total = formatCurrency(c.total_cliente);
-          const pedidos = (c.pedidos || []).map(p => `    ▪ Pedido ${p.numero_pedido}: ${formatCurrency(p.valor_saldo)}`).join('\n');
+          const pedidos = (c.pedidos || []).map(p => {
+            const label = p.tipo_item === 'cheque' ? `Cheque #${p.numero_pedido}` : `Pedido #${p.numero_pedido}`;
+            return `    ▪ ${label}: ${formatCurrency(p.valor_saldo)}`;
+          }).join('\n');
           return `👤 *${c.cliente_nome}* (${c.cliente_cidade || '—'}) — ${total}\n${pedidos}`;
         })
         .join('\n\n');
