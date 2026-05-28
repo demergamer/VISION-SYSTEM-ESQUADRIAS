@@ -4,9 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import ModalContainer from '@/components/modals/ModalContainer';
 import ClienteForm from '@/components/clientes/ClienteForm';
+import { base44 } from '@/api/base44Client';
+import { toast } from 'sonner';
 
 export default function CorrigirErrosModal({ clientesAgrupados = [], clientesDB = [], onClose, onCorrigido }) {
   const [clienteSelecionado, setClienteSelecionado] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Analisa o array agrupado para detetar faltas
   const clientesComErros = useMemo(() => {
@@ -25,18 +28,30 @@ export default function CorrigirErrosModal({ clientesAgrupados = [], clientesDB 
     }).filter(c => c.temErro);
   }, [clientesAgrupados, clientesDB]);
 
+  const handleSalvarCliente = async (dataToSave) => {
+    if (!clienteSelecionado?.clienteDBRef?.id) return;
+    setIsSaving(true);
+    try {
+      await base44.entities.Cliente.update(clienteSelecionado.clienteDBRef.id, dataToSave);
+      toast.success('✅ Cliente atualizado com sucesso!');
+      setClienteSelecionado(null);
+      onCorrigido(); // Atualiza as queries no componente pai
+    } catch (e) {
+      toast.error('Erro ao salvar cliente: ' + e.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // Se ele escolheu editar um, abrimos o formulário mestre de clientes
   if (clienteSelecionado?.clienteDBRef) {
     return (
       <ModalContainer open={true} onClose={() => setClienteSelecionado(null)} title="Editar Cliente" size="lg">
         <ClienteForm
           cliente={clienteSelecionado.clienteDBRef}
-          representantes={[]} // Deixe vazio ou passe os reps se quiser permitir trocar o rep aqui
+          representantes={[]}
           allClientes={clientesDB}
-          onSave={async () => {
-            setClienteSelecionado(null);
-            onCorrigido(); // Manda o componente pai re-fazer o fetch (sincronizar)
-          }}
+          onSave={handleSalvarCliente}
           onCancel={() => setClienteSelecionado(null)}
           isClientMode={false}
         />
