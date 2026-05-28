@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
 
         const responsavel = clienteDB.responsavel_1 || (clienteDB.contatos_lista?.[0]?.nome_responsavel) || '';
         const saudacao = responsavel ? `Olá *${responsavel}*! 😊` : `Olá *${nomeCliente}*! 😊`;
-        const texto = `_*\`J&C Vision | Mensagem Automática\`*_\n\n${saudacao}\n\nRepresentando *${nomeCliente}*.\nCobrador *Gil* na região em *${formatDate(rota.data_rota)}*.\n\n*📋 Pendências:*\n${linhas || '▪ Consulte nosso financeiro'}\n\n*💰 Total: ${formatCurrency(totalCliente)}*\n\nAguardamos! 🙏\n_J&C Esquadrias_`;
+        const texto = `_*\`J&C Vision | Mensagem Automática\`*_\n\n${saudacao}\n\nCliente *${nomeCliente}*.\nCobrador *Gil* na região em *${formatDate(rota.data_rota)}*.\n\n*📋 Pendências:*\n${linhas || '▪ Consulte nosso financeiro'}\n\n*💰 Total: ${formatCurrency(totalCliente)}*\n\nAguardamos! 🙏\n\nPara mais informações acesse: https://jcvision.base44.app/\n_J&C Esquadrias_`;
 
         let enviou = false;
         for (const numero of numerosValidos) {
@@ -168,7 +168,7 @@ Deno.serve(async (req) => {
         const linhas = (cliente.pedidos || [])
           .map(p => `▪ Pedido #${p.numero_pedido} — ${formatCurrency(p.valor_saldo)}`)
           .join('\n');
-        const texto = `_*\`J&C Vision | Mensagem Automática\`*_\n\nOlá *${cliente.cliente_nome}*! 😊\n\nCobrador *Gil* na região em *${formatDate(rota.data_rota)}*.\n\n*📋 Pendências:*\n${linhas || '▪ Consulte nosso financeiro'}\n\n*💰 Total: ${formatCurrency(cliente.total_cliente)}*\n\nAguardamos! 🙏\n_J&C Esquadrias_`;
+        const texto = `_*\`J&C Vision | Mensagem Automática\`*_\n\nOlá *${cliente.cliente_nome}*! 😊\n\nCliente *${cliente.cliente_nome}*.\nCobrador *Gil* na região em *${formatDate(rota.data_rota)}*.\n\n*📋 Pendências:*\n${linhas || '▪ Consulte nosso financeiro'}\n\n*💰 Total: ${formatCurrency(cliente.total_cliente)}*\n\nAguardamos! 🙏\n\nPara mais informações acesse: https://jcvision.base44.app/\n_J&C Esquadrias_`;
 
         let enviou = false;
         for (const numero of numerosValidos) {

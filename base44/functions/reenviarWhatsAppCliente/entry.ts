@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
           const nomeCliente = clienteDB.nome || cliente_nome || 'Cliente';
           const responsavel = clienteDB.responsavel_1 || (clienteDB.contatos_lista?.[0]?.nome_responsavel) || '';
           const saudacao = responsavel ? `Olá *${responsavel}*! 😊` : `Olá *${nomeCliente}*! 😊`;
-          texto = `_*\`J&C Vision | Mensagem Automática\`*_\n\n${saudacao}\n\nRepresentando *${nomeCliente}*.\nCobrador *Gil* na região em *${formatDate(rota.data_rota)}*.\n\n*📋 Pendências:*\n${itensMsg || '▪ Consulte nosso financeiro'}\n\n*💰 Total: ${formatCurrency(totalCliente)}*\n\nAguardamos! 🙏\n_J&C Esquadrias_`;
+          texto = `_*\`J&C Vision | Mensagem Automática\`*_\n\n${saudacao}\n\nCliente *${nomeCliente}*.\nCobrador *Gil* na região em *${formatDate(rota.data_rota)}*.\n\n*📋 Pendências:*\n${itensMsg || '▪ Consulte nosso financeiro'}\n\n*💰 Total: ${formatCurrency(totalCliente)}*\n\nAguardamos! 🙏\n\nPara mais informações acesse: https://jcvision.base44.app/\n_J&C Esquadrias_`;
         }
       }
 
@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
           const linhasPedidos = (cliente.pedidos || [])
             .map(p => `▪ Pedido #${p.numero_pedido} — ${formatCurrency(p.valor_saldo)}`)
             .join('\n');
-          texto = `_*\`J&C Vision | Mensagem Automática\`*_\n\nOlá *${cliente.cliente_nome}*! 😊\n\nRepresentando *${cliente.cliente_nome}*.\nCobrador *Gil* na região em *${formatDate(rota.data_rota)}*.\n\n*📋 Pendências:*\n${linhasPedidos || '▪ Consulte nosso financeiro'}\n\n*💰 Total: ${formatCurrency(cliente.total_cliente)}*\n\nAguardamos! 🙏\n_J&C Esquadrias_`;
+          texto = `_*\`J&C Vision | Mensagem Automática\`*_\n\nOlá *${cliente.cliente_nome}*! 😊\n\nCliente *${cliente.cliente_nome}*.\nCobrador *Gil* na região em *${formatDate(rota.data_rota)}*.\n\n*📋 Pendências:*\n${linhasPedidos || '▪ Consulte nosso financeiro'}\n\n*💰 Total: ${formatCurrency(cliente.total_cliente)}*\n\nAguardamos! 🙏\n\nPara mais informações acesse: https://jcvision.base44.app/\n_J&C Esquadrias_`;
         }
       }
 
