@@ -29,6 +29,7 @@ import ModalContainer from '@/components/modals/ModalContainer';
 import RotaClienteCard from './RotaClienteCard';
 import EditarContatoModal from './EditarContatoModal';
 import CorrigirErrosModal from './CorrigirErrosModal';
+import CorrigirTelRepModal from './CorrigirTelRepModal';
 import ImpressaoRotaPDF from './ImpressaoRotaPDF';
 import PreFlightModal from './PreFlightModal';
 import { gerarUrlsMaps, getParadasValidas } from './mapsUtils';
@@ -81,6 +82,8 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
   const [preFlightAction, setPreFlightAction] = useState(null);
   const [editarContatoIdx, setEditarContatoIdx] = useState(null);
   const [showCorrigirErros, setShowCorrigirErros] = useState(false);
+  const [errosRepresentantes, setErrosRepresentantes] = useState([]);
+  const [rotaIdParaReenvio, setRotaIdParaReenvio] = useState(null);
 
   const { data: clientesDB = [] } = useQuery({
     queryKey: ['clientes_detalhes_rota'],
@@ -301,9 +304,12 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
       });
       const enviados = res.data?.enviados ?? 0;
       const resultados = res.data?.resultados || [];
-      const erros = resultados.filter(r => r.status === 'erro');
-      if (erros.length > 0) {
-        toast.warning(`${enviados} representante(s) notificado(s) · ${erros.length} sem telefone válido`);
+      // Erros de formato de número (exclui "pulado" que é sem representante)
+      const errosNumero = resultados.filter(r => r.status === 'erro');
+      if (errosNumero.length > 0) {
+        toast.warning(`${enviados} representante(s) notificado(s) · ${errosNumero.length} com telefone inválido`);
+        setErrosRepresentantes(errosNumero);
+        setRotaIdParaReenvio(rota.id);
       } else {
         toast.success(`✓ ${enviados} representante(s) notificado(s)`);
       }
@@ -311,6 +317,20 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
       toast.error(`Erro: ${e.message}`);
     } finally {
       setDisparando(false);
+    }
+  };
+
+  const handleRepCorrigido = async (repNome) => {
+    // Reenvia para esse representante via backend (já com número atualizado no cadastro)
+    try {
+      await base44.functions.invoke('dispararWhatsAppGilRep', {
+        rota_id: rota.id,
+        destino: 'representantes',
+        apenas_rep_nome: repNome,
+      });
+      setErrosRepresentantes(prev => prev.filter(e => e.rep !== repNome));
+    } catch (e) {
+      toast.error(`Erro ao reenviar: ${e.message}`);
     }
   };
 
@@ -608,6 +628,15 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
           clientesDB={clientesDB}
           onClose={() => setShowCorrigirErros(false)}
           onCorrigir={handleErrosCorrigidos}
+        />
+      )}
+
+      {errosRepresentantes.length > 0 && (
+        <CorrigirTelRepModal
+          erros={errosRepresentantes}
+          representantesDB={representantesDB}
+          onClose={() => setErrosRepresentantes([])}
+          onCorrigido={handleRepCorrigido}
         />
       )}
     </>

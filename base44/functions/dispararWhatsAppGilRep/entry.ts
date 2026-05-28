@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { rota_id, destino } = body; // destino: 'gil' | 'representantes'
+    const { rota_id, destino, apenas_rep_nome } = body; // destino: 'gil' | 'representantes', apenas_rep_nome: filtra 1 rep
 
     if (!rota_id) return Response.json({ error: 'rota_id obrigatório' }, { status: 400 });
     if (!destino) return Response.json({ error: 'destino obrigatório (gil | representantes)' }, { status: 400 });
@@ -152,6 +152,9 @@ Deno.serve(async (req) => {
 
       const resultados = [];
       for (const [repNome, rep] of Object.entries(porRep)) {
+        // Se veio filtro de rep específico, pula os demais
+        if (apenas_rep_nome && repNome !== apenas_rep_nome) continue;
+
         if (repNome === '__SEM_REP__') {
           resultados.push({ rep: 'Sem Representante', status: 'pulado', motivo: 'sem representante no cadastro do cliente' });
           continue;
