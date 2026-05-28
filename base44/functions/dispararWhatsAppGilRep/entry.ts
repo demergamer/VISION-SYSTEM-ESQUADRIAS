@@ -113,29 +113,47 @@ Deno.serve(async (req) => {
 
     // ── DESTINO: REPRESENTANTES ───────────────────────────────────────
     if (destino === 'representantes') {
-      // Buscar representantes para pegar telefone
-      const representantes = await base44.asServiceRole.entities.Representante.list('nome', 300);
-      const repMap = {};
-      representantes.forEach(r => { repMap[r.codigo] = r; });
+      // Buscar representantes e clientes para enriquecer dados null na rota
+      const [representantes, clientes] = await Promise.all([
+        base44.asServiceRole.entities.Representante.list('nome', 300),
+        base44.asServiceRole.entities.Cliente.list('nome', 500),
+      ]);
+
+      const repMapNome = {};
+      representantes.forEach(r => { repMapNome[r.nome] = r; });
+      const clienteMapCodigo = {};
+      clientes.forEach(c => { clienteMapCodigo[c.codigo] = c; });
+
+      // Enriquecer itens cujo representante_nome está null — busca pelo cadastro do cliente
+      const itensEnriquecidos = itensAtivos.map(item => {
+        if (item.representante_nome) return item;
+        const clienteDB = clienteMapCodigo[item.cliente_codigo];
+        if (!clienteDB) return item;
+        return {
+          ...item,
+          representante_codigo: clienteDB.representante_codigo || null,
+          representante_nome: clienteDB.representante_nome || null,
+        };
+      });
 
       const porRep = {};
-      itensAtivos.forEach(item => {
-        const repCod = item.representante_codigo || '__SEM_REP__';
-        if (!porRep[repCod]) {
-          const repDB = repMap[item.representante_codigo];
-          porRep[repCod] = {
-            nome: item.representante_nome || repCod,
+      itensEnriquecidos.forEach(item => {
+        const repNome = item.representante_nome || '__SEM_REP__';
+        if (!porRep[repNome]) {
+          const repDB = repMapNome[item.representante_nome];
+          porRep[repNome] = {
+            nome: item.representante_nome || repNome,
             telefone: repDB?.telefone || '',
             clientes: [],
           };
         }
-        porRep[repCod].clientes.push(item);
+        porRep[repNome].clientes.push(item);
       });
 
       const resultados = [];
-      for (const [repCod, rep] of Object.entries(porRep)) {
-        if (repCod === '__SEM_REP__') {
-          resultados.push({ rep: 'Sem Representante', status: 'pulado', motivo: 'sem código' });
+      for (const [repNome, rep] of Object.entries(porRep)) {
+        if (repNome === '__SEM_REP__') {
+          resultados.push({ rep: 'Sem Representante', status: 'pulado', motivo: 'sem representante no cadastro do cliente' });
           continue;
         }
 

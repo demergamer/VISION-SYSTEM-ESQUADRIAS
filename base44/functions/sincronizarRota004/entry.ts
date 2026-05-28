@@ -66,6 +66,8 @@ Deno.serve(async (req) => {
           cliente_endereco_completo: enderecoCompleto || item.cliente_endereco_completo,
           cliente_latitude: clienteDB.latitude || item.cliente_latitude,
           cliente_longitude: clienteDB.longitude || item.cliente_longitude,
+          representante_codigo: clienteDB.representante_codigo || item.representante_codigo || null,
+          representante_nome: clienteDB.representante_nome || item.representante_nome || null,
         };
       });
 
