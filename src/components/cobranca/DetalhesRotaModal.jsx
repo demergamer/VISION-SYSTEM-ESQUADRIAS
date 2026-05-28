@@ -195,20 +195,21 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
   };
 
   const handleSalvarContato = async ({ telefone, nome }) => {
-    if (editarContatoIdx === null) return;
+    if (editarContatoIdx === null && editarContatoIdx !== 0) return;
     const clienteAlvo = clientesAgrupados[editarContatoIdx];
+    if (!clienteAlvo) return;
 
-    if (clienteAlvo.cliente_codigo) {
-      const cliDB = clientesData.find(c => c.codigo === clienteAlvo.cliente_codigo);
-      if (cliDB) {
-        try {
-          await base44.entities.Cliente.update(cliDB.id, { telefone_1: telefone.trim() });
-          queryClient.invalidateQueries({ queryKey: ['rota_clientes_detalhes'] });
-          toast.success('✏️ Telefone atualizado no cadastro do cliente!');
-        } catch (e) {
-          toast.error('Erro ao atualizar telefone: ' + e.message);
-        }
+    const cliDB = clientesData.find(c => c.codigo === clienteAlvo.cliente_codigo);
+    if (cliDB?.id) {
+      try {
+        await base44.entities.Cliente.update(cliDB.id, { telefone_1: telefone.trim(), responsavel_1: nome.trim() || cliDB.responsavel_1 });
+        queryClient.invalidateQueries({ queryKey: ['rota_clientes_detalhes'] });
+        toast.success('✏️ Telefone atualizado no cadastro do cliente!');
+      } catch (e) {
+        toast.error('Erro ao atualizar telefone: ' + e.message);
       }
+    } else {
+      toast.warning('Cliente não encontrado no banco para atualizar.');
     }
     setEditarContatoIdx(null);
   };
@@ -474,12 +475,12 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
             <div className="space-y-2 max-h-[45vh] overflow-y-auto mb-4 p-1">
               {clientesAgrupados.map((cliente, idx) => (
                 <RotaClienteCard
-                  key={cliente.cliente_codigo}
+                  key={`${cliente.cliente_codigo || cliente.cliente_nome}-${idx}`}
                   cliente={cliente}
                   idx={idx}
                   onMarcarRecusado={handleMarcarRecusado}
-                  onEditarContato={setEditarContatoIdx}
-                  onReenviarIndividual={handleReenviarIndividual}
+                  onEditarContato={(i) => setEditarContatoIdx(i)}
+                  onReenviarIndividual={(i) => handleReenviarIndividual(i)}
                   reenvioLoading={reenvioIndividualLoading}
                 />
               ))}
@@ -507,7 +508,7 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
         />
       )}
 
-      {editarContatoIdx !== null && (
+      {editarContatoIdx !== null && editarContatoIdx !== undefined && clientesAgrupados[editarContatoIdx] && (
         <EditarContatoModal
           cliente={clientesAgrupados[editarContatoIdx]}
           onSave={handleSalvarContato}
