@@ -29,11 +29,24 @@ const formatDate = (dateStr) => {
 const limparNumero = (n) => {
   if (!n) return '';
   const digits = n.replace(/\D/g, '');
-  return digits.startsWith('55') ? digits : `55${digits}`;
+  if (!digits) return '';
+  // Se já tem o 55 e comprimento correto (>= 12), mantém; senão adiciona
+  if (digits.startsWith('55') && digits.length >= 12) return digits;
+  // Remove qualquer 55 inicial incorreto (ex: número local que começa com 55 coincidentemente)
+  const semPrefixo = digits.startsWith('55') && digits.length < 12 ? digits.slice(2) : digits;
+  return `55${semPrefixo}`;
 };
 const isNumeroValido = (n) => {
   const d = n.replace(/\D/g, '');
+  // Após limparNumero já tem o 55 prefixado: mínimo 55 + DDD(2) + número(8) = 12
   return d.length >= 12 && d.length <= 15;
+};
+
+// Verifica se o telefone bruto (antes de limpar) tem dígitos suficientes para ser válido
+const temDigitosSuficientes = (n) => {
+  if (!n) return false;
+  const d = n.replace(/\D/g, '');
+  return d.length >= 8; // 8 dígitos mínimos no número bruto
 };
 
 async function enviarWhatsApp(numero, texto) {
@@ -459,13 +472,50 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
                 {resultadoDisparo.falhas?.length > 0 && (
                   <div className="p-3 bg-red-50 border border-red-200 rounded-lg space-y-2">
                     <p className="text-xs font-bold text-red-800 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Falharam ({resultadoDisparo.falhas.length})</p>
-                    {resultadoDisparo.falhas.map((falha, fi) => (
-                      <div key={fi} className="flex items-center gap-2 text-xs">
-                        <span className="min-w-[120px] font-medium truncate">{falha.cliente_nome}</span>
-                        <Input placeholder="Corrigir Nº" value={numerosCorrecao[falha.cliente_nome] ?? ''} onChange={(e) => setNumerosCorrecao(p => ({ ...p, [falha.cliente_nome]: e.target.value }))} className="h-7 w-32 text-xs" />
-                        <Button size="sm" disabled={true} className="h-7 bg-slate-300">Arrume no lápis abaixo ↓</Button>
-                      </div>
-                    ))}
+                    {resultadoDisparo.falhas.map((falha, fi) => {
+                     const numeroCorrigido = numerosCorrecao[falha.cliente_nome] ?? '';
+                     const idxCliente = clientesAgrupados.findIndex(c => c.cliente_codigo === falha.cliente_codigo || c.cliente_nome === falha.cliente_nome);
+                     return (
+                       <div key={fi} className="flex items-center gap-2 text-xs">
+                         <span className="min-w-[120px] font-medium truncate">{falha.cliente_nome}</span>
+                         <Input
+                           placeholder="Corrigir Nº"
+                           value={numeroCorrigido}
+                           onChange={(e) => setNumerosCorrecao(p => ({ ...p, [falha.cliente_nome]: e.target.value }))}
+                           className="h-7 w-36 text-xs"
+                         />
+                         <Button
+                           size="sm"
+                           disabled={reenvioLoading[falha.cliente_nome] || !numeroCorrigido.trim()}
+                           className="h-7 bg-blue-600 hover:bg-blue-700 text-white"
+                           onClick={async () => {
+                             const numLimpo = limparNumero(numeroCorrigido);
+                             if (!isNumeroValido(numLimpo)) return toast.error('Número inválido (mín. 10 dígitos)');
+                             setReenvioLoading(p => ({ ...p, [falha.cliente_nome]: true }));
+                             const cliente = clientesAgrupados[idxCliente];
+                             if (!cliente) return;
+                             const texto = construirMensagem(cliente, '');
+                             try {
+                               await enviarWhatsApp(numLimpo, texto);
+                               await atualizarEnvioNoEstado(falha.cliente_codigo, true, null);
+                               setResultadoDisparo(prev => ({
+                                 ...prev,
+                                 enviados: [...prev.enviados, { cliente_nome: falha.cliente_nome, numero: numLimpo }],
+                                 falhas: prev.falhas.filter((_, i) => i !== fi),
+                               }));
+                               toast.success(`✓ Enviado para ${falha.cliente_nome}`);
+                             } catch (e) {
+                               toast.error(`Falha: ${e.message}`);
+                             } finally {
+                               setReenvioLoading(p => ({ ...p, [falha.cliente_nome]: false }));
+                             }
+                           }}
+                         >
+                           {reenvioLoading[falha.cliente_nome] ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Reenviar'}
+                         </Button>
+                       </div>
+                     );
+                    })}
                   </div>
                 )}
               </div>
