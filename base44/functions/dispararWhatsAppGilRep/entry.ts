@@ -96,9 +96,16 @@ Deno.serve(async (req) => {
       const idsPedidos = itensNaoRecusados.filter(i => i.tipo === 'pedido').map(i => i.item_id);
       const idsCheques = itensNaoRecusados.filter(i => i.tipo === 'cheque').map(i => i.item_id);
 
+      // Busca pedidos individualmente (SDK não suporta $in)
       const [pedidosDB, chequesDB, clientesDB] = await Promise.all([
-        idsPedidos.length ? base44.asServiceRole.entities.Pedido.filter({ id: { '$in': idsPedidos } }, '', 1000) : [],
-        idsCheques.length ? base44.asServiceRole.entities.Cheque.filter({ id: { '$in': idsCheques } }, '', 500) : [],
+        idsPedidos.length
+          ? Promise.all(idsPedidos.map(id => base44.asServiceRole.entities.Pedido.filter({ id }, '', 1).then(r => r?.[0]).catch(() => null)))
+              .then(res => res.filter(Boolean))
+          : [],
+        idsCheques.length
+          ? Promise.all(idsCheques.map(id => base44.asServiceRole.entities.Cheque.filter({ id }, '', 1).then(r => r?.[0]).catch(() => null)))
+              .then(res => res.filter(Boolean))
+          : [],
         base44.asServiceRole.entities.Cliente.list('nome', 1000),
       ]);
 
@@ -195,9 +202,10 @@ Deno.serve(async (req) => {
     // ── DESTINO: REPRESENTANTES ───────────────────────────────────────
     if (destino === 'representantes') {
       // Buscar representantes e clientes para enriquecer dados null na rota
+      // (re-usa clientesDB se já foi buscado no bloco do novo formato)
       const [representantes, clientes] = await Promise.all([
         base44.asServiceRole.entities.Representante.list('nome', 300),
-        base44.asServiceRole.entities.Cliente.list('nome', 500),
+        base44.asServiceRole.entities.Cliente.list('nome', 1000),
       ]);
 
       const repMapNome = {};
