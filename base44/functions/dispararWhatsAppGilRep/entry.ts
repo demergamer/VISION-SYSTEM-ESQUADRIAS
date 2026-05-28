@@ -196,7 +196,23 @@ Deno.serve(async (req) => {
         `Para mais informações acesse: https://jcvision.base44.app/`;
 
       await enviar(EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE, numeroGil, texto);
-      return Response.json({ success: true, destino: 'gil', numero: numeroGil });
+
+      // ── Mensagem simplificada para a Expedição ──────────────────────
+      const numeroExpedicao = '5511994933003';
+      const listaClientesExpedicao = itensAtivos
+        .map((c, i) => `${i + 1}. *${c.cliente_nome}*${c.cliente_cidade ? ` — ${c.cliente_cidade}` : ''}`)
+        .join('\n');
+
+      const textoExpedicao =
+        `*\`J&C Vision | Rota de Cobrança\`*\n\n` +
+        `📋 Rota do dia *${formatDate(rota.data_rota)}* — Cobrador: *Gil*\n\n` +
+        `👥 *Clientes a serem visitados (${itensAtivos.length}):*\n\n` +
+        `${listaClientesExpedicao || '—'}\n\n` +
+        `_Sistema J&C Esquadrias_`;
+
+      await enviar(EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE, numeroExpedicao, textoExpedicao);
+
+      return Response.json({ success: true, destino: 'gil', numero: numeroGil, expedicao: numeroExpedicao });
     }
 
     // ── DESTINO: REPRESENTANTES ───────────────────────────────────────
