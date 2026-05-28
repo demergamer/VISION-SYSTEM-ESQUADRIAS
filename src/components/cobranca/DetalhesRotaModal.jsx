@@ -30,36 +30,14 @@ const limparNumero = (n) => {
   if (!n) return '';
   const digits = n.replace(/\D/g, '');
   if (!digits) return '';
-  // Se já tem o 55 e comprimento correto (>= 12), mantém; senão adiciona
   if (digits.startsWith('55') && digits.length >= 12) return digits;
-  // Remove qualquer 55 inicial incorreto (ex: número local que começa com 55 coincidentemente)
   const semPrefixo = digits.startsWith('55') && digits.length < 12 ? digits.slice(2) : digits;
   return `55${semPrefixo}`;
 };
 const isNumeroValido = (n) => {
   const d = n.replace(/\D/g, '');
-  // Após limparNumero já tem o 55 prefixado: mínimo 55 + DDD(2) + número(8) = 12
   return d.length >= 12 && d.length <= 15;
 };
-
-// Verifica se o telefone bruto (antes de limpar) tem dígitos suficientes para ser válido
-const temDigitosSuficientes = (n) => {
-  if (!n) return false;
-  const d = n.replace(/\D/g, '');
-  return d.length >= 8; // 8 dígitos mínimos no número bruto
-};
-
-async function enviarWhatsApp(numero, texto) {
-  const url = import.meta.env.VITE_EVOLUTION_API_URL;
-  const key = import.meta.env.VITE_EVOLUTION_API_KEY;
-  const inst = import.meta.env.VITE_EVOLUTION_INSTANCE;
-  const resp = await fetch(`${url}/message/sendText/${inst}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', apikey: key },
-    body: JSON.stringify({ number: numero, text: texto }),
-  });
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-}
 
 export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
   const queryClient = useQueryClient();
@@ -262,17 +240,6 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
       .filter(n => n && isNumeroValido(n));
   };
 
-  const construirMensagem = (cliente, responsavel = '') => {
-    const linhas = (cliente.pedidos || []).map(p => {
-      const tag = p.tipo_item === 'cheque' ? `▪ Cheque ${p.numero_pedido}` : `▪ Pedido ${p.numero_pedido}`;
-      return `${tag} — ${formatCurrency(p.valor_saldo)}`;
-    }).join('\n');
-
-    const saudacao = responsavel ? `Olá *${responsavel}*! 😊` : `Olá *${cliente.cliente_nome}*! 😊`;
-
-    return `${saudacao}\n\nRepresentando *${cliente.cliente_nome}*.\nCobrador *Gil* na região em *${formatDate(rota.data_rota)}*.\n\n*📋 Pendências:*\n${linhas || 'Consulte o financeiro'}\n\n*💰 Total: ${formatCurrency(cliente.total_cliente)}*\n\nAguardamos! 🙏\n_J&C Esquadrias_`;
-  };
-
   const atualizarEnvioNoEstado = async (codCliente, status, erroMsg = null) => {
     const novosItens = itensRota.map(item => {
       if (item.cliente_codigo === codCliente) {
@@ -288,71 +255,48 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
   const handleDispararClientes = async () => {
     setDisparando(true);
     setResultadoDisparo(null);
-    const enviados = [];
-    const falhas = [];
-
-    for (const cliente of clientesAgrupados) {
-      if (cliente.recusado) continue;
-
-      const numeros = extrairNumeros(cliente);
-      const responsavel = cliente.contatos_nomeados?.[0]?.nome || '';
-
-      if (!numeros.length) {
-        falhas.push({ cliente_nome: cliente.cliente_nome, cliente_codigo: cliente.cliente_codigo, numero: '', erro: 'Sem telefone' });
-        await atualizarEnvioNoEstado(cliente.cliente_codigo, false, 'Sem telefone');
-        continue;
+    try {
+      const res = await base44.functions.invoke('dispararWhatsAppClientes', { rota_id: rota.id });
+      const { enviados = [], falhas = [] } = res.data || {};
+      // Recarregar itens_rota atualizados do banco
+      const rotasAtualizadas = await base44.entities.RotaCobranca.filter({ id: rota.id });
+      if (rotasAtualizadas?.[0]) {
+        setItensRota(rotasAtualizadas[0].itens_rota || itensRota);
+        onUpdated(rotasAtualizadas[0]);
       }
-
-      const texto = construirMensagem(cliente, responsavel);
-      let enviou = false;
-
-      for (const numero of numeros) {
-        try {
-          await enviarWhatsApp(numero, texto);
-          enviados.push({ cliente_nome: cliente.cliente_nome, numero });
-          await atualizarEnvioNoEstado(cliente.cliente_codigo, true, null);
-          enviou = true;
-          break;
-        } catch (_) {}
-      }
-
-      if (!enviou) {
-        falhas.push({ cliente_nome: cliente.cliente_nome, cliente_codigo: cliente.cliente_codigo, numero: numeros[0], erro: 'Falha no envio' });
-        await atualizarEnvioNoEstado(cliente.cliente_codigo, false, 'Falha no envio');
-      }
+      setResultadoDisparo({ enviados, falhas });
+      toast[falhas.length === 0 ? 'success' : 'warning'](`${enviados.length} enviado(s)${falhas.length > 0 ? ` · ${falhas.length} falha(s)` : ''}`);
+    } catch (e) {
+      toast.error(`Erro ao disparar: ${e.message}`);
+    } finally {
+      setDisparando(false);
     }
-
-    setAlterado(false); // Já foi salvo via atualizarEnvioNoEstado
-    setResultadoDisparo({ enviados, falhas });
-    setDisparando(false);
-    toast[falhas.length === 0 ? 'success' : 'warning'](`${enviados.length} enviado(s) ${falhas.length > 0 ? `· ${falhas.length} falha(s)` : ''}`);
   };
 
   const handleReenviarIndividual = async (idx) => {
     const cliente = clientesAgrupados[idx];
     const numeros = extrairNumeros(cliente);
-
     if (!numeros.length) return toast.error('Nenhum número válido cadastrado.');
 
     setReenvioIndividualLoading(prev => ({ ...prev, [idx]: true }));
-    const texto = construirMensagem(cliente, cliente.contatos_nomeados?.[0]?.nome || '');
-    let enviou = false;
-
-    for (const numero of numeros) {
-      try {
-        await enviarWhatsApp(numero, texto);
-        enviou = true;
-        break;
-      } catch (_) {}
+    try {
+      const res = await base44.functions.invoke('reenviarWhatsAppCliente', {
+        rota_id: rota.id,
+        cliente_codigo: cliente.cliente_codigo,
+        cliente_nome: cliente.cliente_nome,
+        numero_corrigido: numeros[0],
+      });
+      if (res.data?.success) {
+        await atualizarEnvioNoEstado(cliente.cliente_codigo, true, null);
+        toast.success(`✓ Enviado para ${cliente.cliente_nome}`);
+      } else {
+        toast.error(`Falha: ${res.data?.error || 'Erro desconhecido'}`);
+      }
+    } catch (e) {
+      toast.error(`Erro: ${e.message}`);
+    } finally {
+      setReenvioIndividualLoading(prev => ({ ...prev, [idx]: false }));
     }
-
-    if (enviou) {
-      await atualizarEnvioNoEstado(cliente.cliente_codigo, true, null);
-      toast.success(`✓ Enviado para ${cliente.cliente_nome}`);
-    } else {
-      toast.error(`Falha ao enviar para ${cliente.cliente_nome}`);
-    }
-    setReenvioIndividualLoading(prev => ({ ...prev, [idx]: false }));
   };
 
   const handleDispararRepresentantes = async () => {
@@ -489,27 +433,33 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
                            disabled={reenvioLoading[falha.cliente_nome] || !numeroCorrigido.trim()}
                            className="h-7 bg-blue-600 hover:bg-blue-700 text-white"
                            onClick={async () => {
-                             const numLimpo = limparNumero(numeroCorrigido);
-                             if (!isNumeroValido(numLimpo)) return toast.error('Número inválido (mín. 10 dígitos)');
-                             setReenvioLoading(p => ({ ...p, [falha.cliente_nome]: true }));
-                             const cliente = clientesAgrupados[idxCliente];
-                             if (!cliente) return;
-                             const texto = construirMensagem(cliente, '');
-                             try {
-                               await enviarWhatsApp(numLimpo, texto);
-                               await atualizarEnvioNoEstado(falha.cliente_codigo, true, null);
-                               setResultadoDisparo(prev => ({
-                                 ...prev,
-                                 enviados: [...prev.enviados, { cliente_nome: falha.cliente_nome, numero: numLimpo }],
-                                 falhas: prev.falhas.filter((_, i) => i !== fi),
-                               }));
-                               toast.success(`✓ Enviado para ${falha.cliente_nome}`);
-                             } catch (e) {
-                               toast.error(`Falha: ${e.message}`);
-                             } finally {
-                               setReenvioLoading(p => ({ ...p, [falha.cliente_nome]: false }));
-                             }
-                           }}
+                               const numLimpo = limparNumero(numeroCorrigido);
+                               if (!isNumeroValido(numLimpo)) return toast.error('Número inválido (mín. 12 dígitos com DDI)');
+                               setReenvioLoading(p => ({ ...p, [falha.cliente_nome]: true }));
+                               try {
+                                 const res = await base44.functions.invoke('reenviarWhatsAppCliente', {
+                                   rota_id: rota.id,
+                                   cliente_codigo: falha.cliente_codigo,
+                                   cliente_nome: falha.cliente_nome,
+                                   numero_corrigido: numLimpo,
+                                 });
+                                 if (res.data?.success) {
+                                   await atualizarEnvioNoEstado(falha.cliente_codigo, true, null);
+                                   setResultadoDisparo(prev => ({
+                                     ...prev,
+                                     enviados: [...prev.enviados, { cliente_nome: falha.cliente_nome, numero: numLimpo }],
+                                     falhas: prev.falhas.filter((_, i) => i !== fi),
+                                   }));
+                                   toast.success(`✓ Enviado para ${falha.cliente_nome}`);
+                                 } else {
+                                   toast.error(`Falha: ${res.data?.error || 'Erro desconhecido'}`);
+                                 }
+                               } catch (e) {
+                                 toast.error(`Erro: ${e.message}`);
+                               } finally {
+                                 setReenvioLoading(p => ({ ...p, [falha.cliente_nome]: false }));
+                               }
+                             }}
                          >
                            {reenvioLoading[falha.cliente_nome] ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Reenviar'}
                          </Button>
