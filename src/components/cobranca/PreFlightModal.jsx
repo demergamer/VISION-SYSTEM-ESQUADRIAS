@@ -18,7 +18,7 @@ import { toast } from 'sonner';
  *   onConfirm      – callback após correção (ou se não havia pendências)
  *   onClose        – fechar sem prosseguir
  */
-export default function PreFlightModal({ itens, clientes, representantes, onConfirm, onClose }) {
+export default function PreFlightModal({ itens, clientes, representantes, onConfirm, onClose, action }) {
   const [salvando, setSalvando] = useState(false);
   const [correcoes, setCorrecoes] = useState(() => {
     const init = {};
@@ -67,7 +67,7 @@ export default function PreFlightModal({ itens, clientes, representantes, onConf
         })
       );
       toast.success('Dados atualizados com sucesso!');
-      onConfirm();
+      onConfirm(action);
     } catch (e) {
       toast.error('Erro ao salvar correções: ' + e.message);
     } finally {
@@ -137,7 +137,7 @@ export default function PreFlightModal({ itens, clientes, representantes, onConf
 
         <div className="flex justify-end gap-2 pt-3 border-t">
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={() => onConfirm()} variant="outline" className="text-slate-600">
+          <Button onClick={() => onConfirm(action)} variant="outline" className="text-slate-600">
             Pular e continuar mesmo assim
           </Button>
           <Button onClick={handleSalvar} disabled={salvando} className="bg-blue-600 hover:bg-blue-700 gap-2">

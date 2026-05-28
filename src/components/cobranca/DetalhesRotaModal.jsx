@@ -349,12 +349,14 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
     setDisparando(false);
   };
 
-  const executarAposPreFlight = async () => {
+  const executarAposPreFlight = async (action) => {
+    // Aceita action como parâmetro para evitar closure stale
+    const acao = action || preFlightAction;
     setShowPreFlight(false);
-    if (preFlightAction === 'clientes') await handleDispararClientes();
-    else if (preFlightAction === 'representantes') await handleDispararRepresentantes();
-    else if (preFlightAction === 'cobrador') await handleDispararCobrador();
     setPreFlightAction(null);
+    if (acao === 'clientes') await handleDispararClientes();
+    else if (acao === 'representantes') await handleDispararRepresentantes();
+    else if (acao === 'cobrador') await handleDispararCobrador();
   };
 
   const handleSalvar = async () => {
@@ -606,6 +608,7 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
           itens={itensAtivos}
           clientes={clientesDB}
           representantes={representantesDB}
+          action={preFlightAction}
           onConfirm={executarAposPreFlight}
           onClose={() => { setShowPreFlight(false); setPreFlightAction(null); }}
         />
