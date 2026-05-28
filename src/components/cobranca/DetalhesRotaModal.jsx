@@ -292,18 +292,27 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
           clientes: [],
         };
       }
-      porRep[repCod].clientes.push(item.cliente_nome);
+      porRep[repCod].clientes.push({
+        nome: item.cliente_nome,
+        cidade: item.cliente_cidade || '',
+      });
     });
 
     let enviados = 0;
     for (const [, rep] of Object.entries(porRep)) {
       const numero = limparNumero(rep.telefone);
       if (!isNumeroValido(numero)) continue;
+
+      const listaClientes = rep.clientes
+        .map((c) => `▪ ${c.nome}${c.cidade ? ` (${c.cidade})` : ''}`)
+        .join('\n');
+
       const texto =
         `Olá *${rep.nome}*! 👋\n\n` +
-        `Rota de cobrança em *${formatDate(rota.data_rota)}*.\n\n` +
-        `Clientes: ${rep.clientes.join(', ')}\n\n` +
+        `O cobrador *Gil* fará a rota de cobrança no dia *${formatDate(rota.data_rota)}*.\n\n` +
+        `Os seus clientes que serão visitados são:\n${listaClientes}\n\n` +
         `_J&C Esquadrias_`;
+
       try {
         await enviarWhatsApp(numero, texto);
         enviados++;
@@ -317,15 +326,17 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
   const handleDispararCobrador = async () => {
     setDisparando(true);
     const numeroGil = '5511981264504';
+
     const cidades = [...new Set(itensAtivos.map((i) => i.cliente_cidade).filter(Boolean))].join(', ');
+    const listaClientes = itensAtivos.map((i) => i.cliente_nome).join(', ');
     const linksTexto = mapsUrls.map((url, i) => `Parte ${i + 1}: ${url}`).join('\n');
 
     const texto =
       `Olá *Gil*! 🛵\n\n` +
-      `Sua rota de *${formatDate(rota.data_rota)}* pronta!\n\n` +
-      `🏙️ Cidades: ${cidades || '—'}\n` +
-      `👥 Clientes: ${itensAtivos.length}\n\n` +
-      `🗺️ Maps:\n${linksTexto}\n\n` +
+      `Sua rota do dia *${formatDate(rota.data_rota)}* está pronta!\n\n` +
+      `🏙️ Cidades: ${cidades || '—'}\n\n` +
+      `👥 Clientes: ${listaClientes || '—'}\n\n` +
+      `🗺️ Links das rotas no Maps:\n${linksTexto || '—'}\n\n` +
       `_Sistema J&C_`;
 
     try {
