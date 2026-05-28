@@ -195,9 +195,15 @@ Deno.serve(async (req) => {
         `_Sistema J&C Esquadrias_\n\n` +
         `Para mais informações acesse: https://jcvision.base44.app/`;
 
-      await enviar(EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE, numeroGil, texto);
+      let gilOk = false, gilErro = null;
+      try {
+        await enviar(EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE, numeroGil, texto);
+        gilOk = true;
+      } catch (e) {
+        gilErro = e.message;
+      }
 
-      // ── Mensagem simplificada para a Expedição ──────────────────────
+      // ── Mensagem para a Expedição (sempre tenta, independente do Gil) ──
       const numeroExpedicao = '5511994933003';
       const listaClientesExpedicao = itensAtivos
         .map((c, i) => `${i + 1}. *${c.cliente_nome}*${c.cliente_cidade ? ` — ${c.cliente_cidade}` : ''}`)
@@ -210,9 +216,20 @@ Deno.serve(async (req) => {
         `${listaClientesExpedicao || '—'}\n\n` +
         `_Sistema J&C Esquadrias_`;
 
-      await enviar(EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE, numeroExpedicao, textoExpedicao);
+      let expedicaoOk = false, expedicaoErro = null;
+      try {
+        await enviar(EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE, numeroExpedicao, textoExpedicao);
+        expedicaoOk = true;
+      } catch (e) {
+        expedicaoErro = e.message;
+      }
 
-      return Response.json({ success: true, destino: 'gil', numero: numeroGil, expedicao: numeroExpedicao });
+      return Response.json({
+        success: true,
+        destino: 'gil',
+        gil: { numero: numeroGil, ok: gilOk, erro: gilErro },
+        expedicao: { numero: numeroExpedicao, ok: expedicaoOk, erro: expedicaoErro },
+      });
     }
 
     // ── DESTINO: REPRESENTANTES ───────────────────────────────────────
