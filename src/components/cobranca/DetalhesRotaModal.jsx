@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -91,6 +91,20 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
     queryKey: ['representantes_detalhes_rota'],
     queryFn: () => base44.entities.Representante.list('nome', 200),
   });
+
+  // Auto-sync: re-busca a rota quando ela é atualizada externamente
+  useEffect(() => {
+    const unsub = base44.entities.RotaCobranca.subscribe(async (event) => {
+      if (event.id !== rota.id) return;
+      if (event.type === 'update' && event.data) {
+        onUpdated(event.data);
+        if (!alterado) {
+          setLocalClientes(event.data.dados_cobranca || []);
+        }
+      }
+    });
+    return unsub;
+  }, [rota.id, alterado]);
 
   const itensAtivos = useMemo(() => localClientes.filter((c) => !c.recusado), [localClientes]);
   const mapsUrls = useMemo(() => gerarUrlsMaps(getParadasValidas(itensAtivos)), [itensAtivos]);

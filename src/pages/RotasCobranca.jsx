@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,13 @@ export default function RotasCobranca() {
     queryFn: () => base44.entities.RotaCobranca.list('-data_rota', 100),
     refetchInterval: 30000,
   });
+
+  useEffect(() => {
+    const unsub = base44.entities.RotaCobranca.subscribe(() => {
+      queryClient.invalidateQueries({ queryKey: ['rotas_cobranca'] });
+    });
+    return unsub;
+  }, [queryClient]);
 
   const stats = [
     { label: 'Total de Rotas', value: rotas.length },
