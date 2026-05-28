@@ -80,30 +80,30 @@ function gerarHTML(rota) {
   <meta charset="UTF-8"/>
   <title>Rota ${rota.codigo_rota}</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, sans-serif; font-size: 10px; color: #000; background: #fff; padding: 12px; }
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+    body { font-family: Arial, sans-serif; font-size: 13px; color: #000; background: #fff; padding: 16px; }
 
     .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
     .logo-area { display: flex; align-items: center; gap: 10px; }
     .logo-area img { height: 40px; }
     .logo-text { }
-    .logo-text .title { font-size: 13px; font-weight: 900; color: #1a3a6b; letter-spacing: 1px; }
-    .logo-text .subtitle { font-size: 9px; color: #555; }
-    .page-num { font-size: 10px; color: #333; text-align: right; }
+    .logo-text .title { font-size: 15px; font-weight: 900; color: #1a3a6b; letter-spacing: 1px; }
+    .logo-text .subtitle { font-size: 11px; color: #555; }
+    .page-num { font-size: 12px; color: #333; text-align: right; }
 
-    .rota-header { border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: flex-end; }
-    .rota-titulo { font-size: 14px; font-weight: 900; color: #000; }
-    .rota-sub { font-size: 9px; color: #333; margin-top: 2px; }
-    .total-geral { font-size: 14px; font-weight: 900; color: #000; text-align: right; }
+    .rota-header { border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: flex-end; }
+    .rota-titulo { font-size: 17px; font-weight: 900; color: #000; }
+    .rota-sub { font-size: 11px; color: #333; margin-top: 3px; }
+    .total-geral { font-size: 17px; font-weight: 900; color: #000; text-align: right; }
 
-    table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
 
     thead tr th {
-      background: #1a3a6b;
-      color: white;
-      padding: 5px 6px;
+      background: #1a3a6b !important;
+      color: white !important;
+      padding: 7px 8px;
       text-align: left;
-      font-size: 9px;
+      font-size: 12px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.3px;
@@ -111,50 +111,53 @@ function gerarHTML(rota) {
     }
 
     .data-row td {
-      padding: 3px 6px;
+      padding: 4px 8px;
       border: 1px solid #ccc;
-      font-size: 10px;
+      font-size: 12px;
       vertical-align: top;
     }
 
-    .col-cliente { min-width: 140px; }
-    .col-cidade  { min-width: 90px; }
-    .col-pedido  { min-width: 70px; }
-    .col-valor   { min-width: 80px; text-align: right; }
-    .col-pago    { min-width: 80px; text-align: right; }
-    .col-cobrar  { min-width: 80px; text-align: right; color: #c00; }
-    .col-obs     { min-width: 100px; }
-    .col-dados   { min-width: 160px; font-size: 9px; color: #333; }
+    .col-cliente { min-width: 150px; }
+    .col-cidade  { min-width: 100px; }
+    .col-pedido  { min-width: 80px; }
+    .col-valor   { min-width: 90px; text-align: right; }
+    .col-pago    { min-width: 90px; text-align: right; }
+    .col-cobrar  { min-width: 90px; text-align: right; color: #cc0000 !important; }
+    .col-obs     { min-width: 110px; }
+    .col-dados   { min-width: 170px; font-size: 11px; color: #333; }
 
     .subtotal-row td {
-      background: #dce6f1;
-      padding: 4px 6px;
-      font-size: 10px;
+      background: #dce6f1 !important;
+      padding: 5px 8px;
+      font-size: 12px;
       border: 1px solid #aabbcc;
     }
-    .subtotal-label { text-align: right; font-weight: 700; color: #1a3a6b; }
-    .subtotal-valor { text-align: right; color: #c00; font-size: 11px; }
+    .subtotal-label { text-align: right; font-weight: 700; color: #1a3a6b !important; }
+    .subtotal-valor { text-align: right; color: #cc0000 !important; font-size: 13px; }
 
-    .spacer-row td { height: 10px; border: none; background: transparent; }
+    .spacer-row td { height: 12px; border: none; background: transparent; }
 
     .footer-total {
-      margin-top: 16px;
-      padding: 10px 16px;
-      background: #1a3a6b;
-      color: white;
+      margin-top: 20px;
+      padding: 14px 20px;
+      background: #1a3a6b !important;
+      color: white !important;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 14px;
+      font-size: 16px;
       font-weight: 900;
       border-radius: 4px;
     }
 
-    .rodape { margin-top: 10px; text-align: center; font-size: 9px; color: #999; }
+    .rodape { margin-top: 12px; text-align: center; font-size: 11px; color: #999; }
 
     @media print {
-      body { padding: 0; }
-      .footer-total { border-radius: 0; }
+      body { padding: 4px; }
+      thead tr th { background: #1a3a6b !important; color: white !important; -webkit-print-color-adjust: exact !important; }
+      .subtotal-row td { background: #dce6f1 !important; -webkit-print-color-adjust: exact !important; }
+      .footer-total { background: #1a3a6b !important; color: white !important; border-radius: 0; -webkit-print-color-adjust: exact !important; }
+      .col-cobrar, .subtotal-valor { color: #cc0000 !important; }
     }
   </style>
 </head>
