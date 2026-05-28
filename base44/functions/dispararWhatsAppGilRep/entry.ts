@@ -31,20 +31,35 @@ async function enviar(url, key, inst, numero, texto) {
   return await resp.json();
 }
 
-// Gera até 3 partes de URL do Google Maps com até 10 paradas cada
-function gerarUrlsMaps(paradas) {
+// Endereço completo da fábrica (já encoded para compor a URL diretamente)
+const FABRICA_ENCODED = 'J%26C+Esquadrias+de+Alum%C3%ADnio+-+Av.+Mir%C3%B3+At%C3%ADlio+Peduzi,+500+-+Tanque+Caio,+Ribeir%C3%A3o+Pires+-+SP,+09436-500,+Brasil';
+
+// Extrai o melhor ponto de localização de um item: coordenadas > endereço completo > cidade
+function itemParaWaypoint(item) {
+  if (item.cliente_latitude && item.cliente_longitude) {
+    return `${item.cliente_latitude},${item.cliente_longitude}`;
+  }
+  if (item.cliente_endereco_completo?.trim()) {
+    return item.cliente_endereco_completo.trim();
+  }
+  if (item.cliente_cidade) {
+    return `${item.cliente_cidade}, ${item.cliente_estado || 'SP'}, Brasil`;
+  }
+  return null;
+}
+
+// Gera URLs do Google Maps priorizando coordenadas, com até 9 paradas por lote
+function gerarUrlsMaps(itens) {
   const LOTE = 9;
+  const waypoints = itens.map(itemParaWaypoint).filter(Boolean);
+  if (waypoints.length === 0) return [];
+
   const urls = [];
-  for (let i = 0; i < paradas.length; i += LOTE) {
-    const lote = paradas.slice(i, i + LOTE);
-    const waypoints = lote.slice(0, -1).map(p => encodeURIComponent(p)).join('/');
-    const destino = encodeURIComponent(lote[lote.length - 1]);
-    const origem = encodeURIComponent(lote[0]);
-    if (lote.length === 1) {
-      urls.push(`https://www.google.com/maps/search/?api=1&query=${origem}`);
-    } else {
-      urls.push(`https://www.google.com/maps/dir/${origem}/${waypoints}/${destino}`);
-    }
+  for (let i = 0; i < waypoints.length; i += LOTE) {
+    const lote = waypoints.slice(i, i + LOTE);
+    const origemEncoded = i === 0 ? FABRICA_ENCODED : encodeURIComponent(waypoints[i - 1]);
+    const destinosEncoded = lote.map(p => encodeURIComponent(p)).join('/');
+    urls.push(`https://www.google.com/maps/dir/${origemEncoded}/${destinosEncoded}`);
   }
   return urls;
 }
@@ -89,11 +104,8 @@ Deno.serve(async (req) => {
 
       const totalGeral = itensAtivos.reduce((s, c) => s + (c.total_cliente || 0), 0);
 
-      // Gerar links Maps com endereços válidos
-      const paradas = itensAtivos
-        .filter(c => c.cliente_endereco_completo || c.cliente_cidade)
-        .map(c => c.cliente_endereco_completo || `${c.cliente_cidade}, SP, Brasil`);
-      const mapsUrls = gerarUrlsMaps(paradas);
+      // Gerar links Maps priorizando coordenadas lat/lng
+      const mapsUrls = gerarUrlsMaps(itensAtivos);
       const linksTexto = mapsUrls.length
         ? mapsUrls.map((url, i) => `Parte ${i + 1}: ${url}`).join('\n')
         : '—';
