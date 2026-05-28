@@ -51,7 +51,8 @@ async function enviarWhatsApp(numero, texto) {
 export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
   const queryClient = useQueryClient();
   
-  // O estado local reflete a nova entidade (itens_rota)
+  // Suporte ao formato legado (dados_cobranca) e ao novo (itens_rota)
+  const usaFormatoLegado = (!rota.itens_rota || rota.itens_rota.length === 0) && (rota.dados_cobranca?.length > 0);
   const [itensRota, setItensRota] = useState(rota.itens_rota || []);
   const [alterado, setAlterado] = useState(false);
   const [disparando, setDisparando] = useState(false);
@@ -93,10 +94,18 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
     queryFn: () => base44.entities.Representante.list('nome', 500),
   });
 
-  const isLoadingData = loadP || loadC || loadCli;
+  const isLoadingData = !usaFormatoLegado && (loadP || loadC || loadCli);
+
+  // ── Agrupamento Legado (dados_cobranca) ──
+  const clientesAgrupadosLegado = useMemo(() => {
+    if (!usaFormatoLegado) return null;
+    return (rota.dados_cobranca || []);
+  }, [usaFormatoLegado, rota.dados_cobranca]);
 
   // ── Agrupamento Dinâmico (Transforma IDs no layout que a UI espera) ──
   const clientesAgrupados = useMemo(() => {
+    // Se é formato legado, retorna direto sem precisar de queries
+    if (usaFormatoLegado) return clientesAgrupadosLegado || [];
     if (isLoadingData || !itensRota.length) return [];
     const map = new Map();
 
