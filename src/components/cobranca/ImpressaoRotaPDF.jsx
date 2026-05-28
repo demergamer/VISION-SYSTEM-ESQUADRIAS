@@ -7,136 +7,203 @@ const formatDate = (dateStr) => {
   return `${d}/${m}/${y}`;
 };
 
-function gerarHTML(rota) {
-  const clientes = rota.dados_cobranca || [];
-  const ativos = clientes.filter((c) => !c.recusado);
-  const totalGeral = ativos.reduce((s, c) => s + (c.total_cliente || 0), 0);
-  const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+const DIAS_SEMANA = ['DOMINGO', 'SEGUNDA-FEIRA', 'TERÇA-FEIRA', 'QUARTA-FEIRA', 'QUINTA-FEIRA', 'SEXTA-FEIRA', 'SÁBADO'];
 
-  const linhasClientes = clientes.map((c, i) => {
-    const pedidosHtml = (c.pedidos || [])
-      .map(p => `<div>${p.tipo_item === 'cheque' ? `Cheque ${p.numero_pedido}` : `Pedido ${p.numero_pedido}`}: ${formatCurrency(p.valor_saldo)}</div>`)
-      .join('');
-    const situacao = c.recusado ? 'Recusado' : c.whatsapp_enviado ? '✓ WhatsApp' : 'Pendente';
-    const rowClass = c.recusado ? ' class="recusado"' : '';
-    return `
-      <tr${rowClass}>
-        <td>${i + 1}</td>
-        <td><strong>${c.cliente_nome}</strong></td>
-        <td>${c.cliente_cidade || '—'}</td>
-        <td>${c.representante_nome || '—'}</td>
-        <td>${pedidosHtml || '—'}</td>
-        <td class="valor">${formatCurrency(c.total_cliente)}</td>
-        <td>${situacao}</td>
+function getDiaSemana(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-');
+  const date = new Date(Number(y), Number(m) - 1, Number(d));
+  return DIAS_SEMANA[date.getDay()] || '';
+}
+
+function getTelefones(c) {
+  const tels = [];
+  if (c.todos_telefones?.length) return c.todos_telefones.map(t => `Tel: ${t}`).join(' / ');
+  if (c.contatos_nomeados?.length) return c.contatos_nomeados.map(ct => `Tel: ${ct.telefone}`).join(' / ');
+  if (c.cliente_telefone) return `Tel: ${c.cliente_telefone}`;
+  return '';
+}
+
+function gerarHTML(rota) {
+  const clientes = (rota.dados_cobranca || []).filter(c => !c.recusado);
+  const totalGeral = clientes.reduce((s, c) => s + (c.total_cliente || 0), 0);
+  const diaSemana = getDiaSemana(rota.data_rota);
+  const dataFormatada = formatDate(rota.data_rota);
+
+  // Agrupar pedidos por cliente
+  const grupos = clientes.map(c => ({
+    ...c,
+    pedidos: c.pedidos || [],
+    telefones: getTelefones(c),
+  }));
+
+  const linhas = grupos.map(c => {
+    const firstPedido = c.pedidos[0];
+    const restPedidos = c.pedidos.slice(1);
+
+    const primeiraLinha = `
+      <tr class="data-row">
+        <td class="col-cliente" rowspan="${c.pedidos.length || 1}"><strong>${c.cliente_nome}</strong></td>
+        <td class="col-cidade" rowspan="${c.pedidos.length || 1}">${c.cliente_cidade || ''}</td>
+        <td class="col-pedido">${firstPedido ? (firstPedido.tipo_item === 'cheque' ? `CHQ ${firstPedido.numero_pedido}` : firstPedido.numero_pedido) : ''}</td>
+        <td class="col-valor">${firstPedido ? formatCurrency(firstPedido.valor_saldo) : ''}</td>
+        <td class="col-pago"></td>
+        <td class="col-cobrar">${firstPedido ? `<strong>${formatCurrency(firstPedido.valor_saldo)}</strong>` : ''}</td>
+        <td class="col-obs"></td>
+        <td class="col-dados" rowspan="${c.pedidos.length || 1}">${c.telefones}</td>
       </tr>`;
+
+    const linhasExtra = restPedidos.map(p => `
+      <tr class="data-row">
+        <td class="col-pedido">${p.tipo_item === 'cheque' ? `CHQ ${p.numero_pedido}` : p.numero_pedido}</td>
+        <td class="col-valor">${formatCurrency(p.valor_saldo)}</td>
+        <td class="col-pago"></td>
+        <td class="col-cobrar"><strong>${formatCurrency(p.valor_saldo)}</strong></td>
+        <td class="col-obs"></td>
+      </tr>`).join('');
+
+    const subtotalLinha = `
+      <tr class="subtotal-row">
+        <td colspan="4" class="subtotal-label">SUBTOTAL ${c.cliente_nome.toUpperCase()}:</td>
+        <td class="subtotal-valor" colspan="4"><strong>${formatCurrency(c.total_cliente)}</strong></td>
+      </tr>
+      <tr class="spacer-row"><td colspan="8"></td></tr>`;
+
+    return primeiraLinha + linhasExtra + subtotalLinha;
   }).join('');
+
+  const now = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Rota ${rota.codigo_rota}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, sans-serif; font-size: 12px; color: #111; background: #f5f5f5; }
-    .container { max-width: 960px; margin: 20px auto; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; }
+    body { font-family: Arial, sans-serif; font-size: 10px; color: #000; background: #fff; padding: 12px; }
 
-    .header { background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color: white; padding: 24px 28px; display: flex; align-items: center; gap: 16px; }
-    .logo { height: 52px; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.3)); }
-    .header-info h1 { font-size: 20px; font-weight: 800; }
-    .header-info p { font-size: 12px; opacity: 0.85; margin-top: 4px; }
-    .header-badge { margin-left: auto; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); padding: 8px 16px; border-radius: 50px; font-size: 12px; text-align: center; white-space: nowrap; }
+    .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
+    .logo-area { display: flex; align-items: center; gap: 10px; }
+    .logo-area img { height: 40px; }
+    .logo-text { }
+    .logo-text .title { font-size: 13px; font-weight: 900; color: #1a3a6b; letter-spacing: 1px; }
+    .logo-text .subtitle { font-size: 9px; color: #555; }
+    .page-num { font-size: 10px; color: #333; text-align: right; }
 
-    .meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 16px 28px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
-    .meta-card { background: white; border-radius: 8px; padding: 12px 16px; border: 1px solid #e2e8f0; }
-    .meta-card .label { font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-    .meta-card .value { font-size: 16px; font-weight: 800; color: #1e3a8a; margin-top: 2px; }
+    .rota-header { border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: flex-end; }
+    .rota-titulo { font-size: 14px; font-weight: 900; color: #000; }
+    .rota-sub { font-size: 9px; color: #333; margin-top: 2px; }
+    .total-geral { font-size: 14px; font-weight: 900; color: #000; text-align: right; }
 
-    .section { padding: 20px 28px; }
-    .section-title { font-size: 13px; font-weight: 700; color: #1e3a8a; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 2px solid #e2e8f0; }
+    table { width: 100%; border-collapse: collapse; margin-top: 6px; }
 
-    table { width: 100%; border-collapse: collapse; }
-    th { background: #f1f5f9; padding: 8px 10px; text-align: left; font-size: 10px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #e2e8f0; }
-    td { padding: 8px 10px; font-size: 11px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
-    tr:hover td { background: #f8fafc; }
-    .valor { font-weight: 700; color: #1e3a8a; }
-    .recusado td { opacity: 0.4; text-decoration: line-through; }
+    thead tr th {
+      background: #1a3a6b;
+      color: white;
+      padding: 5px 6px;
+      text-align: left;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      border: 1px solid #1a3a6b;
+    }
 
-    .total-bar { background: linear-gradient(135deg, #1e3a8a, #2563eb); color: white; margin: 0 28px 28px; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; border-radius: 8px; }
-    .total-bar-label { font-size: 13px; font-weight: 600; opacity: 0.9; }
-    .total-bar-value { font-size: 22px; font-weight: 900; }
+    .data-row td {
+      padding: 3px 6px;
+      border: 1px solid #ccc;
+      font-size: 10px;
+      vertical-align: top;
+    }
 
-    .footer { text-align: center; font-size: 10px; color: #94a3b8; padding: 12px; border-top: 1px solid #e2e8f0; }
+    .col-cliente { min-width: 140px; }
+    .col-cidade  { min-width: 90px; }
+    .col-pedido  { min-width: 70px; }
+    .col-valor   { min-width: 80px; text-align: right; }
+    .col-pago    { min-width: 80px; text-align: right; }
+    .col-cobrar  { min-width: 80px; text-align: right; color: #c00; }
+    .col-obs     { min-width: 100px; }
+    .col-dados   { min-width: 160px; font-size: 9px; color: #333; }
+
+    .subtotal-row td {
+      background: #dce6f1;
+      padding: 4px 6px;
+      font-size: 10px;
+      border: 1px solid #aabbcc;
+    }
+    .subtotal-label { text-align: right; font-weight: 700; color: #1a3a6b; }
+    .subtotal-valor { text-align: right; color: #c00; font-size: 11px; }
+
+    .spacer-row td { height: 10px; border: none; background: transparent; }
+
+    .footer-total {
+      margin-top: 16px;
+      padding: 10px 16px;
+      background: #1a3a6b;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+      font-weight: 900;
+      border-radius: 4px;
+    }
+
+    .rodape { margin-top: 10px; text-align: center; font-size: 9px; color: #999; }
 
     @media print {
-      body { background: white; }
-      .container { box-shadow: none; border-radius: 0; }
-      .no-print { display: none !important; }
+      body { padding: 0; }
+      .footer-total { border-radius: 0; }
     }
   </style>
 </head>
 <body>
-<div class="container">
 
-  <div class="header">
-    <img class="logo" src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png" alt="J&C" />
-    <div class="header-info">
-      <h1>🛵 Rota de Cobrança — ${rota.codigo_rota}</h1>
-      <p>J&C Esquadrias de Alumínio — Relatório gerado em ${geradoEm}</p>
+  <div class="page-header">
+    <div class="logo-area">
+      <img src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69679dca54bbc0458984498a/358a3c910_Gemini_Generated_Image_9b7i6p9b7i6p9b7i-removebg-preview.png" alt="J&C"/>
+      <div class="logo-text">
+        <div class="title">J&C ONE VISION SYSTEM</div>
+        <div class="subtitle">Sistema de Gestão Integrado</div>
+      </div>
     </div>
-    <div class="header-badge">
-      📅 ${formatDate(rota.data_rota)}<br/>
-      <strong>${rota.cobrador_nome || 'Gil'}</strong>
-    </div>
+    <div class="page-num">Página 1</div>
   </div>
 
-  <div class="meta">
-    <div class="meta-card">
-      <div class="label">Status</div>
-      <div class="value" style="font-size:14px">${rota.status}</div>
+  <div class="rota-header">
+    <div>
+      <div class="rota-titulo">COBRANÇA ${(rota.cobrador_nome || 'GIL').toUpperCase()} — ${diaSemana}</div>
+      <div class="rota-sub">TABELA PRINCIPAL &nbsp;&nbsp; ${dataFormatada} &nbsp;&nbsp; Rota: ${rota.codigo_rota}</div>
     </div>
-    <div class="meta-card">
-      <div class="label">Total de Clientes</div>
-      <div class="value">${clientes.length}</div>
-    </div>
-    <div class="meta-card">
-      <div class="label">Ativos</div>
-      <div class="value">${ativos.length}</div>
-    </div>
-    <div class="meta-card">
-      <div class="label">Total a Cobrar</div>
-      <div class="value">${formatCurrency(totalGeral)}</div>
-    </div>
+    <div class="total-geral">TOTAL A RECEBER: ${formatCurrency(totalGeral)}</div>
   </div>
 
-  <div class="section">
-    <div class="section-title">📋 Clientes da Rota</div>
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Cliente</th>
-          <th>Cidade</th>
-          <th>Representante</th>
-          <th>Pedidos / Cheques</th>
-          <th>Total</th>
-          <th>Situação</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${linhasClientes}
-      </tbody>
-    </table>
+  <table>
+    <thead>
+      <tr>
+        <th class="col-cliente">CLIENTE</th>
+        <th class="col-cidade">CIDADE</th>
+        <th class="col-pedido">PEDIDO</th>
+        <th class="col-valor">VALOR</th>
+        <th class="col-pago">PAGO</th>
+        <th class="col-cobrar">COBRAR</th>
+        <th class="col-obs">OBSERVAÇÕES</th>
+        <th class="col-dados">DADOS CLIENTE — SE NECESSÁRIO</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${linhas}
+    </tbody>
+  </table>
+
+  <div class="footer-total">
+    <span>💰 TOTAL GERAL A RECEBER</span>
+    <span>${formatCurrency(totalGeral)}</span>
   </div>
 
-  <div class="total-bar">
-    <span class="total-bar-label">💰 TOTAL GERAL DA ROTA</span>
-    <span class="total-bar-value">${formatCurrency(totalGeral)}</span>
-  </div>
+  <div class="rodape">J&C One Vision System — Gerado em ${now}</div>
 
-  <div class="footer">J&C One Vision System — Documento gerado automaticamente em ${geradoEm}</div>
-</div>
 </body>
 </html>`;
 }
@@ -149,7 +216,6 @@ export function abrirRelatorioRota(rota) {
   janela.focus();
 }
 
-// Componente legado mantido para compatibilidade — chama direto ao montar
 export default function ImpressaoRotaPDF({ rota, onClose }) {
   abrirRelatorioRota(rota);
   onClose();
