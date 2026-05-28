@@ -1,9 +1,3 @@
-Precisamos unificar e atualizar o componente de Detalhes da Rota para que ele funcione perfeitamente com a nova arquitetura normalizada (onde a entidade RotaCobranca salva apenas `itens_rota` com os IDs, em vez do JSON pesado).
-
-Por favor, substitua todo o conteúdo do `DetalhesRotaModal.jsx` e do `CorrigirErrosModal.jsx` pelos códigos abaixo.
-
-### 1. src/components/cobranca/DetalhesRotaModal.jsx
-```jsx
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
