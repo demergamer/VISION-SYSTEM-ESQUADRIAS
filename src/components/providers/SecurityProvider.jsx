@@ -35,7 +35,14 @@ function InativoBlockScreen({ signOut }) {
 export function SecurityProvider({ children }) {
   const { user, loading, signOut } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [isLocked, setIsLocked] = useState(true);
+  // Verifica sessionStorage imediatamente para evitar flash de tela de bloqueio no F5
+  const [isLocked, setIsLocked] = useState(() => {
+    try {
+      return !sessionStorage.getItem(SESSION_KEY);
+    } catch {
+      return true;
+    }
+  });
   const idleTimerRef = useRef(null);
   const sessionTimerRef = useRef(null);
 
@@ -137,10 +144,14 @@ export function SecurityProvider({ children }) {
   return (
     <SecurityContext.Provider value={{ isLocked, showOnboarding, unlock, lockScreen, completeOnboarding }}>
       {/* Children ficam montados mas inacessíveis enquanto bloqueado */}
-      <div style={isLocked ? { pointerEvents: 'none', userSelect: 'none', filter: 'blur(4px)', transition: 'filter 0.2s' } : {}}>
+      <div style={isLocked ? { pointerEvents: 'none', userSelect: 'none', filter: 'blur(4px)', transition: 'filter 0.2s', position: 'relative', zIndex: 0 } : {}}>
         {children}
       </div>
-      {isLocked && <LockScreen onUnlock={unlock} />}
+      {isLocked && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 99990, isolation: 'isolate' }}>
+          <LockScreen onUnlock={unlock} />
+        </div>
+      )}
     </SecurityContext.Provider>
   );
 }

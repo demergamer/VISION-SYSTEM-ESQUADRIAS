@@ -163,7 +163,7 @@ export default function LockScreen({ onUnlock }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[9998] bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 flex items-center justify-center p-4">
+    <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 flex items-center justify-center p-4">
       {/* Background blur pattern */}
       <div className="absolute inset-0 opacity-5 pointer-events-none overflow-hidden">
         <div className="absolute top-20 left-20 w-96 h-96 bg-blue-500 rounded-full blur-3xl" />
