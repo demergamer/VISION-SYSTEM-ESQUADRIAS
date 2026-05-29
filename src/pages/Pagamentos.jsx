@@ -27,10 +27,19 @@ import RelatorioContabilModal from "@/components/pagamentos/RelatorioContabilMod
 
 const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
+function safeParseISO(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  try {
+    const d = parseISO(dateStr);
+    return isNaN(d.getTime()) ? null : d;
+  } catch { return null; }
+}
+
 function getStatusInfo(conta) {
   const isPendente = conta.status === 'pendente';
-  const isAtrasada = isPendente && conta.data_vencimento && isPast(parseISO(conta.data_vencimento)) && !isToday(parseISO(conta.data_vencimento));
-  const isHoje = conta.data_vencimento && isToday(parseISO(conta.data_vencimento));
+  const d = safeParseISO(conta.data_vencimento);
+  const isAtrasada = isPendente && d && isPast(d) && !isToday(d);
+  const isHoje = d && isToday(d);
   return { isAtrasada, isHoje };
 }
 
@@ -59,7 +68,7 @@ function ContaRow({ conta, onEdit, onDelete }) {
       </div>
       <div className="text-right shrink-0">
         <p className="font-bold text-slate-800">{formatCurrency(conta.valor)}</p>
-        <p className="text-xs text-slate-400">{conta.data_vencimento ? format(parseISO(conta.data_vencimento), 'dd/MM/yy', { locale: ptBR }) : '-'}</p>
+        <p className="text-xs text-slate-400">{safeParseISO(conta.data_vencimento) ? format(safeParseISO(conta.data_vencimento), 'dd/MM/yy', { locale: ptBR }) : '-'}</p>
       </div>
       <div className="flex gap-1 shrink-0">
         <PermissionGuard setor="Pagamentos" funcao="editar" showBlocked={false}>
@@ -83,15 +92,20 @@ function EmpresaSection({ empresa, contas, onEdit, onDelete, searchTerm }) {
   const atrasadas = contas.filter(c => {
     if (!['pendente', 'parcial'].includes(c.status)) return false;
     if (!c.data_vencimento) return false;
-    return isPast(parseISO(c.data_vencimento)) && !isToday(parseISO(c.data_vencimento));
+    const d = safeParseISO(c.data_vencimento);
+    return d && isPast(d) && !isToday(d);
   });
 
-  const hoje = contas.filter(c => ['pendente', 'parcial'].includes(c.status) && c.data_vencimento && isToday(parseISO(c.data_vencimento)));
+  const hoje = contas.filter(c => {
+    if (!['pendente', 'parcial'].includes(c.status)) return false;
+    const d = safeParseISO(c.data_vencimento);
+    return d && isToday(d);
+  });
 
   const futuras = contas.filter(c => {
     if (!['pendente', 'parcial', 'futuro'].includes(c.status)) return false;
-    if (!c.data_vencimento) return false;
-    return !isPast(parseISO(c.data_vencimento)) && !isToday(parseISO(c.data_vencimento));
+    const d = safeParseISO(c.data_vencimento);
+    return d && !isPast(d) && !isToday(d);
   });
 
   const pagas = contas.filter(c => c.status === 'pago');
@@ -327,7 +341,7 @@ export default function Pagamentos() {
   const stats = useMemo(() => {
     const pendentes = contas.filter(c => ['pendente', 'pendente_preenchimento', 'parcial'].includes(c.status));
     const pagas = contas.filter(c => c.status === 'pago');
-    const atrasadas = pendentes.filter(c => c.data_vencimento && isPast(parseISO(c.data_vencimento)) && !isToday(parseISO(c.data_vencimento)));
+    const atrasadas = pendentes.filter(c => { const d = safeParseISO(c.data_vencimento); return d && isPast(d) && !isToday(d); });
     return {
       totalPendente: pendentes.reduce((s, c) => s + (c.valor || 0), 0),
       totalPago: pagas.reduce((s, c) => s + (c.valor || 0), 0),
