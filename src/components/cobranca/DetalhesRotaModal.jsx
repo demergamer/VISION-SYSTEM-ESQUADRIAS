@@ -4,7 +4,6 @@ import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   MessageSquare, CheckCircle2, Loader2, AlertTriangle, Printer, RefreshCw,
   Map as MapIcon, Zap, Save, ChevronDown, Users, Truck, ArrowUpDown, Wand2, GripVertical, MapPin, MapPinOff, X,
@@ -506,9 +505,30 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
 
             {/* Ações Topo */}
             <div className="flex gap-2 flex-wrap mb-4">
-              <Button variant="outline" size="sm" onClick={() => { setNovaData(rota.data_rota || ''); setShowEditarData(true); }} className="gap-1 border-slate-300 text-slate-700 hover:bg-slate-50">
-                <Calendar className="w-3 h-3" /> Editar Data
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1 border-slate-300 text-slate-700 hover:bg-slate-50">
+                    <Calendar className="w-3 h-3" /> {rota.data_rota ? formatDate(rota.data_rota) : 'Editar Data'}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="p-3 w-56" onCloseAutoFocus={e => e.preventDefault()}>
+                  <p className="text-xs font-semibold text-slate-600 mb-2">Nova data da rota</p>
+                  <input
+                    type="date"
+                    value={novaData}
+                    onChange={e => setNovaData(e.target.value)}
+                    className="w-full border border-slate-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <Button
+                    size="sm"
+                    className="w-full mt-2 bg-blue-600 hover:bg-blue-700 gap-1"
+                    disabled={salvandoData || !novaData}
+                    onClick={e => { e.stopPropagation(); handleSalvarData(); }}
+                  >
+                    {salvandoData ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Salvar
+                  </Button>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               {rota.status === 'Aberta' && !usaFormatoLegado && (
                 <Button variant="outline" size="sm" onClick={() => { setBuscaPedido(''); setShowAdicionarPedido(true); }} className="gap-1 border-blue-300 text-blue-700 hover:bg-blue-50">
@@ -724,27 +744,6 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
         />
       )}
 
-      {/* Modal Editar Data */}
-      {showEditarData && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2"><Calendar className="w-4 h-4 text-blue-600" /> Editar Data da Rota</h3>
-              <Button type="button" size="icon" variant="ghost" onClick={() => setShowEditarData(false)}><X className="w-4 h-4" /></Button>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-slate-600">Nova Data</Label>
-              <Input type="date" value={novaData} onChange={e => setNovaData(e.target.value)} className="h-10" />
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" size="sm" onClick={() => setShowEditarData(false)}>Cancelar</Button>
-              <Button size="sm" onClick={handleSalvarData} disabled={salvandoData || !novaData} className="bg-blue-600 hover:bg-blue-700 gap-1">
-                {salvandoData ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Salvar
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Modal Adicionar Pedido */}
       {showAdicionarPedido && (
