@@ -18,6 +18,11 @@ import ModalContainer from "@/components/modals/ModalContainer";
 
 const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
+function safeParseISO(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  try { const d = parseISO(dateStr); return isNaN(d.getTime()) ? null : d; } catch { return null; }
+}
+
 function SeletorCheques({ cheques, onConfirm, onClose }) {
   const [busca, setBusca] = useState('');
   const [selecionados, setSelecionados] = useState([]);
@@ -205,7 +210,8 @@ export default function LiquidarContasMassaModal({ open, onClose, empresas, cont
         });
 
         if (conta.tipo_lancamento === 'recorrente') {
-          const proximoVenc = format(addMonths(parseISO(conta.data_vencimento), 1), 'yyyy-MM-dd');
+          const _dRecorr = safeParseISO(conta.data_vencimento) || new Date();
+          const proximoVenc = format(addMonths(_dRecorr, 1), 'yyyy-MM-dd');
           const todas = await base44.entities.ContaPagar.list('-numero_lancamento', 200);
           const daEmp = todas.filter(c => c.empresa_codigo === conta.empresa_codigo && c.numero_lancamento);
           let prox = 1;
@@ -312,7 +318,8 @@ export default function LiquidarContasMassaModal({ open, onClose, empresas, cont
                   {contasDaEmpresa.map(conta => {
                     const sel = !!contasSelecionadas[conta.id];
                     const aj = ajustes[conta.id] || {};
-                    const isAtrasada = conta.status === 'pendente' && conta.data_vencimento && isPast(parseISO(conta.data_vencimento)) && !isToday(parseISO(conta.data_vencimento));
+                    const _d = safeParseISO(conta.data_vencimento);
+                    const isAtrasada = conta.status === 'pendente' && _d && isPast(_d) && !isToday(_d);
                     return (
                       <Card key={conta.id} className={cn("p-3 border-2 transition-all", sel ? "border-blue-300 bg-blue-50/40" : "border-slate-200")}>
                         <div className="flex items-start gap-3">
@@ -327,7 +334,7 @@ export default function LiquidarContasMassaModal({ open, onClose, empresas, cont
                                   {conta.tipo_lancamento === 'recorrente' && <Badge className="bg-purple-100 text-purple-700 text-xs py-0">Recorrente</Badge>}
                                 </div>
                                 <p className="text-xs text-slate-500">{conta.descricao}</p>
-                                <p className="text-xs text-slate-400">{conta.data_vencimento ? format(parseISO(conta.data_vencimento), 'dd/MM/yyyy', { locale: ptBR }) : '-'}</p>
+                                <p className="text-xs text-slate-400">{safeParseISO(conta.data_vencimento) ? format(safeParseISO(conta.data_vencimento), 'dd/MM/yyyy', { locale: ptBR }) : '-'}</p>
                               </div>
                               <p className="font-bold shrink-0">{formatCurrency(conta.valor)}</p>
                             </div>
