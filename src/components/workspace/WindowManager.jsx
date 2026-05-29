@@ -16,6 +16,8 @@ export const useWorkspace = () => useContext(WorkspaceCtx);
 export const SidebarCtx = createContext(null);
 export const useSidebarCtx = () => useContext(SidebarCtx);
 
+const WINDOWS_SESSION_KEY = 'jc_workspace_windows';
+
 // ─── Provider ────────────────────────────────────────────────────────────────
 export function WorkspaceProvider({ children }) {
   const [windows, setWindows] = useState([]);
@@ -23,6 +25,39 @@ export function WorkspaceProvider({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const zTop = useRef(200);
   const { preferences } = usePreferences();
+
+  // Restaura janelas do sessionStorage ao montar (resolve o F5)
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(WINDOWS_SESSION_KEY);
+      if (saved) {
+        const { pages, active } = JSON.parse(saved);
+        if (Array.isArray(pages) && pages.length > 0) {
+          const tbPos = preferences?.taskbar_position || 'top';
+          const safeY = ['top'].includes(tbPos) || !tbPos ? 48 : 0;
+          const safeX = tbPos === 'left' ? 48 : 0;
+          const safeW = window.innerWidth - (['left','right'].includes(tbPos) ? 48 : 0);
+          const safeH = window.innerHeight - (['top','bottom'].includes(tbPos) || !tbPos ? 48 : 0);
+          const restored = pages.map((page, i) => {
+            const id = `${page}-restored-${i}`;
+            return {
+              id, page, title: page,
+              x: safeX, y: safeY, w: safeW, h: safeH,
+              minimized: false, maximized: true,
+              z: 201 + i,
+              prevPos: { x: safeX + 80, y: safeY + 40, w: Math.min(safeW * 0.78, 1200), h: Math.min(safeH * 0.78, 780) },
+            };
+          });
+          zTop.current = 201 + pages.length;
+          setWindows(restored);
+          // Ativa a última janela que estava ativa
+          const activeWin = restored.find(w => w.page === active) || restored[restored.length - 1];
+          if (activeWin) setActiveId(activeWin.id);
+        }
+      }
+    } catch { /* silencioso */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Safe area offsets based on taskbar position
   const getSafeArea = useCallback(() => {
@@ -68,6 +103,19 @@ export function WorkspaceProvider({ children }) {
       return [...prev, newWin];
     });
   }, [preferences?.taskbar_position]);
+
+  // Persiste janelas abertas no sessionStorage para sobreviver ao F5
+  useEffect(() => {
+    if (windows.length === 0) {
+      sessionStorage.removeItem(WINDOWS_SESSION_KEY);
+      return;
+    }
+    const activeWin = windows.find(w => w.id === activeId);
+    sessionStorage.setItem(WINDOWS_SESSION_KEY, JSON.stringify({
+      pages: windows.map(w => w.page),
+      active: activeWin?.page || windows[windows.length - 1]?.page,
+    }));
+  }, [windows, activeId]);
 
   const closeWindow = useCallback((id) => {
     setWindows(prev => prev.filter(w => w.id !== id));

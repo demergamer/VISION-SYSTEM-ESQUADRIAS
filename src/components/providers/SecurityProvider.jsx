@@ -110,6 +110,7 @@ export function SecurityProvider({ children }) {
 
   const lockScreen = useCallback(() => {
     sessionStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem('jc_workspace_windows');
     setIsLocked(true);
   }, []);
 
