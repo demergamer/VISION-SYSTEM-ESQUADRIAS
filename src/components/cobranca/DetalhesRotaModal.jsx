@@ -4,9 +4,11 @@ import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   MessageSquare, CheckCircle2, Loader2, AlertTriangle, Printer, RefreshCw,
-  Map as MapIcon, Zap, Save, ChevronDown, Users, Truck, ArrowUpDown, Wand2, GripVertical, MapPin, MapPinOff, X
+  Map as MapIcon, Zap, Save, ChevronDown, Users, Truck, ArrowUpDown, Wand2, GripVertical, MapPin, MapPinOff, X,
+  Plus, Search, Calendar
 } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -60,6 +62,75 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
   const [preFlightAction, setPreFlightAction] = useState(null);
   const [editarContatoIdx, setEditarContatoIdx] = useState(null);
   const [showCorrigirErros, setShowCorrigirErros] = useState(false);
+
+  // ── Editar Data ──
+  const [showEditarData, setShowEditarData] = useState(false);
+  const [novaData, setNovaData] = useState(rota.data_rota || '');
+  const [salvandoData, setSalvandoData] = useState(false);
+
+  const handleSalvarData = async () => {
+    if (!novaData) return;
+    setSalvandoData(true);
+    try {
+      await base44.entities.RotaCobranca.update(rota.id, { data_rota: novaData });
+      const rotasAtualizadas = await base44.entities.RotaCobranca.filter({ id: rota.id });
+      if (rotasAtualizadas?.[0]) onUpdated(rotasAtualizadas[0]);
+      setShowEditarData(false);
+      toast.success('📅 Data atualizada!');
+    } catch (e) {
+      toast.error(`Erro: ${e.message}`);
+    } finally {
+      setSalvandoData(false);
+    }
+  };
+
+  // ── Adicionar Pedido ──
+  const [showAdicionarPedido, setShowAdicionarPedido] = useState(false);
+  const [buscaPedido, setBuscaPedido] = useState('');
+  const [adicionando, setAdicionando] = useState(false);
+
+  const { data: todosPedidos = [], isLoading: loadPedidosBusca } = useQuery({
+    queryKey: ['pedidos_para_rota'],
+    queryFn: () => base44.entities.Pedido.filter({ status: { '$in': ['aberto', 'parcial'] } }, '-data_entrega', 500),
+    enabled: showAdicionarPedido,
+  });
+
+  const pedidosFiltrados = useMemo(() => {
+    if (!buscaPedido) return todosPedidos.slice(0, 30);
+    const t = buscaPedido.toLowerCase();
+    return todosPedidos.filter(p =>
+      p.numero_pedido?.toLowerCase().includes(t) ||
+      p.cliente_nome?.toLowerCase().includes(t) ||
+      p.cliente_codigo?.toLowerCase().includes(t)
+    ).slice(0, 30);
+  }, [todosPedidos, buscaPedido]);
+
+  const idsJaNaRota = useMemo(() => new Set(itensRota.map(i => i.item_id)), [itensRota]);
+
+  const handleAdicionarPedido = async (pedido) => {
+    if (idsJaNaRota.has(pedido.id)) return toast.info('Pedido já está na rota!');
+    setAdicionando(true);
+    try {
+      const novoItem = {
+        item_id: pedido.id,
+        tipo: 'pedido',
+        cliente_codigo: pedido.cliente_codigo,
+        recusado: false,
+        whatsapp_enviado: false,
+      };
+      const novosItens = [...itensRota, novoItem];
+      await base44.entities.RotaCobranca.update(rota.id, { itens_rota: novosItens });
+      setItensRota(novosItens);
+      queryClient.invalidateQueries({ queryKey: ['rota_pedidos', rota.id] });
+      const rotasAtualizadas = await base44.entities.RotaCobranca.filter({ id: rota.id });
+      if (rotasAtualizadas?.[0]) onUpdated(rotasAtualizadas[0]);
+      toast.success(`✓ Pedido ${pedido.numero_pedido} adicionado!`);
+    } catch (e) {
+      toast.error(`Erro: ${e.message}`);
+    } finally {
+      setAdicionando(false);
+    }
+  };
 
   // ── Drag & Drop / Ordenação ──
   const [modoOrdenacao, setModoOrdenacao] = useState(false);
@@ -435,6 +506,16 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
 
             {/* Ações Topo */}
             <div className="flex gap-2 flex-wrap mb-4">
+              <Button variant="outline" size="sm" onClick={() => { setNovaData(rota.data_rota || ''); setShowEditarData(true); }} className="gap-1 border-slate-300 text-slate-700 hover:bg-slate-50">
+                <Calendar className="w-3 h-3" /> Editar Data
+              </Button>
+
+              {rota.status === 'Aberta' && !usaFormatoLegado && (
+                <Button variant="outline" size="sm" onClick={() => { setBuscaPedido(''); setShowAdicionarPedido(true); }} className="gap-1 border-blue-300 text-blue-700 hover:bg-blue-50">
+                  <Plus className="w-3 h-3" /> Adicionar Pedido
+                </Button>
+              )}
+
               <Button variant="outline" size="sm" onClick={() => setShowCorrigirErros(true)} className="gap-1 border-amber-300 text-amber-700 hover:bg-amber-50">
                 <Zap className="w-3 h-3" /> Auto-Corrigir Cadastros
               </Button>
@@ -641,6 +722,76 @@ export default function DetalhesRotaModal({ rota, onClose, onUpdated }) {
           onClose={() => setShowCorrigirErros(false)}
           onCorrigido={onErrosCorrigidos}
         />
+      )}
+
+      {/* Modal Editar Data */}
+      {showEditarData && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2"><Calendar className="w-4 h-4 text-blue-600" /> Editar Data da Rota</h3>
+              <Button type="button" size="icon" variant="ghost" onClick={() => setShowEditarData(false)}><X className="w-4 h-4" /></Button>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-slate-600">Nova Data</Label>
+              <Input type="date" value={novaData} onChange={e => setNovaData(e.target.value)} className="h-10" />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" size="sm" onClick={() => setShowEditarData(false)}>Cancelar</Button>
+              <Button size="sm" onClick={handleSalvarData} disabled={salvandoData || !novaData} className="bg-blue-600 hover:bg-blue-700 gap-1">
+                {salvandoData ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Salvar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Adicionar Pedido */}
+      {showAdicionarPedido && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden">
+            <div className="p-4 border-b flex items-center justify-between gap-3">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2"><Plus className="w-4 h-4 text-blue-600" /> Adicionar Pedido à Rota</h3>
+              <Button type="button" size="icon" variant="ghost" onClick={() => setShowAdicionarPedido(false)}><X className="w-4 h-4" /></Button>
+            </div>
+            <div className="p-3 border-b">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input value={buscaPedido} onChange={e => setBuscaPedido(e.target.value)} placeholder="Buscar por número ou cliente..." className="pl-9" autoFocus />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2 space-y-1 bg-slate-50">
+              {loadPedidosBusca ? (
+                <div className="flex justify-center p-8"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
+              ) : pedidosFiltrados.length === 0 ? (
+                <p className="text-center text-slate-400 py-8 text-sm">Nenhum pedido encontrado</p>
+              ) : pedidosFiltrados.map(p => {
+                const jaAdicionado = idsJaNaRota.has(p.id);
+                return (
+                  <div key={p.id} className={`flex items-center gap-3 p-3 rounded-lg border bg-white ${jaAdicionado ? 'opacity-50' : 'hover:border-blue-300 cursor-pointer'}`}
+                    onClick={() => !jaAdicionado && !adicionando && handleAdicionarPedido(p)}>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-mono font-bold text-sm text-blue-700">{p.numero_pedido}</p>
+                      <p className="text-xs text-slate-600 truncate">{p.cliente_nome}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="font-bold text-sm text-slate-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.saldo_restante || 0)}</p>
+                      <Badge className={`text-[10px] ${p.status === 'parcial' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{p.status}</Badge>
+                    </div>
+                    {jaAdicionado ? (
+                      <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+                    ) : (
+                      <Plus className="w-4 h-4 text-blue-500 shrink-0" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="p-3 border-t bg-white text-xs text-slate-400 text-center">
+              Clique no pedido para adicioná-lo à rota
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
