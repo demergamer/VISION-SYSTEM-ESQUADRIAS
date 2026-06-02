@@ -430,7 +430,7 @@ export default function Pedidos() {
     switch (activeTab) {
       case 'producao': data = data.filter(p => p.status?.toLowerCase() === 'emproducao'); break;
       case 'transito': data = data.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado'); break;
-      case 'abertos': data = data.filter(p => p.status === 'aberto' || p.status === 'parcial' || p.status === 'representante_recebe'); break;
+      case 'abertos': data = data.filter(p => p.status === 'aberto' || p.status === 'parcial' || p.status === 'representante_recebe' || p.status === 'aguardando'); break;
       case 'trocas': data = data.filter(p => p.status === 'troca'); break;
       case 'liquidacoes': data = data.filter(p => p.status === 'pago'); break;
       case 'cancelados': data = data.filter(p => p.status === 'cancelado'); break;
@@ -549,7 +549,7 @@ export default function Pedidos() {
 
     const producaoCount = pedidosFiltradosBusca.filter(p => p.status?.toLowerCase() === 'emproducao').length;
     const transitoCount = pedidosFiltradosBusca.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado').length;
-    const abertosCount = pedidosFiltradosBusca.filter(p => p.status === 'aberto' || p.status === 'parcial').length;
+    const abertosCount = pedidosFiltradosBusca.filter(p => p.status === 'aberto' || p.status === 'parcial' || p.status === 'aguardando').length;
     const trocasCount = pedidosFiltradosBusca.filter(p => p.status === 'troca').length;
     const repRecebeCount = pedidosFiltradosBusca.filter(p => p.status === 'representante_recebe').length;
 
