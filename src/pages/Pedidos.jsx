@@ -429,8 +429,8 @@ export default function Pedidos() {
     // 1. Filtro Principal
     switch (activeTab) {
       case 'producao': data = data.filter(p => p.status?.toLowerCase() === 'emproducao'); break;
-      case 'transito': data = data.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado'); break;
-      case 'abertos': data = data.filter(p => p.status === 'aberto' || p.status === 'parcial' || p.status === 'representante_recebe' || p.status === 'aguardando'); break;
+      case 'transito': data = data.filter(p => p.status === 'aguardando' || (p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado' && p.status !== 'pago')); break;
+      case 'abertos': data = data.filter(p => p.status === 'aberto' || p.status === 'parcial' || p.status === 'representante_recebe'); break;
       case 'trocas': data = data.filter(p => p.status === 'troca'); break;
       case 'liquidacoes': data = data.filter(p => p.status === 'pago'); break;
       case 'cancelados': data = data.filter(p => p.status === 'cancelado'); break;
@@ -548,8 +548,8 @@ export default function Pedidos() {
     hoje.setHours(0,0,0,0);
 
     const producaoCount = pedidosFiltradosBusca.filter(p => p.status?.toLowerCase() === 'emproducao').length;
-    const transitoCount = pedidosFiltradosBusca.filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado').length;
-    const abertosCount = pedidosFiltradosBusca.filter(p => p.status === 'aberto' || p.status === 'parcial' || p.status === 'aguardando').length;
+    const transitoCount = pedidosFiltradosBusca.filter(p => p.status === 'aguardando' || (p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado' && p.status !== 'pago')).length;
+    const abertosCount = pedidosFiltradosBusca.filter(p => p.status === 'aberto' || p.status === 'parcial').length;
     const trocasCount = pedidosFiltradosBusca.filter(p => p.status === 'troca').length;
     const repRecebeCount = pedidosFiltradosBusca.filter(p => p.status === 'representante_recebe').length;
 
@@ -571,7 +571,7 @@ export default function Pedidos() {
       .filter(p => p.data_entrega && differenceInDays(hoje, parseISO(p.data_entrega)) > 15)
       .reduce((sum, p) => sum + (p.saldo_restante !== undefined ? p.saldo_restante : (p.valor_pedido - (p.total_pago || 0))), 0);
     const valorEmTransito = pedidosFiltradosBusca
-      .filter(p => p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado')
+      .filter(p => p.status === 'aguardando' || (p.rota_importada_id && !p.confirmado_entrega && p.status !== 'cancelado' && p.status !== 'pago'))
       .reduce((sum, p) => sum + (p.valor_pedido || 0), 0);
     const repRecebeValor = pedidosFiltradosBusca
       .filter(p => p.status === 'representante_recebe')
