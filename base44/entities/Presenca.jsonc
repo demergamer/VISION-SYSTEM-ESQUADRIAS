@@ -1,0 +1,46 @@
+{
+  "name": "Presenca",
+  "type": "object",
+  "properties": {
+    "email": {
+      "type": "string",
+      "description": "E-mail \u00fanico do utilizador (chave prim\u00e1ria l\u00f3gica)"
+    },
+    "nome": {
+      "type": "string",
+      "description": "Nome do utilizador (cache)"
+    },
+    "foto_url": {
+      "type": "string",
+      "description": "URL da foto (cache)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "online",
+        "ausente",
+        "offline"
+      ],
+      "default": "offline",
+      "description": "Status de presen\u00e7a atual"
+    },
+    "ultimo_ping": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp do \u00faltimo sinal de vida (heartbeat)"
+    },
+    "plataforma": {
+      "type": "string",
+      "enum": [
+        "web",
+        "mobile"
+      ],
+      "default": "web",
+      "description": "Plataforma de acesso"
+    }
+  },
+  "required": [
+    "email",
+    "status"
+  ]
+}

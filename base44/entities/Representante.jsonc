@@ -1,0 +1,63 @@
+{
+  "name": "Representante",
+  "type": "object",
+  "properties": {
+    "codigo": {
+      "type": "string",
+      "description": "C\u00f3digo \u00fanico do representante"
+    },
+    "nome": {
+      "type": "string",
+      "description": "Nome completo do representante"
+    },
+    "nome_social": {
+      "type": "string",
+      "description": "Nome social / Como prefere ser chamado"
+    },
+    "email": {
+      "type": "string",
+      "description": "Email do representante para acesso ao portal"
+    },
+    "regiao": {
+      "type": "string",
+      "description": "Regi\u00e3o de servi\u00e7o do representante"
+    },
+    "telefone": {
+      "type": "string",
+      "description": "Telefone de contato"
+    },
+    "foto_url": {
+      "type": "string",
+      "description": "URL da foto de perfil do representante"
+    },
+    "chave_pix": {
+      "type": "string",
+      "description": "Chave PIX para pagamento de comiss\u00f5es"
+    },
+    "banco_nome": {
+      "type": "string",
+      "description": "Nome ou c\u00f3digo do banco"
+    },
+    "agencia": {
+      "type": "string",
+      "description": "N\u00famero da ag\u00eancia"
+    },
+    "conta_corrente": {
+      "type": "string",
+      "description": "N\u00famero da conta corrente com d\u00edgito"
+    },
+    "cpf_parcial": {
+      "type": "string",
+      "description": "6 d\u00edgitos centrais do CPF para confer\u00eancia (ex: 123.456)"
+    },
+    "bloqueado": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se o representante est\u00e1 bloqueado"
+    }
+  },
+  "required": [
+    "codigo",
+    "nome"
+  ]
+}

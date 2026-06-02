@@ -1,0 +1,13 @@
+{
+  "name": "LinhaProduto",
+  "type": "object",
+  "properties": {
+    "nome": {
+      "type": "string",
+      "description": "Nome da linha (Ex: Pop, Suprema, Master)"
+    }
+  },
+  "required": [
+    "nome"
+  ]
+}

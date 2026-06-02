@@ -1,0 +1,51 @@
+{
+  "name": "Mensagem",
+  "type": "object",
+  "properties": {
+    "conversa_id": {
+      "type": "string",
+      "description": "ID da conversa \u00e0 qual esta mensagem pertence (referencia Conversa.id)"
+    },
+    "remetente_email": {
+      "type": "string",
+      "description": "E-mail de quem enviou a mensagem"
+    },
+    "remetente_nome": {
+      "type": "string",
+      "description": "Nome do remetente (cache)"
+    },
+    "destinatario_email": {
+      "type": "string",
+      "description": "E-mail do destinat\u00e1rio ou 'todos' para mensagens gerais (legado - usar conversa_id)"
+    },
+    "conteudo": {
+      "type": "string",
+      "description": "Texto da mensagem"
+    },
+    "lida": {
+      "type": "boolean",
+      "default": false,
+      "description": "Status de leitura simples (legado - usar MensagemLida para duplo check)"
+    },
+    "anexo_url": {
+      "type": "string",
+      "description": "URL do arquivo anexado (armazenado no bucket chat_anexos)"
+    },
+    "anexo_nome": {
+      "type": "string",
+      "description": "Nome original do arquivo anexado"
+    },
+    "anexo_tipo": {
+      "type": "string",
+      "description": "MIME type do anexo (ex: image/jpeg, application/pdf)"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Dados extras em formato JSON (ex: reply_to, tipo_especial)"
+    }
+  },
+  "required": [
+    "remetente_email",
+    "conteudo"
+  ]
+}

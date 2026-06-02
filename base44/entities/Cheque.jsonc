@@ -1,0 +1,159 @@
+{
+  "name": "Cheque",
+  "type": "object",
+  "properties": {
+    "numero_cheque": {
+      "type": "string",
+      "description": "N\u00famero do cheque"
+    },
+    "banco": {
+      "type": "string",
+      "description": "Nome do banco"
+    },
+    "agencia": {
+      "type": "string",
+      "description": "N\u00famero da ag\u00eancia"
+    },
+    "conta": {
+      "type": "string",
+      "description": "N\u00famero da conta"
+    },
+    "emitente": {
+      "type": "string",
+      "description": "Nome do emitente do cheque"
+    },
+    "emitente_cpf_cnpj": {
+      "type": "string",
+      "description": "CPF ou CNPJ do emitente"
+    },
+    "cliente_codigo": {
+      "type": "string",
+      "description": "C\u00f3digo do cliente"
+    },
+    "cliente_nome": {
+      "type": "string",
+      "description": "Nome do cliente"
+    },
+    "valor": {
+      "type": "number",
+      "description": "Valor do cheque em R$"
+    },
+    "data_emissao": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de emiss\u00e3o"
+    },
+    "data_vencimento": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de vencimento (Bom Para)"
+    },
+    "data_compensacao": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de compensa\u00e7\u00e3o"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "normal",
+        "devolvido",
+        "pago",
+        "repassado",
+        "compensado",
+        "excluido"
+      ],
+      "default": "normal",
+      "description": "Status atual do cheque"
+    },
+    "pedido_id": {
+      "type": "string",
+      "description": "ID do pedido relacionado"
+    },
+    "observacao": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es gerais"
+    },
+    "motivo_devolucao": {
+      "type": "string",
+      "description": "Motivo da devolu\u00e7\u00e3o (11, 12, 21...)"
+    },
+    "cheque_substituto_numero": {
+      "type": "string",
+      "description": "N\u00famero do novo cheque que substituiu este"
+    },
+    "cheque_substituido_numero": {
+      "type": "string",
+      "description": "N\u00famero do cheque antigo que este substituiu"
+    },
+    "valor_pago": {
+      "type": "number",
+      "description": "Valor efetivamente pago na regulariza\u00e7\u00e3o"
+    },
+    "forma_pagamento": {
+      "type": "string",
+      "description": "Forma usada para pagar a devolu\u00e7\u00e3o"
+    },
+    "data_pagamento": {
+      "type": "string",
+      "format": "date",
+      "description": "Data da regulariza\u00e7\u00e3o"
+    },
+    "status_pagamento_devolucao": {
+      "type": "string",
+      "enum": [
+        "pendente",
+        "pago"
+      ],
+      "description": "Se a devolu\u00e7\u00e3o j\u00e1 foi quitada"
+    },
+    "credito_gerado_numero": {
+      "type": "number",
+      "description": "ID do cr\u00e9dito gerado por troco"
+    },
+    "anexo_video_url": {
+      "type": "string",
+      "description": "Link do v\u00eddeo"
+    },
+    "anexo_fotos_cheque": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "URLs das fotos do cheque"
+    },
+    "anexo_microfilmagem": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "URLs da microfilmagem"
+    },
+    "anexo_devolucao": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "URLs do comprovante de devolu\u00e7\u00e3o"
+    },
+    "fornecedor_repassado_codigo": {
+      "type": "string",
+      "description": "C\u00f3digo do fornecedor destino"
+    },
+    "fornecedor_repassado_nome": {
+      "type": "string",
+      "description": "Nome do fornecedor destino"
+    },
+    "data_repasse": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data do repasse"
+    }
+  },
+  "required": [
+    "numero_cheque",
+    "valor",
+    "data_vencimento",
+    "banco"
+  ]
+}

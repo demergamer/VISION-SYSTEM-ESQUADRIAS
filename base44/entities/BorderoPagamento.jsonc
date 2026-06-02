@@ -1,0 +1,140 @@
+{
+  "name": "BorderoPagamento",
+  "type": "object",
+  "properties": {
+    "numero_bordero": {
+      "type": "number",
+      "description": "N\u00famero sequencial \u00fanico do border\u00f4 de pagamento"
+    },
+    "fornecedor_codigo": {
+      "type": "string",
+      "description": "C\u00f3digo do fornecedor"
+    },
+    "fornecedor_nome": {
+      "type": "string",
+      "description": "Nome do fornecedor"
+    },
+    "contas_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs das contas a pagar liquidadas neste border\u00f4"
+    },
+    "contas_detalhes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "conta_id": {
+            "type": "string"
+          },
+          "descricao": {
+            "type": "string"
+          },
+          "valor_original": {
+            "type": "number"
+          },
+          "juros_multa": {
+            "type": "number"
+          },
+          "desconto": {
+            "type": "number"
+          },
+          "valor_pago": {
+            "type": "number"
+          },
+          "data_vencimento": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "description": "Detalhamento completo das contas"
+    },
+    "valor_total": {
+      "type": "number",
+      "description": "Valor total do border\u00f4"
+    },
+    "formas_pagamento": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tipo": {
+            "type": "string"
+          },
+          "valor": {
+            "type": "number"
+          },
+          "detalhes": {
+            "type": "string"
+          },
+          "cheques_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "description": "Formas de pagamento utilizadas"
+    },
+    "cheques_repassados": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "cheque_id": {
+            "type": "string"
+          },
+          "numero_cheque": {
+            "type": "string"
+          },
+          "banco": {
+            "type": "string"
+          },
+          "valor": {
+            "type": "number"
+          },
+          "emitente": {
+            "type": "string"
+          },
+          "cliente_nome": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Detalhes dos cheques repassados"
+    },
+    "comprovante_url": {
+      "type": "string",
+      "description": "URL do comprovante de pagamento"
+    },
+    "recibo_url": {
+      "type": "string",
+      "description": "URL do recibo PDF gerado"
+    },
+    "data_pagamento": {
+      "type": "string",
+      "format": "date",
+      "description": "Data do pagamento"
+    },
+    "observacao": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es do border\u00f4"
+    },
+    "liquidado_por": {
+      "type": "string",
+      "description": "Email do usu\u00e1rio que liquidou"
+    }
+  },
+  "required": [
+    "numero_bordero",
+    "fornecedor_codigo",
+    "fornecedor_nome",
+    "contas_ids",
+    "valor_total",
+    "data_pagamento"
+  ]
+}

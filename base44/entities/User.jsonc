@@ -1,0 +1,54 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "admin",
+        "user",
+        "representante",
+        "cliente"
+      ],
+      "default": "user"
+    },
+    "preferences": {
+      "type": "object",
+      "description": "Prefer\u00eancias globais do usu\u00e1rio",
+      "properties": {
+        "theme": {
+          "type": "string",
+          "enum": [
+            "light",
+            "dark",
+            "system"
+          ],
+          "default": "light"
+        },
+        "density": {
+          "type": "string",
+          "enum": [
+            "default",
+            "compact"
+          ],
+          "default": "default"
+        },
+        "language": {
+          "type": "string",
+          "enum": [
+            "pt-BR",
+            "en-US"
+          ],
+          "default": "pt-BR"
+        },
+        "privacy_mode": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    }
+  },
+  "required": [
+    "preferences"
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "name": "Notificacao",
+  "type": "object",
+  "properties": {
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "novo_pedido",
+        "liquidacao_pendente",
+        "liquidacao_aprovada",
+        "liquidacao_rejeitada",
+        "pedido_atrasado",
+        "meta_atingida",
+        "cliente_vip",
+        "sincronizacao_comissoes"
+      ],
+      "description": "Tipo da notifica\u00e7\u00e3o"
+    },
+    "titulo": {
+      "type": "string",
+      "description": "T\u00edtulo da notifica\u00e7\u00e3o"
+    },
+    "mensagem": {
+      "type": "string",
+      "description": "Mensagem da notifica\u00e7\u00e3o"
+    },
+    "destinatario_email": {
+      "type": "string",
+      "description": "Email do destinat\u00e1rio"
+    },
+    "destinatario_role": {
+      "type": "string",
+      "enum": [
+        "admin",
+        "representante",
+        "cliente"
+      ],
+      "description": "Role do destinat\u00e1rio"
+    },
+    "lida": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se foi lida"
+    },
+    "entidade_referencia": {
+      "type": "string",
+      "description": "Nome da entidade relacionada"
+    },
+    "entidade_id": {
+      "type": "string",
+      "description": "ID do registro relacionado"
+    },
+    "link": {
+      "type": "string",
+      "description": "Link para onde a notifica\u00e7\u00e3o deve levar"
+    },
+    "prioridade": {
+      "type": "string",
+      "enum": [
+        "baixa",
+        "media",
+        "alta"
+      ],
+      "default": "media",
+      "description": "Prioridade da notifica\u00e7\u00e3o"
+    }
+  },
+  "required": [
+    "tipo",
+    "titulo",
+    "mensagem",
+    "destinatario_email"
+  ]
+}

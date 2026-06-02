@@ -1,0 +1,115 @@
+{
+  "name": "FechamentoComissao",
+  "type": "object",
+  "properties": {
+    "mes_ano": {
+      "type": "string",
+      "description": "Per\u00edodo de refer\u00eancia (formato YYYY-MM)"
+    },
+    "representante_codigo": {
+      "type": "string",
+      "description": "C\u00f3digo do representante"
+    },
+    "representante_nome": {
+      "type": "string",
+      "description": "Nome do representante"
+    },
+    "representante_chave_pix": {
+      "type": "string",
+      "description": "Chave PIX utilizada para o pagamento"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "aberto",
+        "fechado"
+      ],
+      "default": "aberto",
+      "description": "Aberto = Rascunho edit\u00e1vel; Fechado = Finalizado e gerado contas a pagar"
+    },
+    "pedidos_detalhes": {
+      "type": "array",
+      "description": "Snapshot (c\u00f3pia fixa) dos pedidos inclu\u00eddos neste c\u00e1lculo",
+      "items": {
+        "type": "object",
+        "properties": {
+          "pedido_id": {
+            "type": "string"
+          },
+          "numero_pedido": {
+            "type": "string"
+          },
+          "cliente_nome": {
+            "type": "string"
+          },
+          "data_pagamento": {
+            "type": "string"
+          },
+          "valor_pedido": {
+            "type": "number"
+          },
+          "percentual_comissao": {
+            "type": "number"
+          },
+          "valor_comissao": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "total_vendas": {
+      "type": "number",
+      "description": "Soma do valor dos pedidos"
+    },
+    "total_comissoes_bruto": {
+      "type": "number",
+      "description": "Soma das comiss\u00f5es antes dos descontos"
+    },
+    "vales_adiantamentos": {
+      "type": "number",
+      "default": 0,
+      "description": "Valor descontado referente a vales"
+    },
+    "outros_descontos": {
+      "type": "number",
+      "default": 0,
+      "description": "Outros descontos manuais"
+    },
+    "descricao_outros_descontos": {
+      "type": "string",
+      "description": "Motivo dos outros descontos"
+    },
+    "valor_liquido": {
+      "type": "number",
+      "description": "Valor final a ser pago (Bruto - Vales - Descontos)"
+    },
+    "observacoes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es internas sobre o fechamento"
+    },
+    "pdf_analitico_url": {
+      "type": "string",
+      "description": "Link para o PDF gerado"
+    },
+    "fechado_por": {
+      "type": "string",
+      "description": "E-mail do usu\u00e1rio que finalizou"
+    },
+    "data_fechamento": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data e hora exata da finaliza\u00e7\u00e3o"
+    },
+    "pagamento_id": {
+      "type": "string",
+      "description": "ID do registro vinculado na tabela ContaPagar"
+    }
+  },
+  "required": [
+    "mes_ano",
+    "representante_codigo",
+    "status",
+    "total_vendas",
+    "valor_liquido"
+  ]
+}

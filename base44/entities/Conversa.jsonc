@@ -1,0 +1,40 @@
+{
+  "name": "Conversa",
+  "type": "object",
+  "properties": {
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "individual",
+        "grupo",
+        "canal_avisos"
+      ],
+      "default": "individual",
+      "description": "Tipo da conversa"
+    },
+    "titulo": {
+      "type": "string",
+      "description": "Nome do grupo ou canal (nullable para conversas individuais)"
+    },
+    "foto_url": {
+      "type": "string",
+      "description": "Foto do grupo ou canal"
+    },
+    "criador_email": {
+      "type": "string",
+      "description": "E-mail do criador da conversa"
+    },
+    "ultima_mensagem": {
+      "type": "string",
+      "description": "Cache do texto da \u00faltima mensagem"
+    },
+    "ultima_mensagem_em": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp da \u00faltima mensagem para ordena\u00e7\u00e3o"
+    }
+  },
+  "required": [
+    "tipo"
+  ]
+}

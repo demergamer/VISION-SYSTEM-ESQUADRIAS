@@ -1,0 +1,156 @@
+{
+  "name": "Port",
+  "type": "object",
+  "properties": {
+    "numero_port": {
+      "type": "number",
+      "description": "N\u00famero sequencial do PORT"
+    },
+    "cliente_id": {
+      "type": "string",
+      "description": "ID do cliente"
+    },
+    "cliente_codigo": {
+      "type": "string",
+      "description": "C\u00f3digo do cliente"
+    },
+    "cliente_nome": {
+      "type": "string",
+      "description": "Nome do cliente"
+    },
+    "data_entrada": {
+      "type": "string",
+      "format": "date",
+      "description": "Data da entrada do sinal"
+    },
+    "itens_port": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "numero_pedido_manual": {
+            "type": "string",
+            "description": "N\u00famero do pedido digitado manualmente"
+          },
+          "valor_alocado": {
+            "type": "number",
+            "description": "Valor do sinal alocado para este pedido"
+          },
+          "pedido_real_id": {
+            "type": "string",
+            "description": "ID do pedido real ap\u00f3s reconcilia\u00e7\u00e3o"
+          },
+          "vinculado": {
+            "type": "boolean",
+            "default": false,
+            "description": "Se o pedido real foi encontrado e vinculado"
+          }
+        }
+      },
+      "description": "Lista de pedidos e valores alocados"
+    },
+    "valor_total_sinal": {
+      "type": "number",
+      "description": "Valor total do sinal em R$"
+    },
+    "saldo_disponivel": {
+      "type": "number",
+      "description": "Saldo ainda n\u00e3o utilizado em R$"
+    },
+    "forma_pagamento": {
+      "type": "object",
+      "properties": {
+        "tipo": {
+          "type": "string",
+          "enum": [
+            "Dinheiro",
+            "PIX",
+            "Cart\u00e3o",
+            "Cheque",
+            "Transfer\u00eancia"
+          ]
+        },
+        "detalhes_cheque": {
+          "type": "object",
+          "properties": {
+            "banco": {
+              "type": "string"
+            },
+            "numero_cheque": {
+              "type": "string"
+            },
+            "data_bom_para": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        },
+        "detalhes_cartao": {
+          "type": "object",
+          "properties": {
+            "bandeira": {
+              "type": "string"
+            },
+            "parcelas": {
+              "type": "number"
+            }
+          }
+        },
+        "detalhes_pix": {
+          "type": "object",
+          "properties": {
+            "id_transacao": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "description": "Forma de pagamento detalhada"
+    },
+    "comprovantes_urls": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "URLs dos comprovantes de pagamento"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "aguardando_vinculo",
+        "em_separacao",
+        "aguardando_liquidacao",
+        "parcialmente_usado",
+        "finalizado",
+        "devolvido"
+      ],
+      "default": "aguardando_vinculo",
+      "description": "Status do PORT"
+    },
+    "observacao": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es gerais"
+    },
+    "motivo_devolucao": {
+      "type": "string",
+      "description": "Motivo da devolu\u00e7\u00e3o (se aplic\u00e1vel)"
+    },
+    "pagamento_devolucao_id": {
+      "type": "string",
+      "description": "ID do pagamento criado para devolu\u00e7\u00e3o"
+    },
+    "data_devolucao": {
+      "type": "string",
+      "format": "date",
+      "description": "Data da devolu\u00e7\u00e3o"
+    }
+  },
+  "required": [
+    "cliente_id",
+    "cliente_nome",
+    "itens_port",
+    "valor_total_sinal",
+    "forma_pagamento",
+    "comprovantes_urls"
+  ]
+}

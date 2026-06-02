@@ -1,0 +1,76 @@
+{
+  "name": "Credito",
+  "type": "object",
+  "properties": {
+    "numero_credito": {
+      "type": "number",
+      "description": "N\u00famero sequencial do cr\u00e9dito"
+    },
+    "cliente_codigo": {
+      "type": "string",
+      "description": "C\u00f3digo do cliente"
+    },
+    "cliente_nome": {
+      "type": "string",
+      "description": "Nome do cliente"
+    },
+    "valor": {
+      "type": "number",
+      "description": "Valor do cr\u00e9dito em R$"
+    },
+    "origem": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o de onde o cr\u00e9dito veio"
+    },
+    "pedido_origem_id": {
+      "type": "string",
+      "description": "ID do pedido que gerou o cr\u00e9dito (se aplic\u00e1vel)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "disponivel",
+        "usado",
+        "devolvido"
+      ],
+      "default": "disponivel",
+      "description": "Status do cr\u00e9dito"
+    },
+    "pedido_uso_id": {
+      "type": "string",
+      "description": "ID do pedido onde o cr\u00e9dito foi usado (se aplic\u00e1vel)"
+    },
+    "data_uso": {
+      "type": "string",
+      "format": "date",
+      "description": "Data em que o cr\u00e9dito foi usado"
+    },
+    "chave_pix": {
+      "type": "string",
+      "description": "Chave PIX da devolu\u00e7\u00e3o (se devolvido)"
+    },
+    "comprovante_url": {
+      "type": "string",
+      "description": "URL do comprovante de devolu\u00e7\u00e3o"
+    },
+    "justificativa": {
+      "type": "string",
+      "description": "Justificativa para cr\u00e9dito manual"
+    },
+    "tipo_geracao": {
+      "type": "string",
+      "enum": [
+        "automatico",
+        "manual"
+      ],
+      "default": "automatico",
+      "description": "Como o cr\u00e9dito foi gerado"
+    }
+  },
+  "required": [
+    "cliente_codigo",
+    "cliente_nome",
+    "valor",
+    "origem"
+  ]
+}

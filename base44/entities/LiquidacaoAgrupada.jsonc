@@ -1,0 +1,86 @@
+{
+  "name": "LiquidacaoAgrupada",
+  "type": "object",
+  "properties": {
+    "numero_liquidacao": {
+      "type": "number",
+      "description": "N\u00famero sequencial da liquida\u00e7\u00e3o"
+    },
+    "cliente_codigo": {
+      "type": "string",
+      "description": "C\u00f3digo do cliente"
+    },
+    "cliente_nome": {
+      "type": "string",
+      "description": "Nome do cliente"
+    },
+    "total_pedidos": {
+      "type": "number",
+      "description": "Quantidade de pedidos agrupados"
+    },
+    "valor_total_original": {
+      "type": "number",
+      "description": "Valor total original dos pedidos"
+    },
+    "desconto_total": {
+      "type": "number",
+      "default": 0,
+      "description": "Desconto total aplicado"
+    },
+    "devolucao_total": {
+      "type": "number",
+      "default": 0,
+      "description": "Devolu\u00e7\u00e3o total"
+    },
+    "credito_usado": {
+      "type": "number",
+      "default": 0,
+      "description": "Cr\u00e9dito utilizado"
+    },
+    "valor_pago": {
+      "type": "number",
+      "description": "Valor efetivamente pago"
+    },
+    "forma_pagamento": {
+      "type": "string",
+      "description": "Forma(s) de pagamento utilizadas"
+    },
+    "parcelas_credito": {
+      "type": "number",
+      "default": 1,
+      "description": "N\u00famero de parcelas se usou cr\u00e9dito"
+    },
+    "pedidos_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs dos pedidos agrupados"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "aprovado",
+        "pendente",
+        "cancelado"
+      ],
+      "default": "aprovado",
+      "description": "Status da liquida\u00e7\u00e3o"
+    },
+    "data_liquidacao": {
+      "type": "string",
+      "format": "date",
+      "description": "Data da liquida\u00e7\u00e3o"
+    },
+    "observacao": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es da liquida\u00e7\u00e3o"
+    }
+  },
+  "required": [
+    "cliente_codigo",
+    "cliente_nome",
+    "valor_total_original",
+    "valor_pago"
+  ]
+}

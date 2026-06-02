@@ -1,0 +1,26 @@
+{
+  "name": "FormaPagamento",
+  "type": "object",
+  "properties": {
+    "nome": {
+      "type": "string",
+      "description": "Nome da forma de pagamento"
+    },
+    "descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o detalhada"
+    },
+    "prazo_dias": {
+      "type": "number",
+      "description": "Prazo em dias (se aplic\u00e1vel)"
+    },
+    "ativa": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se est\u00e1 ativa para uso"
+    }
+  },
+  "required": [
+    "nome"
+  ]
+}

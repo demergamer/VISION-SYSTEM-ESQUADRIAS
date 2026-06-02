@@ -1,0 +1,42 @@
+{
+  "name": "ParticipanteConversa",
+  "type": "object",
+  "properties": {
+    "conversa_id": {
+      "type": "string",
+      "description": "ID da conversa (referencia Conversa.id)"
+    },
+    "usuario_email": {
+      "type": "string",
+      "description": "E-mail do participante"
+    },
+    "usuario_nome": {
+      "type": "string",
+      "description": "Nome do participante (cache)"
+    },
+    "usuario_foto": {
+      "type": "string",
+      "description": "URL da foto do participante (cache)"
+    },
+    "papel": {
+      "type": "string",
+      "enum": [
+        "admin",
+        "membro",
+        "leitor_apenas"
+      ],
+      "default": "membro",
+      "description": "Papel do participante na conversa"
+    },
+    "silenciado": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se o participante silenciou as notifica\u00e7\u00f5es"
+    }
+  },
+  "required": [
+    "conversa_id",
+    "usuario_email",
+    "papel"
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "name": "ResumoMensal",
+  "type": "object",
+  "properties": {
+    "mes_ano": {
+      "type": "string",
+      "description": "M\u00eas/Ano no formato YYYY-MM"
+    },
+    "total_pedidos_pagos": {
+      "type": "number",
+      "default": 0,
+      "description": "Quantidade de pedidos pagos no m\u00eas"
+    },
+    "valor_pedidos_pagos": {
+      "type": "number",
+      "default": 0,
+      "description": "Valor total dos pedidos pagos no m\u00eas"
+    },
+    "total_pedidos_abertos": {
+      "type": "number",
+      "default": 0,
+      "description": "Quantidade de pedidos que ficaram em aberto no m\u00eas"
+    },
+    "valor_pedidos_abertos": {
+      "type": "number",
+      "default": 0,
+      "description": "Valor total dos pedidos em aberto no m\u00eas"
+    },
+    "total_comissoes": {
+      "type": "number",
+      "default": 0,
+      "description": "Total de comiss\u00f5es geradas no m\u00eas"
+    },
+    "total_cheques_recebidos": {
+      "type": "number",
+      "default": 0,
+      "description": "Total de cheques recebidos no m\u00eas"
+    },
+    "valor_cheques_recebidos": {
+      "type": "number",
+      "default": 0,
+      "description": "Valor dos cheques recebidos no m\u00eas"
+    }
+  },
+  "required": [
+    "mes_ano"
+  ]
+}

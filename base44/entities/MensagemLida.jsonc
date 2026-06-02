@@ -1,0 +1,27 @@
+{
+  "name": "MensagemLida",
+  "type": "object",
+  "properties": {
+    "mensagem_id": {
+      "type": "string",
+      "description": "ID da mensagem lida (referencia Mensagem.id)"
+    },
+    "leitor_email": {
+      "type": "string",
+      "description": "E-mail de quem leu a mensagem"
+    },
+    "leitor_nome": {
+      "type": "string",
+      "description": "Nome de quem leu (cache)"
+    },
+    "lida_em": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp de quando a mensagem foi lida"
+    }
+  },
+  "required": [
+    "mensagem_id",
+    "leitor_email"
+  ]
+}

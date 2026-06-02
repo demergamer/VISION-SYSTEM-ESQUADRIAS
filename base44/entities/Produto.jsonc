@@ -1,0 +1,128 @@
+{
+  "name": "Produto",
+  "type": "object",
+  "properties": {
+    "nome_base": {
+      "type": "string",
+      "description": "Nome base do produto pai (Ex: Porta Social Pop)"
+    },
+    "categoria": {
+      "type": "string",
+      "enum": [
+        "Porta",
+        "Janela",
+        "Servico",
+        "Reembalar",
+        "Acessorio"
+      ],
+      "description": "Categoria do produto"
+    },
+    "linha_produto": {
+      "type": "string",
+      "description": "Linha do produto (Ex: Pop, Suprema)"
+    },
+    "descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o detalhada do produto"
+    },
+    "video_url": {
+      "type": "string",
+      "description": "URL do v\u00eddeo do produto (YouTube/Vimeo)"
+    },
+    "fotos_urls": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "URLs das fotos do produto"
+    },
+    "caracteristicas": {
+      "type": "array",
+      "description": "Caracter\u00edsticas t\u00e9cnicas do produto",
+      "items": {
+        "type": "object",
+        "properties": {
+          "descricao": {
+            "type": "string"
+          },
+          "informacao": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "itens_inclusos": {
+      "type": "array",
+      "description": "Itens inclusos na embalagem",
+      "items": {
+        "type": "object",
+        "properties": {
+          "descricao": {
+            "type": "string"
+          },
+          "informacao": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ativo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se o produto est\u00e1 ativo no cat\u00e1logo"
+    },
+    "variacoes": {
+      "type": "array",
+      "description": "Lista de varia\u00e7\u00f5es/SKUs deste produto pai",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id_variacao": {
+            "type": "string"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "tamanho": {
+            "type": "string"
+          },
+          "lado": {
+            "type": "string"
+          },
+          "cor": {
+            "type": "string"
+          },
+          "preco_consumidor": {
+            "type": "number"
+          },
+          "preco_revenda": {
+            "type": "number"
+          },
+          "preco_construtora": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "nome": {
+      "type": "string",
+      "description": "Campo legado"
+    },
+    "codigo": {
+      "type": "string",
+      "description": "Campo legado"
+    },
+    "preco_venda": {
+      "type": "number",
+      "description": "Campo legado"
+    },
+    "foto_url": {
+      "type": "string",
+      "description": "Campo legado"
+    }
+  },
+  "required": [
+    "nome_base",
+    "categoria"
+  ]
+}

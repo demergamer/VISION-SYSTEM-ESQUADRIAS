@@ -1,0 +1,51 @@
+{
+  "name": "ProducaoItem",
+  "type": "object",
+  "properties": {
+    "numero_pedido": {
+      "type": "string",
+      "description": "N\u00famero do pedido no ERP (Neo)"
+    },
+    "cliente_codigo": {
+      "type": "string",
+      "description": "C\u00f3digo do cliente no sistema"
+    },
+    "cliente_nome": {
+      "type": "string",
+      "description": "Nome do cliente"
+    },
+    "produto_codigo": {
+      "type": "string",
+      "description": "C\u00f3digo do produto/pe\u00e7a no ERP"
+    },
+    "descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o do produto/pe\u00e7a"
+    },
+    "quantidade": {
+      "type": "number",
+      "default": 0,
+      "description": "Quantidade em produ\u00e7\u00e3o"
+    },
+    "valor_unitario": {
+      "type": "number",
+      "default": 0,
+      "description": "Valor unit\u00e1rio (pode ser zero quando n\u00e3o fornecido pelo Neo)"
+    },
+    "valor_total": {
+      "type": "number",
+      "default": 0,
+      "description": "Valor total do item (pode ser zero quando n\u00e3o fornecido pelo Neo)"
+    },
+    "data_atualizacao": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Data/hora da \u00faltima sincroniza\u00e7\u00e3o com o Neo"
+    }
+  },
+  "required": [
+    "numero_pedido",
+    "descricao",
+    "quantidade"
+  ]
+}

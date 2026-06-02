@@ -1,0 +1,103 @@
+{
+  "name": "SolicitacaoCadastroCliente",
+  "type": "object",
+  "properties": {
+    "nome": {
+      "type": "string",
+      "description": "Raz\u00e3o Social / Nome"
+    },
+    "nome_fantasia": {
+      "type": "string",
+      "description": "Nome Fantasia"
+    },
+    "cnpj": {
+      "type": "string",
+      "description": "CPF ou CNPJ"
+    },
+    "cep": {
+      "type": "string"
+    },
+    "endereco": {
+      "type": "string"
+    },
+    "numero": {
+      "type": "string"
+    },
+    "complemento": {
+      "type": "string"
+    },
+    "bairro": {
+      "type": "string"
+    },
+    "cidade": {
+      "type": "string"
+    },
+    "estado": {
+      "type": "string"
+    },
+    "regiao": {
+      "type": "string",
+      "description": "Regi\u00e3o comercial sugerida"
+    },
+    "email": {
+      "type": "string",
+      "description": "Email de contato"
+    },
+    "telefone": {
+      "type": "string",
+      "description": "Telefone principal"
+    },
+    "tem_st": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se possui Substitui\u00e7\u00e3o Tribut\u00e1ria"
+    },
+    "cnaes_descricao": {
+      "type": "string",
+      "description": "Resumo dos CNAEs consultados"
+    },
+    "limite_credito_sugerido": {
+      "type": "number",
+      "description": "Limite sugerido pelo representante"
+    },
+    "referencias_comerciais_url": {
+      "type": "string",
+      "description": "Upload de refer\u00eancias (faturas de outros fornecedores)"
+    },
+    "solicitante_tipo": {
+      "type": "string",
+      "default": "representante"
+    },
+    "representante_solicitante_codigo": {
+      "type": "string"
+    },
+    "representante_solicitante_nome": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pendente",
+        "aprovado",
+        "rejeitado"
+      ],
+      "default": "pendente"
+    },
+    "observacao": {
+      "type": "string"
+    },
+    "aprovado_por": {
+      "type": "string"
+    },
+    "data_aprovacao": {
+      "type": "string",
+      "format": "date"
+    }
+  },
+  "required": [
+    "nome",
+    "email",
+    "telefone",
+    "representante_solicitante_codigo"
+  ]
+}
