@@ -184,51 +184,9 @@
     "representante_codigo"
   ],
   "rls": {
-    "create": {
-      "$or": [
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "representante"
-          }
-        }
-      ]
-    },
-    "read": {
-      "$or": [
-        {
-          "data.codigo": "{{user.data.codigo}}"
-        },
-        {
-          "data.representante_codigo": "{{user.data.codigo}}"
-        },
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        }
-      ]
-    },
-    "update": {
-      "$or": [
-        {
-          "data.codigo": "{{user.data.codigo}}"
-        },
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        }
-      ]
-    },
-    "delete": {
-      "user_condition": {
-        "role": "admin"
-      }
-    }
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
   }
 }
