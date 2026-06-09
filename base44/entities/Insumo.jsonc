@@ -1,0 +1,40 @@
+{
+  "name": "Insumo",
+  "type": "object",
+  "properties": {
+    "codigo": {
+      "type": "string",
+      "description": "C\u00f3digo \u00fanico do insumo"
+    },
+    "nome": {
+      "type": "string",
+      "description": "Nome do insumo"
+    },
+    "fornecedores": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Lista de at\u00e9 3 fornecedores habituais"
+    },
+    "preco_custo": {
+      "type": "number",
+      "default": 0,
+      "description": "Pre\u00e7o de custo unit\u00e1rio"
+    },
+    "quantidade_estoque": {
+      "type": "number",
+      "default": 0,
+      "description": "Quantidade atual em estoque (atualizada via movimenta\u00e7\u00e3o)"
+    },
+    "estoque_minimo": {
+      "type": "number",
+      "default": 0,
+      "description": "Estoque m\u00ednimo para alerta (0 = ignorar alertas)"
+    }
+  },
+  "required": [
+    "codigo",
+    "nome"
+  ]
+}

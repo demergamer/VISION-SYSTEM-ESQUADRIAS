@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import PermissionGuard from "@/components/PermissionGuard";
 import VisionMessage from '@/pages/VisionMessage';
+import Almoxarifado from '@/pages/Almoxarifado';
 import RotasCobranca from '@/pages/RotasCobranca';
 import Atualizacoes from '@/pages/Atualizacoes';
 import Portaria from '@/pages/Portaria';
@@ -143,6 +144,15 @@ const AuthenticatedApp = () => {
       <Route path="/vision-message" element={
         <LayoutWrapper currentPageName="VisionMessage">
           <VisionMessage />
+        </LayoutWrapper>
+      } />
+
+      {/* 🏭 MÓDULO ALMOXARIFADO */}
+      <Route path="/Almoxarifado" element={
+        <LayoutWrapper currentPageName="Almoxarifado">
+          <PermissionGuard setor="Almoxarifado">
+            <Almoxarifado />
+          </PermissionGuard>
         </LayoutWrapper>
       } />
 

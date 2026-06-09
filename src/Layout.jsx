@@ -95,6 +95,7 @@ const menuStructure = [
     title: "Vendas",
     items: [
       { name: "Pedidos", icon: ShoppingCart },
+      { name: "Almoxarifado", icon: Package },
       { name: "Orcamentos", icon: FileText },
       { name: "Comissoes", icon: Banknote },
       { name: "LojaJC", icon: Building2 },

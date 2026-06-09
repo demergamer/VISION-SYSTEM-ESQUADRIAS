@@ -1,0 +1,62 @@
+{
+  "name": "MovimentacaoAlmoxarifado",
+  "type": "object",
+  "properties": {
+    "data_movimentacao": {
+      "type": "string",
+      "format": "date",
+      "description": "Data da movimenta\u00e7\u00e3o"
+    },
+    "insumo_id": {
+      "type": "string",
+      "description": "ID do insumo relacionado"
+    },
+    "insumo_nome": {
+      "type": "string",
+      "description": "Nome do insumo (cache para listagem)"
+    },
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "entrada",
+        "saida"
+      ],
+      "description": "Tipo de movimenta\u00e7\u00e3o"
+    },
+    "quantidade": {
+      "type": "number",
+      "description": "Quantidade movimentada"
+    },
+    "fornecedor": {
+      "type": "string",
+      "description": "Fornecedor (usado nas entradas)"
+    },
+    "valor_unitario": {
+      "type": "number",
+      "default": 0,
+      "description": "Valor unit\u00e1rio (usado nas entradas)"
+    },
+    "valor_total": {
+      "type": "number",
+      "default": 0,
+      "description": "Valor total da movimenta\u00e7\u00e3o (quantidade * valor_unitario)"
+    },
+    "motivo": {
+      "type": "string",
+      "enum": [
+        "Produ\u00e7\u00e3o",
+        "Revenda",
+        "Perda",
+        "Uso Interno",
+        "Outros"
+      ],
+      "description": "Motivo da sa\u00edda"
+    }
+  },
+  "required": [
+    "data_movimentacao",
+    "insumo_id",
+    "tipo",
+    "quantidade"
+  ]
+}
