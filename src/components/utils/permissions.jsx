@@ -172,6 +172,14 @@ export const MODULOS_CONFIG = [
     permissoes: ['visualizar', 'ver_total', 'exportar'] 
   },
 
+  // --- GRUPO: ALMOXARIFADO ---
+  { 
+    nome: 'Almoxarifado', 
+    label: '🏭 Almoxarifado', 
+    grupo: 'Almoxarifado', 
+    permissoes: ['visualizar', 'adicionar', 'editar', 'excluir', 'ver_custo', 'exportar'] 
+  },
+
   // --- GRUPO: PORTARIA ---
   { 
     nome: 'Portaria', 

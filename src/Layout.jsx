@@ -4,7 +4,7 @@ import {
   Settings as SettingsIcon, LogOut, Clock, Calendar,
   LayoutDashboard, Users, Package, ShoppingCart, Wallet, FileText,
   BarChart3, Home, Briefcase, Banknote, ScrollText, CreditCard,
-  Menu, Building2, Truck, CalendarDays, Bell, Lock, X, Rocket, Shield
+  Menu, Building2, Truck, CalendarDays, Bell, Lock, X, Rocket, Shield, Warehouse
 } from 'lucide-react';
 import { useVersaoAtual } from '@/components/hooks/useVersaoAtual';
 // 🚀 NOVIDADE: Importando os detectores globais de carregamento
@@ -95,7 +95,7 @@ const menuStructure = [
     title: "Vendas",
     items: [
       { name: "Pedidos", icon: ShoppingCart },
-      { name: "Almoxarifado", icon: Package },
+      { name: "Almoxarifado", path: "Almoxarifado", label: "Almoxarifado", icon: Warehouse },
       { name: "Orcamentos", icon: FileText },
       { name: "Comissoes", icon: Banknote },
       { name: "LojaJC", icon: Building2 },

@@ -7,7 +7,7 @@ import {
   Users, Package, ShoppingCart, Wallet, FileText, BarChart3, 
   Briefcase, Banknote, ScrollText, CreditCard, ShieldCheck, 
   Calendar as CalendarIcon, Settings2, ShieldAlert, LogOut, User as UserIcon,
-  Building2, ChevronDown, Truck, Settings, Shield
+  Building2, ChevronDown, Truck, Settings, Shield, Warehouse
 } from "lucide-react";
 import { useAuth } from '@/components/providers/AuthContext';
 import { usePermissions } from "@/components/hooks/usePermissions";
@@ -295,6 +295,13 @@ export default function Dashboard() {
         { name: "Creditos", label: "Créditos", icon: CreditCard, desc: "Haveres de clientes" },
         { name: "EntradaCaucao", label: "Caução", icon: Wallet, desc: "Adiantamentos" },
         { name: "Balanco", label: "Balanço", icon: BarChart3, desc: "Resumo financeiro" },
+      ]
+    },
+    {
+      title: "Almoxarifado",
+      color: "green",
+      items: [
+        { name: "Almoxarifado", label: "Almoxarifado", icon: Warehouse, desc: "Estoque e insumos da fábrica" },
       ]
     },
     {
