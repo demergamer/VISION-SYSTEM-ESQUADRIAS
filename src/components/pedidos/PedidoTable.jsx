@@ -51,6 +51,7 @@ export default function PedidoTable({
   onMudarStatus,
   onEntregarManual,
   onCadastrarCliente,
+  onVincularCliente,
   onConfirmarEntrega,
   isLoading,
   showBorderoRef = false,
@@ -207,10 +208,14 @@ export default function PedidoTable({
                     <Button size="sm" className="h-7 text-xs bg-amber-500 hover:bg-amber-600 text-white px-2 gap-1" onClick={() => onCadastrarCliente(pedido)} title="Cadastrar Cliente">
                       <AlertTriangle className="w-3 h-3" /> Cadastrar
                     </Button>
+                  ) : !pedido.cliente_codigo && onVincularCliente ? (
+                    <Button size="sm" className="h-7 text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 gap-1" onClick={() => onVincularCliente(pedido)} title="Vincular Cliente Existente">
+                      <AlertTriangle className="w-3 h-3" /> Vincular
+                    </Button>
                   ) : (
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-blue-600" onClick={() => onView(pedido)} title="Ver Detalhes">
-                    <Eye className="w-4 h-4" />
-                  </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-blue-600" onClick={() => onView(pedido)} title="Ver Detalhes">
+                      <Eye className="w-4 h-4" />
+                    </Button>
                   )}
 
                   {!pedido.cliente_pendente && <DropdownMenu>

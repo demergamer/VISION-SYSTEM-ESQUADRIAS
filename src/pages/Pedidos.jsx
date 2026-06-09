@@ -46,6 +46,7 @@ import DividirRotaModal from "@/components/pedidos/DividirRotaModal";
 import AdicionarRepresentanteModal from "@/components/pedidos/AdicionarRepresentanteModal";
 import MesclarNFModal from "@/components/pedidos/MesclarNFModal";
 import EntregarManualModal from "@/components/pedidos/EntregarManualModal";
+import VincularClienteModal from "@/components/pedidos/VincularClienteModal";
 import PedidosDuplicadosModal from "@/components/pedidos/PedidosDuplicadosModal";
 import PermissionGuard from "@/components/PermissionGuard";
 import { usePermissions } from "@/components/hooks/usePermissions";
@@ -278,6 +279,8 @@ export default function Pedidos() {
   const [pedidoParaReverter, setPedidoParaReverter] = useState(null);
   const [showMesclarNFModal, setShowMesclarNFModal] = useState(false);
   const [showDuplicadosModal, setShowDuplicadosModal] = useState(false);
+  const [showVincularClienteModal, setShowVincularClienteModal] = useState(false);
+  const [pedidoParaVincular, setPedidoParaVincular] = useState(null);
   const debounceRef = useRef(null);
 
   // --- QUERIES ---
@@ -854,6 +857,44 @@ export default function Pedidos() {
   const [showEntregarManualModal, setShowEntregarManualModal] = useState(false);
   const [pedidoParaEntregarManual, setPedidoParaEntregarManual] = useState(null);
 
+  const handleVincularCliente = (pedido) => {
+    setPedidoParaVincular(pedido);
+    setShowVincularClienteModal(true);
+  };
+
+  const handleSaveVincularCliente = async (clienteSelecionado) => {
+    if (!pedidoParaVincular || !clienteSelecionado) return;
+    setIsProcessing(true);
+    try {
+      // Vincular todos os pedidos com o mesmo nome do cliente
+      const nomeAlvo = pedidoParaVincular.cliente_nome?.trim().toLowerCase();
+      const pedidosParaVincular = pedidos.filter(p =>
+        !p.cliente_codigo &&
+        p.cliente_nome?.trim().toLowerCase() === nomeAlvo
+      );
+
+      await Promise.all(pedidosParaVincular.map(p =>
+        base44.entities.Pedido.update(p.id, {
+          cliente_codigo: clienteSelecionado.codigo,
+          cliente_regiao: clienteSelecionado.regiao,
+          representante_codigo: clienteSelecionado.representante_codigo,
+          representante_nome: clienteSelecionado.representante_nome,
+          porcentagem_comissao: clienteSelecionado.porcentagem_comissao,
+          cliente_pendente: false,
+        })
+      ));
+
+      await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+      setShowVincularClienteModal(false);
+      setPedidoParaVincular(null);
+      toast.success(`Cliente vinculado! ${pedidosParaVincular.length} pedido(s) atualizado(s).`);
+    } catch (e) {
+      toast.error('Erro ao vincular cliente: ' + e.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleEntregarManual = (pedido) => {
     setPedidoParaEntregarManual(pedido);
     setShowEntregarManualModal(true);
@@ -1207,6 +1248,7 @@ export default function Pedidos() {
                         onMudarStatus={handleMudarStatusEspecial}
                         onEntregarManual={handleEntregarManual}
                         onCadastrarCliente={(p) => { setPedidoParaCadastro(p); setShowCadastrarClienteModal(true); }}
+                        onVincularCliente={handleVincularCliente}
                         dateMode="importado"
                         isLoading={loadingPedidos}
                         sortConfig={sortConfig}
@@ -1249,6 +1291,7 @@ export default function Pedidos() {
                         onReverter={null}
                         onMudarStatus={handleMudarStatusEspecial}
                         onCadastrarCliente={(p) => { setPedidoParaCadastro(p); setShowCadastrarClienteModal(true); }}
+                        onVincularCliente={handleVincularCliente}
                         onConfirmarEntrega={handleConfirmarEntrega}
                         dateMode="data_entrega"
                         isTransito={true}
@@ -1611,6 +1654,19 @@ export default function Pedidos() {
               onCancel={() => setShowMesclarNFModal(false)}
               isLoading={isProcessing}
             />
+          </ModalContainer>
+
+          <ModalContainer open={showVincularClienteModal} onClose={() => setShowVincularClienteModal(false)} title="Vincular Cliente" description="Selecione o cliente cadastrado para vincular ao pedido">
+            {pedidoParaVincular && (
+              <VincularClienteModal
+                pedido={pedidoParaVincular}
+                clientes={clientes}
+                onVincular={handleSaveVincularCliente}
+                onCadastrar={() => { setShowVincularClienteModal(false); setPedidoParaCadastro(pedidoParaVincular); setShowCadastrarClienteModal(true); }}
+                onCancel={() => setShowVincularClienteModal(false)}
+                isLoading={isProcessing}
+              />
+            )}
           </ModalContainer>
 
           <ModalContainer open={showCancelarPedidoModal} onClose={() => setShowCancelarPedidoModal(false)} title="Cancelar Pedido" description="Informe o motivo do cancelamento">
