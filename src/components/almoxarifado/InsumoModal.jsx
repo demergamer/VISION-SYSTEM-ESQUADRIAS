@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import ModalContainer from '@/components/modals/ModalContainer';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Package } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 
@@ -61,45 +61,44 @@ export default function InsumoModal({ open, onClose, insumo, onSaved }) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Package className="w-5 h-5 text-blue-600" />
-            {insumo ? 'Editar Insumo' : 'Novo Insumo'}
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs font-semibold text-slate-600">Código *</Label>
-              <Input value={form.codigo} onChange={e => set('codigo', e.target.value)} placeholder="Ex: ALU-001" className="mt-1" />
-            </div>
-            <div>
-              <Label className="text-xs font-semibold text-slate-600">Preço de Custo (R$)</Label>
-              <Input type="number" min="0" step="0.01" value={form.preco_custo} onChange={e => set('preco_custo', e.target.value)} placeholder="0,00" className="mt-1" />
-            </div>
+    <ModalContainer
+      open={open}
+      onClose={onClose}
+      title={insumo ? 'Editar Insumo' : 'Novo Insumo'}
+      description="Cadastro de insumo do almoxarifado"
+      size="default"
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label className="text-xs font-semibold text-slate-600">Código *</Label>
+            <Input value={form.codigo} onChange={e => set('codigo', e.target.value)} placeholder="Ex: ALU-001" className="mt-1" />
           </div>
           <div>
-            <Label className="text-xs font-semibold text-slate-600">Nome *</Label>
-            <Input value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="Nome do insumo" className="mt-1" />
-          </div>
-          <div>
-            <Label className="text-xs font-semibold text-slate-600">
-              Estoque Mínimo{' '}
-              <span className="text-slate-400 font-normal">(Deixe 0 para ignorar alertas)</span>
-            </Label>
-            <Input type="number" min="0" value={form.estoque_minimo} onChange={e => set('estoque_minimo', e.target.value)} placeholder="0" className="mt-1" />
-          </div>
-          <div>
-            <Label className="text-xs font-semibold text-slate-600 block mb-2">Fornecedores Habituais</Label>
-            <div className="space-y-2">
-              {[0, 1, 2].map(i => (
-                <Input key={i} value={form.fornecedores[i]} onChange={e => setForn(i, e.target.value)} placeholder={`Fornecedor ${i + 1}`} />
-              ))}
-            </div>
+            <Label className="text-xs font-semibold text-slate-600">Preço de Custo (R$)</Label>
+            <Input type="number" min="0" step="0.01" value={form.preco_custo} onChange={e => set('preco_custo', e.target.value)} placeholder="0,00" className="mt-1" />
           </div>
         </div>
+        <div>
+          <Label className="text-xs font-semibold text-slate-600">Nome *</Label>
+          <Input value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="Nome do insumo" className="mt-1" />
+        </div>
+        <div>
+          <Label className="text-xs font-semibold text-slate-600">
+            Estoque Mínimo{' '}
+            <span className="text-slate-400 font-normal">(Deixe 0 para ignorar alertas)</span>
+          </Label>
+          <Input type="number" min="0" value={form.estoque_minimo} onChange={e => set('estoque_minimo', e.target.value)} placeholder="0" className="mt-1" />
+        </div>
+        <div>
+          <Label className="text-xs font-semibold text-slate-600 block mb-2">Fornecedores Habituais</Label>
+          <div className="space-y-2">
+            {[0, 1, 2].map(i => (
+              <Input key={i} value={form.fornecedores[i]} onChange={e => setForn(i, e.target.value)} placeholder={`Fornecedor ${i + 1}`} />
+            ))}
+          </div>
+        </div>
+
         <div className="flex justify-end gap-2 pt-2 border-t">
           <Button variant="outline" onClick={onClose} disabled={loading}>Cancelar</Button>
           <Button onClick={handleSave} disabled={loading}>
@@ -107,7 +106,7 @@ export default function InsumoModal({ open, onClose, insumo, onSaved }) {
             {insumo ? 'Salvar Alterações' : 'Cadastrar Insumo'}
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </ModalContainer>
   );
 }
