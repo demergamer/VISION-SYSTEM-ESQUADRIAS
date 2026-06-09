@@ -77,8 +77,13 @@ function parsePlanilhaProducao(arrayBuffer, clientes, pedidosExistentes) {
 
       // Criar entrada do pedido se não existir
       if (currentPedido && !pedidosMap.has(currentPedido)) {
+        const nomeNormProd = currentClienteNome.trim().toLowerCase().replace(/\s+/g, ' ');
         const clienteCadastrado = clientes.find(c => c.codigo === currentClienteCodigo) ||
-          clientes.find(c => c.nome?.trim().toLowerCase() === currentClienteNome.trim().toLowerCase());
+          clientes.find(c => c.nome?.trim().toLowerCase().replace(/\s+/g, ' ') === nomeNormProd) ||
+          clientes.find(c => {
+            const cn = c.nome?.trim().toLowerCase().replace(/\s+/g, ' ') || '';
+            return cn.length >= 5 && (nomeNormProd.startsWith(cn) || cn.startsWith(nomeNormProd));
+          });
 
         const pedidoJaExiste = pedidosExistentes.find(p =>
           String(p.numero_pedido).replace(/\./g, '') === String(currentPedido).replace(/\./g, '')
@@ -197,9 +202,13 @@ function parsePlanilhaRota(arrayBuffer, clientes, pedidosExistentes) {
 
     const normalizar = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
     const nomeNorm = normalizar(clienteNome);
-    // Match somente por nome exato normalizado
-    // NÃO usar includes/substring — causa falsos positivos (ex: "I.E. SCHUSTER" sendo encontrado em "I.E. SCHUSTER MATS D")
-    const clienteCadastrado = clientes.find(c => normalizar(c.nome) === nomeNorm) || null;
+    // 1º tenta match exato; 2º tenta: nome cadastrado está contido no nome da planilha (ex: "BARATÃO" dentro de "BARATÃO SERGIO")
+    const clienteCadastrado = clientes.find(c => normalizar(c.nome) === nomeNorm) ||
+      clientes.find(c => {
+        const cn = normalizar(c.nome);
+        // só faz match parcial se o nome do cadastro tiver pelo menos 5 chars (evita falsos positivos curtos)
+        return cn.length >= 5 && (nomeNorm.startsWith(cn) || cn.startsWith(nomeNorm));
+      }) || null;
 
     const sanitize = (str) => String(str || '').replace(/\./g, '').trim();
     const pedidoJaExiste = pedidosExistentes.find(p =>

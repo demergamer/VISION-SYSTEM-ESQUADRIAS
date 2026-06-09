@@ -204,12 +204,8 @@ export default function PedidoTable({
                 ) : (
                 <div className="flex items-center justify-end gap-1">
                   
-                  {pedido.cliente_pendente && onCadastrarCliente ? (
-                    <Button size="sm" className="h-7 text-xs bg-amber-500 hover:bg-amber-600 text-white px-2 gap-1" onClick={() => onCadastrarCliente(pedido)} title="Cadastrar Cliente">
-                      <AlertTriangle className="w-3 h-3" /> Cadastrar
-                    </Button>
-                  ) : !pedido.cliente_codigo && onVincularCliente ? (
-                    <Button size="sm" className="h-7 text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 gap-1" onClick={() => onVincularCliente(pedido)} title="Vincular Cliente Existente">
+                  {(pedido.cliente_pendente || !pedido.cliente_codigo) && onVincularCliente ? (
+                    <Button size="sm" className="h-7 text-xs bg-amber-500 hover:bg-amber-600 text-white px-2 gap-1" onClick={() => onVincularCliente(pedido)} title="Vincular ou Cadastrar Cliente">
                       <AlertTriangle className="w-3 h-3" /> Vincular
                     </Button>
                   ) : (

@@ -1459,6 +1459,7 @@ export default function Pedidos() {
                         onCancelar={handleCancelar} 
                         onReverter={null}
                         onMudarStatus={handleMudarStatusEspecial}
+                        onVincularCliente={handleVincularCliente}
                         dateMode="entregue"
                         isLoading={loadingPedidos}
                         sortConfig={sortConfig} 
