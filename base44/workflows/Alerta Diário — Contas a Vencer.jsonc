@@ -1,0 +1,44 @@
+{
+  "name": "Alerta Di\u00e1rio \u2014 Contas a Vencer",
+  "description": "Envia e-mail di\u00e1rio \u00e0s 08:30 (Bras\u00edlia) com lista de contas que vencem hoje (em vermelho) e nos pr\u00f3ximos 7 dias para jcmetais.contasapagar@outlook.com",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "30 11 * * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "alerta_di_rio_contas_a_vencer",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "alertaContasVencer",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "alertaContasVencer"
+  }
+}
